@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIDE-OPS // 副業統合管理端末</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+
+<div class="shell">
+
+  <header class="top">
+    <div class="brand-block">
+      <div class="mark">SIDE<span>-</span>OPS</div>
+      <div class="header-date" id="dateSub">--</div>
+      <div class="clock">
+        <span class="dot"></span>
+        <span id="clockText">--</span>
+      </div>
+    </div>
+    <div class="header-icons">
+      <button class="header-icon-btn" id="fullscreenBtn" title="全画面表示（F11）">⛶</button>
+      <button class="header-icon-btn" id="cloudSyncBtn" title="クラウド連携（未実装）" disabled>☁</button>
+      <button class="header-icon-btn" id="settingsBtn" title="設定">⚙</button>
+    </div>
+  </header>
+
+  <!-- ===== SETTINGS MODAL (透過率 / 壁紙 / テーマ) ===== -->
+  <div class="settings-overlay" id="settingsOverlay">
+    <div class="settings-modal">
+      <div class="settings-modal-head">
+        <span class="settings-modal-title">// SETTINGS</span>
+        <button class="settings-close-btn" id="settingsCloseBtn" title="閉じる">✕</button>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">壁紙</div>
+        <div class="wallpaper-control">
+          <div class="wallpaper-swatches" id="wallpaperSwatches"></div>
+          <button class="wallpaper-upload-btn" id="wallpaperUploadBtn" title="画像をアップロード">＋</button>
+          <input type="file" id="wallpaperFileInput" accept="image/*" style="display:none;">
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">透過率（パネル背景）</div>
+        <div class="tilt-control">
+          <span class="tc-value" id="alphaValue">100%</span>
+          <div class="tc-btns">
+            <button class="tc-btn" id="alphaUp" title="不透明にする">▲</button>
+            <button class="tc-btn" id="alphaDown" title="透過を強くする">▼</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">テーマ</div>
+        <div class="theme-control">
+          <div class="theme-swatches" id="themeSwatches"></div>
+          <button class="theme-eyedropper-btn" id="eyedropperBtn" title="壁紙からスポイトテーマを生成" disabled></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LEFT: vertical cover flow + task panel stacked ===== -->
+  <div class="left-col">
+    <div class="cf-wrap">
+      <div class="coverflow-v">
+        <div class="cf-track-v" id="cfTrack"></div>
+      </div>
+    </div>
+
+    <div class="panel task-panel-left">
+      <span class="panel-corner"></span>
+      <div class="mini-head">// タスク / ToDo</div>
+      <div class="task-filter">
+        <button class="active">すべて</button>
+        <button>締切間近</button>
+        <button>完了</button>
+      </div>
+      <div class="task-list">
+        <div class="task">
+          <div class="check"></div>
+          <div class="title">新作の企画メモをまとめる</div>
+          <span class="due soon">9/18</span>
+        </div>
+        <div class="task">
+          <div class="check"></div>
+          <div class="title">エッセイ第4回の初稿を書く</div>
+          <span class="due soon">9/19</span>
+        </div>
+        <div class="task">
+          <div class="check"></div>
+          <div class="title">広告クリエイティブのA/Bテスト設定</div>
+          <span class="due">9/24</span>
+        </div>
+        <div class="task done">
+          <div class="check"></div>
+          <div class="title">先週分の購入履歴をExcelに転記</div>
+          <span class="due">済</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CENTER: reserved stage (matches the large modal/empty space in reference) ===== -->
+  <section class="stage" id="stageEl">
+    <button class="stage-close" id="stageCloseBtn" title="閉じる">✕</button>
+    <div class="stage-content" id="stageContent">
+      <div class="stage-bar">
+        <div class="s-title">
+          <span class="icon">Manuscript</span>
+          <span class="s-tag" id="stageTag">しーば4</span>
+        </div>
+        <div class="s-actions">
+          <button>案内</button>
+          <button>＋ 新規</button>
+        </div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-placeholder">
+          <div class="ring-static"><div class="core"></div></div>
+          <div class="big">MAIN STAGE — RESERVED</div>
+          <div class="small">将来、エージェントやアバター、任意の画像を表示する領域です。現在は空のプレースホルダーです。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== BELOW STAGE: gantt only, width matches stage, height halved ===== -->
+  <div class="panel gantt-panel">
+    <span class="panel-corner"></span>
+    <div class="mini-head">// MISSION TIMELINE</div>
+    <div class="timeline-row">
+      <div class="timeline-label">しーば4</div>
+      <div class="timeline-track">
+        <div class="timeline-bar" style="left:5%; width:30%;">執筆</div>
+        <div class="timeline-bar alt" style="left:38%; width:20%;">推敲</div>
+      </div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-label">藤岡香織</div>
+      <div class="timeline-track">
+        <div class="timeline-bar" style="left:15%; width:25%;">執筆</div>
+        <div class="timeline-bar alt" style="left:60%; width:15%;">公開準備</div>
+      </div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-label">広告運用</div>
+      <div class="timeline-track">
+        <div class="timeline-bar" style="left:0%; width:70%;">配信中</div>
+      </div>
+    </div>
+    <div class="timeline-axis"><span>-24H</span><span>-18H</span><span>-12H</span><span>-6H</span><span>NOW</span></div>
+  </div>
+
+  <!-- ===== RIGHT: 現況（固定高さ） + 通知（残りを埋める） ===== -->
+  <div class="right-col">
+  <div class="kpi-grid">
+    <!-- 1. 売上 -->
+    <div class="panel kpi">
+      <span class="panel-corner"></span>
+      <div class="kpi-left">
+        <div class="label">今月の売上合計</div>
+        <div class="value">18,420<span class="unit">円</span></div>
+        <div class="delta up">▲ 22.4% <span class="prevlabel">先月比</span></div>
+      </div>
+      <div class="kpi-ring">
+        <svg viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-soft)" stroke-width="3.2"></circle>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="3.2"
+            stroke-linecap="round" stroke-dasharray="63 100" stroke-dashoffset="0"></circle>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--amber)" stroke-width="3.2"
+            stroke-linecap="round" stroke-dasharray="37 100" stroke-dashoffset="-64"></circle>
+        </svg>
+        <div class="ring-label"><span class="rl-name">SALES</span></div>
+      </div>
+      <div class="kpi-legend-divider"></div>
+      <div class="kpi-legend">
+        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--cyan)"></span>しーば4</span><span class="lg-pct">63%</span></div>
+        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--amber)"></span>藤岡香織</span><span class="lg-pct">37%</span></div>
+      </div>
+    </div>
+
+    <!-- 2. 稼働時間 -->
+    <div class="panel kpi">
+      <span class="panel-corner"></span>
+      <div class="kpi-left">
+        <div class="label">今月の総稼働時間</div>
+        <div class="value">42.5<span class="unit">h</span></div>
+        <div class="delta up">▲ 5.2% <span class="prevlabel">先月比</span></div>
+      </div>
+      <div class="kpi-ring">
+        <svg viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-soft)" stroke-width="3.2"></circle>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="3.2"
+            stroke-linecap="round" stroke-dasharray="48 100" stroke-dashoffset="0"></circle>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--amber)" stroke-width="3.2"
+            stroke-linecap="round" stroke-dasharray="34 100" stroke-dashoffset="-49"></circle>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--magenta)" stroke-width="3.2"
+            stroke-linecap="round" stroke-dasharray="18 100" stroke-dashoffset="-83"></circle>
+        </svg>
+        <div class="ring-label"><span class="rl-name">HOURS</span></div>
+      </div>
+      <div class="kpi-legend-divider"></div>
+      <div class="kpi-legend">
+        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--cyan)"></span>しーば4</span><span class="lg-pct">48%</span></div>
+        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--amber)"></span>藤岡香織</span><span class="lg-pct">34%</span></div>
+        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--magenta)"></span>広告運用</span><span class="lg-pct">18%</span></div>
+      </div>
+    </div>
+
+    <!-- 3. コスト / 純利益（横並び） -->
+    <div class="panel kpi">
+      <span class="panel-corner"></span>
+      <div class="cost-profit-row">
+        <div class="cp-item cost">
+          <span class="cp-label">今月の総コスト</span>
+          <span class="cp-value">3,200<span class="unit">円</span></span>
+        </div>
+        <div class="cp-mid-divider"></div>
+        <div class="cp-item profit">
+          <span class="cp-label">今月の純利益</span>
+          <span class="cp-value">15,220<span class="unit">円</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT-BOTTOM: notification (matches reference tall black block) ===== -->
+  <div class="panel notif-panel">
+    <span class="panel-corner"></span>
+    <div class="ph">// 通知</div>
+    <div class="notif-item">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">藤岡香織「独白」に新規購入が2件</div>
+        <div class="notif-time">12分前</div>
+      </div>
+    </div>
+    <div class="notif-item warn">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">広告予算消化率が90%を超過</div>
+        <div class="notif-time">1時間前</div>
+      </div>
+    </div>
+    <div class="notif-item">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">しーば4「第6話」下書き自動保存</div>
+        <div class="notif-time">3時間前</div>
+      </div>
+    </div>
+    <div class="notif-item">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">SNS予約投稿が公開されました</div>
+        <div class="notif-time">昨日</div>
+      </div>
+    </div>
+    <div class="notif-item">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">しーば4の月間売上が目標の80%に到達</div>
+        <div class="notif-time">昨日</div>
+      </div>
+    </div>
+    <div class="notif-item warn">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">note決済の与信エラーが1件発生</div>
+        <div class="notif-time">2日前</div>
+      </div>
+    </div>
+    <div class="notif-item">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-text">藤岡香織「連載第9回」の推敲が完了</div>
+        <div class="notif-time">2日前</div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+</div>
+
+<!-- fixed nav buttons for the tilted cover flow (outside 3D transform context) -->
+<div class="cf-head-fixed">PROJECTS</div>
+<button class="cf-nav-fixed prev" id="cfPrev">▲</button>
+<button class="cf-open-hit" id="cfOpenHit" title="展開する"></button>
+<button class="cf-nav-fixed next" id="cfNext">▼</button>
+
+<script src="js/main.js"></script>
+</body>
+</html>
