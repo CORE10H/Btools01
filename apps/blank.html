@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>未定</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a; --line: #1e3038; --line-soft: #14212a;
+    --cyan: #00f0d0; --cyan-dim: #0a4a44; --text: #f5f9fa; --text-dim: #b8c4cc; --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif; --font-body: 'IBM Plex Sans JP', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; }
+  .app-bar .app-tag { font-size: 9px; letter-spacing: .1em; color: var(--text-faint); font-family: var(--font-display); border: 1px solid var(--line); padding: 2px 7px; }
+  .app-body {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 20px;
+  }
+  .placeholder { color: var(--text-faint); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .placeholder .big { font-family: var(--font-display); font-size: 13px; letter-spacing: .06em; color: var(--text-dim); }
+  .placeholder .small { font-size: 11px; max-width: 320px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-bar">
+    <span class="app-title">// UNTITLED</span>
+    <span class="app-tag">用途未定</span>
+  </div>
+  <div class="app-body">
+    <div class="placeholder">
+      <div class="big">枠だけ確保中</div>
+      <div class="small">中身は未定のダミー枠です。用途が決まり次第、このファイルを差し替えます。</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

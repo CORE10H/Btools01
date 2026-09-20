@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メモ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a; --panel: #0e1620; --line: #1e3038; --line-soft: #14212a;
+    --cyan: #00f0d0; --cyan-dim: #0a4a44; --text: #f5f9fa; --text-dim: #b8c4cc; --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif; --font-body: 'IBM Plex Sans JP', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; }
+  .app-bar .app-tag { font-size: 9px; letter-spacing: .1em; color: var(--text-faint); font-family: var(--font-display); border: 1px solid var(--line); padding: 2px 7px; }
+  .app-body { flex: 1; padding: 16px; min-height: 0; }
+  textarea {
+    width: 100%; height: 100%; resize: none; background: transparent; border: 1px dashed var(--line);
+    color: var(--text-dim); font-family: var(--font-body); font-size: 13px; line-height: 1.8; padding: 14px;
+    outline: none;
+  }
+  textarea::placeholder { color: var(--text-faint); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-bar">
+    <span class="app-title">// MEMO</span>
+    <span class="app-tag">未実装</span>
+  </div>
+  <div class="app-body">
+    <textarea placeholder="ダミーページです。今後、簡易メモアプリとして実装予定（永続化方式は未定）。&#10;このテキストエリアは入力できますが、保存はされません。"></textarea>
+  </div>
+</div>
+</body>
+</html>

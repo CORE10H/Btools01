@@ -522,6 +522,12 @@
     background-image: linear-gradient(var(--line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
     background-size: 52px 52px; opacity: .3;
   }
+  .stage-frame {
+    position: relative;
+    width: 100%; height: 100%;
+    border: none;
+    background: var(--bg);
+  }
   .stage-placeholder { position: relative; text-align: center; color: var(--text-faint); display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .stage-placeholder .ring-static { width: 72px; height: 72px; border: 1px solid var(--cyan-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; }
   .stage-placeholder .ring-static::before { content: ''; position: absolute; inset: 9px; border: 1px solid var(--line); border-radius: 50%; }
