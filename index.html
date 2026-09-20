@@ -296,6 +296,58 @@
 <button class="cf-open-hit" id="cfOpenHit" title="展開する"></button>
 <button class="cf-nav-fixed next" id="cfNext">▼</button>
 
+<!-- カバーフロー：＋新規作成モーダル -->
+<div class="launcher-modal-overlay" id="launcherAddOverlay">
+  <div class="launcher-modal">
+    <div class="launcher-modal-head">
+      <span class="launcher-modal-title">新規カード作成</span>
+      <button class="launcher-modal-close" id="launcherAddCloseBtn">✕</button>
+    </div>
+    <div class="launcher-modal-body">
+      <div class="launcher-field">
+        <label>種類（今後、外部htmlのインポートにも対応予定）</label>
+        <div class="launcher-app-picker" id="launcherAppPicker"></div>
+      </div>
+
+      <div class="launcher-field">
+        <label>カテゴリ表示（任意）</label>
+        <input type="text" id="launcherCatInput" maxlength="30" placeholder="例：ツール、(仮) 音楽 など">
+      </div>
+
+      <div class="launcher-field">
+        <label>カバー画像（16:9・任意）</label>
+        <div class="launcher-cover-drop" id="launcherCoverDrop">
+          <span id="launcherCoverDropText">クリックして画像を選択</span>
+          <input type="file" id="launcherCoverInput" accept="image/*">
+        </div>
+        <div class="launcher-field-hint">未設定の場合、カテゴリ名とアプリ名のみのシンプルな表示になります。</div>
+      </div>
+
+      <div class="launcher-field">
+        <label>オーバーレイ文字（任意）</label>
+        <input type="text" id="launcherOverlayInput" maxlength="30" placeholder="カード上に表示する名前（未入力ならアプリ名を使用）">
+      </div>
+    </div>
+    <div class="launcher-modal-footer">
+      <button class="btn" id="launcherAddCancelBtn">キャンセル</button>
+      <button class="btn primary" id="launcherAddSaveBtn">作成する</button>
+    </div>
+  </div>
+</div>
+
+<!-- カバーフロー：カード削除確認 -->
+<div class="launcher-confirm-overlay" id="launcherDeleteOverlay">
+  <div class="launcher-confirm-box">
+    <div class="launcher-confirm-msg">このカードをカバーフローから削除します。<br>アプリ本体とそのデータは削除されません（今後のアプリ管理画面から削除できます）。よろしいですか？</div>
+    <div class="launcher-confirm-actions">
+      <button class="btn" id="launcherDeleteCancelBtn">キャンセル</button>
+      <button class="btn danger" id="launcherDeleteConfirmBtn">カードを削除</button>
+    </div>
+  </div>
+</div>
+
+<div class="launcher-toast" id="launcherToast"></div>
+
 <script src="js/main.js"></script>
 </body>
 </html>

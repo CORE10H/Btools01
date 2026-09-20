@@ -422,11 +422,10 @@
     });
   });
 
-  /* ===================== VERTICAL COVER FLOW LOGIC ===================== */
-  // カバーフローの役割：プロジェクト一覧 → アプリランチャー。
-  // 各カードは中央クリックでStageにiframe（src）を読み込んで開く。
-  // src は現状すべてダミーページ（apps/配下）。実アプリが用意でき次第、
-  // このsrcを実ファイルのパスに差し替えるだけで統合できる。
+  /* ===================== VERTICAL COVER FLOW LOGIC =====================
+     旧方式（固定配列のハードコード）はここに保険として残す。
+     新方式が安定稼働したら、この丸ごとのコメントブロックごと削除してよい。
+
   const projects = [
     { cat: 'ツール', name: '画像生成プロンプト見本', src: 'apps/prompt-gallery.html', img: 'apps/img/prompt-gallery.jpg' },
     { cat: 'ツール ・ 統合予定', name: 'manuscript', src: 'apps/manuscript.html', img: 'apps/img/manuscript.jpg' },
@@ -468,6 +467,368 @@
     });
     render();
   }
+  ===================== 旧方式ここまで ===================== */
+
+  /* =====================================================================
+     カバーフロー・ランチャー（新方式）
+
+     3つの独立レイヤーでデータを持つ（詳細は制作資料 参照）：
+       ① cards ストア … カバーフローの表示（カテゴリ・オーバーレイ文字・
+          カバー画像・並び順・どのapp（appId）を開くか）
+       ② apps  ストア … アプリ本体の実体（type: 'builtin' は既存のapps/
+          配下htmlへのパス参照。type: 'imported' は将来対応、本文＝文字列で保持）
+       ③ 各アプリ専用のIndexedDB（sideops_memo等）… 今回は無関係・無改修
+
+     誤作動防止の要：カード削除は①のみを消す。②（アプリ本体）や③（アプリの
+     データ）は絶対に連動して消さない。②の削除は将来の「アプリ管理」画面
+     （今回のスコープ外）でのみ行う設計とする。
+
+     初期状態：マイグレーションは行わない（ユーザーの希望により、既存の
+     6アプリも含めすべて「＋新規作成」から手動で登録し直す運用）。
+  ===================================================================== */
+  const LAUNCHER_DB_NAME = 'sideops_launcher';
+  const LAUNCHER_DB_VERSION = 1;
+  const CARDS_STORE = 'cards';
+  const APPS_STORE = 'apps';
+  let launcherDb = null;
+
+  function openLauncherDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(LAUNCHER_DB_NAME, LAUNCHER_DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const _db = ev.target.result;
+        if (!_db.objectStoreNames.contains(CARDS_STORE)) {
+          const store = _db.createObjectStore(CARDS_STORE, { keyPath: 'id' });
+          store.createIndex('order', 'order', { unique: false });
+        }
+        if (!_db.objectStoreNames.contains(APPS_STORE)) {
+          _db.createObjectStore(APPS_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function launcherStore(name, mode) {
+    const tx = launcherDb.transaction(name, mode);
+    return tx.objectStore(name);
+  }
+  function launcherGetAll(name) {
+    return new Promise((resolve, reject) => {
+      const req = launcherStore(name, 'readonly').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function launcherGet(name, id) {
+    return new Promise((resolve, reject) => {
+      const req = launcherStore(name, 'readonly').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function launcherPut(name, value) {
+    return new Promise((resolve, reject) => {
+      const req = launcherStore(name, 'readwrite').put(value);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function launcherDelete(name, id) {
+    return new Promise((resolve, reject) => {
+      const req = launcherStore(name, 'readwrite').delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // builtin（apps/配下に元から存在するhtml）の選択肢一覧。
+  // 「＋新規作成」モーダルの種類選択に、このリストがそのまま表示される。
+  const BUILTIN_APP_CHOICES = [
+    { name: '画像生成プロンプト見本', src: 'apps/prompt-gallery.html' },
+    { name: 'manuscript', src: 'apps/manuscript.html' },
+    { name: 'scaffold', src: 'apps/scaffold.html' },
+    { name: 'メモ', src: 'apps/memo.html' },
+    { name: 'Discotica', src: 'apps/discotica.html' },
+    { name: '未定（blank）', src: 'apps/blank.html' },
+  ];
+
+  let cards = [];   // メモリ上キャッシュ（cardsストアの内容）
+  let apps = [];    // メモリ上キャッシュ（appsストアの内容）
+  let cardImageUrls = new Map(); // cardId -> ObjectURL（描画のたびに作り直す）
+
+  function revokeCardImageUrls() {
+    cardImageUrls.forEach(u => URL.revokeObjectURL(u));
+    cardImageUrls.clear();
+  }
+
+  function findAppForCard(card) {
+    return apps.find(a => a.id === card.appId) || null;
+  }
+
+  const track = document.getElementById('cfTrack');
+  let centerIndex = 0;
+
+  async function loadLauncherData() {
+    cards = await launcherGetAll(CARDS_STORE);
+    cards.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    apps = await launcherGetAll(APPS_STORE);
+  }
+
+  function buildCoverflow() {
+    revokeCardImageUrls();
+    track.innerHTML = '';
+
+    // 表示上のアイテム = 実カード群 ＋ 末尾の「＋新規作成」固定カード
+    const displayItems = cards.map(c => ({ kind: 'card', card: c }));
+    displayItems.push({ kind: 'add' });
+
+    displayItems.forEach((item, i) => {
+      const el = document.createElement('div');
+      el.dataset.index = i;
+
+      if (item.kind === 'add') {
+        el.className = 'cf-item empty';
+        el.textContent = '＋';
+        el.addEventListener('click', (ev) => {
+          if (i === centerIndex) {
+            openLauncherAddModal();
+            return;
+          }
+          centerIndex = i;
+          render();
+        });
+      } else {
+        const card = item.card;
+        const app = findAppForCard(card);
+        const displayName = card.overlayText && card.overlayText.trim()
+          ? card.overlayText.trim()
+          : (app ? app.name : '（本体未設定）');
+
+        el.className = 'cf-item';
+        el.innerHTML = `
+          <div class="p-cat">${escapeHtmlLauncher(card.cat || '')}</div>
+          <div class="p-name">${escapeHtmlLauncher(displayName)}</div>
+          <button class="cf-item-delete-btn" type="button" title="カバーフローから削除">🗑</button>
+        `;
+
+        if (card.coverImage instanceof Blob) {
+          const url = URL.createObjectURL(card.coverImage);
+          cardImageUrls.set(card.id, url);
+          el.style.backgroundImage = `linear-gradient(180deg, rgba(5,7,10,0) 40%, rgba(5,7,10,.9) 100%), url('${url}')`;
+          el.style.backgroundSize = 'cover';
+          el.style.backgroundPosition = 'center';
+        }
+
+        el.querySelector('.cf-item-delete-btn').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          openLauncherDeleteConfirm(card.id);
+        });
+
+        el.addEventListener('click', (ev) => {
+          if (ev.target.closest('.cf-item-delete-btn')) return;
+          if (i === centerIndex) {
+            if (!app) {
+              showLauncherToast('このカードに紐づくアプリ本体が見つかりません');
+              return;
+            }
+            openStage(ev, { name: displayName, src: app.src, empty: false });
+            return;
+          }
+          centerIndex = i;
+          render();
+        });
+      }
+
+      track.appendChild(el);
+    });
+
+    if (centerIndex > displayItems.length - 1) centerIndex = displayItems.length - 1;
+    render();
+  }
+
+  function escapeHtmlLauncher(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function showLauncherToast(msg) {
+    const el = document.getElementById('launcherToast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(showLauncherToast._t);
+    showLauncherToast._t = setTimeout(() => el.classList.remove('show'), 2000);
+  }
+
+  /* ---- ＋新規作成モーダル ---- */
+  const launcherAddOverlay = document.getElementById('launcherAddOverlay');
+  const launcherAppPicker = document.getElementById('launcherAppPicker');
+  const launcherCatInput = document.getElementById('launcherCatInput');
+  const launcherCoverDrop = document.getElementById('launcherCoverDrop');
+  const launcherCoverInput = document.getElementById('launcherCoverInput');
+  const launcherOverlayInput = document.getElementById('launcherOverlayInput');
+  const launcherAddCloseBtn = document.getElementById('launcherAddCloseBtn');
+  const launcherAddCancelBtn = document.getElementById('launcherAddCancelBtn');
+  const launcherAddSaveBtn = document.getElementById('launcherAddSaveBtn');
+
+  let selectedBuiltinIndex = null;
+  let pendingCoverFile = null;
+
+  function renderAppPicker() {
+    launcherAppPicker.innerHTML = '';
+    BUILTIN_APP_CHOICES.forEach((choice, idx) => {
+      const label = document.createElement('label');
+      label.className = 'launcher-app-option' + (selectedBuiltinIndex === idx ? ' is-selected' : '');
+      label.innerHTML = `
+        <input type="radio" name="launcherAppChoice" value="${idx}" ${selectedBuiltinIndex === idx ? 'checked' : ''}>
+        <span>${escapeHtmlLauncher(choice.name)}</span>
+      `;
+      label.querySelector('input').addEventListener('change', () => {
+        selectedBuiltinIndex = idx;
+        renderAppPicker();
+      });
+      launcherAppPicker.appendChild(label);
+    });
+  }
+
+  function bindCoverDropClick() {
+    launcherCoverDrop.onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+      inp.addEventListener('change', handleCoverSelect);
+      document.body.appendChild(inp);
+      inp.click();
+      inp.addEventListener('change', () => setTimeout(() => inp.remove(), 0), { once: true });
+    };
+  }
+
+  function handleCoverSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    // フールプルーフ：画像ファイル以外は受け付けない
+    if (!file.type.startsWith('image/')) {
+      showLauncherToast('画像ファイルを選択してください');
+      return;
+    }
+    pendingCoverFile = file;
+    const url = URL.createObjectURL(file);
+    launcherCoverDrop.classList.add('has-image');
+    launcherCoverDrop.innerHTML = `<img src="${url}" alt="preview">`;
+    bindCoverDropClick();
+  }
+
+  function resetLauncherAddModal() {
+    selectedBuiltinIndex = null;
+    pendingCoverFile = null;
+    launcherCatInput.value = '';
+    launcherOverlayInput.value = '';
+    launcherCoverDrop.classList.remove('has-image');
+    launcherCoverDrop.innerHTML = '<span>クリックして画像を選択</span>';
+    bindCoverDropClick();
+    renderAppPicker();
+  }
+
+  function openLauncherAddModal() {
+    resetLauncherAddModal();
+    launcherAddOverlay.classList.add('is-open');
+  }
+  function closeLauncherAddModal() {
+    launcherAddOverlay.classList.remove('is-open');
+  }
+  launcherAddCloseBtn.addEventListener('click', closeLauncherAddModal);
+  launcherAddCancelBtn.addEventListener('click', closeLauncherAddModal);
+  launcherAddOverlay.addEventListener('click', (e) => { if (e.target === launcherAddOverlay) closeLauncherAddModal(); });
+
+  launcherAddSaveBtn.addEventListener('click', async () => {
+    // フールプルーフ：種類未選択のまま保存させない
+    if (selectedBuiltinIndex === null) {
+      showLauncherToast('種類を選択してください');
+      return;
+    }
+    const choice = BUILTIN_APP_CHOICES[selectedBuiltinIndex];
+    const now = Date.now();
+
+    try {
+      // ② アプリ本体を新規登録（同じbuiltinを複数回登録すると別カード扱いになる、
+      //   つまり「同じアプリを複数の見た目のカードから開く」ことも許容する設計）
+      const appId = 'a_' + now + '_' + Math.random().toString(36).slice(2, 8);
+      const appEntry = {
+        id: appId,
+        name: choice.name,
+        type: 'builtin',
+        src: choice.src,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await launcherPut(APPS_STORE, appEntry);
+
+      // ① カードを新規登録
+      const cardId = 'c_' + now + '_' + Math.random().toString(36).slice(2, 8);
+      const maxOrder = cards.reduce((max, c) => Math.max(max, c.order ?? 0), -1);
+      const cardEntry = {
+        id: cardId,
+        appId: appId,
+        cat: launcherCatInput.value.trim(),
+        overlayText: launcherOverlayInput.value.trim(),
+        coverImage: pendingCoverFile || null,
+        order: maxOrder + 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await launcherPut(CARDS_STORE, cardEntry);
+
+      await loadLauncherData();
+      closeLauncherAddModal();
+      showLauncherToast('カードを作成しました');
+      buildCoverflow();
+    } catch (err) {
+      console.error('カード作成に失敗しました', err);
+      showLauncherToast('作成に失敗しました');
+    }
+  });
+
+  /* ---- カード削除確認（①のみ削除。②アプリ本体・③データは残す） ---- */
+  const launcherDeleteOverlay = document.getElementById('launcherDeleteOverlay');
+  const launcherDeleteCancelBtn = document.getElementById('launcherDeleteCancelBtn');
+  const launcherDeleteConfirmBtn = document.getElementById('launcherDeleteConfirmBtn');
+  let pendingDeleteCardId = null;
+
+  function openLauncherDeleteConfirm(cardId) {
+    pendingDeleteCardId = cardId;
+    launcherDeleteOverlay.classList.add('is-open');
+  }
+  function closeLauncherDeleteConfirm() {
+    pendingDeleteCardId = null;
+    launcherDeleteOverlay.classList.remove('is-open');
+  }
+  launcherDeleteCancelBtn.addEventListener('click', closeLauncherDeleteConfirm);
+  launcherDeleteOverlay.addEventListener('click', (e) => { if (e.target === launcherDeleteOverlay) closeLauncherDeleteConfirm(); });
+
+  launcherDeleteConfirmBtn.addEventListener('click', async () => {
+    if (!pendingDeleteCardId) return;
+    try {
+      // 誤作動防止：ここで削除するのは cards ストアのレコードのみ。
+      // apps ストア（アプリ本体）・各アプリ専用DB（データ）には一切触れない。
+      await launcherDelete(CARDS_STORE, pendingDeleteCardId);
+      await loadLauncherData();
+      showLauncherToast('カードを削除しました');
+      closeLauncherDeleteConfirm();
+      buildCoverflow();
+    } catch (err) {
+      console.error('カード削除に失敗しました', err);
+      showLauncherToast('削除に失敗しました');
+      closeLauncherDeleteConfirm();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (launcherDeleteOverlay.classList.contains('is-open')) closeLauncherDeleteConfirm();
+    else if (launcherAddOverlay.classList.contains('is-open')) closeLauncherAddModal();
+  });
 
   function shortestOffset(i, center, len) {
     let raw = i - center;
@@ -611,7 +972,20 @@
   positionOpenHit();
   window.addEventListener('resize', positionOpenHit);
 
-  buildCoverflow();
+  // カバーフロー・ランチャーDBの初期化 → データ読み込み → 初回描画。
+  // 失敗時（プライベートブラウジング等でIndexedDB不可）は、空のカバーフロー
+  // （＋新規作成カードのみ）を表示し、ダッシュボード全体は落とさない。
+  openLauncherDb().then(async (_db) => {
+    launcherDb = _db;
+    await loadLauncherData();
+    buildCoverflow();
+  }).catch((err) => {
+    console.error('カバーフロー用DBの初期化に失敗しました', err);
+    cards = [];
+    apps = [];
+    buildCoverflow();
+    showLauncherToast('保存機能を利用できません（IndexedDB利用不可）');
+  });
 
   /* ===================== AMBIENT RANDOM FX ===================== */
   // Occasional, non-looping accents: a border light-sweep on a random

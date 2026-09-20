@@ -704,3 +704,113 @@
     .panel.beam-active { animation: none; }
     .kpi-ring.glitch-active svg { animation: none; }
   }
+
+  /* ===================== カバーフロー・ランチャー機能拡張 =====================
+     「＋新規作成」モーダル、カード削除ボタン・確認ダイアログ、トースト通知。
+     既存の settings-modal と同じデザイン言語（clip-path切り欠き・panel-rgb）を踏襲。 */
+
+  /* ---- 中央カードの削除ボタン（誤操作防止：中央カードのみ表示） ---- */
+  .cf-item-delete-btn {
+    position: absolute; top: 6px; right: 6px; width: 22px; height: 22px;
+    background: rgba(5,7,10,.75); border: 1px solid var(--line); color: var(--text-faint);
+    font-size: 11px; cursor: pointer; z-index: 5;
+    display: none; align-items: center; justify-content: center;
+  }
+  .cf-item.is-center .cf-item-delete-btn { display: flex; }
+  .cf-item-delete-btn:hover { border-color: var(--magenta); color: var(--magenta); background: var(--magenta-dim); }
+
+  /* ---- 新規作成モーダル ---- */
+  .launcher-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(2px);
+    display: none; align-items: center; justify-content: center; z-index: 250; padding: 20px;
+  }
+  .launcher-modal-overlay.is-open { display: flex; }
+  .launcher-modal {
+    width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto;
+    background: rgba(var(--panel-rgb), 1); border: 1px solid var(--line);
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+    padding: 18px 20px 20px;
+  }
+  .launcher-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  }
+  .launcher-modal-title {
+    font-family: var(--font-display); font-weight: 700; font-size: 15px;
+    letter-spacing: .05em; color: var(--text);
+  }
+  .launcher-modal-close {
+    width: 24px; height: 24px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .launcher-modal-close:hover { border-color: var(--magenta); color: var(--magenta); }
+
+  .launcher-field { margin-bottom: 14px; }
+  .launcher-field label {
+    display: block; font-size: 10.5px; color: var(--text-faint); letter-spacing: .04em; margin-bottom: 6px;
+  }
+  .launcher-field input[type="text"] {
+    width: 100%; background: var(--bg-alt); border: 1px solid var(--line); padding: 8px 9px;
+    font-size: 12px; color: var(--text); outline: none; font-family: var(--font-body);
+  }
+  .launcher-field input[type="text"]:focus { border-color: var(--cyan-dim); }
+  .launcher-field-hint { font-size: 9.5px; color: var(--text-faint); margin-top: 5px; line-height: 1.5; }
+
+  .launcher-app-picker { display: flex; flex-direction: column; gap: 6px; }
+  .launcher-app-option {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    background: var(--bg-alt); border: 1px solid var(--line); cursor: pointer;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .launcher-app-option:hover { border-color: var(--cyan-dim); }
+  .launcher-app-option.is-selected { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .launcher-app-option input[type="radio"] { accent-color: var(--cyan); }
+
+  .launcher-cover-drop {
+    border: 1px dashed var(--line); padding: 14px; text-align: center; cursor: pointer;
+    color: var(--text-faint); font-size: 11px; position: relative; overflow: hidden;
+    min-height: 80px; display: flex; align-items: center; justify-content: center;
+    aspect-ratio: 16/9;
+  }
+  .launcher-cover-drop:hover { border-color: var(--cyan-dim); }
+  .launcher-cover-drop.has-image { padding: 0; }
+  .launcher-cover-drop img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .launcher-cover-drop input[type="file"] { display: none; }
+
+  .launcher-modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+  /* ---- 削除確認ダイアログ ---- */
+  .launcher-confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 260; padding: 20px;
+  }
+  .launcher-confirm-overlay.is-open { display: flex; }
+  .launcher-confirm-box {
+    width: 100%; max-width: 320px; background: rgba(var(--panel-rgb), 1);
+    border: 1px solid var(--magenta-dim);
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+    padding: 16px 18px;
+  }
+  .launcher-confirm-msg { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 16px; }
+  .launcher-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ---- ボタン共通（launcher系。既存 .btn が無いため最小限を独自定義） ---- */
+  .launcher-modal .btn, .launcher-confirm-box .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 7px 14px; cursor: pointer;
+  }
+  .launcher-modal .btn:hover, .launcher-confirm-box .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .launcher-modal .btn.primary, .launcher-confirm-box .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .launcher-modal .btn.primary:hover, .launcher-confirm-box .btn.primary:hover { background: var(--cyan-dim); }
+  .launcher-modal .btn.danger, .launcher-confirm-box .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .launcher-modal .btn.danger:hover, .launcher-confirm-box .btn.danger:hover { background: var(--magenta-dim); }
+
+  /* ---- トースト ---- */
+  .launcher-toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: rgba(var(--panel-rgb), 1); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 9px 18px; opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease; z-index: 300;
+  }
+  .launcher-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
