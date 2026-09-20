@@ -888,7 +888,7 @@
 
   function render() {
     const items = track.querySelectorAll('.cf-item');
-    const len = projects.length;
+    const len = cards.length + 1; // ＋新規作成カードの1件を含めた総数
     items.forEach((el, i) => {
       const offset = shortestOffset(i, centerIndex, len);
       const isCenter = offset === 0;
@@ -907,18 +907,27 @@
       el.classList.toggle('is-center', isCenter);
     });
 
-    const centerProject = projects[centerIndex];
-    if (centerProject && !centerProject.empty) {
-      document.getElementById('stageTag').textContent = centerProject.name;
+    // 中央のStageタグ表示：中央がカードならそのアプリ名、＋新規作成カードなら'--'。
+    const centerCard = cards[centerIndex];
+    if (centerCard) {
+      const app = findAppForCard(centerCard);
+      const displayName = centerCard.overlayText && centerCard.overlayText.trim()
+        ? centerCard.overlayText.trim()
+        : (app ? app.name : '（本体未設定）');
+      document.getElementById('stageTag').textContent = displayName;
+    } else {
+      document.getElementById('stageTag').textContent = '--';
     }
   }
 
   document.getElementById('cfPrev').addEventListener('click', () => {
-    centerIndex = (centerIndex - 1 + projects.length) % projects.length;
+    const len = cards.length + 1;
+    centerIndex = (centerIndex - 1 + len) % len;
     render();
   });
   document.getElementById('cfNext').addEventListener('click', () => {
-    centerIndex = (centerIndex + 1) % projects.length;
+    const len = cards.length + 1;
+    centerIndex = (centerIndex + 1) % len;
     render();
   });
 
@@ -928,10 +937,11 @@
   // over the cover flow area itself (not the task list below it).
   function handleCoverflowWheel(e) {
     e.preventDefault();
+    const len = cards.length + 1;
     if (e.deltaY > 0) {
-      centerIndex = (centerIndex + 1) % projects.length;
+      centerIndex = (centerIndex + 1) % len;
     } else {
-      centerIndex = (centerIndex - 1 + projects.length) % projects.length;
+      centerIndex = (centerIndex - 1 + len) % len;
     }
     render();
   }
