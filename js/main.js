@@ -432,6 +432,7 @@
     { cat: 'ツール ・ 統合予定', name: 'manuscript', src: 'apps/manuscript.html' },
     { cat: 'ツール ・ 統合予定', name: 'scaffold', src: 'apps/scaffold.html' },
     { cat: 'ツール', name: 'メモ', src: 'apps/memo.html' },
+    { cat: '(仮) 音楽', name: 'Discotica', src: 'apps/discotica.html' },
     { cat: '(仮)', name: '未定', src: 'apps/blank.html' },
     { cat: '', name: '＋ 追加', empty: true },
   ];
