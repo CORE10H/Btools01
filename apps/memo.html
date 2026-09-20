@@ -5,40 +5,1149 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>メモ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #05070a; --panel: #0e1620; --line: #1e3038; --line-soft: #14212a;
-    --cyan: #00f0d0; --cyan-dim: #0a4a44; --text: #f5f9fa; --text-dim: #b8c4cc; --text-faint: #5c6b73;
-    --font-display: 'Rajdhani', sans-serif; --font-body: 'IBM Plex Sans JP', sans-serif;
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  button, input, textarea { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: #000; }
+
   .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
   .app-bar {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
   }
-  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; }
-  .app-bar .app-tag { font-size: 9px; letter-spacing: .1em; color: var(--text-faint); font-family: var(--font-display); border: 1px solid var(--line); padding: 2px 7px; }
-  .app-body { flex: 1; padding: 16px; min-height: 0; }
-  textarea {
-    width: 100%; height: 100%; resize: none; background: transparent; border: 1px dashed var(--line);
-    color: var(--text-dim); font-family: var(--font-body); font-size: 13px; line-height: 1.8; padding: 14px;
-    outline: none;
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .bar-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .search-box {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-alt); border: 1px solid var(--line); padding: 5px 10px;
+    min-width: 0;
   }
-  textarea::placeholder { color: var(--text-faint); }
+  .search-box input {
+    background: transparent; border: none; outline: none; font-size: 12px; color: var(--text);
+    width: 140px;
+  }
+  .search-box input::placeholder { color: var(--text-faint); }
+  .tag-filter-chips {
+    display: flex; gap: 5px; flex-wrap: wrap; max-width: 260px;
+  }
+  .chip {
+    font-size: 10px; padding: 3px 8px; border: 1px solid var(--line); color: var(--text-dim);
+    cursor: pointer; white-space: nowrap; background: transparent;
+  }
+  .chip.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+
+  .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+
+  /* ---- hamburger menu ---- */
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 200px;
+    background: var(--panel); border: 1px solid var(--line); z-index: 40; display: none;
+    padding: 6px;
+  }
+  .menu-panel.is-open { display: block; }
+  .menu-panel-item {
+    width: 100%; text-align: left; background: transparent; border: none;
+    color: var(--text-dim); font-size: 12px; padding: 9px 10px; cursor: pointer;
+  }
+  .menu-panel-item:hover { background: var(--bg-alt); color: var(--cyan); }
+  .menu-panel-item.danger:hover { color: var(--magenta); }
+
+  /* ---- サブモーダル（よく使うタグ／タグの色） ---- */
+  .sub-modal { width: 100%; max-width: 340px; }
+  .sub-modal-body { max-height: 60vh; overflow-y: auto; padding-top: 4px; }
+  .freq-tag-add-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .freq-tag-add-row input {
+    flex: 1; background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px;
+    font-size: 11px; color: var(--text); outline: none;
+  }
+  .freq-tag-add-row input:focus { border-color: var(--cyan-dim); }
+  .freq-tag-list, .tag-color-list { display: flex; flex-direction: column; gap: 6px; }
+  .freq-tag-row, .tag-color-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .freq-tag-row .ftr-name, .tag-color-row .tcr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .freq-tag-row button {
+    background: transparent; border: 1px solid var(--line); color: var(--text-faint);
+    font-size: 10px; width: 20px; height: 20px; cursor: pointer; flex-shrink: 0;
+  }
+  .freq-tag-row button:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .tag-color-row { flex-shrink: 0; }
+  .tag-color-row .tcr-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tag-color-row input[type="color"] {
+    width: 26px; height: 22px; border: 1px solid var(--line); background: transparent; cursor: pointer; padding: 0;
+  }
+  .tag-color-row .tcr-reset {
+    background: transparent; border: 1px solid var(--line); color: var(--text-faint);
+    font-size: 9.5px; padding: 3px 6px; cursor: pointer;
+  }
+  .tag-color-row .tcr-reset:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-empty-hint { font-size: 10.5px; color: var(--text-faint); line-height: 1.6; }
+
+  .freq-tag-picker { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .freq-tag-picker .chip { font-size: 10px; padding: 3px 8px; }
+
+  /* ---- 選択削除モード ---- */
+  .select-mode-hint {
+    padding: 8px 16px; background: var(--magenta-dim); border-bottom: 1px solid var(--magenta);
+    font-size: 11px; color: var(--text); flex-shrink: 0; display: none;
+  }
+  .select-mode-hint.is-active { display: block; }
+  .card.select-target { cursor: pointer; }
+  .card-erase-overlay {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(74, 15, 36, .55); border: 2px solid var(--magenta);
+  }
+  .card-erase-overlay.is-marked { display: flex; }
+  .card-erase-overlay .erase-label {
+    font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .06em;
+    color: var(--magenta); text-shadow: 0 0 8px rgba(255,47,110,.6);
+  }
+
+  /* ---- grid ---- */
+  .app-body { flex: 1; overflow-y: auto; padding: 18px; min-height: 0; position: relative; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px;
+  }
+  .empty-state {
+    height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--text-faint); flex-direction: column; gap: 10px; padding: 40px;
+  }
+  .empty-state .big { font-family: var(--font-display); font-size: 13px; color: var(--text-dim); letter-spacing: .04em; }
+  .empty-state .small { font-size: 11px; max-width: 320px; line-height: 1.8; }
+
+  /* ---- メモカード（テキストのみ。画像の代わりにタイトル・本文抜粋を表示） ---- */
+  .card {
+    position: relative; height: 150px; overflow: hidden; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel);
+    display: flex; flex-direction: column; padding: 12px 12px 10px;
+  }
+  .card:hover { border-color: var(--cyan-dim); }
+  .card-title {
+    font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.3;
+    margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  }
+  .card-excerpt {
+    font-size: 11px; color: var(--text-dim); line-height: 1.6; flex: 1; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .card-meta {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    margin-top: 8px; flex-shrink: 0;
+  }
+  .card-date { font-size: 9.5px; color: var(--text-faint); white-space: nowrap; }
+  .card-tags {
+    display: flex; gap: 4px; flex-wrap: wrap; overflow: hidden; max-height: 18px; justify-content: flex-end;
+  }
+  .card-tags .tag-pill {
+    font-size: 9px; padding: 2px 6px; background: rgba(0,240,208,.12); border: 1px solid var(--cyan-dim);
+    color: var(--cyan); white-space: nowrap;
+  }
+  .card-delete-btn {
+    position: absolute; top: 8px; right: 8px; width: 20px; height: 20px;
+    background: var(--bg); border: 1px solid var(--line); color: var(--text-faint);
+    font-size: 10px; cursor: pointer; opacity: 0; transition: opacity .12s ease;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card:hover .card-delete-btn { opacity: 1; }
+  .card-delete-btn:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .card.select-target .card-delete-btn { display: none; }
+
+  /* ---- エディタ画面（クリックで全面展開） ---- */
+  .editor-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.72); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 24px;
+  }
+  .editor-overlay.is-open { display: flex; }
+  .editor-box {
+    width: 100%; max-width: 640px; height: 100%; max-height: 720px;
+    background: var(--panel); border: 1px solid var(--line);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .editor-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .editor-status {
+    font-size: 10px; color: var(--text-faint); letter-spacing: .03em; white-space: nowrap;
+  }
+  .editor-status.is-saving { color: var(--amber); }
+  .editor-status.is-saved { color: var(--cyan); }
+  .editor-close { width: 24px; height: 24px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 12px; cursor: pointer; flex-shrink: 0; }
+  .editor-close:hover { border-color: var(--magenta); color: var(--magenta); }
+
+  .editor-title-input {
+    border: none; outline: none; background: transparent; color: var(--text);
+    font-size: 16px; font-weight: 600; padding: 14px 16px 8px; flex-shrink: 0;
+  }
+  .editor-title-input::placeholder { color: var(--text-faint); }
+
+  .editor-tags-row {
+    padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+  }
+  .tag-pill-edit {
+    font-size: 10px; padding: 2px 6px; background: var(--cyan-dim); color: var(--cyan); display: flex; align-items: center; gap: 4px;
+  }
+  .tag-pill-edit button { background: transparent; border: none; color: var(--cyan); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; }
+  .editor-tag-input {
+    min-width: 90px; background: transparent; border: none; outline: none; font-size: 11px; color: var(--text);
+    border-bottom: 1px dashed var(--line);
+  }
+  .freq-tag-picker.editor-picker { padding: 0 16px 10px; margin-top: 0; }
+
+  .editor-body-input {
+    flex: 1; border: none; outline: none; resize: none; background: transparent; color: var(--text-dim);
+    font-size: 13px; line-height: 1.8; padding: 4px 16px 16px; min-height: 0;
+  }
+  .editor-body-input::placeholder { color: var(--text-faint); }
+
+  .editor-footer {
+    padding: 8px 14px; border-top: 1px solid var(--line-soft); flex-shrink: 0;
+    display: flex; justify-content: flex-end;
+  }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 60;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---- confirm dialog ---- */
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box {
+    width: 100%; max-width: 300px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px;
+  }
+  .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; }
+  .confirm-box .cf-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 </head>
 <body>
 <div class="app-shell">
   <div class="app-bar">
     <span class="app-title">// MEMO</span>
-    <span class="app-tag">未実装</span>
+    <div class="bar-right">
+      <div class="search-box">
+        <span style="color:var(--text-faint); font-size:11px;">⌕</span>
+        <input type="text" id="searchInput" placeholder="タイトル・本文・タグで検索">
+      </div>
+      <div class="tag-filter-chips" id="tagChips"></div>
+      <button class="btn primary" id="addBtn">＋ 新規メモ</button>
+      <div class="menu-wrap">
+        <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
+        <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="menuItemFreqTags" type="button">よく使うタグ</button>
+          <button class="menu-panel-item" id="menuItemTagColors" type="button">タグの色</button>
+          <button class="menu-panel-item" id="menuItemSelectMode" type="button">選択して削除</button>
+        </div>
+        <div class="menu-panel" id="selectModeMenuPanel">
+          <button class="menu-panel-item" id="menuItemExitSelect" type="button">モード解除</button>
+          <button class="menu-panel-item danger" id="menuItemDeleteSelected" type="button">削除</button>
+        </div>
+      </div>
+    </div>
   </div>
+
+  <div class="select-mode-hint" id="selectModeHint">選択削除モード：削除したいカードをクリックして選択してください。</div>
+
   <div class="app-body">
-    <textarea placeholder="ダミーページです。今後、簡易メモアプリとして実装予定（永続化方式は未定）。&#10;このテキストエリアは入力できますが、保存はされません。"></textarea>
+    <div class="grid" id="grid"></div>
   </div>
 </div>
+
+<!-- エディタ（新規／編集を兼ねる。自動保存のため「保存ボタン」は無い） -->
+<div class="editor-overlay" id="editorOverlay">
+  <div class="editor-box">
+    <div class="editor-head">
+      <span class="editor-status" id="editorStatus">&nbsp;</span>
+      <button class="editor-close" id="editorCloseBtn">✕</button>
+    </div>
+    <input type="text" class="editor-title-input" id="editorTitleInput" maxlength="80" placeholder="タイトル（未入力の場合は本文冒頭を使用）">
+    <div class="editor-tags-row" id="editorTagsRow">
+      <input type="text" class="editor-tag-input" id="editorTagInput" placeholder="タグを入力してEnter">
+    </div>
+    <div class="freq-tag-picker editor-picker" id="freqTagPicker"></div>
+    <textarea class="editor-body-input" id="editorBodyInput" placeholder="本文を入力…（入力は自動保存されます）"></textarea>
+    <div class="editor-footer">
+      <button class="btn danger" id="editorDeleteBtn">このメモを削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- サブモーダル：よく使うタグ -->
+<div class="modal-overlay" id="freqTagModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft);">
+      <span class="modal-title" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">よく使うタグ</span>
+      <button class="modal-close" id="freqTagModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
+    </div>
+    <div class="sub-modal-body">
+      <div class="freq-tag-add-row">
+        <input type="text" id="freqTagAddInput" placeholder="タグ名を入力して追加">
+        <button class="btn" id="freqTagAddBtn">追加</button>
+      </div>
+      <div class="freq-tag-list" id="freqTagList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- サブモーダル：タグの色 -->
+<div class="modal-overlay" id="tagColorModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft);">
+      <span class="modal-title" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">タグの色</span>
+      <button class="modal-close" id="tagColorModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
+    </div>
+    <div class="sub-modal-body">
+      <div class="tag-color-list" id="tagColorList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 削除確認ダイアログ -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions">
+      <button class="btn" id="confirmCancelBtn">キャンセル</button>
+      <button class="btn danger" id="confirmDeleteBtn">削除する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     IndexedDB レイヤー
+     プロンプトギャラリー（apps/prompt-gallery.html）と同じ設計方針を踏襲。
+     画像を扱わないため保存内容はすべてテキスト（Blobなし）。
+     1件 = { id, title, body, tags: string[], createdAt, updatedAt }
+  ===================================================================== */
+  const DB_NAME = 'sideops_memo';
+  const DB_VERSION = 1;
+  const STORE = 'entries';
+  const SETTINGS_STORE = 'settings';
+  let db = null;
+
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const _db = ev.target.result;
+        if (!_db.objectStoreNames.contains(STORE)) {
+          const store = _db.createObjectStore(STORE, { keyPath: 'id' });
+          store.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+        if (!_db.objectStoreNames.contains(SETTINGS_STORE)) {
+          _db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function settingsStore(mode) {
+    const tx = db.transaction(SETTINGS_STORE, mode);
+    return tx.objectStore(SETTINGS_STORE);
+  }
+  function dbGetSetting(key) {
+    return new Promise((resolve, reject) => {
+      const req = settingsStore('readonly').get(key);
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function dbSetSetting(key, value) {
+    return new Promise((resolve, reject) => {
+      const req = settingsStore('readwrite').put({ key, value });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function txStore(mode) {
+    const tx = db.transaction(STORE, mode);
+    return tx.objectStore(STORE);
+  }
+  function dbGetAll() {
+    return new Promise((resolve, reject) => {
+      const req = txStore('readonly').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function dbPut(entry) {
+    return new Promise((resolve, reject) => {
+      const req = txStore('readwrite').put(entry);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function dbDelete(id) {
+    return new Promise((resolve, reject) => {
+      const req = txStore('readwrite').delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /* ===================== state ===================== */
+  let entries = [];
+  let activeTagFilter = null;
+  let searchQuery = '';
+  let editingId = null;       // エディタで開いているメモのid（新規はDB確定前はnull）
+  let editTags = [];
+  let frequentTags = [];
+  let tagColors = {};
+  let selectMode = false;
+  let selectedForDelete = new Set();
+
+  // 自動保存まわりの状態
+  let saveTimer = null;
+  const SAVE_DEBOUNCE_MS = 600;
+  let savePromiseChain = Promise.resolve(); // 誤作動防止：保存処理の多重実行（競合）を防ぐための直列化キュー
+  let editorIsOpen = false;
+
+  /* ===================== DOM refs ===================== */
+  const grid = document.getElementById('grid');
+  const searchInput = document.getElementById('searchInput');
+  const tagChips = document.getElementById('tagChips');
+  const addBtn = document.getElementById('addBtn');
+
+  const editorOverlay = document.getElementById('editorOverlay');
+  const editorStatus = document.getElementById('editorStatus');
+  const editorCloseBtn = document.getElementById('editorCloseBtn');
+  const editorTitleInput = document.getElementById('editorTitleInput');
+  const editorBodyInput = document.getElementById('editorBodyInput');
+  const editorTagsRow = document.getElementById('editorTagsRow');
+  const editorTagInput = document.getElementById('editorTagInput');
+  const freqTagPicker = document.getElementById('freqTagPicker');
+  const editorDeleteBtn = document.getElementById('editorDeleteBtn');
+
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+  const menuPanel = document.getElementById('menuPanel');
+  const selectModeMenuPanel = document.getElementById('selectModeMenuPanel');
+  const menuItemFreqTags = document.getElementById('menuItemFreqTags');
+  const menuItemTagColors = document.getElementById('menuItemTagColors');
+  const menuItemSelectMode = document.getElementById('menuItemSelectMode');
+  const menuItemExitSelect = document.getElementById('menuItemExitSelect');
+  const menuItemDeleteSelected = document.getElementById('menuItemDeleteSelected');
+  const selectModeHint = document.getElementById('selectModeHint');
+
+  const freqTagModalOverlay = document.getElementById('freqTagModalOverlay');
+  const freqTagModalCloseBtn = document.getElementById('freqTagModalCloseBtn');
+  const freqTagAddInput = document.getElementById('freqTagAddInput');
+  const freqTagAddBtn = document.getElementById('freqTagAddBtn');
+  const freqTagList = document.getElementById('freqTagList');
+
+  const tagColorModalOverlay = document.getElementById('tagColorModalOverlay');
+  const tagColorModalCloseBtn = document.getElementById('tagColorModalCloseBtn');
+  const tagColorList = document.getElementById('tagColorList');
+
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmMsg = document.getElementById('confirmMsg');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null;
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function formatDate(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  /* ===================== タグ色ユーティリティ（プロンプトギャラリーと同ロジック） ===================== */
+  function hexToRgb(hex) {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return null;
+    const num = parseInt(m[1], 16);
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+  }
+  function relativeLuminance({ r, g, b }) {
+    const [R, G, B] = [r, g, b].map(v => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  }
+  function tagColorCss(tagName) {
+    const color = tagColors[tagName];
+    if (!color) return null;
+    const rgb = hexToRgb(color);
+    if (!rgb) return null;
+    const textColor = relativeLuminance(rgb) > 0.5 ? '#0a0a0a' : '#f5f9fa';
+    return `background:${color}; border-color:${color}; color:${textColor};`;
+  }
+  function tagPillStyle(tagName) {
+    const css = tagColorCss(tagName);
+    return css ? ` style="${css}"` : '';
+  }
+
+  /* ===================== データ読み込み・描画 ===================== */
+  async function loadAndRender() {
+    entries = await dbGetAll();
+    entries.sort((a, b) => b.updatedAt - a.updatedAt);
+    renderTagChips();
+    renderGrid();
+  }
+
+  function getAllTags() {
+    const set = new Set();
+    entries.forEach(e => (e.tags || []).forEach(t => set.add(t)));
+    return Array.from(set).sort();
+  }
+
+  function renderTagChips() {
+    const tags = getAllTags();
+    tagChips.innerHTML = '';
+    tags.forEach(tag => {
+      const chip = document.createElement('button');
+      chip.className = 'chip' + (activeTagFilter === tag ? ' active' : '');
+      chip.textContent = tag;
+      chip.disabled = selectMode;
+      if (activeTagFilter === tag) {
+        const color = tagColors[tag];
+        if (color) {
+          chip.style.borderColor = color;
+          chip.style.color = color;
+          chip.style.background = 'transparent';
+        }
+      }
+      chip.addEventListener('click', () => {
+        activeTagFilter = (activeTagFilter === tag) ? null : tag;
+        renderTagChips();
+        renderGrid();
+      });
+      tagChips.appendChild(chip);
+    });
+  }
+
+  function matchesFilter(entry) {
+    if (activeTagFilter && !(entry.tags || []).includes(activeTagFilter)) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const inTitle = (entry.title || '').toLowerCase().includes(q);
+      const inBody = (entry.body || '').toLowerCase().includes(q);
+      const inTags = (entry.tags || []).some(t => t.toLowerCase().includes(q));
+      if (!inTitle && !inBody && !inTags) return false;
+    }
+    return true;
+  }
+
+  function displayTitle(entry) {
+    if (entry.title && entry.title.trim()) return entry.title.trim();
+    const firstLine = (entry.body || '').split('\n').find(l => l.trim());
+    return firstLine ? firstLine.trim().slice(0, 40) : '(無題のメモ)';
+  }
+
+  function renderGrid() {
+    const list = entries.filter(matchesFilter);
+    const bodyEl = grid.parentElement;
+    const existingEmpty = bodyEl.querySelector('.empty-state');
+    if (existingEmpty) existingEmpty.remove();
+
+    if (entries.length === 0) {
+      grid.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = `
+        <div class="big">まだメモがありません</div>
+        <div class="small">右上の「＋ 新規メモ」から作成してみましょう。入力内容は自動的に保存されます。</div>
+      `;
+      bodyEl.appendChild(empty);
+      return;
+    }
+
+    if (list.length === 0) {
+      grid.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = `
+        <div class="big">該当するメモがありません</div>
+        <div class="small">検索条件やタグ絞り込みを変えてみてください。</div>
+      `;
+      bodyEl.appendChild(empty);
+      return;
+    }
+
+    grid.innerHTML = '';
+    list.forEach(entry => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = entry.id;
+
+      const tagsHtml = (entry.tags || []).map(t => `<span class="tag-pill"${tagPillStyle(t)}>${escapeHtml(t)}</span>`).join('');
+      const isMarked = selectedForDelete.has(entry.id);
+
+      card.innerHTML = `
+        <div class="card-title">${escapeHtml(displayTitle(entry))}</div>
+        <div class="card-excerpt">${escapeHtml(entry.body || '')}</div>
+        <div class="card-meta">
+          <span class="card-date">${formatDate(entry.updatedAt)}</span>
+          <div class="card-tags">${tagsHtml}</div>
+        </div>
+        <button class="card-delete-btn" type="button" title="削除">🗑</button>
+        <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">消去</span></div>
+      `;
+
+      if (selectMode) {
+        card.classList.add('select-target');
+        card.addEventListener('click', () => toggleSelectForDelete(entry.id));
+      } else {
+        card.addEventListener('click', () => openEditor(entry));
+        card.querySelector('.card-delete-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          openConfirmDelete(entry.id);
+        });
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  /* ===================== 検索・フィルタ ===================== */
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value.trim();
+    renderGrid();
+  });
+
+  /* =====================================================================
+     エディタ（新規／編集を1つの画面で兼ねる。自動保存方式）
+
+     誤作動防止策：
+     1. デバウンス保存：入力停止後 SAVE_DEBOUNCE_MS 経過してから保存する
+        （打鍵の都度DB書き込みが走ると重くなる・競合しやすくなるため）
+     2. 保存処理は savePromiseChain で直列化し、多重実行を防止する
+     3. 空メモ（タイトル・本文とも空）のまま閉じた場合は自動的に破棄し、
+        ゴミデータをDBに残さない
+     4. エディタを閉じる際は、デバウンス待機中の変更を即座に確定保存
+        してから閉じる（変更の取りこぼしを防ぐ）
+  ===================================================================== */
+  function setEditorStatus(text, kind) {
+    editorStatus.textContent = text;
+    editorStatus.className = 'editor-status' + (kind ? ` is-${kind}` : '');
+  }
+
+  function currentEditorIsEmpty() {
+    return !editorTitleInput.value.trim() && !editorBodyInput.value.trim() && editTags.length === 0;
+  }
+
+  // デバウンスされた保存要求。呼ぶたびにタイマーをリセットする。
+  function scheduleSave() {
+    setEditorStatus('編集中…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { flushSave(); }, SAVE_DEBOUNCE_MS);
+  }
+
+  // 保留中の保存を即座に実行する（Promiseチェーンで直列化し、多重実行を防止）。
+  function flushSave() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    savePromiseChain = savePromiseChain.then(() => doSaveNow()).catch((err) => {
+      console.error('自動保存に失敗しました', err);
+      setEditorStatus('保存に失敗しました', null);
+    });
+    return savePromiseChain;
+  }
+
+  async function doSaveNow() {
+    if (!editorIsOpen) return; // 誤作動防止：閉じた後に遅延実行されるのを防ぐ
+
+    const title = editorTitleInput.value.trim();
+    const body = editorBodyInput.value; // 本文は改行・空白をそのまま保持
+    const now = Date.now();
+
+    // 誤作動防止：全項目が空のメモは保存せずスキップ（無題の空カードが量産されるのを防ぐ）
+    if (!title && !body.trim() && editTags.length === 0) {
+      setEditorStatus('未入力（保存されません）', null);
+      return;
+    }
+
+    setEditorStatus('保存中…', 'saving');
+
+    const existing = editingId ? entries.find(e => e.id === editingId) : null;
+    const entry = {
+      id: editingId || ('m_' + now + '_' + Math.random().toString(36).slice(2, 8)),
+      title,
+      body,
+      tags: [...editTags],
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now,
+    };
+
+    try {
+      await dbPut(entry);
+      editingId = entry.id; // 新規メモの初回保存以降は「編集」扱いに切り替わる
+      const idx = entries.findIndex(e => e.id === entry.id);
+      if (idx >= 0) entries[idx] = entry; else entries.unshift(entry);
+      setEditorStatus('保存しました', 'saved');
+      renderTagChips();
+      renderGrid();
+    } catch (err) {
+      console.error(err);
+      setEditorStatus('保存に失敗しました', null);
+      showToast('保存に失敗しました');
+    }
+  }
+
+  function renderTagInputRow() {
+    editorTagsRow.querySelectorAll('.tag-pill-edit').forEach(el => el.remove());
+    editTags.forEach((tag, idx) => {
+      const pill = document.createElement('span');
+      pill.className = 'tag-pill-edit';
+      const css = tagColorCss(tag);
+      if (css) pill.setAttribute('style', css);
+      pill.innerHTML = `${escapeHtml(tag)} <button type="button" data-idx="${idx}">✕</button>`;
+      pill.querySelector('button').addEventListener('click', () => {
+        editTags.splice(idx, 1);
+        renderTagInputRow();
+        renderFreqTagPicker();
+        scheduleSave();
+      });
+      editorTagsRow.insertBefore(pill, editorTagInput);
+    });
+  }
+
+  editorTagInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = editorTagInput.value.trim();
+      if (val && !editTags.includes(val)) {
+        editTags.push(val);
+        renderTagInputRow();
+        renderFreqTagPicker();
+        scheduleSave();
+      }
+      editorTagInput.value = '';
+    }
+  });
+
+  function renderFreqTagPicker() {
+    freqTagPicker.innerHTML = '';
+    frequentTags.forEach(tag => {
+      const isActive = editTags.includes(tag);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip' + (isActive ? ' active' : '');
+      chip.textContent = tag;
+      const color = tagColors[tag];
+      if (color && isActive) {
+        chip.style.borderColor = color;
+        chip.style.color = color;
+        chip.style.background = 'transparent';
+      }
+      chip.addEventListener('click', () => {
+        if (editTags.includes(tag)) {
+          editTags = editTags.filter(t => t !== tag);
+        } else {
+          editTags.push(tag);
+        }
+        renderTagInputRow();
+        renderFreqTagPicker();
+        scheduleSave();
+      });
+      freqTagPicker.appendChild(chip);
+    });
+  }
+
+  function openEditor(entry) {
+    editingId = entry ? entry.id : null;
+    editTags = entry ? [...(entry.tags || [])] : [];
+    editorTitleInput.value = entry ? (entry.title || '') : '';
+    editorBodyInput.value = entry ? (entry.body || '') : '';
+    editorTagInput.value = '';
+    renderTagInputRow();
+    renderFreqTagPicker();
+    setEditorStatus(entry ? '\u00A0' : '新規メモ', null);
+    editorOverlay.classList.add('is-open');
+    editorIsOpen = true;
+    editorTitleInput.focus();
+  }
+
+  async function closeEditor() {
+    editorIsOpen = false;
+    editorOverlay.classList.remove('is-open');
+
+    // 誤作動防止：デバウンス待機中の変更を取りこぼさないよう即座にフラッシュする
+    if (saveTimer) {
+      editorIsOpen = true; // doSaveNow内のガードを一時的に解除して保存を確定させる
+      await flushSave();
+      editorIsOpen = false;
+    }
+
+    // 誤作動防止：タイトル・本文・タグすべて空の状態で閉じた場合は、
+    // 既にDBに保存済みであっても空のゴミデータとして残さず削除する
+    if (editingId && currentEditorIsEmpty()) {
+      try {
+        await dbDelete(editingId);
+        entries = entries.filter(e => e.id !== editingId);
+      } catch (err) {
+        console.error('空メモの後片付けに失敗しました', err);
+      }
+    }
+
+    editingId = null;
+    editTags = [];
+    renderTagChips();
+    renderGrid();
+  }
+
+  addBtn.addEventListener('click', () => openEditor(null));
+  editorCloseBtn.addEventListener('click', closeEditor);
+  editorOverlay.addEventListener('click', (e) => { if (e.target === editorOverlay) closeEditor(); });
+
+  editorTitleInput.addEventListener('input', scheduleSave);
+  editorBodyInput.addEventListener('input', scheduleSave);
+
+  editorDeleteBtn.addEventListener('click', () => {
+    if (!editingId) {
+      // 新規・未保存メモの場合はDB操作不要。そのまま閉じるだけでよい。
+      editTags = [];
+      editorTitleInput.value = '';
+      editorBodyInput.value = '';
+      closeEditor();
+      return;
+    }
+    openConfirmDelete(editingId, /* fromEditor */ true);
+  });
+
+  /* ===================== 削除確認（単数／複数の両方で使う） ===================== */
+  let pendingDeleteIds = null;
+  let pendingDeleteFromEditor = false;
+
+  function openConfirmDelete(id, fromEditor) {
+    pendingDeleteIds = [id];
+    pendingDeleteFromEditor = !!fromEditor;
+    confirmMsg.textContent = 'このメモを削除します。内容は復元できません。よろしいですか？';
+    confirmOverlay.classList.add('is-open');
+  }
+  function openConfirmDeleteMultiple(ids) {
+    pendingDeleteIds = ids;
+    pendingDeleteFromEditor = false;
+    confirmMsg.textContent = `選択した${ids.length}件を削除します。内容は復元できません。よろしいですか？`;
+    confirmOverlay.classList.add('is-open');
+  }
+  function closeConfirmDelete() {
+    pendingDeleteIds = null;
+    pendingDeleteFromEditor = false;
+    confirmOverlay.classList.remove('is-open');
+  }
+  confirmCancelBtn.addEventListener('click', closeConfirmDelete);
+  confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirmDelete(); });
+  confirmDeleteBtn.addEventListener('click', async () => {
+    if (!pendingDeleteIds || pendingDeleteIds.length === 0) return;
+    const wasFromEditor = pendingDeleteFromEditor;
+    const wasMultiple = pendingDeleteIds.length > 1;
+    try {
+      clearTimeout(saveTimer); // 削除確定後に古い自動保存が走らないよう止める
+      saveTimer = null;
+      for (const id of pendingDeleteIds) {
+        await dbDelete(id);
+      }
+      entries = entries.filter(e => !pendingDeleteIds.includes(e.id));
+      showToast(wasMultiple ? `${pendingDeleteIds.length}件削除しました` : '削除しました');
+    } catch (err) {
+      console.error(err);
+      showToast('削除に失敗しました');
+    } finally {
+      closeConfirmDelete();
+      if (wasFromEditor) {
+        editorIsOpen = false;
+        editingId = null;
+        editTags = [];
+        editorOverlay.classList.remove('is-open');
+      }
+      if (wasMultiple) exitSelectMode();
+      renderTagChips();
+      renderGrid();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (confirmOverlay.classList.contains('is-open')) closeConfirmDelete();
+      else if (editorOverlay.classList.contains('is-open')) closeEditor();
+      else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
+      else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
+      else if (menuPanel.classList.contains('is-open') || selectModeMenuPanel.classList.contains('is-open')) closeMenu();
+    }
+  });
+
+  /* ===================== ハンバーガーメニュー ===================== */
+  function activeMenuPanel() {
+    return selectMode ? selectModeMenuPanel : menuPanel;
+  }
+  function openMenu() {
+    activeMenuPanel().classList.add('is-open');
+    hamburgerBtn.classList.add('is-active');
+  }
+  function closeMenu() {
+    menuPanel.classList.remove('is-open');
+    selectModeMenuPanel.classList.remove('is-open');
+    hamburgerBtn.classList.remove('is-active');
+  }
+  hamburgerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeMenuPanel().classList.contains('is-open')) closeMenu(); else openMenu();
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-wrap') && (menuPanel.classList.contains('is-open') || selectModeMenuPanel.classList.contains('is-open'))) {
+      closeMenu();
+    }
+  });
+
+  /* ===================== メニュー項目：よく使うタグ ===================== */
+  function openFreqTagModal() {
+    closeMenu();
+    renderFreqTagList();
+    freqTagModalOverlay.classList.add('is-open');
+  }
+  function closeFreqTagModal() { freqTagModalOverlay.classList.remove('is-open'); }
+  menuItemFreqTags.addEventListener('click', openFreqTagModal);
+  freqTagModalCloseBtn.addEventListener('click', closeFreqTagModal);
+  freqTagModalOverlay.addEventListener('click', (e) => { if (e.target === freqTagModalOverlay) closeFreqTagModal(); });
+
+  function renderFreqTagList() {
+    freqTagList.innerHTML = '';
+    if (frequentTags.length === 0) {
+      freqTagList.innerHTML = '<div class="menu-empty-hint">まだ登録されていません。上の欄にタグ名を入力して追加してください。</div>';
+    } else {
+      frequentTags.forEach((tag, idx) => {
+        const row = document.createElement('div');
+        row.className = 'freq-tag-row';
+        row.innerHTML = `<span class="ftr-name">${escapeHtml(tag)}</span>`;
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.textContent = '✕';
+        delBtn.title = '「よく使うタグ」から削除（既存メモのタグ自体は消えません）';
+        delBtn.addEventListener('click', async () => {
+          frequentTags.splice(idx, 1);
+          await dbSetSetting('frequentTags', frequentTags);
+          renderFreqTagList();
+          renderFreqTagPicker();
+        });
+        row.appendChild(delBtn);
+        freqTagList.appendChild(row);
+      });
+    }
+  }
+
+  async function addFrequentTag() {
+    const val = freqTagAddInput.value.trim();
+    if (!val) return;
+    if (frequentTags.includes(val)) {
+      showToast('すでに登録されています');
+      freqTagAddInput.value = '';
+      return;
+    }
+    frequentTags.push(val);
+    await dbSetSetting('frequentTags', frequentTags);
+    freqTagAddInput.value = '';
+    renderFreqTagList();
+    renderFreqTagPicker();
+  }
+  freqTagAddBtn.addEventListener('click', addFrequentTag);
+  freqTagAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addFrequentTag(); }
+  });
+
+  /* ===================== メニュー項目：タグの色 ===================== */
+  function openTagColorModal() {
+    closeMenu();
+    renderTagColorList();
+    tagColorModalOverlay.classList.add('is-open');
+  }
+  function closeTagColorModal() { tagColorModalOverlay.classList.remove('is-open'); }
+  menuItemTagColors.addEventListener('click', openTagColorModal);
+  tagColorModalCloseBtn.addEventListener('click', closeTagColorModal);
+  tagColorModalOverlay.addEventListener('click', (e) => { if (e.target === tagColorModalOverlay) closeTagColorModal(); });
+
+  function getColorableTags() {
+    const set = new Set([...getAllTags(), ...frequentTags]);
+    return Array.from(set).sort();
+  }
+
+  function renderTagColorList() {
+    const tags = getColorableTags();
+    tagColorList.innerHTML = '';
+    if (tags.length === 0) {
+      tagColorList.innerHTML = '<div class="menu-empty-hint">タグを登録すると、ここで色を設定できるようになります。</div>';
+      return;
+    }
+    tags.forEach(tag => {
+      const row = document.createElement('div');
+      row.className = 'tag-color-row';
+      const current = tagColors[tag] || '#00f0d0';
+      row.innerHTML = `
+        <span class="tcr-name">${escapeHtml(tag)}</span>
+        <span class="tcr-controls">
+          <input type="color" value="${current}" data-tag="${escapeHtml(tag)}">
+          <button type="button" class="tcr-reset" data-tag="${escapeHtml(tag)}">既定に戻す</button>
+        </span>
+      `;
+      const colorInput = row.querySelector('input[type="color"]');
+      colorInput.addEventListener('input', async () => {
+        tagColors[tag] = colorInput.value;
+        await dbSetSetting('tagColors', tagColors);
+        renderGrid();
+        renderTagChips();
+        renderTagInputRow();
+        renderFreqTagPicker();
+      });
+      row.querySelector('.tcr-reset').addEventListener('click', async () => {
+        delete tagColors[tag];
+        await dbSetSetting('tagColors', tagColors);
+        renderTagColorList();
+        renderGrid();
+        renderTagChips();
+        renderTagInputRow();
+        renderFreqTagPicker();
+      });
+      tagColorList.appendChild(row);
+    });
+  }
+
+  /* ===================== メニュー項目：選択削除モード ===================== */
+  function setSelectModeUiLock(locked) {
+    searchInput.disabled = locked;
+    addBtn.disabled = locked;
+    addBtn.style.opacity = locked ? '.4' : '';
+    addBtn.style.pointerEvents = locked ? 'none' : '';
+    tagChips.style.opacity = locked ? '.4' : '';
+    tagChips.style.pointerEvents = locked ? 'none' : '';
+  }
+
+  function enterSelectMode() {
+    selectMode = true;
+    selectedForDelete.clear();
+    closeMenu();
+    selectModeHint.classList.add('is-active');
+    setSelectModeUiLock(true);
+    renderGrid();
+    renderTagChips();
+  }
+  function exitSelectMode() {
+    selectMode = false;
+    selectedForDelete.clear();
+    closeMenu();
+    selectModeHint.classList.remove('is-active');
+    setSelectModeUiLock(false);
+    renderGrid();
+    renderTagChips();
+  }
+  function toggleSelectForDelete(id) {
+    if (selectedForDelete.has(id)) selectedForDelete.delete(id);
+    else selectedForDelete.add(id);
+    renderGrid();
+  }
+  menuItemSelectMode.addEventListener('click', enterSelectMode);
+  menuItemExitSelect.addEventListener('click', exitSelectMode);
+  menuItemDeleteSelected.addEventListener('click', () => {
+    closeMenu();
+    if (selectedForDelete.size === 0) {
+      showToast('削除する項目を選択してください');
+      return;
+    }
+    openConfirmDeleteMultiple(Array.from(selectedForDelete));
+  });
+
+  /* ===================== 離脱時の保存確実化 =====================
+     誤作動防止：エディタを開いたままタブを閉じる／リロードするケースで、
+     デバウンス待機中の変更が失われないよう同期的に警告を出す。
+     （非同期の保存処理自体はbeforeunload内では確実に完了しないため、
+       あくまで「保存されていない可能性」をブラウザ標準の確認ダイアログで
+       伝える設計。日頃はEscやeditorCloseBtnで確実にflushされる。） */
+  window.addEventListener('beforeunload', (e) => {
+    if (editorIsOpen && saveTimer) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  /* ===================== 初期化 ===================== */
+  openDb().then(async (_db) => {
+    db = _db;
+    const savedFreqTags = await dbGetSetting('frequentTags');
+    const savedTagColors = await dbGetSetting('tagColors');
+    frequentTags = Array.isArray(savedFreqTags) ? savedFreqTags : [];
+    tagColors = (savedTagColors && typeof savedTagColors === 'object') ? savedTagColors : {};
+    await loadAndRender();
+  }).catch((err) => {
+    console.error('IndexedDBの初期化に失敗しました', err);
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="big">保存機能を利用できません</div>
+      <div class="small">このブラウザ／モードではIndexedDBが利用できないため、メモは保存されません。プライベートブラウジングモードなどをご確認ください。</div>
+    </div>`;
+  });
+})();
+</script>
 </body>
 </html>
