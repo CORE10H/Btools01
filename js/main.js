@@ -428,11 +428,11 @@
   // src は現状すべてダミーページ（apps/配下）。実アプリが用意でき次第、
   // このsrcを実ファイルのパスに差し替えるだけで統合できる。
   const projects = [
-    { cat: 'ツール', name: '画像生成プロンプト見本', src: 'apps/prompt-gallery.html' },
-    { cat: 'ツール ・ 統合予定', name: 'manuscript', src: 'apps/manuscript.html' },
+    { cat: 'ツール', name: '画像生成プロンプト見本', src: 'apps/prompt-gallery.html', img: 'apps/img/prompt-gallery.jpg' },
+    { cat: 'ツール ・ 統合予定', name: 'manuscript', src: 'apps/manuscript.html', img: 'apps/img/manuscript.jpg' },
     { cat: 'ツール ・ 統合予定', name: 'scaffold', src: 'apps/scaffold.html' },
-    { cat: 'ツール', name: 'メモ', src: 'apps/memo.html' },
-    { cat: '(仮) 音楽', name: 'Discotica', src: 'apps/discotica.html' },
+    { cat: 'ツール', name: 'メモ', src: 'apps/memo.html', img: 'apps/img/memo.jpg' },
+    { cat: '(仮) 音楽', name: 'Discotica', src: 'apps/discotica.html', img: 'apps/img/discotica.jpg' },
     { cat: '(仮)', name: '未定', src: 'apps/blank.html' },
     { cat: '', name: '＋ 追加', empty: true },
   ];
