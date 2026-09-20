@@ -709,11 +709,15 @@
      「＋新規作成」モーダル、カード削除ボタン・確認ダイアログ、トースト通知。
      既存の settings-modal と同じデザイン言語（clip-path切り欠き・panel-rgb）を踏襲。 */
 
-  /* ---- 中央カードの削除ボタン（誤操作防止：中央カードのみ表示） ---- */
+  /* ---- 中央カードの削除ボタン（誤操作防止：中央カードのみ表示） ----
+     z-index: 41 は .cf-open-hit（透明なクリック判定用オーバーレイ、
+     z-index: 40）より必ず手前に来るようにするための値。cf-open-hitは
+     中央カード全体を覆う設計のため、これがないとゴミ箱ボタンの
+     クリックがcf-open-hitに奪われ、削除操作ができなくなる。 */
   .cf-item-delete-btn {
     position: absolute; top: 6px; right: 6px; width: 22px; height: 22px;
     background: rgba(5,7,10,.75); border: 1px solid var(--line); color: var(--text-faint);
-    font-size: 11px; cursor: pointer; z-index: 5;
+    font-size: 11px; cursor: pointer; z-index: 41;
     display: none; align-items: center; justify-content: center;
   }
   .cf-item.is-center .cf-item-delete-btn { display: flex; }

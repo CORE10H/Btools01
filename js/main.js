@@ -957,7 +957,34 @@
   // would otherwise swallow wheel input over the banner.
   const openHitEl = document.getElementById('cfOpenHit');
   openHitEl.addEventListener('click', (ev) => {
-    openStage(ev, projects[centerIndex]);
+    // 誤作動防止：中央カードのゴミ箱ボタンの実際の画面上の矩形と
+    // クリック座標が重なっている場合は、削除ボタン側の処理に譲る
+    // （cfOpenHitは中央カード全体を覆う設計のため、素通りさせないと
+    //  ゴミ箱ボタンが物理的にクリックできなくなる）。
+    const centerEl = track.querySelector('.cf-item.is-center .cf-item-delete-btn');
+    if (centerEl) {
+      const r = centerEl.getBoundingClientRect();
+      if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+        centerEl.click();
+        return;
+      }
+    }
+
+    const centerCard = cards[centerIndex];
+    if (!centerCard) {
+      // ＋新規作成カードが中央にある状態
+      openLauncherAddModal();
+      return;
+    }
+    const app = findAppForCard(centerCard);
+    if (!app) {
+      showLauncherToast('このカードに紐づくアプリ本体が見つかりません');
+      return;
+    }
+    const displayName = centerCard.overlayText && centerCard.overlayText.trim()
+      ? centerCard.overlayText.trim()
+      : app.name;
+    openStage(ev, { name: displayName, src: app.src, empty: false });
   });
   openHitEl.addEventListener('wheel', handleCoverflowWheel, { passive: false });
 
