@@ -71,6 +71,31 @@
           <button class="btn" id="openAppManageBtn">インポートしたアプリを管理</button>
         </div>
       </div>
+
+      <div class="settings-row settings-row-col">
+        <div class="settings-row-label">通知の取得元（任意）</div>
+        <div class="settings-row-hint">
+          IFTTT等で発行した「通知データの公開URL」を登録すると、数分おきに新着を確認して通知パネルに反映します（本体からメールへ直接アクセスすることはありません）。
+        </div>
+        <div class="notif-src-control">
+          <input type="url" id="notifSrcUrlInput" class="notif-src-input" placeholder="https://... （公開JSON URL）" autocomplete="off" spellcheck="false">
+          <button class="btn" id="notifSrcSaveBtn">保存</button>
+        </div>
+        <div class="notif-src-sub">
+          <label class="notif-src-interval-label">
+            取得間隔
+            <select id="notifSrcIntervalSelect" class="notif-src-interval-select">
+              <option value="1">1分</option>
+              <option value="3">3分</option>
+              <option value="5" selected>5分</option>
+              <option value="10">10分</option>
+              <option value="30">30分</option>
+            </select>
+          </label>
+          <button class="btn" id="notifSrcCheckNowBtn">今すぐ確認</button>
+        </div>
+        <div class="notif-src-status" id="notifSrcStatus"></div>
+      </div>
     </div>
   </div>
 
@@ -245,59 +270,11 @@
     </div>
   </div>
 
-  <!-- ===== RIGHT-BOTTOM: notification (matches reference tall black block) ===== -->
+  <!-- ===== RIGHT-BOTTOM: notification (JSで動的生成。外部メール連携の通知のみを表示) ===== -->
   <div class="panel notif-panel">
     <span class="panel-corner"></span>
     <div class="ph">// 通知</div>
-    <div class="notif-item">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">藤岡香織「独白」に新規購入が2件</div>
-        <div class="notif-time">12分前</div>
-      </div>
-    </div>
-    <div class="notif-item warn">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">広告予算消化率が90%を超過</div>
-        <div class="notif-time">1時間前</div>
-      </div>
-    </div>
-    <div class="notif-item">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">しーば4「第6話」下書き自動保存</div>
-        <div class="notif-time">3時間前</div>
-      </div>
-    </div>
-    <div class="notif-item">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">SNS予約投稿が公開されました</div>
-        <div class="notif-time">昨日</div>
-      </div>
-    </div>
-    <div class="notif-item">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">しーば4の月間売上が目標の80%に到達</div>
-        <div class="notif-time">昨日</div>
-      </div>
-    </div>
-    <div class="notif-item warn">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">note決済の与信エラーが1件発生</div>
-        <div class="notif-time">2日前</div>
-      </div>
-    </div>
-    <div class="notif-item">
-      <div class="notif-dot"></div>
-      <div>
-        <div class="notif-text">藤岡香織「連載第9回」の推敲が完了</div>
-        <div class="notif-time">2日前</div>
-      </div>
-    </div>
+    <div class="notif-list" id="notifList"><!-- JSで動的生成 --></div>
   </div>
   </div>
 

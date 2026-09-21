@@ -1462,3 +1462,383 @@
     schedulePanelBeam();
     scheduleKpiGlitch();
   }
+
+  /* =====================================================================
+     通知パネル：外部メール連携（ポーリングのみ、プッシュ通知ではない）
+
+     設計方針（配布前提のため、特定サービスに依存しない）：
+       - SIDE-OPS本体は「ユーザーが設定した公開URLを定期fetchしてJSONを
+         表示するだけ」の汎用ポーリング機構に徹する。
+       - どのサービス（IFTTT・Zapier・GAS等）でJSONを用意するかはユーザー
+         側の自由。本体コードは一切のサービス固有ロジックを持たない。
+       - タブを開いている間しか動かない（file://やタブが閉じている間は
+         当然ポーリングされない）。リアルタイムのOS通知ではない。
+
+     期待するJSON形式：
+       { "notifications": [
+           { "id": "一意なID", "title": "件名等", "body": "本文抜粋(任意)",
+             "timestamp": "ISO8601等", "url": "関連リンク(任意)" }, ... ] }
+
+     将来の拡張について（今回の対応範囲）：
+       - 通知データに source フィールド（今回は 'external' 固定）を持たせて
+         いる。将来「アプリ内部イベント（売上◯◯突破 等）」を通知として
+         出したくなった場合は、①検知ロジック側で source:'internal' 等を
+         付けたオブジェクトを組み立てて notifItems に push → notifPut で
+         保存 → renderNotifPanel() を呼ぶだけで、今回の仕組みにそのまま
+         乗る。表示上の色分け等が必要になったら .notif-source-internal 等
+         のCSSクラスを追加するだけでよい（renderNotifPanel は既に
+         source値からクラス名を自動生成している）。
+       - 内部イベントの検知ロジック自体（KPIのしきい値監視等）は
+         今回のスコープ外で、まだ実装していない。
+
+     フールプルーフ（誤作動防止策）一覧：
+       1) URL未設定時はポーリング自体を起動しない（早期return）
+       2) fetch失敗・タイムアウト時は前回表示を維持し、パネルを壊さない
+       3) レスポンスのJSON形式・各エントリのバリデーションを行い、
+          不正なエントリは1件ずつスキップ（全体を巻き込んで落とさない）
+       4) 取得間隔は下限1分・上限30分にクランプ（相手サービスへの過負荷防止）
+       5) id をキーに重複排除。id が無い/空文字のエントリは受け付けない
+       6) 保持件数の上限（50件）を超えたら古いものから自動削除
+       7) タブが非表示（他タブ・最小化）の間はポーリングを停止し、
+          復帰時に即時1回だけ確認する
+       8) 通知本文の表示は textContent 経由のみ（innerHTML不使用）。
+          外部由来のデータをそのままHTMLとして解釈させずXSSを防止する
+       9) 「URL未設定」と「新着なし」でパネルの空表示文言を出し分ける
+  ===================================================================== */
+  const NOTIF_DB_NAME = 'sideops_notifications';
+  const NOTIF_DB_VERSION = 1;
+  const NOTIF_STORE = 'items';
+  const NOTIF_SETTINGS_STORE = 'settings';
+  const NOTIF_MAX_ITEMS = 50;
+  const NOTIF_MIN_INTERVAL_MIN = 1;
+  const NOTIF_MAX_INTERVAL_MIN = 30;
+  const NOTIF_DEFAULT_INTERVAL_MIN = 5;
+  const NOTIF_FETCH_TIMEOUT_MS = 10000;
+
+  let notifDb = null;
+  let notifItems = [];      // { id, title, body, timestamp, url, isUnread }
+  let notifSourceUrl = '';
+  let notifIntervalMin = NOTIF_DEFAULT_INTERVAL_MIN;
+  let notifTimerId = null;
+  let notifIsFetching = false; // 多重fetch防止
+
+  function openNotifDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(NOTIF_DB_NAME, NOTIF_DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const _db = ev.target.result;
+        if (!_db.objectStoreNames.contains(NOTIF_STORE)) {
+          _db.createObjectStore(NOTIF_STORE, { keyPath: 'id' });
+        }
+        if (!_db.objectStoreNames.contains(NOTIF_SETTINGS_STORE)) {
+          _db.createObjectStore(NOTIF_SETTINGS_STORE, { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function notifStore(name, mode) {
+    const tx = notifDb.transaction(name, mode);
+    return tx.objectStore(name);
+  }
+  function notifGetAll(name) {
+    return new Promise((resolve, reject) => {
+      const req = notifStore(name, 'readonly').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function notifPut(name, value) {
+    return new Promise((resolve, reject) => {
+      const req = notifStore(name, 'readwrite').put(value);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function notifDelete(name, id) {
+    return new Promise((resolve, reject) => {
+      const req = notifStore(name, 'readwrite').delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function notifClearAll(name) {
+    return new Promise((resolve, reject) => {
+      const req = notifStore(name, 'readwrite').clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function clampInterval(min) {
+    const n = Number(min);
+    if (!Number.isFinite(n)) return NOTIF_DEFAULT_INTERVAL_MIN;
+    return Math.min(NOTIF_MAX_INTERVAL_MIN, Math.max(NOTIF_MIN_INTERVAL_MIN, Math.round(n)));
+  }
+
+  // 個々のエントリを検証。不正なものはnullを返す（呼び出し側でスキップ）。
+  // source は通知の発生元を示す識別子（例: 'external' = 外部メール連携,
+  // 将来的に 'internal' = アプリ内部イベント等を追加予定）。
+  // 呼び出し側が明示的に渡す値をそのまま使い、ここでは検証・保持のみ行う。
+  function validateNotifEntry(raw, source) {
+    if (!raw || typeof raw !== 'object') return null;
+    const id = typeof raw.id === 'string' ? raw.id.trim() : (typeof raw.id === 'number' ? String(raw.id) : '');
+    if (!id) return null;
+    const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : '(無題の通知)';
+    const body = typeof raw.body === 'string' ? raw.body.trim() : '';
+    let timestamp = raw.timestamp;
+    let timeMs = Date.parse(timestamp);
+    if (!Number.isFinite(timeMs)) timeMs = Date.now();
+    const url = typeof raw.url === 'string' && /^https?:\/\//.test(raw.url.trim()) ? raw.url.trim() : '';
+    const safeSource = typeof source === 'string' && source ? source : 'unknown';
+    return { id, title, body, timeMs, url, source: safeSource };
+  }
+
+  function formatRelativeTime(timeMs) {
+    const diffSec = Math.max(0, Math.floor((Date.now() - timeMs) / 1000));
+    if (diffSec < 60) return 'たった今';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}分前`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour}時間前`;
+    const diffDay = Math.floor(diffHour / 24);
+    if (diffDay === 1) return '昨日';
+    if (diffDay < 7) return `${diffDay}日前`;
+    const d = new Date(timeMs);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function renderNotifPanel() {
+    const listEl = document.getElementById('notifList');
+    if (!listEl) return;
+    listEl.textContent = '';
+
+    if (!notifSourceUrl) {
+      const empty = document.createElement('div');
+      empty.className = 'notif-empty';
+      empty.textContent = '設定から取得元を登録してください';
+      listEl.appendChild(empty);
+      return;
+    }
+    if (notifItems.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'notif-empty';
+      empty.textContent = '新着はありません';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    const sorted = notifItems.slice().sort((a, b) => b.timeMs - a.timeMs);
+    for (const item of sorted) {
+      const row = document.createElement('div');
+      const sourceClass = item.source ? ` notif-source-${item.source}` : '';
+      row.className = 'notif-item' + (item.isUnread ? ' is-unread' : '') + sourceClass;
+      const dot = document.createElement('div');
+      dot.className = 'notif-dot';
+      const body = document.createElement('div');
+      const textEl = document.createElement('div');
+      textEl.className = 'notif-text';
+      textEl.textContent = item.title; // textContentのみ使用（XSS対策）
+      const timeEl = document.createElement('div');
+      timeEl.className = 'notif-time';
+      timeEl.textContent = formatRelativeTime(item.timeMs);
+      body.appendChild(textEl);
+      body.appendChild(timeEl);
+      row.appendChild(dot);
+      row.appendChild(body);
+      row.addEventListener('click', () => {
+        markNotifRead(item.id);
+        if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
+      });
+      listEl.appendChild(row);
+    }
+  }
+
+  async function markNotifRead(id) {
+    const item = notifItems.find((n) => n.id === id);
+    if (!item || !item.isUnread) return;
+    item.isUnread = false;
+    try {
+      await notifPut(NOTIF_STORE, item);
+    } catch (err) {
+      console.error('通知の既読状態の保存に失敗しました', err);
+    }
+    renderNotifPanel();
+  }
+
+  // 保持件数の上限を超えた古い通知をDB・メモリ双方から間引く。
+  async function trimNotifItems() {
+    if (notifItems.length <= NOTIF_MAX_ITEMS) return;
+    const sorted = notifItems.slice().sort((a, b) => b.timeMs - a.timeMs);
+    const toRemove = sorted.slice(NOTIF_MAX_ITEMS);
+    for (const item of toRemove) {
+      try { await notifDelete(NOTIF_STORE, item.id); } catch (err) { /* 個別失敗は無視して継続 */ }
+    }
+    const keepIds = new Set(sorted.slice(0, NOTIF_MAX_ITEMS).map((n) => n.id));
+    notifItems = notifItems.filter((n) => keepIds.has(n.id));
+  }
+
+  function setNotifStatus(msg, kind) {
+    const el = document.getElementById('notifSrcStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('is-error', 'is-ok');
+    if (kind) el.classList.add(kind);
+  }
+
+  async function fetchNotifSource(isManual) {
+    if (!notifSourceUrl) return;               // 1) URL未設定なら何もしない
+    if (notifIsFetching) return;                // 多重fetch防止
+    notifIsFetching = true;
+    if (isManual) setNotifStatus('確認中…');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), NOTIF_FETCH_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(notifSourceUrl, { signal: controller.signal, cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const rawList = Array.isArray(data) ? data : Array.isArray(data && data.notifications) ? data.notifications : null;
+      if (!rawList) throw new Error('形式が不正です（notifications配列が見つかりません）');
+
+      const existingIds = new Set(notifItems.map((n) => n.id));
+      let addedCount = 0;
+      for (const raw of rawList) {
+        const parsed = validateNotifEntry(raw, 'external');       // 3) 不正エントリはスキップ
+        if (!parsed) continue;
+        if (existingIds.has(parsed.id)) continue;      // 5) 重複排除
+        const newItem = { ...parsed, isUnread: true };
+        notifItems.push(newItem);
+        existingIds.add(parsed.id);
+        addedCount++;
+        try { await notifPut(NOTIF_STORE, newItem); } catch (err) { /* 個別失敗は無視して継続 */ }
+      }
+
+      await trimNotifItems();                          // 6) 上限超過分を間引く
+      renderNotifPanel();
+
+      if (isManual) {
+        setNotifStatus(addedCount > 0 ? `新着 ${addedCount} 件を取得しました` : '新着はありませんでした', 'is-ok');
+      }
+    } catch (err) {
+      console.error('通知の取得に失敗しました', err);   // 2) 失敗時も既存表示は維持
+      if (isManual) {
+        const reason = err && err.name === 'AbortError' ? 'タイムアウトしました' : '取得に失敗しました（URLや形式を確認してください）';
+        setNotifStatus(reason, 'is-error');
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      notifIsFetching = false;
+    }
+  }
+
+  function stopNotifPolling() {
+    if (notifTimerId) {
+      clearInterval(notifTimerId);
+      notifTimerId = null;
+    }
+  }
+
+  function startNotifPolling() {
+    stopNotifPolling();
+    if (!notifSourceUrl) return;                       // 1) URL未設定なら起動しない
+    if (document.visibilityState === 'hidden') return;  // 7) 非表示タブでは起動しない
+    notifTimerId = setInterval(() => fetchNotifSource(false), notifIntervalMin * 60 * 1000);
+  }
+
+  // 7) タブの表示状態に応じてポーリングを制御。非表示→表示に戻った瞬間に
+  //    1回だけ即時確認し、以降は通常間隔のタイマーへ戻す。
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      stopNotifPolling();
+    } else {
+      fetchNotifSource(false);
+      startNotifPolling();
+    }
+  });
+
+  async function saveNotifSettings(url, intervalMin) {
+    const trimmedUrl = (url || '').trim();
+    if (trimmedUrl && !/^https?:\/\//.test(trimmedUrl)) {
+      setNotifStatus('http(s):// で始まるURLを入力してください', 'is-error');
+      return false;
+    }
+    notifSourceUrl = trimmedUrl;
+    notifIntervalMin = clampInterval(intervalMin);      // 4) 下限・上限にクランプ
+    try {
+      await notifPut(NOTIF_SETTINGS_STORE, { key: 'sourceUrl', value: notifSourceUrl });
+      await notifPut(NOTIF_SETTINGS_STORE, { key: 'intervalMin', value: notifIntervalMin });
+    } catch (err) {
+      console.error('通知設定の保存に失敗しました', err);
+      setNotifStatus('設定の保存に失敗しました', 'is-error');
+      return false;
+    }
+    renderNotifPanel();
+    startNotifPolling();
+    return true;
+  }
+
+  async function loadNotifData() {
+    try {
+      notifItems = (await notifGetAll(NOTIF_STORE)) || [];
+    } catch (err) {
+      console.error('通知データの読み込みに失敗しました', err);
+      notifItems = [];
+    }
+    try {
+      const settings = await notifGetAll(NOTIF_SETTINGS_STORE);
+      const urlRow = settings.find((s) => s.key === 'sourceUrl');
+      const intervalRow = settings.find((s) => s.key === 'intervalMin');
+      notifSourceUrl = urlRow && typeof urlRow.value === 'string' ? urlRow.value : '';
+      notifIntervalMin = intervalRow ? clampInterval(intervalRow.value) : NOTIF_DEFAULT_INTERVAL_MIN;
+    } catch (err) {
+      console.error('通知設定の読み込みに失敗しました', err);
+      notifSourceUrl = '';
+      notifIntervalMin = NOTIF_DEFAULT_INTERVAL_MIN;
+    }
+  }
+
+  function initNotifSettingsUi() {
+    const urlInput = document.getElementById('notifSrcUrlInput');
+    const intervalSelect = document.getElementById('notifSrcIntervalSelect');
+    const saveBtn = document.getElementById('notifSrcSaveBtn');
+    const checkNowBtn = document.getElementById('notifSrcCheckNowBtn');
+    if (!urlInput || !intervalSelect || !saveBtn || !checkNowBtn) return;
+
+    urlInput.value = notifSourceUrl;
+    intervalSelect.value = String(notifIntervalMin);
+
+    saveBtn.addEventListener('click', async () => {
+      const ok = await saveNotifSettings(urlInput.value, intervalSelect.value);
+      if (ok) {
+        setNotifStatus(notifSourceUrl ? '保存しました' : '取得元をクリアしました', 'is-ok');
+        if (notifSourceUrl) fetchNotifSource(true);
+      }
+    });
+    checkNowBtn.addEventListener('click', () => {
+      if (!notifSourceUrl) {
+        setNotifStatus('先に取得元URLを保存してください', 'is-error');
+        return;
+      }
+      fetchNotifSource(true);
+    });
+  }
+
+  // 通知DBの初期化 → 設定・データ読み込み → 初回描画 → ポーリング開始。
+  // 失敗時（IndexedDB不可等）は空の通知パネル（「設定から〜」表示）に
+  // フォールバックし、ダッシュボード全体は落とさない。
+  openNotifDb().then(async (_db) => {
+    notifDb = _db;
+    await loadNotifData();
+    renderNotifPanel();
+    initNotifSettingsUi();
+    startNotifPolling();
+  }).catch((err) => {
+    console.error('通知用DBの初期化に失敗しました', err);
+    notifItems = [];
+    notifSourceUrl = '';
+    renderNotifPanel();
+    initNotifSettingsUi();
+  });
