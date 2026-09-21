@@ -641,7 +641,7 @@
               showLauncherToast('このカードに紐づくアプリ本体が見つかりません');
               return;
             }
-            openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false });
+            openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false }, card.id);
             return;
           }
           centerIndex = i;
@@ -1079,9 +1079,105 @@
   const stageContent = document.getElementById('stageContent');
   const stageBody = document.getElementById('stageBody');
   const stagePlaceholder = document.getElementById('stagePlaceholder');
+  const stageSizeVerticalBtn = document.getElementById('stageSizeVerticalBtn');
+  const stageSizeFullBtn = document.getElementById('stageSizeFullBtn');
   let stageFrame = null; // 現在表示中のiframe（開いていなければnull）
+  let currentStageCardId = null; // 開いているStageがどのカードのものか（サイズモード保存用）
 
-  function openStage(ev, project) {
+  // 表示モードは3状態のうちどれか1つ（ラジオボタン的な排他選択）：
+  //   'normal'   … 元のGrid枠と同じ左右位置・上下位置
+  //   'vertical' … 上端〜下端いっぱい。左右幅は通常時のStage枠のまま
+  //                （カバーフロー・右カラムは隠さない）。left/widthは
+  //                ウィンドウサイズで変わるためJSで動的計算する
+  //                （6.3節の教訓：固定ピクセル値を使わない）
+  //   'full'     … 四方いっぱい（完全フルスクリーン）
+  function computeNormalStageRect() {
+    // 通常時のStage位置を、実在する隣接パネル（header / .left-col / .right-col /
+    // .gantt-panel）の getBoundingClientRect() から動的に算出する。CSS側でその
+    // 値を直接再現するのが難しいため（rotateYが掛かった祖先を挟むレイアウトの
+    // ため）、JS側で隣接パネルの実際の画面上の端を基準点として使う
+    // （6.3節の教訓：固定ピクセル値を使わず、実測のrectを基準にする）。
+    const header = document.querySelector('header.top');
+    const leftCol = document.querySelector('.left-col');
+    const rightCol = document.querySelector('.right-col');
+    const gantt = document.querySelector('.gantt-panel');
+    const headerRect = header.getBoundingClientRect();
+    const leftRect = leftCol.getBoundingClientRect();
+    const rightRect = rightCol.getBoundingClientRect();
+    const ganttRect = gantt.getBoundingClientRect();
+    return {
+      left: leftRect.right + 14, // .shell の gap 分
+      right: window.innerWidth - rightRect.left + 14,
+      top: headerRect.bottom + 14,
+      bottom: window.innerHeight - ganttRect.top + 14,
+    };
+  }
+
+  function applyStageSizeMode(mode) {
+    stageEl.classList.remove('stage-mode-full');
+    if (mode === 'full') {
+      stageEl.classList.add('stage-mode-full');
+      stageEl.style.top = '';
+      stageEl.style.bottom = '';
+      stageEl.style.left = '';
+      stageEl.style.right = '';
+      stageEl.style.width = '';
+    } else if (mode === 'vertical') {
+      const normalRect = computeNormalStageRect();
+      stageEl.style.top = '0px';
+      stageEl.style.bottom = '0px';
+      stageEl.style.left = normalRect.left + 'px';
+      stageEl.style.right = normalRect.right + 'px';
+      stageEl.style.width = '';
+    } else {
+      // normal
+      const normalRect = computeNormalStageRect();
+      stageEl.style.top = normalRect.top + 'px';
+      stageEl.style.bottom = normalRect.bottom + 'px';
+      stageEl.style.left = normalRect.left + 'px';
+      stageEl.style.right = normalRect.right + 'px';
+      stageEl.style.width = '';
+    }
+    stageSizeVerticalBtn.classList.toggle('is-active', mode === 'vertical');
+    stageSizeFullBtn.classList.toggle('is-active', mode === 'full');
+  }
+
+  async function setStageSizeMode(mode) {
+    applyStageSizeMode(mode);
+    // カードごとに永続化。「＋新規作成」等、カードに紐づかないStage表示は対象外
+    if (!currentStageCardId) return;
+    const card = cards.find(c => c.id === currentStageCardId);
+    if (!card) return;
+    card.sizeMode = mode;
+    try {
+      await launcherPut(CARDS_STORE, card);
+    } catch (err) {
+      console.error('表示モードの保存に失敗しました', err);
+    }
+  }
+
+  stageSizeVerticalBtn.addEventListener('click', () => {
+    const next = stageSizeVerticalBtn.classList.contains('is-active') ? 'normal' : 'vertical';
+    setStageSizeMode(next);
+  });
+  stageSizeFullBtn.addEventListener('click', () => {
+    const next = stageSizeFullBtn.classList.contains('is-active') ? 'normal' : 'full';
+    setStageSizeMode(next);
+  });
+  // ウィンドウサイズが変わっても vertical/normal モードの左右位置が追従するように
+  window.addEventListener('resize', () => {
+    if (!stageEl.classList.contains('is-open')) return;
+    const activeMode = stageSizeFullBtn.classList.contains('is-active') ? 'full'
+      : (stageSizeVerticalBtn.classList.contains('is-active') ? 'vertical' : 'normal');
+    applyStageSizeMode(activeMode);
+  });
+
+  function openStage(ev, project, cardId) {
+    currentStageCardId = cardId || null;
+    const card = cardId ? cards.find(c => c.id === cardId) : null;
+    const mode = (card && card.sizeMode) || 'normal';
+    applyStageSizeMode(mode);
+
     const stageRect = stageEl.getBoundingClientRect();
     const originX = ((ev.clientX - stageRect.left) / stageRect.width) * 100 + '%';
     const originY = ((ev.clientY - stageRect.top) / stageRect.height) * 100 + '%';
@@ -1119,6 +1215,7 @@
     // iframeは閉じたタイミングで完全に破棄する（バックグラウンドで動かし続けない）。
     if (stageFrame) { stageFrame.remove(); stageFrame = null; }
     stagePlaceholder.style.display = '';
+    currentStageCardId = null;
   }
 
   document.getElementById('stageCloseBtn').addEventListener('click', closeStage);
@@ -1221,7 +1318,7 @@
     const displayName = centerCard.overlayText && centerCard.overlayText.trim()
       ? centerCard.overlayText.trim()
       : app.name;
-    openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false });
+    openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false }, centerCard.id);
   });
   openHitEl.addEventListener('wheel', handleCoverflowWheel, { passive: false });
 

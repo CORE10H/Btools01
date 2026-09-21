@@ -449,15 +449,22 @@
   }
   .cf-open-hit:hover { box-shadow: inset 0 0 0 2px rgba(0,240,208,.35); }
 
-  /* ===================== STAGE (fullscreen overlay) ===================== */
-  /* 常時は透明・非表示（クリック等も透過）。アプリを開いた瞬間にビューポート
-     全体を覆うオーバーレイとして最前面に現れ、ヘッダー・ガント等の背後パネルは
-     完全に覆い隠す設計（ユーザー要望により、非モーダルの半透明重ねではなく
-     完全な不透明フルスクリーン表示とした）。Gridの一部（grid-area: stage）
-     だった旧配置から、position: fixed による独立レイヤーに変更。 */
+  /* ===================== STAGE (overlay) ===================== */
+  /* 常時は透明・非表示（クリック等も透過）。アプリを開いた瞬間にオーバーレイ
+     として最前面に現れ、ヘッダー・ガント等の背後パネルを完全に覆い隠す設計
+     （非モーダルの半透明重ねではなく完全な不透明表示）。Gridの一部
+     （grid-area: stage）だった旧配置から、position: fixed による独立レイヤー
+     に変更。
+     表示範囲は3段階：
+       ・通常（クラス指定なし）：元のGrid枠と同じ左右位置・上下位置
+       ・.stage-mode-vertical：上端〜下端いっぱい。左右幅は通常時のStage枠と
+         同じ（カバーフロー・右カラムは隠さない）。left/width はウィンドウ
+         サイズにより変わるためJSで動的計算する（6.3節の教訓に準拠）
+       ・.stage-mode-full：四方いっぱい（完全フルスクリーン）
+     排他制御：3つのうち常にどれか1つの状態（ラジオボタン的な考え方。見た目
+     はヘッダーのアイコンボタン3つを並べたセグメントコントロール風） */
   .stage {
     position: fixed;
-    inset: 0;
     z-index: 190;
     background: transparent;
     border: none;
@@ -467,12 +474,15 @@
     min-height: 0;
     opacity: 0;
     pointer-events: none;
-    transition: opacity .2s ease;
+    transition: opacity .2s ease, top .25s ease, bottom .25s ease, left .25s ease, right .25s ease, width .25s ease;
   }
   .stage.is-open {
     background: #000;
     opacity: 1;
     pointer-events: auto;
+  }
+  .stage.stage-mode-full {
+    top: 0; bottom: 0; left: 0; right: 0; width: auto;
   }
   /* Content is hidden by default — the stage is just a reserved black
      surface until a project banner is clicked, at which point .stage-content
@@ -492,6 +502,30 @@
     transform: scale(1);
     pointer-events: auto;
   }
+  /* ---- 表示範囲切り替えボタン（縦いっぱい／四方いっぱい）。閉じるボタンの
+     左に並ぶセグメントコントロール。3状態（通常/縦/全）のうち選択中の
+     ものだけ is-active でハイライトする、ラジオボタン的な排他表示。 ---- */
+  .stage-size-toggle {
+    position: absolute;
+    top: 10px; right: 44px;
+    display: flex; gap: 4px;
+    z-index: 5;
+  }
+  .stage-size-btn {
+    width: 24px; height: 24px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-faint);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .stage-size-btn:hover { border-color: var(--cyan-dim); color: var(--text-dim); }
+  .stage-size-btn.is-active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .stage.is-open .stage-size-toggle { display: flex; }
+  .stage-size-toggle { display: none; }
+
   .stage-close {
     position: absolute;
     top: 10px; right: 12px;
