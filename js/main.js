@@ -543,16 +543,22 @@
     });
   }
 
-  // builtin（apps/配下に元から存在するhtml）の選択肢一覧。
-  // 「＋新規作成」モーダルの種類選択に、このリストがそのまま表示される。
+  // builtin（apps/配下に元から存在する、先天的なhtml）の選択肢一覧。
+  // 「＋新規作成」モーダルの種類選択プルダウンに、このリストがそのまま表示される。
   const BUILTIN_APP_CHOICES = [
-    { name: '画像生成プロンプト見本', src: 'apps/prompt-gallery.html' },
+    { name: 'PROMPTGALLERY', src: 'apps/prompt-gallery.html' },
     { name: 'manuscript', src: 'apps/manuscript.html' },
     { name: 'scaffold', src: 'apps/scaffold.html' },
     { name: 'メモ', src: 'apps/memo.html' },
     { name: 'Discotica', src: 'apps/discotica.html' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
+
+  // インポート（後天的アプリ）関連の定数
+  const IMPORT_MAX_BYTES = 5 * 1024 * 1024; // 5MB。フールプルーフ：巨大htmlの誤選択による動作重量化を防止
+  const IMPORT_ALLOWED_EXT = /\.(html|htm)$/i;
+  // プルダウンの特別値。builtinのインデックス（0,1,2...）と衝突しない専用文字列にしてある
+  const IMPORT_OPTION_VALUE = '__import__';
 
   let cards = [];   // メモリ上キャッシュ（cardsストアの内容）
   let apps = [];    // メモリ上キャッシュ（appsストアの内容）
@@ -633,7 +639,7 @@
               showLauncherToast('このカードに紐づくアプリ本体が見つかりません');
               return;
             }
-            openStage(ev, { name: displayName, src: app.src, empty: false });
+            openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false });
             return;
           }
           centerIndex = i;
@@ -666,6 +672,11 @@
   /* ---- ＋新規作成モーダル ---- */
   const launcherAddOverlay = document.getElementById('launcherAddOverlay');
   const launcherAppPicker = document.getElementById('launcherAppPicker');
+  const launcherImportZone = document.getElementById('launcherImportZone');
+  const launcherImportDrop = document.getElementById('launcherImportDrop');
+  const launcherImportDropText = document.getElementById('launcherImportDropText');
+  const launcherImportInput = document.getElementById('launcherImportInput');
+  const launcherImportNameInput = document.getElementById('launcherImportNameInput');
   const launcherCatInput = document.getElementById('launcherCatInput');
   const launcherCoverDrop = document.getElementById('launcherCoverDrop');
   const launcherCoverInput = document.getElementById('launcherCoverInput');
@@ -674,24 +685,82 @@
   const launcherAddCancelBtn = document.getElementById('launcherAddCancelBtn');
   const launcherAddSaveBtn = document.getElementById('launcherAddSaveBtn');
 
-  let selectedBuiltinIndex = null;
+  let selectedBuiltinIndex = null;   // プルダウンでbuiltinを選んだ場合のインデックス
+  let isImportMode = false;          // プルダウンで「インポート」を選んだかどうか
   let pendingCoverFile = null;
+  let pendingImportFile = null;      // 選択されたhtmlファイル（File）
+  let pendingImportContent = null;   // 読み込み済みのhtml文字列
 
+  // ・種類プルダウン（先天的アプリ一覧＋末尾に「ローカルhtmlをインポート」）を生成
   function renderAppPicker() {
-    launcherAppPicker.innerHTML = '';
+    launcherAppPicker.innerHTML = '<option value="" disabled>選択してください</option>';
     BUILTIN_APP_CHOICES.forEach((choice, idx) => {
-      const label = document.createElement('label');
-      label.className = 'launcher-app-option' + (selectedBuiltinIndex === idx ? ' is-selected' : '');
-      label.innerHTML = `
-        <input type="radio" name="launcherAppChoice" value="${idx}" ${selectedBuiltinIndex === idx ? 'checked' : ''}>
-        <span>${escapeHtmlLauncher(choice.name)}</span>
-      `;
-      label.querySelector('input').addEventListener('change', () => {
-        selectedBuiltinIndex = idx;
-        renderAppPicker();
-      });
-      launcherAppPicker.appendChild(label);
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = choice.name;
+      launcherAppPicker.appendChild(opt);
     });
+    const importOpt = document.createElement('option');
+    importOpt.value = IMPORT_OPTION_VALUE;
+    importOpt.textContent = 'ローカルhtmlをインポート（後天的アプリ）';
+    launcherAppPicker.appendChild(importOpt);
+    launcherAppPicker.value = '';
+  }
+
+  launcherAppPicker.addEventListener('change', () => {
+    const v = launcherAppPicker.value;
+    if (v === IMPORT_OPTION_VALUE) {
+      selectedBuiltinIndex = null;
+      isImportMode = true;
+      launcherImportZone.classList.add('is-visible');
+      launcherImportNameInput.style.display = '';
+    } else {
+      selectedBuiltinIndex = Number(v);
+      isImportMode = false;
+      launcherImportZone.classList.remove('is-visible');
+      launcherImportNameInput.style.display = 'none';
+    }
+  });
+
+  function bindImportDropClick() {
+    launcherImportDrop.onclick = () => launcherImportInput.click();
+  }
+  launcherImportInput.addEventListener('change', handleImportFileSelect);
+
+  function handleImportFileSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    // フールプルーフ①：拡張子チェック（.html / .htm のみ許可）
+    if (!IMPORT_ALLOWED_EXT.test(file.name)) {
+      showLauncherToast('.html または .htm ファイルを選択してください');
+      launcherImportInput.value = '';
+      return;
+    }
+    // フールプルーフ②：サイズ上限（5MB）。巨大ファイルの誤選択による動作重量化を防止
+    if (file.size > IMPORT_MAX_BYTES) {
+      showLauncherToast('ファイルサイズが大きすぎます（上限5MB）');
+      launcherImportInput.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingImportFile = file;
+      pendingImportContent = String(reader.result || '');
+      launcherImportDrop.classList.add('has-file');
+      launcherImportDropText.textContent = `選択中：${file.name}（${(file.size / 1024).toFixed(1)}KB）`;
+      if (!launcherImportNameInput.value.trim()) {
+        // 未入力の場合のみファイル名から自動補完（拡張子は除く）
+        launcherImportNameInput.value = file.name.replace(IMPORT_ALLOWED_EXT, '');
+      }
+    };
+    reader.onerror = () => {
+      showLauncherToast('ファイルの読み込みに失敗しました');
+      pendingImportFile = null;
+      pendingImportContent = null;
+    };
+    reader.readAsText(file);
   }
 
   function bindCoverDropClick() {
@@ -722,12 +791,22 @@
 
   function resetLauncherAddModal() {
     selectedBuiltinIndex = null;
+    isImportMode = false;
     pendingCoverFile = null;
+    pendingImportFile = null;
+    pendingImportContent = null;
     launcherCatInput.value = '';
     launcherOverlayInput.value = '';
+    launcherImportNameInput.value = '';
+    launcherImportNameInput.style.display = 'none';
+    launcherImportZone.classList.remove('is-visible');
+    launcherImportDrop.classList.remove('has-file');
+    launcherImportDropText.textContent = 'クリックしてhtmlファイルを選択（.html / .htm、5MBまで）';
+    launcherImportInput.value = '';
     launcherCoverDrop.classList.remove('has-image');
     launcherCoverDrop.innerHTML = '<span>クリックして画像を選択</span>';
     bindCoverDropClick();
+    bindImportDropClick();
     renderAppPicker();
   }
 
@@ -744,25 +823,43 @@
 
   launcherAddSaveBtn.addEventListener('click', async () => {
     // フールプルーフ：種類未選択のまま保存させない
-    if (selectedBuiltinIndex === null) {
+    if (!isImportMode && selectedBuiltinIndex === null) {
       showLauncherToast('種類を選択してください');
       return;
     }
-    const choice = BUILTIN_APP_CHOICES[selectedBuiltinIndex];
+    // フールプルーフ：インポートモードでファイル未選択のまま保存させない
+    if (isImportMode && !pendingImportContent) {
+      showLauncherToast('インポートするhtmlファイルを選択してください');
+      return;
+    }
+
     const now = Date.now();
 
     try {
-      // ② アプリ本体を新規登録（同じbuiltinを複数回登録すると別カード扱いになる、
-      //   つまり「同じアプリを複数の見た目のカードから開く」ことも許容する設計）
+      // ② アプリ本体（apps ストア＝地図・目次の1件）を新規登録
       const appId = 'a_' + now + '_' + Math.random().toString(36).slice(2, 8);
-      const appEntry = {
-        id: appId,
-        name: choice.name,
-        type: 'builtin',
-        src: choice.src,
-        createdAt: now,
-        updatedAt: now,
-      };
+      let appEntry;
+      if (isImportMode) {
+        const importedName = launcherImportNameInput.value.trim() || pendingImportFile.name.replace(IMPORT_ALLOWED_EXT, '');
+        appEntry = {
+          id: appId,
+          name: importedName,
+          type: 'imported',
+          htmlContent: pendingImportContent,
+          createdAt: now,
+          updatedAt: now,
+        };
+      } else {
+        const choice = BUILTIN_APP_CHOICES[selectedBuiltinIndex];
+        appEntry = {
+          id: appId,
+          name: choice.name,
+          type: 'builtin',
+          src: choice.src,
+          createdAt: now,
+          updatedAt: now,
+        };
+      }
       await launcherPut(APPS_STORE, appEntry);
 
       // ① カードを新規登録
@@ -856,7 +953,7 @@
     stageContent.style.setProperty('--origin-x', originX);
     stageContent.style.setProperty('--origin-y', originY);
 
-    if (project && !project.empty && project.src) {
+    if (project && !project.empty && (project.src || project.htmlContent)) {
       document.getElementById('stageTag').textContent = project.name;
       // 「＋追加」以外のアプリカードは、Stage内にiframeでダミー/実アプリを読み込む。
       // 既存のiframeがあれば一旦除去してから作り直す（同じアプリの再クリックも含め、
@@ -865,7 +962,12 @@
       stagePlaceholder.style.display = 'none';
       stageFrame = document.createElement('iframe');
       stageFrame.className = 'stage-frame';
-      stageFrame.src = project.src;
+      if (project.type === 'imported') {
+        // インポートされたhtmlは実ファイルパスを持たないため、srcdocで直接描画する
+        stageFrame.srcdoc = project.htmlContent;
+      } else {
+        stageFrame.src = project.src;
+      }
       stageFrame.title = project.name;
       stageBody.appendChild(stageFrame);
     } else {
@@ -984,7 +1086,7 @@
     const displayName = centerCard.overlayText && centerCard.overlayText.trim()
       ? centerCard.overlayText.trim()
       : app.name;
-    openStage(ev, { name: displayName, src: app.src, empty: false });
+    openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false });
   });
   openHitEl.addEventListener('wheel', handleCoverflowWheel, { passive: false });
 

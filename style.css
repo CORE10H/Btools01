@@ -761,15 +761,34 @@
   .launcher-field input[type="text"]:focus { border-color: var(--cyan-dim); }
   .launcher-field-hint { font-size: 9.5px; color: var(--text-faint); margin-top: 5px; line-height: 1.5; }
 
-  .launcher-app-picker { display: flex; flex-direction: column; gap: 6px; }
-  .launcher-app-option {
-    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-    background: var(--bg-alt); border: 1px solid var(--line); cursor: pointer;
-    font-size: 12px; color: var(--text-dim);
+  /* 種類選択：先天的アプリの増加を見込みプルダウン方式に統一
+     （ラジオボタン縦並びだと今後の追加で長くなりすぎるため） */
+  .launcher-app-picker {
+    width: 100%; background: var(--bg-alt); border: 1px solid var(--line);
+    padding: 8px 9px; font-size: 12px; color: var(--text); outline: none;
+    font-family: var(--font-body); cursor: pointer; appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-faint) 50%),
+                       linear-gradient(135deg, var(--text-faint) 50%, transparent 50%);
+    background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+    background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
   }
-  .launcher-app-option:hover { border-color: var(--cyan-dim); }
-  .launcher-app-option.is-selected { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
-  .launcher-app-option input[type="radio"] { accent-color: var(--cyan); }
+  .launcher-app-picker:focus { border-color: var(--cyan-dim); }
+  .launcher-app-picker option { background: var(--bg-alt); color: var(--text); }
+
+  /* ---- インポート（後天的アプリ）専用欄。種類でインポートを選んだ時のみ表示 ---- */
+  .launcher-import-zone { display: none; margin-top: 10px; }
+  .launcher-import-zone.is-visible { display: block; }
+  .launcher-import-drop {
+    border: 1px dashed var(--line); padding: 14px; text-align: center; cursor: pointer;
+    color: var(--text-faint); font-size: 11px;
+  }
+  .launcher-import-drop:hover { border-color: var(--cyan-dim); }
+  .launcher-import-drop.has-file { color: var(--cyan); border-color: var(--cyan-dim); }
+  .launcher-import-drop input[type="file"] { display: none; }
+  .launcher-import-warn {
+    font-size: 9.5px; color: var(--amber); margin-top: 6px; line-height: 1.6;
+    border-left: 2px solid var(--amber); padding-left: 8px;
+  }
 
   .launcher-cover-drop {
     border: 1px dashed var(--line); padding: 14px; text-align: center; cursor: pointer;

@@ -305,8 +305,25 @@
     </div>
     <div class="launcher-modal-body">
       <div class="launcher-field">
-        <label>種類（今後、外部htmlのインポートにも対応予定）</label>
-        <div class="launcher-app-picker" id="launcherAppPicker"></div>
+        <label>種類</label>
+        <select class="launcher-app-picker" id="launcherAppPicker">
+          <option value="" disabled selected>選択してください</option>
+        </select>
+
+        <div class="launcher-import-zone" id="launcherImportZone">
+          <div class="launcher-import-drop" id="launcherImportDrop">
+            <span id="launcherImportDropText">クリックしてhtmlファイルを選択（.html / .htm、5MBまで）</span>
+            <input type="file" id="launcherImportInput" accept=".html,.htm">
+          </div>
+          <div class="launcher-import-warn">
+            インポートしたhtmlが内部で使用するデータ保存領域（IndexedDB）の名前が、既存のアプリ（メモ・Discotica等）と偶然同じだった場合、データが混ざる可能性があります。信頼できるhtmlファイルのみをインポートしてください。
+          </div>
+        </div>
+      </div>
+
+      <div class="launcher-field">
+        <label>アプリ名（インポート時のみ入力。未入力ならファイル名を使用）</label>
+        <input type="text" id="launcherImportNameInput" maxlength="30" placeholder="例：自作ツールA" style="display:none;">
       </div>
 
       <div class="launcher-field">
