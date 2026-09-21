@@ -20,7 +20,9 @@
   function updateFullscreenBtnState() {
     const isFs = !!document.fullscreenElement;
     fullscreenBtn.classList.toggle('is-active', isFs);
-    fullscreenBtn.title = isFs ? '全画面表示を解除（F11）' : '全画面表示（F11）';
+    fullscreenBtn.title = isFs
+      ? '全画面表示を解除（このボタン、またはEscキー）'
+      : '全画面表示（このボタン推奨。F11で入った場合、解除はEscキーのみ対応）';
   }
   fullscreenBtn.addEventListener('click', () => {
     if (document.fullscreenElement) {

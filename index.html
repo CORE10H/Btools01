@@ -23,7 +23,7 @@
       </div>
     </div>
     <div class="header-icons">
-      <button class="header-icon-btn" id="fullscreenBtn" title="全画面表示（F11）">⛶</button>
+      <button class="header-icon-btn" id="fullscreenBtn" title="全画面表示（このボタン推奨。F11で入った場合、解除はEscキーのみ対応）">⛶</button>
       <button class="header-icon-btn" id="cloudSyncBtn" title="クラウド連携（未実装）" disabled>☁</button>
       <button class="header-icon-btn" id="settingsBtn" title="設定">⚙</button>
     </div>
@@ -107,30 +107,6 @@
       </div>
     </div>
   </div>
-
-  <!-- ===== CENTER: reserved stage (matches the large modal/empty space in reference) ===== -->
-  <section class="stage" id="stageEl">
-    <button class="stage-close" id="stageCloseBtn" title="閉じる">✕</button>
-    <div class="stage-content" id="stageContent">
-      <div class="stage-bar">
-        <div class="s-title">
-          <span class="icon">APP</span>
-          <span class="s-tag" id="stageTag">--</span>
-        </div>
-        <div class="s-actions">
-          <button>案内</button>
-          <button>＋ 新規</button>
-        </div>
-      </div>
-      <div class="stage-body" id="stageBody">
-        <div class="stage-placeholder" id="stagePlaceholder">
-          <div class="ring-static"><div class="core"></div></div>
-          <div class="big">MAIN STAGE — RESERVED</div>
-          <div class="small">将来、エージェントやアバター、任意の画像を表示する領域です。現在は空のプレースホルダーです。</div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- ===== BELOW STAGE: gantt only, width matches stage, height halved ===== -->
   <div class="panel gantt-panel">
@@ -289,6 +265,30 @@
   </div>
 
 </div>
+
+<!-- ===== STAGE（フルスクリーンオーバーレイ）=====
+     .shell の外側に配置：.shell に perspective が指定されておりスタッキング
+     コンテキストが分離するため、.shell 内に置いたままだと z-index の比較が
+     .shell 内限定になり、.shell 外の固定要素（cf-head-fixed 等）より背面に
+     沈んでしまう不具合があった（実機検証で発覚・修正）。 -->
+<section class="stage" id="stageEl">
+  <button class="stage-close" id="stageCloseBtn" title="閉じる">✕</button>
+  <div class="stage-content" id="stageContent">
+    <div class="stage-bar">
+      <div class="s-title">
+        <span class="icon">APP</span>
+        <span class="s-tag" id="stageTag">--</span>
+      </div>
+    </div>
+    <div class="stage-body" id="stageBody">
+      <div class="stage-placeholder" id="stagePlaceholder">
+        <div class="ring-static"><div class="core"></div></div>
+        <div class="big">MAIN STAGE — RESERVED</div>
+        <div class="small">将来、エージェントやアバター、任意の画像を表示する領域です。現在は空のプレースホルダーです。</div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- fixed nav buttons for the tilted cover flow (outside 3D transform context) -->
 <div class="cf-head-fixed">APPS</div>
