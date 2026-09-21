@@ -5,6 +5,7 @@
     --panel-hi: #121d29;
     --line: #1e3038;
     --line-soft: #14212a;
+    --panel-line: #3d5c68;
     --cyan: #00f0d0;
     --cyan-dim: #0a4a44;
     --magenta: #ff2f6e;
@@ -47,7 +48,7 @@
   .panel {
     position: relative;
     background: rgba(var(--panel-rgb), var(--panel-alpha));
-    border: 1px solid var(--line);
+    border: 2px solid var(--panel-line);
     clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
   }
   .panel-corner {
@@ -63,9 +64,9 @@
     animation: panelBeamSweep 1.3s ease-out 1;
   }
   @keyframes panelBeamSweep {
-    0%   { border-color: var(--line); box-shadow: none; }
+    0%   { border-color: var(--panel-line); box-shadow: none; }
     30%  { border-color: var(--cyan); box-shadow: 0 0 12px 1px var(--cyan); }
-    100% { border-color: var(--line); box-shadow: none; }
+    100% { border-color: var(--panel-line); box-shadow: none; }
   }
 
   /* ===================== GRID SHELL — mirrors the reference layout exactly ===================== */
@@ -467,17 +468,18 @@
     position: fixed;
     z-index: 190;
     background: transparent;
-    border: none;
+    border: 2px solid transparent;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     min-height: 0;
     opacity: 0;
     pointer-events: none;
-    transition: opacity .2s ease, top .25s ease, bottom .25s ease, left .25s ease, right .25s ease, width .25s ease;
+    transition: opacity .2s ease, border-color .2s ease, top .25s ease, bottom .25s ease, left .25s ease, right .25s ease, width .25s ease;
   }
   .stage.is-open {
     background: #000;
+    border-color: var(--panel-line);
     opacity: 1;
     pointer-events: auto;
   }
@@ -761,7 +763,10 @@
     display: none; align-items: center; justify-content: center;
   }
   .cf-item.is-center .cf-item-delete-btn { display: flex; }
-  .cf-item-delete-btn:hover { border-color: var(--magenta); color: var(--magenta); background: var(--magenta-dim); }
+  .cf-item-delete-btn:hover,
+  .cf-item-delete-btn.is-hover-forced {
+    border-color: var(--magenta); color: #fff; background: var(--magenta); box-shadow: 0 0 10px 1px rgba(255,47,110,.6);
+  }
 
   /* ---- 新規作成モーダル ---- */
   .launcher-modal-overlay {

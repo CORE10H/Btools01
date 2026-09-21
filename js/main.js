@@ -547,12 +547,14 @@
 
   // builtin（apps/配下に元から存在する、先天的なhtml）の選択肢一覧。
   // 「＋新規作成」モーダルの種類選択プルダウンに、このリストがそのまま表示される。
+  // coverImg：選択時にカバー画像欄へ自動読み込みするデフォルト画像のパス
+  // （未設定の場合は自動読み込みされず、従来通りユーザーが任意で選択する）。
   const BUILTIN_APP_CHOICES = [
-    { name: 'PROMPTGALLERY', src: 'apps/prompt-gallery.html' },
-    { name: 'manuscript', src: 'apps/manuscript.html' },
+    { name: 'PROMPTGALLERY', src: 'apps/prompt-gallery.html', coverImg: 'apps/img/prompt-gallery.jpg' },
+    { name: 'manuscript', src: 'apps/manuscript.html', coverImg: 'apps/img/manuscript.jpg' },
     { name: 'scaffold', src: 'apps/scaffold.html' },
-    { name: 'メモ', src: 'apps/memo.html' },
-    { name: 'Discotica', src: 'apps/discotica.html' },
+    { name: 'メモ', src: 'apps/memo.html', coverImg: 'apps/img/memo.jpg' },
+    { name: 'Discotica', src: 'apps/discotica.html', coverImg: 'apps/img/discotica.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 
@@ -690,6 +692,8 @@
   let selectedBuiltinIndex = null;   // プルダウンでbuiltinを選んだ場合のインデックス
   let isImportMode = false;          // プルダウンで「インポート」を選んだかどうか
   let pendingCoverFile = null;
+  let coverIsUserSelected = false;   // ユーザーが手動でカバー画像を選択したか
+                                      // （true の間は、builtin選び直しによる自動画像で上書きしない）
   let pendingImportFile = null;      // 選択されたhtmlファイル（File）
   let pendingImportContent = null;   // 読み込み済みのhtml文字列
 
@@ -721,8 +725,35 @@
       isImportMode = false;
       launcherImportZone.classList.remove('is-visible');
       launcherImportNameInput.style.display = 'none';
+      // 先天的アプリを選んだ際、デフォルトのカバー画像があれば自動読み込みする。
+      // ただしユーザーが既に手動で画像を選択済みの場合は上書きしない
+      // （手動選択を優先。ユーザー合意済み仕様）。
+      if (!coverIsUserSelected) {
+        loadBuiltinCoverImage(BUILTIN_APP_CHOICES[selectedBuiltinIndex]);
+      }
     }
   });
+
+  // builtinのデフォルトカバー画像（apps/img/配下）をfetchしてBlob化し、
+  // 通常の「手動アップロードされた画像」と同じ扱いでプレビュー表示する。
+  // coverImg未設定のbuiltin（scaffold・blank）では何もしない（画像欄は空のまま）。
+  async function loadBuiltinCoverImage(choice) {
+    if (!choice || !choice.coverImg) return;
+    try {
+      const res = await fetch(choice.coverImg);
+      if (!res.ok) throw new Error('fetch failed: ' + res.status);
+      const blob = await res.blob();
+      pendingCoverFile = blob;
+      const url = URL.createObjectURL(blob);
+      launcherCoverDrop.classList.add('has-image');
+      launcherCoverDrop.innerHTML = `<img src="${url}" alt="preview">`;
+      bindCoverDropClick();
+    } catch (err) {
+      // 自動読み込みに失敗しても致命的ではない（ユーザーが手動で選べば良いため）、
+      // トーストは出さず静かに諦める
+      console.error('デフォルトカバー画像の読み込みに失敗しました', err);
+    }
+  }
 
   function bindImportDropClick() {
     launcherImportDrop.onclick = () => launcherImportInput.click();
@@ -785,6 +816,7 @@
       return;
     }
     pendingCoverFile = file;
+    coverIsUserSelected = true; // 以降、builtin選び直しによる自動上書きを止める
     const url = URL.createObjectURL(file);
     launcherCoverDrop.classList.add('has-image');
     launcherCoverDrop.innerHTML = `<img src="${url}" alt="preview">`;
@@ -795,6 +827,7 @@
     selectedBuiltinIndex = null;
     isImportMode = false;
     pendingCoverFile = null;
+    coverIsUserSelected = false;
     pendingImportFile = null;
     pendingImportContent = null;
     launcherCatInput.value = '';
@@ -1321,6 +1354,38 @@
     openStage(ev, { name: displayName, src: app.src, htmlContent: app.htmlContent, type: app.type, empty: false }, centerCard.id);
   });
   openHitEl.addEventListener('wheel', handleCoverflowWheel, { passive: false });
+
+  // 【重要】削除ボタンの :hover は実際には発火しない（6.5節と同根の問題）。
+  // #cfOpenHit（position: fixed、独立したスタッキングコンテキスト）が
+  // 座標上は常に手前にあるため、ブラウザはマウスが実際に乗っているのは
+  // #cfOpenHit側だと判定し、.cf-item-delete-btn の :hover は発火しない。
+  // そのため、クリック時の座標判定（上のclickハンドラ）と同じロジックを
+  // mousemove でも行い、JS側で強制的に .is-hover-forced クラスを
+  // 付け外しすることでホバー時の見た目を再現する。
+  let lastHoveredDeleteBtn = null;
+  openHitEl.addEventListener('mousemove', (ev) => {
+    const centerEl = track.querySelector('.cf-item.is-center .cf-item-delete-btn');
+    let hovering = null;
+    if (centerEl) {
+      const r = centerEl.getBoundingClientRect();
+      if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+        hovering = centerEl;
+      }
+    }
+    if (hovering !== lastHoveredDeleteBtn) {
+      if (lastHoveredDeleteBtn) lastHoveredDeleteBtn.classList.remove('is-hover-forced');
+      if (hovering) hovering.classList.add('is-hover-forced');
+      openHitEl.style.cursor = hovering ? 'pointer' : '';
+      lastHoveredDeleteBtn = hovering;
+    }
+  });
+  openHitEl.addEventListener('mouseleave', () => {
+    if (lastHoveredDeleteBtn) {
+      lastHoveredDeleteBtn.classList.remove('is-hover-forced');
+      lastHoveredDeleteBtn = null;
+      openHitEl.style.cursor = '';
+    }
+  });
 
   // Position the hit-target dynamically from the NON-tilted .coverflow-v
   // ancestor's on-screen center — this point stays aligned with the
