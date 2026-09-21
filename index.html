@@ -64,6 +64,43 @@
           <button class="theme-eyedropper-btn" id="eyedropperBtn" title="壁紙からスポイトテーマを生成" disabled></button>
         </div>
       </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">アプリ管理</div>
+        <div class="app-manage-control">
+          <button class="btn" id="openAppManageBtn">インポートしたアプリを管理</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== アプリ管理モーダル（インポートした後天的アプリの本体削除） ===== -->
+  <div class="launcher-modal-overlay" id="appManageOverlay">
+    <div class="launcher-modal">
+      <div class="launcher-modal-head">
+        <span class="launcher-modal-title">アプリ管理</span>
+        <button class="launcher-modal-close" id="appManageCloseBtn">✕</button>
+      </div>
+      <div class="launcher-modal-body">
+        <div class="launcher-field-hint" style="margin-bottom:12px;">
+          インポートしたアプリ（後天的アプリ）のみを表示しています。あらかじめ付属しているアプリ（PROMPTGALLERY・メモ等）はここには表示されず、削除もできません。
+        </div>
+        <div id="appManageList"><!-- JSで動的生成 --></div>
+      </div>
+      <div class="launcher-modal-footer">
+        <button class="btn" id="appManageCloseBtn2">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== アプリ本体削除の確認ダイアログ ===== -->
+  <div class="launcher-confirm-overlay" id="appDeleteConfirmOverlay">
+    <div class="launcher-confirm-box">
+      <div class="launcher-confirm-msg" id="appDeleteConfirmMsg"></div>
+      <div class="launcher-confirm-actions">
+        <button class="btn" id="appDeleteCancelBtn">キャンセル</button>
+        <button class="btn danger" id="appDeleteConfirmBtn">削除する</button>
+      </div>
     </div>
   </div>
 

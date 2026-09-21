@@ -929,6 +929,139 @@
     else if (launcherAddOverlay.classList.contains('is-open')) closeLauncherAddModal();
   });
 
+  /* =====================================================================
+     アプリ管理（段階③）：インポートした後天的アプリ（type: 'imported'）の
+     本体削除機能。先天的アプリ（builtin）は一覧に出さず、削除もできない
+     （builtinは apps/ 配下の実ファイル参照であり、SIDE-OPS本体機能として
+     常に必要なため）。
+
+     誤作動防止の要：
+     ・削除対象は imported のみに限定（一覧生成時に type === 'imported' で
+       フィルタ。誤ってbuiltinを削除できないようそもそもUIに出さない）
+     ・アプリ本体を削除すると、紐づく cards レコードも連鎖削除される
+       （ユーザー合意済みの仕様。旧来の「カード削除は①のみ」とは逆方向の
+       操作であるため、削除確認ダイアログで参照カード件数と挙動を必ず明示）
+     ・各アプリ専用のIndexedDB（sideops_memo等）は一切削除しない（データは
+       温存。入口を失うだけで、同じhtmlを再インポートすれば理論上は再アクセス
+       できるが、importedアプリは実体（htmlContent）そのものを保持しているため
+       再インポートは実質「同じ内容の別アプリを作る」ことになる点に注意）
+  ===================================================================== */
+  const appManageOverlay = document.getElementById('appManageOverlay');
+  const appManageList = document.getElementById('appManageList');
+  const openAppManageBtn = document.getElementById('openAppManageBtn');
+  const appManageCloseBtn = document.getElementById('appManageCloseBtn');
+  const appManageCloseBtn2 = document.getElementById('appManageCloseBtn2');
+  const appDeleteConfirmOverlay = document.getElementById('appDeleteConfirmOverlay');
+  const appDeleteConfirmMsg = document.getElementById('appDeleteConfirmMsg');
+  const appDeleteCancelBtn = document.getElementById('appDeleteCancelBtn');
+  const appDeleteConfirmBtn = document.getElementById('appDeleteConfirmBtn');
+  let pendingDeleteAppId = null;
+
+  function countCardsForApp(appId) {
+    return cards.filter(c => c.appId === appId).length;
+  }
+
+  function renderAppManageList() {
+    const importedApps = apps.filter(a => a.type === 'imported');
+    if (importedApps.length === 0) {
+      appManageList.innerHTML = '<div class="app-manage-empty">インポートしたアプリはまだありません。</div>';
+      return;
+    }
+    appManageList.innerHTML = '';
+    importedApps.forEach(app => {
+      const refCount = countCardsForApp(app.id);
+      const row = document.createElement('div');
+      row.className = 'app-manage-row';
+      const dateStr = app.createdAt ? new Date(app.createdAt).toLocaleDateString('ja-JP') : '--';
+      row.innerHTML = `
+        <div class="app-manage-info">
+          <div class="app-manage-name">${escapeHtmlLauncher(app.name)}</div>
+          <div class="app-manage-meta${refCount > 0 ? ' has-refs' : ''}">
+            登録日: ${dateStr}　参照カード: ${refCount}件${refCount > 0 ? '（削除するとカードも消えます）' : ''}
+          </div>
+        </div>
+        <button class="app-manage-delete-btn" type="button" data-app-id="${app.id}">削除</button>
+      `;
+      row.querySelector('.app-manage-delete-btn').addEventListener('click', () => {
+        openAppDeleteConfirm(app.id);
+      });
+      appManageList.appendChild(row);
+    });
+  }
+
+  function openAppManage() {
+    renderAppManageList();
+    appManageOverlay.classList.add('is-open');
+  }
+  function closeAppManage() {
+    appManageOverlay.classList.remove('is-open');
+  }
+  openAppManageBtn.addEventListener('click', () => {
+    closeSettings();
+    openAppManage();
+  });
+  appManageCloseBtn.addEventListener('click', closeAppManage);
+  appManageCloseBtn2.addEventListener('click', closeAppManage);
+  appManageOverlay.addEventListener('click', (e) => { if (e.target === appManageOverlay) closeAppManage(); });
+
+  function openAppDeleteConfirm(appId) {
+    const app = apps.find(a => a.id === appId);
+    if (!app) return;
+    pendingDeleteAppId = appId;
+    const refCount = countCardsForApp(appId);
+    if (refCount > 0) {
+      // フールプルーフ：参照カードがある場合は、連鎖削除の影響を明示した強い警告文にする
+      appDeleteConfirmMsg.innerHTML =
+        `「${escapeHtmlLauncher(app.name)}」を削除します。<br><br>` +
+        `<strong style="color:var(--magenta);">このアプリはカバーフローに${refCount}件のカードとして登録されています。` +
+        `アプリ本体を削除すると、それらのカードも同時に削除されます。</strong><br><br>` +
+        `※アプリが保存していたデータ自体（メモの内容など）は削除されません。この操作は取り消せません。よろしいですか？`;
+    } else {
+      appDeleteConfirmMsg.innerHTML =
+        `「${escapeHtmlLauncher(app.name)}」を削除します。<br><br>` +
+        `このアプリを参照しているカードはありません。この操作は取り消せません。よろしいですか？`;
+    }
+    appDeleteConfirmOverlay.classList.add('is-open');
+  }
+  function closeAppDeleteConfirm() {
+    pendingDeleteAppId = null;
+    appDeleteConfirmOverlay.classList.remove('is-open');
+  }
+  appDeleteCancelBtn.addEventListener('click', closeAppDeleteConfirm);
+  appDeleteConfirmOverlay.addEventListener('click', (e) => { if (e.target === appDeleteConfirmOverlay) closeAppDeleteConfirm(); });
+
+  appDeleteConfirmBtn.addEventListener('click', async () => {
+    if (!pendingDeleteAppId) return;
+    const appId = pendingDeleteAppId;
+    try {
+      // 連鎖削除：このappIdを参照している cards レコードを全て先に削除
+      const affectedCards = cards.filter(c => c.appId === appId);
+      for (const c of affectedCards) {
+        await launcherDelete(CARDS_STORE, c.id);
+      }
+      // ② アプリ本体を削除（③各アプリ専用DBのデータには一切触れない）
+      await launcherDelete(APPS_STORE, appId);
+
+      await loadLauncherData();
+      closeAppDeleteConfirm();
+      showLauncherToast(affectedCards.length > 0
+        ? `アプリと紐づくカード${affectedCards.length}件を削除しました`
+        : 'アプリを削除しました');
+      renderAppManageList();
+      buildCoverflow();
+    } catch (err) {
+      console.error('アプリ本体の削除に失敗しました', err);
+      showLauncherToast('削除に失敗しました');
+      closeAppDeleteConfirm();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (appDeleteConfirmOverlay.classList.contains('is-open')) closeAppDeleteConfirm();
+    else if (appManageOverlay.classList.contains('is-open')) closeAppManage();
+  });
+
   function shortestOffset(i, center, len) {
     let raw = i - center;
     if (raw > len / 2) raw -= len;

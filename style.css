@@ -825,15 +825,39 @@
   .launcher-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
   /* ---- ボタン共通（launcher系。既存 .btn が無いため最小限を独自定義） ---- */
-  .launcher-modal .btn, .launcher-confirm-box .btn {
+  .launcher-modal .btn, .launcher-confirm-box .btn, .settings-modal .btn {
     font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
     background: transparent; border: 1px solid var(--line); padding: 7px 14px; cursor: pointer;
   }
-  .launcher-modal .btn:hover, .launcher-confirm-box .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .launcher-modal .btn.primary, .launcher-confirm-box .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
-  .launcher-modal .btn.primary:hover, .launcher-confirm-box .btn.primary:hover { background: var(--cyan-dim); }
-  .launcher-modal .btn.danger, .launcher-confirm-box .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
-  .launcher-modal .btn.danger:hover, .launcher-confirm-box .btn.danger:hover { background: var(--magenta-dim); }
+  .launcher-modal .btn:hover, .launcher-confirm-box .btn:hover, .settings-modal .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .launcher-modal .btn.primary, .launcher-confirm-box .btn.primary, .settings-modal .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .launcher-modal .btn.primary:hover, .launcher-confirm-box .btn.primary:hover, .settings-modal .btn.primary:hover { background: var(--cyan-dim); }
+  .launcher-modal .btn.danger, .launcher-confirm-box .btn.danger, .settings-modal .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .launcher-modal .btn.danger:hover, .launcher-confirm-box .btn.danger:hover, .settings-modal .btn.danger:hover { background: var(--magenta-dim); }
+
+  /* ---- アプリ管理：一覧行 ---- */
+  .app-manage-control { display: flex; }
+  .app-manage-control .btn { width: 100%; }
+  .app-manage-empty {
+    font-size: 11px; color: var(--text-faint); text-align: center; padding: 24px 10px;
+  }
+  .app-manage-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  .app-manage-row:last-child { border-bottom: none; }
+  .app-manage-info { min-width: 0; }
+  .app-manage-name {
+    font-size: 12px; color: var(--text); font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .app-manage-meta { font-size: 10px; color: var(--text-faint); margin-top: 2px; }
+  .app-manage-meta.has-refs { color: var(--amber); }
+  .app-manage-delete-btn {
+    flex-shrink: 0; background: transparent; border: 1px solid var(--magenta-dim); color: var(--magenta);
+    font-size: 10.5px; padding: 5px 10px; cursor: pointer; font-family: var(--font-body);
+  }
+  .app-manage-delete-btn:hover { background: var(--magenta-dim); }
 
   /* ---- トースト ---- */
   .launcher-toast {
