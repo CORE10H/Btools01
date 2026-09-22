@@ -1022,6 +1022,18 @@
     /* スマホ幅ではSTAGEは常にフルスクリーンで開くため、
        サイズ切り替えボタン（縦いっぱい／四方いっぱい）は不要 */
     .stage-size-toggle { display: none !important; }
+
+    /* スマホ幅では3D変形レイヤー（rotateX等でJSが位置を計算する
+       .cf-item本体）と、それに合わせて座標を追従させる透明な当たり
+       判定オーバーレイ（#cfOpenHit）という、PC版の複雑な二重構造を
+       維持する必要がない。カード本体に直接タッチ・クリックが効く
+       ようにし、オーバーレイ自体を完全に無効化する
+       （表示だけでなくpointer-eventsも切ることで、万一表示制御が
+       効かない場合でもクリックが奪われないようにする二重の安全策）。 */
+    .cf-open-hit {
+      display: none !important;
+      pointer-events: none !important;
+    }
   }
 
   /* ---- 縦：第一段階（高さが狭まりTIMELINE/タスク/LOGのいずれかを

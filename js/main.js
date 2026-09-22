@@ -15,6 +15,18 @@
   updateClock();
   setInterval(updateClock, 1000);
 
+  // スマホ幅（横：第三段階、13章）の判定。CSS側のブレークポイント
+  // (max-width: 479px) と同じ値をJS側でも参照する必要があるため定数化。
+  // CSSとJSで値がズレるとレイアウトとロジックの境界が食い違うため、
+  // 値を変更する場合はstyle.css側の該当メディアクエリも合わせて修正すること。
+  // ファイル冒頭に置いているのは、カバーフロー構築（buildCoverflow）や
+  // STAGE表示（openStage）など、複数の離れた箇所から呼ばれるため、
+  // 定義順序に依存せず確実に参照できるようにするため。
+  const MOBILE_WIDTH_BREAKPOINT = 479;
+  function isMobileWidth() {
+    return window.innerWidth <= MOBILE_WIDTH_BREAKPOINT;
+  }
+
   /* ===================== HEADER ICONS: FULLSCREEN / CLOUD (stub) / SETTINGS ===================== */
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   function updateFullscreenBtnState() {
@@ -639,6 +651,16 @@
         el.addEventListener('click', (ev) => {
           if (ev.target.closest('.cf-item-delete-btn')) return;
           if (i === centerIndex) {
+            // PC幅では#cfOpenHit（透明な当たり判定オーバーレイ）が手前に
+            // 存在し、同じ役割（中央カードのクリックでアプリを開く）を
+            // 担っている。ブラウザは通常、一番手前の要素にしかクリックを
+            // 渡さないため二重発火は基本的に起きないが、念のための
+            // フールプルーフとして、オーバーレイが有効な状態（＝スマホ幅
+            // ではない状態）ではカード本体側のクリックは無視し、
+            // オーバーレイ側にのみ処理させる（13章：同一操作の二重実行
+            // 防止）。スマホ幅ではオーバーレイ自体を使わないため、
+            // カード本体側がそのまま有効になる。
+            if (!isMobileWidth()) return;
             if (!app) {
               showLauncherToast('このカードに紐づくアプリ本体が見つかりません');
               return;
@@ -1227,15 +1249,6 @@
     applyStageSizeMode(activeMode);
   });
 
-  // スマホ幅（横：第三段階、13章）の判定。CSS側のブレークポイント
-  // (max-width: 479px) と同じ値をJS側でも参照する必要があるため定数化。
-  // CSSとJSで値がズレるとレイアウトとロジックの境界が食い違うため、
-  // 値を変更する場合はstyle.css側の該当メディアクエリも合わせて修正すること。
-  const MOBILE_WIDTH_BREAKPOINT = 479;
-  function isMobileWidth() {
-    return window.innerWidth <= MOBILE_WIDTH_BREAKPOINT;
-  }
-
   function openStage(ev, project, cardId) {
     currentStageCardId = cardId || null;
     const card = cardId ? cards.find(c => c.id === cardId) : null;
@@ -1389,19 +1402,23 @@
   openHitEl.addEventListener('wheel', handleCoverflowWheel, { passive: false });
 
   // ---- スマホ：縦スワイプでのカード送り ----
-  // 既存のマウスホイール送り（handleCoverflowWheel）と同じ「1回の操作で
-  // 1件送る」という挙動に揃える。タッチ操作は指を動かした距離が連続的に
-  // 取れてしまうため、そのままでは「1回のスワイプで何枚も送られる」
-  // 誤作動が起きやすい。フールプルーフとして、
-  //   ①一定距離（SWIPE_THRESHOLD_PX）を超えるまでは送らない
-  //   ②一度送ったら、指を離すかその時点の起点を更新するまでは
-  //     再度送らない（1スワイプ＝1送りに制限）
-  // という2段構えにしている。
+  // PC版では#cfOpenHit（3D変形の外側に位置する透明な当たり判定
+  // オーバーレイ）がクリック・ホイール操作を一手に引き受けている。
+  // だがこれは「実際に目に見えているカード本体（3D変形された.cf-item）」
+  // とは別のレイヤーであり、タッチのスワイプ操作とは相性が悪い
+  // （実機で無反応になることを確認・13章）。
+  //
+  // そのため、タッチのスワイプ送りは #cfOpenHit ではなく .left-col
+  // （カバーフロー全体を包む、3D変形の親コンテナ）に対して実装する。
+  // .left-colはスマホ幅でも常に画面上に存在し（第三段階でも表示される
+  // 唯一のパネル）、実際に指が触れる場所と一致するため、位置ズレの
+  // 心配なく安定して反応する。
   const SWIPE_THRESHOLD_PX = 40;
   let touchStartY = null;
   let touchSwipeConsumed = false;
 
   function handleCoverflowTouchStart(e) {
+    if (!e.target.closest('.cf-wrap')) return; // タスクパネル等での誤反応防止
     if (e.touches.length !== 1) return; // ピンチ操作等は対象外（誤作動防止）
     touchStartY = e.touches[0].clientY;
     touchSwipeConsumed = false;
@@ -1425,10 +1442,11 @@
     touchStartY = null;
     touchSwipeConsumed = false;
   }
-  openHitEl.addEventListener('touchstart', handleCoverflowTouchStart, { passive: true });
-  openHitEl.addEventListener('touchmove', handleCoverflowTouchMove, { passive: false });
-  openHitEl.addEventListener('touchend', handleCoverflowTouchEnd, { passive: true });
-  openHitEl.addEventListener('touchcancel', handleCoverflowTouchEnd, { passive: true });
+  const leftColEl = document.querySelector('.left-col');
+  leftColEl.addEventListener('touchstart', handleCoverflowTouchStart, { passive: true });
+  leftColEl.addEventListener('touchmove', handleCoverflowTouchMove, { passive: false });
+  leftColEl.addEventListener('touchend', handleCoverflowTouchEnd, { passive: true });
+  leftColEl.addEventListener('touchcancel', handleCoverflowTouchEnd, { passive: true });
 
   // 【重要】削除ボタンの :hover は実際には発火しない（6.5節と同根の問題）。
   // #cfOpenHit（position: fixed、独立したスタッキングコンテキスト）が
