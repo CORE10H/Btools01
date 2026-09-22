@@ -1388,6 +1388,48 @@
   });
   openHitEl.addEventListener('wheel', handleCoverflowWheel, { passive: false });
 
+  // ---- スマホ：縦スワイプでのカード送り ----
+  // 既存のマウスホイール送り（handleCoverflowWheel）と同じ「1回の操作で
+  // 1件送る」という挙動に揃える。タッチ操作は指を動かした距離が連続的に
+  // 取れてしまうため、そのままでは「1回のスワイプで何枚も送られる」
+  // 誤作動が起きやすい。フールプルーフとして、
+  //   ①一定距離（SWIPE_THRESHOLD_PX）を超えるまでは送らない
+  //   ②一度送ったら、指を離すかその時点の起点を更新するまでは
+  //     再度送らない（1スワイプ＝1送りに制限）
+  // という2段構えにしている。
+  const SWIPE_THRESHOLD_PX = 40;
+  let touchStartY = null;
+  let touchSwipeConsumed = false;
+
+  function handleCoverflowTouchStart(e) {
+    if (e.touches.length !== 1) return; // ピンチ操作等は対象外（誤作動防止）
+    touchStartY = e.touches[0].clientY;
+    touchSwipeConsumed = false;
+  }
+  function handleCoverflowTouchMove(e) {
+    if (touchStartY === null || touchSwipeConsumed) return;
+    const deltaY = e.touches[0].clientY - touchStartY;
+    if (Math.abs(deltaY) < SWIPE_THRESHOLD_PX) return;
+    e.preventDefault(); // ページ自体のスクロールに巻き込まれないようにする
+    const len = cards.length + 1;
+    if (deltaY < 0) {
+      // 指を上へ（画面上でカードを上へ送る）＝ホイールの下スクロールと同じ扱い
+      centerIndex = (centerIndex + 1) % len;
+    } else {
+      centerIndex = (centerIndex - 1 + len) % len;
+    }
+    render();
+    touchSwipeConsumed = true; // 1スワイプ＝1送りに制限
+  }
+  function handleCoverflowTouchEnd() {
+    touchStartY = null;
+    touchSwipeConsumed = false;
+  }
+  openHitEl.addEventListener('touchstart', handleCoverflowTouchStart, { passive: true });
+  openHitEl.addEventListener('touchmove', handleCoverflowTouchMove, { passive: false });
+  openHitEl.addEventListener('touchend', handleCoverflowTouchEnd, { passive: true });
+  openHitEl.addEventListener('touchcancel', handleCoverflowTouchEnd, { passive: true });
+
   // 【重要】削除ボタンの :hover は実際には発火しない（6.5節と同根の問題）。
   // #cfOpenHit（position: fixed、独立したスタッキングコンテキスト）が
   // 座標上は常に手前にあるため、ブラウザはマウスが実際に乗っているのは
@@ -1439,6 +1481,13 @@
     openHitEl.style.height = h + 'px';
   }
   positionOpenHit();
+  // 初回のgetBoundingClientRect()が、ブラウザの初回レイアウト計算完了前
+  // （特にメディアクエリによるグリッド再構成が確定する前）に走ってしまい、
+  // 古い/未確定のレイアウト値のまま位置が固定されてしまう場合があるため、
+  // 1フレーム後に再計算して確定値で上書きする（スマホ幅での実機検証で
+  // 発覚：透明な当たり判定オーバーレイの幅が画面幅を超えて固定され、
+  // 横スクロールが発生する不具合があった）。
+  requestAnimationFrame(() => requestAnimationFrame(positionOpenHit));
   window.addEventListener('resize', positionOpenHit);
 
   // カバーフロー・ランチャーDBの初期化 → データ読み込み → 初回描画。

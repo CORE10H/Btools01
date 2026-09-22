@@ -95,6 +95,7 @@
     flex-direction: column;
     gap: 14px;
     min-height: 0;
+    min-width: 0; /* .left-colと同様の理由（13章参照） */
     transform-style: preserve-3d;
     transform: rotateY(-50deg);
     transform-origin: left center;
@@ -107,6 +108,11 @@
     flex-direction: column;
     gap: 14px;
     min-height: 0;
+    min-width: 0; /* CSS Gridアイテムのデフォルト(min-width:auto)を打ち消す。
+                     これが無いと、中のコンテンツ（カバーフローのカード等）
+                     の内在的な最小幅ぶん、グリッドの列自体が押し広げられ、
+                     スマホ幅で横スクロールが発生する不具合があった
+                     （13章・実機検証で発覚） */
     transform-style: preserve-3d;
     transform: rotateY(50deg);
     transform-origin: right center;
