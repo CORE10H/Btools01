@@ -15,6 +15,123 @@
   updateClock();
   setInterval(updateClock, 1000);
 
+  /* =====================================================================
+     設定の永続化（sideops_settings）
+
+     壁紙・透過率・選択中のテーマ・カスタムテーマの色・スポイトテーマの
+     色をまとめてIndexedDBに保存し、リロード後も復元する（シーバさん
+     指示：「設定メニュー内のものは全部まとめて『設定』としてひとまとめに
+     永続化」。2026-09-22新設）。
+
+     同じストア内を2レコードに分けて保持する（key: 'main' / key:
+     'wallpaperUploads'）。壁紙アップロード画像（最大3枚×5MBのデータURL）
+     は透過率等とまとめて1レコードにすると、透過率を1回変えるだけでも
+     無関係な十数MBの画像データを毎回読み書きすることになってしまうため、
+     軽量データと重いデータを分離した（シーバさん指摘により当初の
+     1レコード案から変更）。既存のlauncher/log DBと同じ
+     open→transaction のパターンに準拠。
+
+     key: 'main'（軽量データ）に保存する項目：
+       - panelAlpha: 透過率（数値）
+       - wallpaperValue: 現在の壁紙のCSS値（'none' または url("...")）
+       - themeKey: 選択中のテーマキー（'dark'/'light'/'vivid'/
+         'contrast'/'custom'/'eyedropper'）
+       - customThemeTokens: カスタムテーマの15色（保存済みならthemes.custom
+         として復元）
+       - eyedropperThemeTokens: スポイトで生成された15色（保存済みなら
+         themes.eyedropperとして復元。壁紙が変わっても自動再生成は
+         しない仕様＝保存時点の色をそのまま保持）
+
+     key: 'wallpaperUploads'（重いデータ、専用レコード）：
+       - uploads: アップロード壁紙の配列（最大3件、古い順に自動削除。
+         1件5MBまで。他のインポート機能と同じ基準）
+         [{ id, name, dataUrl, addedAt }]
+
+     フールプルーフ：
+       - 読み込み失敗時は例外を投げず、全項目デフォルト値のまま起動を
+         続行する（設定復元の失敗でアプリ全体が止まらないように）
+       - アップロード壁紙の件数・サイズ上限はここで一元管理する
+     ===================================================================== */
+  const SETTINGS_DB_NAME = 'sideops_settings';
+  const SETTINGS_DB_VERSION = 1;
+  const SETTINGS_STORE = 'settings';
+  const SETTINGS_RECORD_KEY = 'main';               // 軽量データ（透過率・壁紙の選択値・テーマ・色）
+  const SETTINGS_WALLPAPER_UPLOADS_KEY = 'wallpaperUploads'; // 壁紙アップロード画像（重い）専用の別レコード
+  const WALLPAPER_UPLOAD_MAX_COUNT = 3;
+  const WALLPAPER_UPLOAD_MAX_BYTES = 5 * 1024 * 1024; // 5MB。他のインポート機能と同じ基準
+
+  let settingsDb = null;
+
+  function openSettingsDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(SETTINGS_DB_NAME, SETTINGS_DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const _db = ev.target.result;
+        if (!_db.objectStoreNames.contains(SETTINGS_STORE)) {
+          _db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function loadSettingsRecordByKey(key) {
+    return new Promise((resolve, reject) => {
+      const tx = settingsDb.transaction(SETTINGS_STORE, 'readonly');
+      const req = tx.objectStore(SETTINGS_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function loadSettingsRecord() {
+    return loadSettingsRecordByKey(SETTINGS_RECORD_KEY);
+  }
+
+  // 部分更新：既存レコードにpatchの内容だけマージして保存する
+  // （呼び出し側は変更したい項目だけ渡せばよく、他項目を誤って
+  // 消してしまうリスクを避ける）。
+  //
+  // 【設計メモ・2026-09-22】壁紙アップロード画像（最大3枚×5MBの
+  // データURL）は、この軽量レコード（key: 'main'）とは別レコード
+  // （key: SETTINGS_WALLPAPER_UPLOADS_KEY）に分離して保存する。
+  // IndexedDBのputはレコード単位の丸ごと上書きであり、1レコードに
+  // まとめると透過率のような小さな値を1つ変えるだけでも毎回、
+  // 無関係な十数MBの画像データを読み込んで書き戻すことになって
+  // しまうため（シーバさん指摘により発覚・分離）。
+  async function saveSettingsPatch(patch) {
+    if (!settingsDb) return; // DB初期化前の呼び出しは無視（安全側）
+    try {
+      const current = (await loadSettingsRecord()) || { key: SETTINGS_RECORD_KEY };
+      const merged = Object.assign({}, current, patch, { key: SETTINGS_RECORD_KEY });
+      await new Promise((resolve, reject) => {
+        const tx = settingsDb.transaction(SETTINGS_STORE, 'readwrite');
+        const req = tx.objectStore(SETTINGS_STORE).put(merged);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (err) {
+      console.error('設定の保存に失敗しました', err);
+    }
+  }
+
+  // 壁紙アップロード一覧だけを専用レコードとして丸ごと保存する
+  // （呼び出し側は配列全体を渡す。件数が最大3件までに絞られているため
+  // 全体保存でも実用上問題ない）。
+  async function saveWallpaperUploads(uploads) {
+    if (!settingsDb) return;
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = settingsDb.transaction(SETTINGS_STORE, 'readwrite');
+        const req = tx.objectStore(SETTINGS_STORE).put({ key: SETTINGS_WALLPAPER_UPLOADS_KEY, uploads });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (err) {
+      console.error('壁紙アップロードの保存に失敗しました', err);
+    }
+  }
+
   /* ===================== HEADER ICONS: FULLSCREEN / CLOUD (stub) / SETTINGS ===================== */
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   function updateFullscreenBtnState() {
@@ -65,10 +182,12 @@
   document.getElementById('alphaUp').addEventListener('click', () => {
     panelAlpha = Math.min(100, panelAlpha + 10);
     applyAlpha();
+    saveSettingsPatch({ panelAlpha });
   });
   document.getElementById('alphaDown').addEventListener('click', () => {
     panelAlpha = Math.max(0, panelAlpha - 10);
     applyAlpha();
+    saveSettingsPatch({ panelAlpha });
   });
 
   /* ===================== WALLPAPER SYSTEM (presets + custom upload) ===================== */
@@ -106,6 +225,11 @@
   let currentWallpaperUrl = null; // the actual image URL behind --wallpaper, or null for 'none'
   const eyedropperBtn = document.getElementById('eyedropperBtn');
 
+  // アップロード壁紙のメモリ上キャッシュ（DBの内容をそのまま反映）。
+  // [{ id, name, dataUrl, addedAt }]。追加順（古い→新しい）で保持し、
+  // WALLPAPER_UPLOAD_MAX_COUNT を超えたら先頭（最古）から削除する。
+  let wallpaperUploads = [];
+
   function extractImageUrl(cssValue) {
     // cssValue is either 'none' or url("...")
     const m = /^url\("(.+)"\)$/.exec(cssValue);
@@ -123,6 +247,23 @@
     if (activeEl) activeEl.classList.add('active');
   }
 
+  function makeUploadWallpaperBtn(upload) {
+    // uploadは { id, name, dataUrl, addedAt }。クリック時の値をこの
+    // オブジェクト自身から読むクロージャにしておくことで、後から
+    // 配列の並びが変わっても個々のボタンの動作は独立して壊れない。
+    const thisWallpaperValue = `url("${upload.dataUrl}")`;
+    const btn = document.createElement('button');
+    btn.className = 'wallpaper-swatch';
+    btn.title = upload.name;
+    btn.style.backgroundImage = `url("${upload.dataUrl}")`;
+    btn.addEventListener('click', () => {
+      applyWallpaper(thisWallpaperValue);
+      setActiveWallpaperSwatch(btn);
+      saveSettingsPatch({ wallpaperValue: thisWallpaperValue });
+    });
+    return btn;
+  }
+
   function buildWallpaperSwatches() {
     wallpaperSwatchesEl.innerHTML = '';
     wallpaperPresets.forEach(preset => {
@@ -134,8 +275,13 @@
       btn.addEventListener('click', () => {
         applyWallpaper(preset.value);
         setActiveWallpaperSwatch(btn);
+        saveSettingsPatch({ wallpaperValue: preset.value });
       });
       wallpaperSwatchesEl.appendChild(btn);
+    });
+    // 保存済みのアップロード壁紙があれば、プリセットの後ろに追加表示する
+    wallpaperUploads.forEach(upload => {
+      wallpaperSwatchesEl.appendChild(makeUploadWallpaperBtn(upload));
     });
   }
   buildWallpaperSwatches();
@@ -150,23 +296,35 @@
   wallpaperFileInput.addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    // フールプルーフ：1枚あたりのサイズ上限（他のインポート機能と同じ基準）
+    if (file.size > WALLPAPER_UPLOAD_MAX_BYTES) {
+      showLauncherToast(`画像サイズが大きすぎます（上限${WALLPAPER_UPLOAD_MAX_BYTES / 1024 / 1024}MB）`);
+      wallpaperFileInput.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      // Each uploaded image gets its own independent value baked into its
-      // own button's click handler, so earlier uploads keep working after
-      // later ones are added (no shared/overwritten variable).
-      const thisWallpaperValue = `url("${ev.target.result}")`;
-      const btn = document.createElement('button');
-      btn.className = 'wallpaper-swatch';
-      btn.title = file.name;
-      btn.style.backgroundImage = `url("${ev.target.result}")`;
-      btn.addEventListener('click', () => {
-        applyWallpaper(thisWallpaperValue);
-        setActiveWallpaperSwatch(btn);
-      });
-      wallpaperSwatchesEl.appendChild(btn);
+      const upload = {
+        id: 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        name: file.name,
+        dataUrl: String(ev.target.result),
+        addedAt: Date.now(),
+      };
+      wallpaperUploads.push(upload);
+      // フールプルーフ：永続化する枚数の上限（3枚）。超えたら古いものから
+      // 削除する（アップロード自体を拒否せず、操作を止めない方針）。
+      while (wallpaperUploads.length > WALLPAPER_UPLOAD_MAX_COUNT) {
+        wallpaperUploads.shift();
+      }
+      buildWallpaperSwatches();
+      const thisWallpaperValue = `url("${upload.dataUrl}")`;
       applyWallpaper(thisWallpaperValue);
-      setActiveWallpaperSwatch(btn);
+      // 追加したボタンは再構築後のDOMから探し直す（buildWallpaperSwatches
+      // が毎回作り直すため、先に作った参照はもう使えない）
+      const btns = wallpaperSwatchesEl.querySelectorAll('.wallpaper-swatch');
+      setActiveWallpaperSwatch(btns[btns.length - 1]);
+      saveWallpaperUploads(wallpaperUploads);      // 重いデータは専用レコードへ
+      saveSettingsPatch({ wallpaperValue: thisWallpaperValue }); // 軽い方はmainレコードへ
     };
     reader.readAsDataURL(file);
     wallpaperFileInput.value = '';
@@ -252,6 +410,8 @@
 
   function buildThemeSwatches() {
     const wrap = document.getElementById('themeSwatches');
+    wrap.innerHTML = ''; // 2回目以降の呼び出し（設定復元でeyedropper/customが
+                          // 追加された後の再構築）でボタンが重複しないように
     Object.entries(themes).forEach(([key, theme]) => {
       const btn = document.createElement('button');
       btn.className = 'theme-swatch' + (key === currentTheme ? ' active' : '');
@@ -260,7 +420,10 @@
       btn.style.setProperty('--_sw-bg', theme.swatchBg);
       btn.style.setProperty('--_sw-accent', theme.swatchAccent);
       btn.innerHTML = '<span class="ts-bg"></span><span class="ts-accent"></span>';
-      btn.addEventListener('click', () => applyTheme(key));
+      btn.addEventListener('click', () => {
+        applyTheme(key);
+        saveSettingsPatch({ themeKey: key });
+      });
       wrap.appendChild(btn);
     });
   }
@@ -406,6 +569,13 @@
       try {
         await buildEyedropperTheme(currentWallpaperUrl);
         applyTheme('eyedropper');
+        // シーバさん指示：スポイトで生成した色も保存し、リロード後も
+        // 自動再適用する（壁紙が変わっても自動再生成はせず、保存時点の
+        // 色をそのまま保持する仕様）。
+        saveSettingsPatch({
+          themeKey: 'eyedropper',
+          eyedropperThemeTokens: themes.eyedropper.tokens,
+        });
       } catch (err) {
         console.error('スポイトテーマの生成に失敗しました', err);
       } finally {
@@ -1858,4 +2028,87 @@
     logSourceUrl = '';
     renderLogPanel();
     initLogSettingsUi();
+  });
+
+  // 設定DBの初期化 → 保存済み設定の復元。
+  // 失敗時（IndexedDB不可、レコード破損等）は例外を投げず、既存の
+  // デフォルト値（透過率100%・壁紙なし・darkテーマ）のまま起動を
+  // 続行する（フールプルーフ：設定復元の失敗でアプリ全体を止めない）。
+  openSettingsDb().then(async (_db) => {
+    settingsDb = _db;
+    let record = null;
+    let uploadsRecord = null;
+    try {
+      record = await loadSettingsRecord();
+    } catch (err) {
+      console.error('設定の読み込みに失敗しました', err);
+    }
+    try {
+      uploadsRecord = await loadSettingsRecordByKey(SETTINGS_WALLPAPER_UPLOADS_KEY);
+    } catch (err) {
+      console.error('壁紙アップロードの読み込みに失敗しました', err);
+    }
+
+    // 壁紙アップロード一覧（プリセットの後ろに追加表示するため、
+    // スウォッチ再構築より前に復元しておく）。record（軽量データ）とは
+    // 別レコードなので、record自体が無くても（新規保存前）復元できる。
+    if (uploadsRecord && Array.isArray(uploadsRecord.uploads)) {
+      wallpaperUploads = uploadsRecord.uploads;
+      buildWallpaperSwatches();
+    }
+
+    if (!record) return; // 軽量レコードが無い（初回起動等）→残りはデフォルトのまま
+
+    // 透過率
+    if (typeof record.panelAlpha === 'number' && Number.isFinite(record.panelAlpha)) {
+      panelAlpha = Math.min(100, Math.max(0, record.panelAlpha));
+      applyAlpha();
+    }
+
+    // 壁紙の選択状態
+    if (typeof record.wallpaperValue === 'string') {
+      applyWallpaper(record.wallpaperValue);
+      // 対応するスウォッチボタンをactive表示にする（プリセット／
+      // アップロードどちらでも、値が一致するボタンを探して反映）
+      const btns = wallpaperSwatchesEl.querySelectorAll('.wallpaper-swatch');
+      const presetIdx = wallpaperPresets.findIndex(p => p.value === record.wallpaperValue);
+      if (presetIdx >= 0) {
+        setActiveWallpaperSwatch(btns[presetIdx]);
+      } else {
+        const uploadIdx = wallpaperUploads.findIndex(u => `url("${u.dataUrl}")` === record.wallpaperValue);
+        if (uploadIdx >= 0) setActiveWallpaperSwatch(btns[wallpaperPresets.length + uploadIdx]);
+      }
+    }
+
+    // スポイトテーマの色（保存されていればthemes.eyedropperとして復元。
+    // 壁紙から自動再生成はせず、保存時点の色をそのまま使う）
+    if (record.eyedropperThemeTokens) {
+      themes.eyedropper = {
+        label: 'スポイト（壁紙から生成）',
+        swatchBg: record.eyedropperThemeTokens['--bg'] || '#05070a',
+        swatchAccent: record.eyedropperThemeTokens['--cyan'] || '#00f0d0',
+        tokens: record.eyedropperThemeTokens,
+      };
+    }
+
+    // カスタムテーマの色（保存されていればthemes.customとして復元。
+    // カスタムテーマ編集モーダル自体は次のステップで実装）
+    if (record.customThemeTokens) {
+      themes.custom = {
+        label: 'カスタム',
+        swatchBg: record.customThemeTokens['--bg'] || '#05070a',
+        swatchAccent: record.customThemeTokens['--cyan'] || '#00f0d0',
+        tokens: record.customThemeTokens,
+      };
+    }
+
+    // 選択中のテーマ（eyedropper/customは対応する保存済みトークンが
+    // 実際に存在する場合のみ復元する。データが欠けたまま適用すると
+    // 空のthemes.eyedropper等でエラーになるため）
+    if (typeof record.themeKey === 'string' && themes[record.themeKey]) {
+      buildThemeSwatches(); // eyedropper/customがthemesに追加された後で作り直す
+      applyTheme(record.themeKey);
+    }
+  }).catch((err) => {
+    console.error('設定DBの初期化に失敗しました', err);
   });
