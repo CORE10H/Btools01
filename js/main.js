@@ -694,6 +694,9 @@
   let pendingCoverFile = null;
   let coverIsUserSelected = false;   // ユーザーが手動でカバー画像を選択したか
                                       // （true の間は、builtin選び直しによる自動画像で上書きしない）
+  let overlayIsUserEdited = false;   // ユーザーが「アプリの名称」欄を手動編集したか
+                                      // （true の間は、builtin選び直しによる自動入力で上書きしない。
+                                      //   coverIsUserSelectedと同じ考え方。2026-09-22追加）
   let pendingImportFile = null;      // 選択されたhtmlファイル（File）
   let pendingImportContent = null;   // 読み込み済みのhtml文字列
 
@@ -731,7 +734,23 @@
       if (!coverIsUserSelected) {
         loadBuiltinCoverImage(BUILTIN_APP_CHOICES[selectedBuiltinIndex]);
       }
+      // 「アプリの名称」欄も同様に、未入力（またはユーザーが未編集）の
+      // 場合のみ先天的アプリの名前で自動的に埋める。カテゴリ表示は
+      // 対応する初期値がBUILTIN_APP_CHOICESに存在しないため対象外
+      // （シーバさん指示・2026-09-22）。
+      if (!overlayIsUserEdited) {
+        launcherOverlayInput.value = BUILTIN_APP_CHOICES[selectedBuiltinIndex].name;
+      }
     }
+  });
+
+  // 「アプリの名称」欄にユーザー自身が何か入力したら、以降はbuiltin
+  // 選び直しによる自動入力で上書きしない（coverIsUserSelectedと同じ
+  // 考え方。JSによる自動代入はinputイベントを発火させないため、
+  // ここでの検知は「ユーザーが実際にキーボード等で触れた場合」のみに
+  // 正しく限定される）。
+  launcherOverlayInput.addEventListener('input', () => {
+    overlayIsUserEdited = true;
   });
 
   // builtinのデフォルトカバー画像（apps/img/配下）をfetchしてBlob化し、
@@ -828,6 +847,7 @@
     isImportMode = false;
     pendingCoverFile = null;
     coverIsUserSelected = false;
+    overlayIsUserEdited = false;
     pendingImportFile = null;
     pendingImportContent = null;
     launcherCatInput.value = '';
