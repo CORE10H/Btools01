@@ -1971,29 +1971,19 @@
      「各パネルのデフォルト高さに対して、今どれだけ余裕があるか」を
      比較する必要があるため、ResizeObserverで実測しJSで判定する。
 
-     ルール（制作資料13章、2026-09-22改訂：全パネル双方向判定に変更）：
+     ルール（制作資料13章）：
        - TIMELINE・タスク・LOG：初回表示時の高さを「デフォルト高さ」として
-         記録。以後、リサイズのたびに実際の高さとデフォルトの半分を
-         比較し、下回れば .height-collapsed を付与、以上に戻れば
-         除去する（3パネルに優先順位はなく、結果的に余裕の少ない
-         ものから消える）。非表示中は一時的にクラスを外して1フレーム
-         だけ実測するmeasureAsIfVisibleで測る（非表示要素はrectが
-         常に0になるため）。
-       - ランチャー（.coverflow-v）：上下端が隠れる高さなら
-         .height-clipped を付与、収まる高さに戻れば除去する
-         （overflow:hiddenで隠すだけで実測寸法自体には影響しないため
-         measureAsIfVisibleは不要）。中央カードの描画位置自体は
-         既存のJSロジックがそのまま維持する。
+         記録。以後、実際の高さがデフォルトの半分を下回ったら
+         .height-collapsed クラスを付与して非表示にする（3パネルに
+         優先順位はなく、結果的に余裕の少ないものから消える）
+       - ランチャー（.coverflow-v）：上下端がクリップされ始めたら
+         .height-clipped を付与（overflow:hiddenで隠すだけ。中央カードの
+         描画位置自体は既存のJSロジックがそのまま維持する）
        - ヘッダー：最終手段。ランチャーの中央カード表示すら苦しくなる
          高さまで来たら .height-collapsed を付与し、.shell に
          .header-collapsed を付与してヘッダー行を0pxにする
-         （ウィンドウ高さのみで判定するため元々双方向）
-       - INTEL：幅・高さともにデフォルトを維持できているかを毎回
-         判定し直し、非表示・復活の両方向に対応する。ただし
-         .right-col がCSSメディアクエリ（999px以下）で非表示になって
-         いる間はCSS側の責務としてJSは判定をスキップする（スキップ
-         しないとCSS側が復活した後もJSのクラスだけ取り残される
-         不具合になるため。2026-09-22発覚・修正）。
+       - INTEL：幅・高さいずれかがデフォルトを維持できなくなったら
+         即座に .size-collapsed を付与して非表示にする
 
      フールプルーフ：
        - 各パネルの「デフォルト高さ」はページ読み込み直後、まだ何も
@@ -2002,8 +1992,6 @@
          デフォルトとして記録しないようにするため）
        - 要素が見つからない場合は処理をスキップし、他の判定には
          影響させない（一部パネル欠落時でも他が壊れないように）
-       - 非表示クラスの復活判定でmeasureAsIfVisibleを使う際、外して
-         測ってすぐ戻すため画面のちらつきは発生しない
      ===================================================================== */
   (function setupVerticalCollapse() {
     const timelinePanel = document.querySelector('.timeline-panel');
@@ -2011,7 +1999,6 @@
     const logPanel = document.querySelector('.log-panel');
     const intelGrid = document.querySelector('.intel-grid');
     const coverflowV = document.querySelector('.coverflow-v');
-    const cfWrapEl = document.querySelector('.cf-wrap');
     const headerEl = document.querySelector('header.top');
     const shellEl = document.querySelector('.shell');
     const leftColEl = document.querySelector('.left-col');
@@ -2029,29 +2016,6 @@
       intelW: null,
       intelH: null,
     };
-
-    // ランチャー（.cf-wrap）が死守すべき高さの基準。
-    // シーバさん指示：「その環境（その端末で最大化した際の）に適合した
-    // 初期寸法」＝ウィンドウを縮めても下限として維持し、逆に今までより
-    // 大きなウィンドウ状態を観測したら基準を更新する「これまでの最大値」
-    // 方式（2026-09-22）。他のdefaultsと違い初回一度きりではなく、
-    // 毎回のリサイズ時に「今の実測値の方が大きければ更新」し続ける。
-    let maxCfWrapH = 0;
-    function updateMaxCfWrapH() {
-      if (!cfWrapEl) return;
-      // タスクパネルが非表示や縮小状態だと.cf-wrapがflex:1で余分に
-      // 伸びてしまい、それを「本来の最大値」と誤記録するおそれがある。
-      // タスクパネルが正規の状態（非表示クラスなし・インライン高さ
-      // 未設定＝CSSの220px基準）の時のみ信頼できる測定とみなす。
-      if (taskPanel) {
-        const taskPanelNormal = !taskPanel.classList.contains('task-panel-hidden')
-          && !taskPanel.style.height;
-        if (taskPanel.offsetParent !== null && !taskPanelNormal) return;
-      }
-      if (cfWrapEl.offsetParent === null) return; // 非表示時は測らない
-      const h = cfWrapEl.getBoundingClientRect().height;
-      if (h > maxCfWrapH) maxCfWrapH = h;
-    }
 
     function recordDefaultsOnce() {
       if (defaultsRecorded) return;
@@ -2073,121 +2037,36 @@
       defaultsRecorded = true;
     }
 
-    // 非表示クラスが付いている要素は getBoundingClientRect が常に0を
-    // 返すため、そのままでは「表示に戻したらどのくらいの寸法になるか」
-    // を測れない。復活判定のためだけに一時的にクラスを外して1フレーム
-    // 未満の間だけ実測し、直後に判定結果へ戻す（画面のちらつきは
-    // 発生しない）。measureFn は要素からrect相当の値を返す関数。
-    function measureAsIfVisible(el, collapsedClass, measureFn) {
-      if (!el.classList.contains(collapsedClass)) return measureFn(el);
-      el.classList.remove(collapsedClass);
-      const result = measureFn(el);
-      el.classList.add(collapsedClass); // 判定前の状態へ即座に戻す
-      return result;
-    }
-
-    /* -----------------------------------------------------------------
-       タスクパネルの高さ制御（2026-09-22新設）
-
-       背景：以前はランチャー（.cf-wrap, flex:1・下限なし）とタスク
-       パネル（220px固定・flex-shrink:0）が.left-col内で高さを奪い合う
-       設計になっており、.left-colの高さが220px未満まで圧縮される
-       場面でランチャーが潰れ、タスクパネルがランチャー領域に食い込む
-       不具合があった（実機で発覚）。
-
-       仕様（シーバさん指示）：
-         - ランチャーの表示寸法・位置は常に死守する。「死守すべき
-           高さ」＝その端末を最大化した際に表示される高さ（これまで
-           観測した中の最大値 maxCfWrapH で近似する）
-         - タスクパネルは上端固定・下から縮む。デフォルト高さ(220px)の
-           半分(110px)を下回ったら完全非表示にする
-
-       実装：.left-col全体の高さから maxCfWrapH（＋gap）を引いた残りを
-       タスクパネルに割り当てる。ランチャー自身のCSS(flex:1)はそのまま
-       残すため、ウィンドウを広げてまだmaxCfWrapHに達していない場合は
-       ランチャーが自然に育っていく通常の挙動を妨げない。
-    ----------------------------------------------------------------- */
-    function applyTaskPanelHeight() {
-      if (!taskPanel || !leftColEl) return;
-      // defaults.taskの記録はrecordDefaultsOnce（TIMELINE/LOG/INTELが
-      // 全部揃うまで待つ処理）に依存させない。タスクパネル自体の初期
-      // 高さだけは独立して、非表示クラス等が付いていない最初の機会に
-      // 一度だけ記録する（他パネルの状態に関わらずこの保護機構が
-      // 必ず働くようにするためのフールプルーフ。2026-09-22追加）。
-      if (defaults.task === null) {
-        if (taskPanel.offsetParent === null) return; // 測れる状態でない
-        defaults.task = taskPanel.getBoundingClientRect().height;
-      }
-
-      updateMaxCfWrapH();
-      if (!maxCfWrapH) return; // まだ基準が取れていない場合は判定を保留
-
-      const leftColH = leftColEl.getBoundingClientRect().height;
-      const leftColGap = parseFloat(getComputedStyle(leftColEl).rowGap) || 0;
-      const available = leftColH - maxCfWrapH - leftColGap;
-
-      const minH = defaults.task / 2; // 半分＝110px
-
-      if (available < minH) {
-        // 割り当てられる高さが下限未満 → 完全非表示（ランチャー側の
-        // 寸法には一切触れない。タスクパネル自身を消すだけ）
-        taskPanel.classList.add('task-panel-hidden');
-        taskPanel.style.height = '';
-      } else {
-        taskPanel.classList.remove('task-panel-hidden');
-        // デフォルト(220px)を上回る分は伸ばさない（上限220px）。
-        // 上端固定・下から縮む見た目は、taskPanel自身がflexアイテムの
-        // 先頭に来る配置（既存HTML構造：.mini-head→.task-filter→
-        // .task-list、.task-listだけがoverflow-y:autoで可変）により
-        // 自然に実現される。
-        const h = Math.min(defaults.task, available);
-        taskPanel.style.height = h + 'px';
-      }
-    }
-
     function applyVerticalCollapse() {
       recordDefaultsOnce();
-      applyTaskPanelHeight(); // 他パネルのdefaults記録状況に関わらず
-                                // 常に独立して評価する（上記参照）
       if (!defaultsRecorded) return; // まだ基準が取れていない場合は判定を保留
 
-      // --- TIMELINE / LOG：高さがデフォルトの半分を境に
-      //     非表示・復活の両方を毎回判定し直す ---
-      //     （タスクパネルはランチャーとの高さの奪い合いがあるため専用
-      //     ロジック applyTaskPanelHeight() で別途扱う。2026-09-22変更）
+      // --- TIMELINE / タスク / LOG：高さがデフォルトの半分未満で非表示 ---
       [
         [timelinePanel, defaults.timeline],
+        [taskPanel, defaults.task],
         [logPanel, defaults.log],
       ].forEach(([el, defaultH]) => {
         if (!el || !defaultH) return;
-        // 横方向のメディアクエリでdisplay:noneの場合（offsetParentが
-        // 取れずheight-collapsedも付いていない状態）は、そもそもCSS側の
-        // 責務なのでJSは何もしない。
+        // 既に横方向のメディアクエリでdisplay:noneの場合、
+        // getBoundingClientRectは0を返すため誤判定しないよう除外する。
         if (el.offsetParent === null && !el.classList.contains('height-collapsed')) return;
-        const currentH = measureAsIfVisible(el, 'height-collapsed', (e) => e.getBoundingClientRect().height);
-        if (currentH < defaultH / 2) {
+        const currentH = el.classList.contains('height-collapsed')
+          ? defaultH // 一旦解除した状態を仮定して再計測できないため、
+                     // 解除判定は行わずheight-collapsedは維持する
+                     // （ウィンドウを再度広げた場合はページ再読み込みを
+                     // 想定。これはシンプルさ・堅牢性を優先した設計判断）
+          : el.getBoundingClientRect().height;
+        if (!el.classList.contains('height-collapsed') && currentH < defaultH / 2) {
           el.classList.add('height-collapsed');
-        } else {
-          el.classList.remove('height-collapsed');
         }
       });
 
-      applyTaskPanelHeight();
-
-      // --- INTEL：幅・高さともにデフォルトを維持できているかを
-      //     毎回判定し直す（非表示・復活の両方向） ---
-      if (intelGrid && defaults.intelW && defaults.intelH) {
-        // .right-col がCSSメディアクエリで非表示の場合はそちらの責務。
-        // この状態でJSが独自に判定すると、CSS側が復活した後もJSの
-        // クラスだけ取り残される不具合になるためスキップする。
-        const rightColHiddenByCss = intelGrid.offsetParent === null && !intelGrid.classList.contains('size-collapsed');
-        if (!rightColHiddenByCss) {
-          const r = measureAsIfVisible(intelGrid, 'size-collapsed', (e) => e.getBoundingClientRect());
-          if (r.width < defaults.intelW - 1 || r.height < defaults.intelH - 1) {
-            intelGrid.classList.add('size-collapsed');
-          } else {
-            intelGrid.classList.remove('size-collapsed');
-          }
+      // --- INTEL：幅または高さがデフォルトを維持できなくなったら即消える ---
+      if (intelGrid && defaults.intelW && defaults.intelH && !intelGrid.classList.contains('size-collapsed')) {
+        const r = intelGrid.getBoundingClientRect();
+        if (r.width < defaults.intelW - 1 || r.height < defaults.intelH - 1) {
+          intelGrid.classList.add('size-collapsed');
         }
       }
 
@@ -2195,16 +2074,12 @@
       // （左カラム全体の高さが、ヘッダー分を除いたビューポート高さの
       // 目安値を下回ったらクリップを有効にする。中央カードの描画位置は
       // 既存のJSロジックがそのまま維持するため、ここではCSSクラスの
-      // 付与のみ行う。height-clippedはoverflow:hiddenを付けるだけで
-      // 要素の実測寸法自体には影響しないため、measureAsIfVisibleは
-      // 不要で毎回そのまま実測してよい。）
+      // 付与のみ行う。）
       if (coverflowV) {
         const r = coverflowV.getBoundingClientRect();
         const viewportMargin = 40; // 上下の余白見込み
         if (r.height > window.innerHeight - viewportMargin) {
           coverflowV.classList.add('height-clipped');
-        } else {
-          coverflowV.classList.remove('height-clipped');
         }
       }
 

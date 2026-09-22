@@ -610,12 +610,7 @@
   .timeline-bar.alt { background: var(--magenta-dim); border-color: var(--magenta); color: var(--magenta); }
   .timeline-axis { display: flex; justify-content: space-between; font-size: 6px; color: var(--text-faint); font-family: var(--font-display); margin-top: 2px; padding-left: 62px; }
 
-  /* ---- task panel (under cover flow, left column) ----
-     高さはJS側（setupVerticalCollapse内のapplyTaskPanelHeight）が
-     .style.height で直接制御する（ランチャーの表示サイズを死守した上で
-     余りをタスクパネルに割り当てるため、CSSの固定値では表現できない。
-     2026-09-22 変更）。ここでのheight指定はJS未実行時の保険としての
-     初期値のみの意味を持つ。 */
+  /* ---- task panel (under cover flow, left column) ---- */
   .task-panel-left {
     padding: 12px 14px 14px;
     display: flex;
@@ -623,9 +618,7 @@
     min-height: 0;
     height: 220px;
     flex-shrink: 0;
-    overflow: hidden; /* 縮小時、下側のタスク一覧がはみ出さないように */
   }
-  .task-panel-left.task-panel-hidden { display: none; }
   .task-filter { display: flex; gap: 8px; margin-bottom: 6px; flex-shrink: 0; }
   .task-filter button { font-family: var(--font-body); font-size: 10px; color: var(--text-faint); background: transparent; border: none; border-bottom: 2px solid transparent; padding: 2px 2px; cursor: pointer; }
   .task-filter button.active { color: var(--cyan); border-color: var(--cyan); }
