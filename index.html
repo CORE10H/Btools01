@@ -77,14 +77,14 @@
         <div class="settings-row-hint">
           IFTTT等で発行した「通知データの公開URL」を登録すると、数分おきに新着を確認して通知パネルに反映します（本体からメールへ直接アクセスすることはありません）。
         </div>
-        <div class="notif-src-control">
-          <input type="url" id="notifSrcUrlInput" class="notif-src-input" placeholder="https://... （公開JSON URL）" autocomplete="off" spellcheck="false">
-          <button class="btn" id="notifSrcSaveBtn">保存</button>
+        <div class="log-src-control">
+          <input type="url" id="logSrcUrlInput" class="log-src-input" placeholder="https://... （公開JSON URL）" autocomplete="off" spellcheck="false">
+          <button class="btn" id="logSrcSaveBtn">保存</button>
         </div>
-        <div class="notif-src-sub">
-          <label class="notif-src-interval-label">
+        <div class="log-src-sub">
+          <label class="log-src-interval-label">
             取得間隔
-            <select id="notifSrcIntervalSelect" class="notif-src-interval-select">
+            <select id="logSrcIntervalSelect" class="log-src-interval-select">
               <option value="1">1分</option>
               <option value="3">3分</option>
               <option value="5" selected>5分</option>
@@ -92,9 +92,9 @@
               <option value="30">30分</option>
             </select>
           </label>
-          <button class="btn" id="notifSrcCheckNowBtn">今すぐ確認</button>
+          <button class="btn" id="logSrcCheckNowBtn">今すぐ確認</button>
         </div>
-        <div class="notif-src-status" id="notifSrcStatus"></div>
+        <div class="log-src-status" id="logSrcStatus"></div>
       </div>
     </div>
   </div>
@@ -170,8 +170,8 @@
     </div>
   </div>
 
-  <!-- ===== BELOW STAGE: gantt only, width matches stage, height halved ===== -->
-  <div class="panel gantt-panel">
+  <!-- ===== BELOW STAGE: timeline only, width matches stage, height halved ===== -->
+  <div class="panel timeline-panel">
     <span class="panel-corner"></span>
     <div class="mini-head">// MISSION TIMELINE</div>
     <div class="timeline-row">
@@ -199,16 +199,16 @@
 
   <!-- ===== RIGHT: 現況（固定高さ） + 通知（残りを埋める） ===== -->
   <div class="right-col">
-  <div class="kpi-grid">
+  <div class="intel-grid">
     <!-- 1. 売上 -->
-    <div class="panel kpi">
+    <div class="panel intel-card">
       <span class="panel-corner"></span>
-      <div class="kpi-left">
+      <div class="intel-left">
         <div class="label">今月の売上合計</div>
         <div class="value">18,420<span class="unit">円</span></div>
         <div class="delta up">▲ 22.4% <span class="prevlabel">先月比</span></div>
       </div>
-      <div class="kpi-ring">
+      <div class="intel-ring">
         <svg viewBox="0 0 36 36">
           <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-soft)" stroke-width="3.2"></circle>
           <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="3.2"
@@ -218,22 +218,22 @@
         </svg>
         <div class="ring-label"><span class="rl-name">SALES</span></div>
       </div>
-      <div class="kpi-legend-divider"></div>
-      <div class="kpi-legend">
+      <div class="intel-legend-divider"></div>
+      <div class="intel-legend">
         <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--cyan)"></span>しーば4</span><span class="lg-pct">63%</span></div>
         <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--amber)"></span>藤岡香織</span><span class="lg-pct">37%</span></div>
       </div>
     </div>
 
     <!-- 2. 稼働時間 -->
-    <div class="panel kpi">
+    <div class="panel intel-card">
       <span class="panel-corner"></span>
-      <div class="kpi-left">
+      <div class="intel-left">
         <div class="label">今月の総稼働時間</div>
         <div class="value">42.5<span class="unit">h</span></div>
         <div class="delta up">▲ 5.2% <span class="prevlabel">先月比</span></div>
       </div>
-      <div class="kpi-ring">
+      <div class="intel-ring">
         <svg viewBox="0 0 36 36">
           <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-soft)" stroke-width="3.2"></circle>
           <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="3.2"
@@ -245,8 +245,8 @@
         </svg>
         <div class="ring-label"><span class="rl-name">HOURS</span></div>
       </div>
-      <div class="kpi-legend-divider"></div>
-      <div class="kpi-legend">
+      <div class="intel-legend-divider"></div>
+      <div class="intel-legend">
         <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--cyan)"></span>しーば4</span><span class="lg-pct">48%</span></div>
         <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--amber)"></span>藤岡香織</span><span class="lg-pct">34%</span></div>
         <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--magenta)"></span>広告運用</span><span class="lg-pct">18%</span></div>
@@ -254,7 +254,7 @@
     </div>
 
     <!-- 3. コスト / 純利益（横並び） -->
-    <div class="panel kpi">
+    <div class="panel intel-card">
       <span class="panel-corner"></span>
       <div class="cost-profit-row">
         <div class="cp-item cost">
@@ -270,11 +270,11 @@
     </div>
   </div>
 
-  <!-- ===== RIGHT-BOTTOM: notification (JSで動的生成。外部メール連携の通知のみを表示) ===== -->
-  <div class="panel notif-panel">
+  <!-- ===== RIGHT-BOTTOM: log (JSで動的生成。外部メール連携の通知のみを表示) ===== -->
+  <div class="panel log-panel">
     <span class="panel-corner"></span>
     <div class="ph">// 通知</div>
-    <div class="notif-list" id="notifList"><!-- JSで動的生成 --></div>
+    <div class="log-list" id="logList"><!-- JSで動的生成 --></div>
   </div>
   </div>
 

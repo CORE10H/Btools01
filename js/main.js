@@ -1126,23 +1126,23 @@
   //   'full'     … 四方いっぱい（完全フルスクリーン）
   function computeNormalStageRect() {
     // 通常時のStage位置を、実在する隣接パネル（header / .left-col / .right-col /
-    // .gantt-panel）の getBoundingClientRect() から動的に算出する。CSS側でその
+    // .timeline-panel）の getBoundingClientRect() から動的に算出する。CSS側でその
     // 値を直接再現するのが難しいため（rotateYが掛かった祖先を挟むレイアウトの
     // ため）、JS側で隣接パネルの実際の画面上の端を基準点として使う
     // （6.3節の教訓：固定ピクセル値を使わず、実測のrectを基準にする）。
     const header = document.querySelector('header.top');
     const leftCol = document.querySelector('.left-col');
     const rightCol = document.querySelector('.right-col');
-    const gantt = document.querySelector('.gantt-panel');
+    const timelineEl = document.querySelector('.timeline-panel');
     const headerRect = header.getBoundingClientRect();
     const leftRect = leftCol.getBoundingClientRect();
     const rightRect = rightCol.getBoundingClientRect();
-    const ganttRect = gantt.getBoundingClientRect();
+    const timelineRect = timelineEl.getBoundingClientRect();
     return {
       left: leftRect.right + 14, // .shell の gap 分
       right: window.innerWidth - rightRect.left + 14,
       top: headerRect.bottom + 14,
-      bottom: window.innerHeight - ganttRect.top + 14,
+      bottom: window.innerHeight - timelineRect.top + 14,
     };
   }
 
@@ -1425,7 +1425,7 @@
 
   /* ===================== AMBIENT RANDOM FX ===================== */
   // Occasional, non-looping accents: a border light-sweep on a random
-  // panel, and a brief glitch flicker on a random KPI donut ring. Both
+  // panel, and a brief glitch flicker on a random INTEL donut ring. Both
   // fire at random intervals rather than on a fixed cycle, and are
   // skipped entirely under prefers-reduced-motion.
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1446,25 +1446,25 @@
     }, randomBetween(4000, 9000));
   }
 
-  function scheduleKpiGlitch() {
+  function scheduleIntelGlitch() {
     setTimeout(() => {
-      const rings = document.querySelectorAll('.kpi-ring');
+      const rings = document.querySelectorAll('.intel-ring');
       if (rings.length) {
         const ring = rings[Math.floor(Math.random() * rings.length)];
         ring.classList.add('glitch-active');
         ring.querySelector('svg').addEventListener('animationend', () => ring.classList.remove('glitch-active'), { once: true });
       }
-      scheduleKpiGlitch();
+      scheduleIntelGlitch();
     }, randomBetween(4000, 10000));
   }
 
   if (!prefersReducedMotion) {
     schedulePanelBeam();
-    scheduleKpiGlitch();
+    scheduleIntelGlitch();
   }
 
   /* =====================================================================
-     通知パネル：外部メール連携（ポーリングのみ、プッシュ通知ではない）
+     LOGパネル：外部メール連携（ポーリングのみ、プッシュ通知ではない）
 
      設計方針（配布前提のため、特定サービスに依存しない）：
        - SIDE-OPS本体は「ユーザーが設定した公開URLを定期fetchしてJSONを
@@ -1475,20 +1475,20 @@
          当然ポーリングされない）。リアルタイムのOS通知ではない。
 
      期待するJSON形式：
-       { "notifications": [
+       { "logs": [
            { "id": "一意なID", "title": "件名等", "body": "本文抜粋(任意)",
              "timestamp": "ISO8601等", "url": "関連リンク(任意)" }, ... ] }
 
      将来の拡張について（今回の対応範囲）：
-       - 通知データに source フィールド（今回は 'external' 固定）を持たせて
+       - logデータに source フィールド（今回は 'external' 固定）を持たせて
          いる。将来「アプリ内部イベント（売上◯◯突破 等）」を通知として
          出したくなった場合は、①検知ロジック側で source:'internal' 等を
-         付けたオブジェクトを組み立てて notifItems に push → notifPut で
-         保存 → renderNotifPanel() を呼ぶだけで、今回の仕組みにそのまま
-         乗る。表示上の色分け等が必要になったら .notif-source-internal 等
-         のCSSクラスを追加するだけでよい（renderNotifPanel は既に
+         付けたオブジェクトを組み立てて logItems に push → logPut で
+         保存 → renderLogPanel() を呼ぶだけで、今回の仕組みにそのまま
+         乗る。表示上の色分け等が必要になったら .log-source-internal 等
+         のCSSクラスを追加するだけでよい（renderLogPanel は既に
          source値からクラス名を自動生成している）。
-       - 内部イベントの検知ロジック自体（KPIのしきい値監視等）は
+       - 内部イベントの検知ロジック自体（INTELのしきい値監視等）は
          今回のスコープ外で、まだ実装していない。
 
      フールプルーフ（誤作動防止策）一覧：
@@ -1505,67 +1505,67 @@
           外部由来のデータをそのままHTMLとして解釈させずXSSを防止する
        9) 「URL未設定」と「新着なし」でパネルの空表示文言を出し分ける
   ===================================================================== */
-  const NOTIF_DB_NAME = 'sideops_notifications';
-  const NOTIF_DB_VERSION = 1;
-  const NOTIF_STORE = 'items';
-  const NOTIF_SETTINGS_STORE = 'settings';
-  const NOTIF_MAX_ITEMS = 50;
-  const NOTIF_MIN_INTERVAL_MIN = 1;
-  const NOTIF_MAX_INTERVAL_MIN = 30;
-  const NOTIF_DEFAULT_INTERVAL_MIN = 5;
-  const NOTIF_FETCH_TIMEOUT_MS = 10000;
+  const LOG_DB_NAME = 'sideops_log';
+  const LOG_DB_VERSION = 1;
+  const LOG_STORE = 'items';
+  const LOG_SETTINGS_STORE = 'settings';
+  const LOG_MAX_ITEMS = 50;
+  const LOG_MIN_INTERVAL_MIN = 1;
+  const LOG_MAX_INTERVAL_MIN = 30;
+  const LOG_DEFAULT_INTERVAL_MIN = 5;
+  const LOG_FETCH_TIMEOUT_MS = 10000;
 
-  let notifDb = null;
-  let notifItems = [];      // { id, title, body, timestamp, url, isUnread }
-  let notifSourceUrl = '';
-  let notifIntervalMin = NOTIF_DEFAULT_INTERVAL_MIN;
-  let notifTimerId = null;
-  let notifIsFetching = false; // 多重fetch防止
+  let logDb = null;
+  let logItems = [];      // { id, title, body, timestamp, url, isUnread }
+  let logSourceUrl = '';
+  let logIntervalMin = LOG_DEFAULT_INTERVAL_MIN;
+  let logTimerId = null;
+  let logIsFetching = false; // 多重fetch防止
 
-  function openNotifDb() {
+  function openLogDb() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(NOTIF_DB_NAME, NOTIF_DB_VERSION);
+      const req = indexedDB.open(LOG_DB_NAME, LOG_DB_VERSION);
       req.onupgradeneeded = (ev) => {
         const _db = ev.target.result;
-        if (!_db.objectStoreNames.contains(NOTIF_STORE)) {
-          _db.createObjectStore(NOTIF_STORE, { keyPath: 'id' });
+        if (!_db.objectStoreNames.contains(LOG_STORE)) {
+          _db.createObjectStore(LOG_STORE, { keyPath: 'id' });
         }
-        if (!_db.objectStoreNames.contains(NOTIF_SETTINGS_STORE)) {
-          _db.createObjectStore(NOTIF_SETTINGS_STORE, { keyPath: 'key' });
+        if (!_db.objectStoreNames.contains(LOG_SETTINGS_STORE)) {
+          _db.createObjectStore(LOG_SETTINGS_STORE, { keyPath: 'key' });
         }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
   }
-  function notifStore(name, mode) {
-    const tx = notifDb.transaction(name, mode);
+  function logStore(name, mode) {
+    const tx = logDb.transaction(name, mode);
     return tx.objectStore(name);
   }
-  function notifGetAll(name) {
+  function logGetAll(name) {
     return new Promise((resolve, reject) => {
-      const req = notifStore(name, 'readonly').getAll();
+      const req = logStore(name, 'readonly').getAll();
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
   }
-  function notifPut(name, value) {
+  function logPut(name, value) {
     return new Promise((resolve, reject) => {
-      const req = notifStore(name, 'readwrite').put(value);
+      const req = logStore(name, 'readwrite').put(value);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   }
-  function notifDelete(name, id) {
+  function logDelete(name, id) {
     return new Promise((resolve, reject) => {
-      const req = notifStore(name, 'readwrite').delete(id);
+      const req = logStore(name, 'readwrite').delete(id);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   }
-  function notifClearAll(name) {
+  function logClearAll(name) {
     return new Promise((resolve, reject) => {
-      const req = notifStore(name, 'readwrite').clear();
+      const req = logStore(name, 'readwrite').clear();
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
@@ -1573,15 +1573,15 @@
 
   function clampInterval(min) {
     const n = Number(min);
-    if (!Number.isFinite(n)) return NOTIF_DEFAULT_INTERVAL_MIN;
-    return Math.min(NOTIF_MAX_INTERVAL_MIN, Math.max(NOTIF_MIN_INTERVAL_MIN, Math.round(n)));
+    if (!Number.isFinite(n)) return LOG_DEFAULT_INTERVAL_MIN;
+    return Math.min(LOG_MAX_INTERVAL_MIN, Math.max(LOG_MIN_INTERVAL_MIN, Math.round(n)));
   }
 
   // 個々のエントリを検証。不正なものはnullを返す（呼び出し側でスキップ）。
   // source は通知の発生元を示す識別子（例: 'external' = 外部メール連携,
   // 将来的に 'internal' = アプリ内部イベント等を追加予定）。
   // 呼び出し側が明示的に渡す値をそのまま使い、ここでは検証・保持のみ行う。
-  function validateNotifEntry(raw, source) {
+  function validateLogEntry(raw, source) {
     if (!raw || typeof raw !== 'object') return null;
     const id = typeof raw.id === 'string' ? raw.id.trim() : (typeof raw.id === 'number' ? String(raw.id) : '');
     if (!id) return null;
@@ -1609,236 +1609,236 @@
     return `${d.getMonth() + 1}/${d.getDate()}`;
   }
 
-  function renderNotifPanel() {
-    const listEl = document.getElementById('notifList');
+  function renderLogPanel() {
+    const listEl = document.getElementById('logList');
     if (!listEl) return;
     listEl.textContent = '';
 
-    if (!notifSourceUrl) {
+    if (!logSourceUrl) {
       const empty = document.createElement('div');
-      empty.className = 'notif-empty';
+      empty.className = 'log-empty';
       empty.textContent = '設定から取得元を登録してください';
       listEl.appendChild(empty);
       return;
     }
-    if (notifItems.length === 0) {
+    if (logItems.length === 0) {
       const empty = document.createElement('div');
-      empty.className = 'notif-empty';
+      empty.className = 'log-empty';
       empty.textContent = '新着はありません';
       listEl.appendChild(empty);
       return;
     }
 
-    const sorted = notifItems.slice().sort((a, b) => b.timeMs - a.timeMs);
+    const sorted = logItems.slice().sort((a, b) => b.timeMs - a.timeMs);
     for (const item of sorted) {
       const row = document.createElement('div');
-      const sourceClass = item.source ? ` notif-source-${item.source}` : '';
-      row.className = 'notif-item' + (item.isUnread ? ' is-unread' : '') + sourceClass;
+      const sourceClass = item.source ? ` log-source-${item.source}` : '';
+      row.className = 'log-item' + (item.isUnread ? ' is-unread' : '') + sourceClass;
       const dot = document.createElement('div');
-      dot.className = 'notif-dot';
+      dot.className = 'log-dot';
       const body = document.createElement('div');
       const textEl = document.createElement('div');
-      textEl.className = 'notif-text';
+      textEl.className = 'log-text';
       textEl.textContent = item.title; // textContentのみ使用（XSS対策）
       const timeEl = document.createElement('div');
-      timeEl.className = 'notif-time';
+      timeEl.className = 'log-time';
       timeEl.textContent = formatRelativeTime(item.timeMs);
       body.appendChild(textEl);
       body.appendChild(timeEl);
       row.appendChild(dot);
       row.appendChild(body);
       row.addEventListener('click', () => {
-        markNotifRead(item.id);
+        markLogRead(item.id);
         if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
       });
       listEl.appendChild(row);
     }
   }
 
-  async function markNotifRead(id) {
-    const item = notifItems.find((n) => n.id === id);
+  async function markLogRead(id) {
+    const item = logItems.find((n) => n.id === id);
     if (!item || !item.isUnread) return;
     item.isUnread = false;
     try {
-      await notifPut(NOTIF_STORE, item);
+      await logPut(LOG_STORE, item);
     } catch (err) {
       console.error('通知の既読状態の保存に失敗しました', err);
     }
-    renderNotifPanel();
+    renderLogPanel();
   }
 
   // 保持件数の上限を超えた古い通知をDB・メモリ双方から間引く。
-  async function trimNotifItems() {
-    if (notifItems.length <= NOTIF_MAX_ITEMS) return;
-    const sorted = notifItems.slice().sort((a, b) => b.timeMs - a.timeMs);
-    const toRemove = sorted.slice(NOTIF_MAX_ITEMS);
+  async function trimLogItems() {
+    if (logItems.length <= LOG_MAX_ITEMS) return;
+    const sorted = logItems.slice().sort((a, b) => b.timeMs - a.timeMs);
+    const toRemove = sorted.slice(LOG_MAX_ITEMS);
     for (const item of toRemove) {
-      try { await notifDelete(NOTIF_STORE, item.id); } catch (err) { /* 個別失敗は無視して継続 */ }
+      try { await logDelete(LOG_STORE, item.id); } catch (err) { /* 個別失敗は無視して継続 */ }
     }
-    const keepIds = new Set(sorted.slice(0, NOTIF_MAX_ITEMS).map((n) => n.id));
-    notifItems = notifItems.filter((n) => keepIds.has(n.id));
+    const keepIds = new Set(sorted.slice(0, LOG_MAX_ITEMS).map((n) => n.id));
+    logItems = logItems.filter((n) => keepIds.has(n.id));
   }
 
-  function setNotifStatus(msg, kind) {
-    const el = document.getElementById('notifSrcStatus');
+  function setLogStatus(msg, kind) {
+    const el = document.getElementById('logSrcStatus');
     if (!el) return;
     el.textContent = msg;
     el.classList.remove('is-error', 'is-ok');
     if (kind) el.classList.add(kind);
   }
 
-  async function fetchNotifSource(isManual) {
-    if (!notifSourceUrl) return;               // 1) URL未設定なら何もしない
-    if (notifIsFetching) return;                // 多重fetch防止
-    notifIsFetching = true;
-    if (isManual) setNotifStatus('確認中…');
+  async function fetchLogSource(isManual) {
+    if (!logSourceUrl) return;               // 1) URL未設定なら何もしない
+    if (logIsFetching) return;                // 多重fetch防止
+    logIsFetching = true;
+    if (isManual) setLogStatus('確認中…');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), NOTIF_FETCH_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), LOG_FETCH_TIMEOUT_MS);
 
     try {
-      const res = await fetch(notifSourceUrl, { signal: controller.signal, cache: 'no-store' });
+      const res = await fetch(logSourceUrl, { signal: controller.signal, cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const rawList = Array.isArray(data) ? data : Array.isArray(data && data.notifications) ? data.notifications : null;
-      if (!rawList) throw new Error('形式が不正です（notifications配列が見つかりません）');
+      const rawList = Array.isArray(data) ? data : Array.isArray(data && data.logs) ? data.logs : null;
+      if (!rawList) throw new Error('形式が不正です（logs配列が見つかりません）');
 
-      const existingIds = new Set(notifItems.map((n) => n.id));
+      const existingIds = new Set(logItems.map((n) => n.id));
       let addedCount = 0;
       for (const raw of rawList) {
-        const parsed = validateNotifEntry(raw, 'external');       // 3) 不正エントリはスキップ
+        const parsed = validateLogEntry(raw, 'external');       // 3) 不正エントリはスキップ
         if (!parsed) continue;
         if (existingIds.has(parsed.id)) continue;      // 5) 重複排除
         const newItem = { ...parsed, isUnread: true };
-        notifItems.push(newItem);
+        logItems.push(newItem);
         existingIds.add(parsed.id);
         addedCount++;
-        try { await notifPut(NOTIF_STORE, newItem); } catch (err) { /* 個別失敗は無視して継続 */ }
+        try { await logPut(LOG_STORE, newItem); } catch (err) { /* 個別失敗は無視して継続 */ }
       }
 
-      await trimNotifItems();                          // 6) 上限超過分を間引く
-      renderNotifPanel();
+      await trimLogItems();                          // 6) 上限超過分を間引く
+      renderLogPanel();
 
       if (isManual) {
-        setNotifStatus(addedCount > 0 ? `新着 ${addedCount} 件を取得しました` : '新着はありませんでした', 'is-ok');
+        setLogStatus(addedCount > 0 ? `新着 ${addedCount} 件を取得しました` : '新着はありませんでした', 'is-ok');
       }
     } catch (err) {
       console.error('通知の取得に失敗しました', err);   // 2) 失敗時も既存表示は維持
       if (isManual) {
         const reason = err && err.name === 'AbortError' ? 'タイムアウトしました' : '取得に失敗しました（URLや形式を確認してください）';
-        setNotifStatus(reason, 'is-error');
+        setLogStatus(reason, 'is-error');
       }
     } finally {
       clearTimeout(timeoutId);
-      notifIsFetching = false;
+      logIsFetching = false;
     }
   }
 
-  function stopNotifPolling() {
-    if (notifTimerId) {
-      clearInterval(notifTimerId);
-      notifTimerId = null;
+  function stopLogPolling() {
+    if (logTimerId) {
+      clearInterval(logTimerId);
+      logTimerId = null;
     }
   }
 
-  function startNotifPolling() {
-    stopNotifPolling();
-    if (!notifSourceUrl) return;                       // 1) URL未設定なら起動しない
+  function startLogPolling() {
+    stopLogPolling();
+    if (!logSourceUrl) return;                       // 1) URL未設定なら起動しない
     if (document.visibilityState === 'hidden') return;  // 7) 非表示タブでは起動しない
-    notifTimerId = setInterval(() => fetchNotifSource(false), notifIntervalMin * 60 * 1000);
+    logTimerId = setInterval(() => fetchLogSource(false), logIntervalMin * 60 * 1000);
   }
 
   // 7) タブの表示状態に応じてポーリングを制御。非表示→表示に戻った瞬間に
   //    1回だけ即時確認し、以降は通常間隔のタイマーへ戻す。
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      stopNotifPolling();
+      stopLogPolling();
     } else {
-      fetchNotifSource(false);
-      startNotifPolling();
+      fetchLogSource(false);
+      startLogPolling();
     }
   });
 
-  async function saveNotifSettings(url, intervalMin) {
+  async function saveLogSettings(url, intervalMin) {
     const trimmedUrl = (url || '').trim();
     if (trimmedUrl && !/^https?:\/\//.test(trimmedUrl)) {
-      setNotifStatus('http(s):// で始まるURLを入力してください', 'is-error');
+      setLogStatus('http(s):// で始まるURLを入力してください', 'is-error');
       return false;
     }
-    notifSourceUrl = trimmedUrl;
-    notifIntervalMin = clampInterval(intervalMin);      // 4) 下限・上限にクランプ
+    logSourceUrl = trimmedUrl;
+    logIntervalMin = clampInterval(intervalMin);      // 4) 下限・上限にクランプ
     try {
-      await notifPut(NOTIF_SETTINGS_STORE, { key: 'sourceUrl', value: notifSourceUrl });
-      await notifPut(NOTIF_SETTINGS_STORE, { key: 'intervalMin', value: notifIntervalMin });
+      await logPut(LOG_SETTINGS_STORE, { key: 'sourceUrl', value: logSourceUrl });
+      await logPut(LOG_SETTINGS_STORE, { key: 'intervalMin', value: logIntervalMin });
     } catch (err) {
       console.error('通知設定の保存に失敗しました', err);
-      setNotifStatus('設定の保存に失敗しました', 'is-error');
+      setLogStatus('設定の保存に失敗しました', 'is-error');
       return false;
     }
-    renderNotifPanel();
-    startNotifPolling();
+    renderLogPanel();
+    startLogPolling();
     return true;
   }
 
-  async function loadNotifData() {
+  async function loadLogData() {
     try {
-      notifItems = (await notifGetAll(NOTIF_STORE)) || [];
+      logItems = (await logGetAll(LOG_STORE)) || [];
     } catch (err) {
       console.error('通知データの読み込みに失敗しました', err);
-      notifItems = [];
+      logItems = [];
     }
     try {
-      const settings = await notifGetAll(NOTIF_SETTINGS_STORE);
+      const settings = await logGetAll(LOG_SETTINGS_STORE);
       const urlRow = settings.find((s) => s.key === 'sourceUrl');
       const intervalRow = settings.find((s) => s.key === 'intervalMin');
-      notifSourceUrl = urlRow && typeof urlRow.value === 'string' ? urlRow.value : '';
-      notifIntervalMin = intervalRow ? clampInterval(intervalRow.value) : NOTIF_DEFAULT_INTERVAL_MIN;
+      logSourceUrl = urlRow && typeof urlRow.value === 'string' ? urlRow.value : '';
+      logIntervalMin = intervalRow ? clampInterval(intervalRow.value) : LOG_DEFAULT_INTERVAL_MIN;
     } catch (err) {
       console.error('通知設定の読み込みに失敗しました', err);
-      notifSourceUrl = '';
-      notifIntervalMin = NOTIF_DEFAULT_INTERVAL_MIN;
+      logSourceUrl = '';
+      logIntervalMin = LOG_DEFAULT_INTERVAL_MIN;
     }
   }
 
-  function initNotifSettingsUi() {
-    const urlInput = document.getElementById('notifSrcUrlInput');
-    const intervalSelect = document.getElementById('notifSrcIntervalSelect');
-    const saveBtn = document.getElementById('notifSrcSaveBtn');
-    const checkNowBtn = document.getElementById('notifSrcCheckNowBtn');
+  function initLogSettingsUi() {
+    const urlInput = document.getElementById('logSrcUrlInput');
+    const intervalSelect = document.getElementById('logSrcIntervalSelect');
+    const saveBtn = document.getElementById('logSrcSaveBtn');
+    const checkNowBtn = document.getElementById('logSrcCheckNowBtn');
     if (!urlInput || !intervalSelect || !saveBtn || !checkNowBtn) return;
 
-    urlInput.value = notifSourceUrl;
-    intervalSelect.value = String(notifIntervalMin);
+    urlInput.value = logSourceUrl;
+    intervalSelect.value = String(logIntervalMin);
 
     saveBtn.addEventListener('click', async () => {
-      const ok = await saveNotifSettings(urlInput.value, intervalSelect.value);
+      const ok = await saveLogSettings(urlInput.value, intervalSelect.value);
       if (ok) {
-        setNotifStatus(notifSourceUrl ? '保存しました' : '取得元をクリアしました', 'is-ok');
-        if (notifSourceUrl) fetchNotifSource(true);
+        setLogStatus(logSourceUrl ? '保存しました' : '取得元をクリアしました', 'is-ok');
+        if (logSourceUrl) fetchLogSource(true);
       }
     });
     checkNowBtn.addEventListener('click', () => {
-      if (!notifSourceUrl) {
-        setNotifStatus('先に取得元URLを保存してください', 'is-error');
+      if (!logSourceUrl) {
+        setLogStatus('先に取得元URLを保存してください', 'is-error');
         return;
       }
-      fetchNotifSource(true);
+      fetchLogSource(true);
     });
   }
 
   // 通知DBの初期化 → 設定・データ読み込み → 初回描画 → ポーリング開始。
   // 失敗時（IndexedDB不可等）は空の通知パネル（「設定から〜」表示）に
   // フォールバックし、ダッシュボード全体は落とさない。
-  openNotifDb().then(async (_db) => {
-    notifDb = _db;
-    await loadNotifData();
-    renderNotifPanel();
-    initNotifSettingsUi();
-    startNotifPolling();
+  openLogDb().then(async (_db) => {
+    logDb = _db;
+    await loadLogData();
+    renderLogPanel();
+    initLogSettingsUi();
+    startLogPolling();
   }).catch((err) => {
     console.error('通知用DBの初期化に失敗しました', err);
-    notifItems = [];
-    notifSourceUrl = '';
-    renderNotifPanel();
-    initNotifSettingsUi();
+    logItems = [];
+    logSourceUrl = '';
+    renderLogPanel();
+    initLogSettingsUi();
   });
