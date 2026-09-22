@@ -29,76 +29,6 @@
     </div>
   </header>
 
-  <!-- ===== SETTINGS MODAL (透過率 / 壁紙 / テーマ) ===== -->
-  <div class="settings-overlay" id="settingsOverlay">
-    <div class="settings-modal">
-      <div class="settings-modal-head">
-        <span class="settings-modal-title">// SETTINGS</span>
-        <button class="settings-close-btn" id="settingsCloseBtn" title="閉じる">✕</button>
-      </div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">壁紙</div>
-        <div class="wallpaper-control">
-          <div class="wallpaper-swatches" id="wallpaperSwatches"></div>
-          <button class="wallpaper-upload-btn" id="wallpaperUploadBtn" title="画像をアップロード">＋</button>
-          <input type="file" id="wallpaperFileInput" accept="image/*" style="display:none;">
-        </div>
-      </div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">透過率（パネル背景）</div>
-        <div class="tilt-control">
-          <span class="tc-value" id="alphaValue">100%</span>
-          <div class="tc-btns">
-            <button class="tc-btn" id="alphaUp" title="不透明にする">▲</button>
-            <button class="tc-btn" id="alphaDown" title="透過を強くする">▼</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">テーマ</div>
-        <div class="theme-control">
-          <div class="theme-swatches" id="themeSwatches"></div>
-          <button class="theme-eyedropper-btn" id="eyedropperBtn" title="壁紙からスポイトテーマを生成" disabled></button>
-        </div>
-      </div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">アプリ管理</div>
-        <div class="app-manage-control">
-          <button class="btn" id="openAppManageBtn">インポートしたアプリを管理</button>
-        </div>
-      </div>
-
-      <div class="settings-row settings-row-col">
-        <div class="settings-row-label">通知の取得元（任意）</div>
-        <div class="settings-row-hint">
-          IFTTT等で発行した「通知データの公開URL」を登録すると、数分おきに新着を確認して通知パネルに反映します（本体からメールへ直接アクセスすることはありません）。
-        </div>
-        <div class="log-src-control">
-          <input type="url" id="logSrcUrlInput" class="log-src-input" placeholder="https://... （公開JSON URL）" autocomplete="off" spellcheck="false">
-          <button class="btn" id="logSrcSaveBtn">保存</button>
-        </div>
-        <div class="log-src-sub">
-          <label class="log-src-interval-label">
-            取得間隔
-            <select id="logSrcIntervalSelect" class="log-src-interval-select">
-              <option value="1">1分</option>
-              <option value="3">3分</option>
-              <option value="5" selected>5分</option>
-              <option value="10">10分</option>
-              <option value="30">30分</option>
-            </select>
-          </label>
-          <button class="btn" id="logSrcCheckNowBtn">今すぐ確認</button>
-        </div>
-        <div class="log-src-status" id="logSrcStatus"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- ===== アプリ管理モーダル（インポートした後天的アプリの本体削除） ===== -->
   <div class="launcher-modal-overlay" id="appManageOverlay">
     <div class="launcher-modal">
@@ -278,6 +208,82 @@
   </div>
   </div>
 
+</div>
+
+<!-- ===== SETTINGS MODAL (透過率 / 壁紙 / テーマ) =====
+     .shell の外側に配置：.shell に perspective が指定されておりスタッキング
+     コンテキストが分離するため、.shell 内に置いたままだと z-index の比較が
+     .shell 内限定になり、.shell 外の要素（STAGE等）より背面に沈んでしまう
+     不具合があった（2026-09-22 実機検証で発覚・修正。同じ原因のバグは
+     STAGE自体でも過去に一度発生済み＝下記コメント参照。同種の要素を今後
+     追加する際は必ずこの位置＝.shellの外に置くこと）。 -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-modal">
+    <div class="settings-modal-head">
+      <span class="settings-modal-title">// SETTINGS</span>
+      <button class="settings-close-btn" id="settingsCloseBtn" title="閉じる">✕</button>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">壁紙</div>
+      <div class="wallpaper-control">
+        <div class="wallpaper-swatches" id="wallpaperSwatches"></div>
+        <button class="wallpaper-upload-btn" id="wallpaperUploadBtn" title="画像をアップロード">＋</button>
+        <input type="file" id="wallpaperFileInput" accept="image/*" style="display:none;">
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">透過率（パネル背景）</div>
+      <div class="tilt-control">
+        <span class="tc-value" id="alphaValue">100%</span>
+        <div class="tc-btns">
+          <button class="tc-btn" id="alphaUp" title="不透明にする">▲</button>
+          <button class="tc-btn" id="alphaDown" title="透過を強くする">▼</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">テーマ</div>
+      <div class="theme-control">
+        <div class="theme-swatches" id="themeSwatches"></div>
+        <button class="theme-eyedropper-btn" id="eyedropperBtn" title="壁紙からスポイトテーマを生成" disabled></button>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">アプリ管理</div>
+      <div class="app-manage-control">
+        <button class="btn" id="openAppManageBtn">インポートしたアプリを管理</button>
+      </div>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">通知の取得元（任意）</div>
+      <div class="settings-row-hint">
+        IFTTT等で発行した「通知データの公開URL」を登録すると、数分おきに新着を確認して通知パネルに反映します（本体からメールへ直接アクセスすることはありません）。
+      </div>
+      <div class="log-src-control">
+        <input type="url" id="logSrcUrlInput" class="log-src-input" placeholder="https://... （公開JSON URL）" autocomplete="off" spellcheck="false">
+        <button class="btn" id="logSrcSaveBtn">保存</button>
+      </div>
+      <div class="log-src-sub">
+        <label class="log-src-interval-label">
+          取得間隔
+          <select id="logSrcIntervalSelect" class="log-src-interval-select">
+            <option value="1">1分</option>
+            <option value="3">3分</option>
+            <option value="5" selected>5分</option>
+            <option value="10">10分</option>
+            <option value="30">30分</option>
+          </select>
+        </label>
+        <button class="btn" id="logSrcCheckNowBtn">今すぐ確認</button>
+      </div>
+      <div class="log-src-status" id="logSrcStatus"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ===== STAGE（フルスクリーンオーバーレイ）=====
