@@ -413,6 +413,11 @@
     wrap.innerHTML = ''; // 2回目以降の呼び出し（設定復元でeyedropper/customが
                           // 追加された後の再構築）でボタンが重複しないように
     Object.entries(themes).forEach(([key, theme]) => {
+      // eyedropperは専用の入口ボタン（💧アイコン、theme-eyedropper-btn）
+      // を別に持っているため、通常のスウォッチ一覧には並べない。
+      // ここで除外しないと「スポイト」という名のスウォッチが一覧に
+      // 紛れ込んで重複表示になる（シーバさん指摘・2026-09-22修正）。
+      if (key === 'eyedropper') return;
       const btn = document.createElement('button');
       btn.className = 'theme-swatch' + (key === currentTheme ? ' active' : '');
       btn.dataset.theme = key;
