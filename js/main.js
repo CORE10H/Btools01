@@ -1124,25 +1124,47 @@
   //                ウィンドウサイズで変わるためJSで動的計算する
   //                （6.3節の教訓：固定ピクセル値を使わない）
   //   'full'     … 四方いっぱい（完全フルスクリーン）
+  // 要素が「レイアウトから消えている」かどうかの判定。
+  // display:none の要素は getBoundingClientRect() が全辺0の矩形を返すため、
+  // それをそのまま計算に使うと基準点が原点(0,0)に化けて計算が壊れる。
+  // レスポンシブ対応（13章）でINTEL/LOG/TIMELINE/ヘッダーが状況により
+  // 非表示になるため、各基準パネルについて「非表示なら、その分の
+  // 余白はゼロとしてウィンドウ端を直接基準にする」という代替ロジックが必要。
+  function isLaidOut(el) {
+    return !!el && el.offsetParent !== null;
+  }
+
   function computeNormalStageRect() {
     // 通常時のStage位置を、実在する隣接パネル（header / .left-col / .right-col /
     // .timeline-panel）の getBoundingClientRect() から動的に算出する。CSS側でその
     // 値を直接再現するのが難しいため（rotateYが掛かった祖先を挟むレイアウトの
     // ため）、JS側で隣接パネルの実際の画面上の端を基準点として使う
     // （6.3節の教訓：固定ピクセル値を使わず、実測のrectを基準にする）。
+    //
+    // レスポンシブ対応（13章）：各基準パネルが非表示（display:none）の場合は
+    // そのパネル分の余白を取らず、ウィンドウ端を直接基準にする。
     const header = document.querySelector('header.top');
     const leftCol = document.querySelector('.left-col');
     const rightCol = document.querySelector('.right-col');
     const timelineEl = document.querySelector('.timeline-panel');
-    const headerRect = header.getBoundingClientRect();
-    const leftRect = leftCol.getBoundingClientRect();
-    const rightRect = rightCol.getBoundingClientRect();
-    const timelineRect = timelineEl.getBoundingClientRect();
+
+    const headerVisible = isLaidOut(header);
+    const rightVisible = isLaidOut(rightCol);
+    const timelineVisible = isLaidOut(timelineEl);
+    // leftColは常に表示される前提（ランチャーは最後まで残る設計）だが、
+    // 念のため同じ安全策を適用する。
+    const leftVisible = isLaidOut(leftCol);
+
+    const leftRect = leftVisible ? leftCol.getBoundingClientRect() : null;
+    const rightRect = rightVisible ? rightCol.getBoundingClientRect() : null;
+    const headerRect = headerVisible ? header.getBoundingClientRect() : null;
+    const timelineRect = timelineVisible ? timelineEl.getBoundingClientRect() : null;
+
     return {
-      left: leftRect.right + 14, // .shell の gap 分
-      right: window.innerWidth - rightRect.left + 14,
-      top: headerRect.bottom + 14,
-      bottom: window.innerHeight - timelineRect.top + 14,
+      left: leftVisible ? (leftRect.right + 14) : 0,
+      right: rightVisible ? (window.innerWidth - rightRect.left + 14) : 0,
+      top: headerVisible ? (headerRect.bottom + 14) : 0,
+      bottom: timelineVisible ? (window.innerHeight - timelineRect.top + 14) : 0,
     };
   }
 
@@ -1205,10 +1227,21 @@
     applyStageSizeMode(activeMode);
   });
 
+  // スマホ幅（横：第三段階、13章）の判定。CSS側のブレークポイント
+  // (max-width: 479px) と同じ値をJS側でも参照する必要があるため定数化。
+  // CSSとJSで値がズレるとレイアウトとロジックの境界が食い違うため、
+  // 値を変更する場合はstyle.css側の該当メディアクエリも合わせて修正すること。
+  const MOBILE_WIDTH_BREAKPOINT = 479;
+  function isMobileWidth() {
+    return window.innerWidth <= MOBILE_WIDTH_BREAKPOINT;
+  }
+
   function openStage(ev, project, cardId) {
     currentStageCardId = cardId || null;
     const card = cardId ? cards.find(c => c.id === cardId) : null;
-    const mode = (card && card.sizeMode) || 'normal';
+    // スマホ幅では、保存済みのサイズモード設定より優先して常にフル
+    // スクリーンで開く（狭い画面でnormal/verticalモードは実用にならないため）。
+    const mode = isMobileWidth() ? 'full' : ((card && card.sizeMode) || 'normal');
     applyStageSizeMode(mode);
 
     const stageRect = stageEl.getBoundingClientRect();
@@ -1842,3 +1875,145 @@
     renderLogPanel();
     initLogSettingsUi();
   });
+
+  /* =====================================================================
+     13. レスポンシブ対応：縦方向（高さ）の段階的な折りたたみ
+
+     横方向はCSSメディアクエリ（幅ベース）だけで完結するが、縦方向は
+     「各パネルのデフォルト高さに対して、今どれだけ余裕があるか」を
+     比較する必要があるため、ResizeObserverで実測しJSで判定する。
+
+     ルール（制作資料13章）：
+       - TIMELINE・タスク・LOG：初回表示時の高さを「デフォルト高さ」として
+         記録。以後、実際の高さがデフォルトの半分を下回ったら
+         .height-collapsed クラスを付与して非表示にする（3パネルに
+         優先順位はなく、結果的に余裕の少ないものから消える）
+       - ランチャー（.coverflow-v）：上下端がクリップされ始めたら
+         .height-clipped を付与（overflow:hiddenで隠すだけ。中央カードの
+         描画位置自体は既存のJSロジックがそのまま維持する）
+       - ヘッダー：最終手段。ランチャーの中央カード表示すら苦しくなる
+         高さまで来たら .height-collapsed を付与し、.shell に
+         .header-collapsed を付与してヘッダー行を0pxにする
+       - INTEL：幅・高さいずれかがデフォルトを維持できなくなったら
+         即座に .size-collapsed を付与して非表示にする
+
+     フールプルーフ：
+       - 各パネルの「デフォルト高さ」はページ読み込み直後、まだ何も
+         折りたたまれていない状態でのみ記録する（一度記録したら
+         セッション中は固定値として扱う。崩れた状態を誤って
+         デフォルトとして記録しないようにするため）
+       - 要素が見つからない場合は処理をスキップし、他の判定には
+         影響させない（一部パネル欠落時でも他が壊れないように）
+     ===================================================================== */
+  (function setupVerticalCollapse() {
+    const timelinePanel = document.querySelector('.timeline-panel');
+    const taskPanel = document.querySelector('.task-panel-left');
+    const logPanel = document.querySelector('.log-panel');
+    const intelGrid = document.querySelector('.intel-grid');
+    const coverflowV = document.querySelector('.coverflow-v');
+    const headerEl = document.querySelector('header.top');
+    const shellEl = document.querySelector('.shell');
+    const leftColEl = document.querySelector('.left-col');
+
+    if (!shellEl) return; // ページ構造が想定外の場合は何もしない（安全側）
+
+    // デフォルト寸法の記録は「まだ何も折りたたまれていない初回のみ」。
+    // 一度でも height-collapsed 等が付いた状態の値を基準にしてしまうと
+    // 基準がどんどん縮んでいく不具合になるため、フラグで一度だけに限定する。
+    let defaultsRecorded = false;
+    const defaults = {
+      timeline: null,
+      task: null,
+      log: null,
+      intelW: null,
+      intelH: null,
+    };
+
+    function recordDefaultsOnce() {
+      if (defaultsRecorded) return;
+      // いずれかのパネルが既に非表示（画面幅が狭くCSS側でdisplay:noneの
+      // 場合）は、その時点の0は「デフォルト」として不適切なので、
+      // 全対象パネルが実在し表示されている時だけ記録する。
+      const allVisible = [timelinePanel, taskPanel, logPanel, intelGrid]
+        .filter(Boolean)
+        .every((el) => el.offsetParent !== null);
+      if (!allVisible) return;
+      if (timelinePanel) defaults.timeline = timelinePanel.getBoundingClientRect().height;
+      if (taskPanel) defaults.task = taskPanel.getBoundingClientRect().height;
+      if (logPanel) defaults.log = logPanel.getBoundingClientRect().height;
+      if (intelGrid) {
+        const r = intelGrid.getBoundingClientRect();
+        defaults.intelW = r.width;
+        defaults.intelH = r.height;
+      }
+      defaultsRecorded = true;
+    }
+
+    function applyVerticalCollapse() {
+      recordDefaultsOnce();
+      if (!defaultsRecorded) return; // まだ基準が取れていない場合は判定を保留
+
+      // --- TIMELINE / タスク / LOG：高さがデフォルトの半分未満で非表示 ---
+      [
+        [timelinePanel, defaults.timeline],
+        [taskPanel, defaults.task],
+        [logPanel, defaults.log],
+      ].forEach(([el, defaultH]) => {
+        if (!el || !defaultH) return;
+        // 既に横方向のメディアクエリでdisplay:noneの場合、
+        // getBoundingClientRectは0を返すため誤判定しないよう除外する。
+        if (el.offsetParent === null && !el.classList.contains('height-collapsed')) return;
+        const currentH = el.classList.contains('height-collapsed')
+          ? defaultH // 一旦解除した状態を仮定して再計測できないため、
+                     // 解除判定は行わずheight-collapsedは維持する
+                     // （ウィンドウを再度広げた場合はページ再読み込みを
+                     // 想定。これはシンプルさ・堅牢性を優先した設計判断）
+          : el.getBoundingClientRect().height;
+        if (!el.classList.contains('height-collapsed') && currentH < defaultH / 2) {
+          el.classList.add('height-collapsed');
+        }
+      });
+
+      // --- INTEL：幅または高さがデフォルトを維持できなくなったら即消える ---
+      if (intelGrid && defaults.intelW && defaults.intelH && !intelGrid.classList.contains('size-collapsed')) {
+        const r = intelGrid.getBoundingClientRect();
+        if (r.width < defaults.intelW - 1 || r.height < defaults.intelH - 1) {
+          intelGrid.classList.add('size-collapsed');
+        }
+      }
+
+      // --- ランチャー：上下端が隠れ始めたらクリップ表示に切り替え ---
+      // （左カラム全体の高さが、ヘッダー分を除いたビューポート高さの
+      // 目安値を下回ったらクリップを有効にする。中央カードの描画位置は
+      // 既存のJSロジックがそのまま維持するため、ここではCSSクラスの
+      // 付与のみ行う。）
+      if (coverflowV) {
+        const r = coverflowV.getBoundingClientRect();
+        const viewportMargin = 40; // 上下の余白見込み
+        if (r.height > window.innerHeight - viewportMargin) {
+          coverflowV.classList.add('height-clipped');
+        }
+      }
+
+      // --- ヘッダー：最終手段。ウィンドウ高さが極端に低い場合のみ非表示 ---
+      // 目安：ヘッダー56px + ランチャー最低限表示に必要な高さを
+      // 確保できなくなった場合。閾値は実機確認しながら調整する前提。
+      const MIN_HEIGHT_FOR_HEADER = 340; // 暫定値（実機で調整）
+      if (headerEl && shellEl) {
+        if (window.innerHeight < MIN_HEIGHT_FOR_HEADER) {
+          headerEl.classList.add('height-collapsed');
+          shellEl.classList.add('header-collapsed');
+        } else {
+          headerEl.classList.remove('height-collapsed');
+          shellEl.classList.remove('header-collapsed');
+        }
+      }
+    }
+
+    // 初回実行（DOM構築直後、レイアウト確定後に1フレーム遅らせて実行）
+    requestAnimationFrame(() => requestAnimationFrame(applyVerticalCollapse));
+
+    // リサイズ・向き変更のたびに再評価
+    window.addEventListener('resize', applyVerticalCollapse);
+    window.addEventListener('orientationchange', applyVerticalCollapse);
+  })();
