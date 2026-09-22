@@ -210,6 +210,30 @@
 
 </div>
 
+<!-- ===== CUSTOM THEME MODAL（15色それぞれを個別に調整） =====
+     .shell の外側に配置：SETTINGS MODAL・STAGE と同じ理由
+     （.shell の perspective によるスタッキングコンテキスト分離を
+     避けるため。2026-09-22新設）。 -->
+<div class="settings-overlay" id="customThemeOverlay">
+  <div class="settings-modal custom-theme-modal">
+    <div class="settings-modal-head">
+      <span class="settings-modal-title">// カスタムテーマ</span>
+      <button class="settings-close-btn" id="customThemeCloseBtn" title="閉じる">✕</button>
+    </div>
+
+    <div class="custom-theme-hint">
+      15色それぞれを自由に調整できます。変更は即座に画面全体へ反映されます。「保存」を押すと、このアイコンの色として次回以降も使えるようになります。
+    </div>
+
+    <div class="custom-theme-grid" id="customThemeGrid"><!-- JSで動的生成（15色分） --></div>
+
+    <div class="custom-theme-actions">
+      <button class="btn" id="customThemeResetBtn" title="現在選択中のテーマの色に戻す（保存はされません）">現在のテーマの色に戻す</button>
+      <button class="btn primary" id="customThemeSaveBtn">保存して閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== SETTINGS MODAL (透過率 / 壁紙 / テーマ) =====
      .shell の外側に配置：.shell に perspective が指定されておりスタッキング
      コンテキストが分離するため、.shell 内に置いたままだと z-index の比較が
@@ -248,6 +272,7 @@
       <div class="settings-row-label">テーマ</div>
       <div class="theme-control">
         <div class="theme-swatches" id="themeSwatches"></div>
+        <button class="theme-custom-btn" id="customThemeBtn" title="15色それぞれを自分で調整する">🎨</button>
         <button class="theme-eyedropper-btn" id="eyedropperBtn" title="壁紙からスポイトテーマを生成" disabled></button>
       </div>
     </div>

@@ -429,6 +429,183 @@
   }
   buildThemeSwatches();
 
+  /* =====================================================================
+     カスタムテーマ編集モーダル（15色それぞれを個別調整）
+
+     シーバさん指示：
+       - プリセット4種とスポイトの間に入口アイコンを新設
+       - モーダルを開いた時の初期値は「現在選ばれているテーマの15色」
+         （前回保存したカスタム値があればそれを優先）
+       - 調整中はリアルタイムに画面全体へ反映
+       - 保存すると、このアイコン＝themes.customとして以後再現できる
+       - 保存以外の閉じ方（✕・Esc・背景クリック）はキャンセル扱いで、
+         元々選ばれていたテーマの色に戻す
+     ===================================================================== */
+  const CUSTOM_THEME_TOKEN_LABELS = [
+    ['--bg', '背景（基本）'],
+    ['--bg-alt', '背景（サブ）'],
+    ['--panel-rgb', 'パネル背景'],
+    ['--panel-hi', 'パネル（明るめ）'],
+    ['--line', '枠線'],
+    ['--line-soft', '枠線（薄め）'],
+    ['--cyan', 'アクセント1（シアン系）'],
+    ['--cyan-dim', 'アクセント1（暗め）'],
+    ['--magenta', 'アクセント2（マゼンタ系）'],
+    ['--magenta-dim', 'アクセント2（暗め）'],
+    ['--amber', 'アンバー'],
+    ['--text', '文字（基本）'],
+    ['--text-dim', '文字（やや薄め）'],
+    ['--text-faint', '文字（薄め）'],
+    ['--label-color', 'ラベル文字'],
+  ];
+
+  // --panel-rgb だけは他の14トークンと違い "R, G, B"（カンマ区切り数値）
+  // 形式で、<input type="color"> が扱えるHEX形式ではない。この2関数で
+  // 相互変換する（他14トークンは元々HEXなのでそのまま素通しでよい）。
+  function rgbStringToHex(rgbStr) {
+    const parts = String(rgbStr).split(',').map(s => parseInt(s.trim(), 10));
+    if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) return '#000000';
+    return '#' + parts.map(n => Math.min(255, Math.max(0, n)).toString(16).padStart(2, '0')).join('');
+  }
+  function hexToRgbString(hex) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    if (!m) return '0, 0, 0';
+    return [1, 2, 3].map(i => parseInt(m[i], 16)).join(', ');
+  }
+  function tokenToInputHex(tokenName, value) {
+    return tokenName === '--panel-rgb' ? rgbStringToHex(value) : value;
+  }
+  function inputHexToTokenValue(tokenName, hex) {
+    return tokenName === '--panel-rgb' ? hexToRgbString(hex) : hex;
+  }
+
+  const customThemeOverlay = document.getElementById('customThemeOverlay');
+  const customThemeBtn = document.getElementById('customThemeBtn');
+  const customThemeCloseBtn = document.getElementById('customThemeCloseBtn');
+  const customThemeGrid = document.getElementById('customThemeGrid');
+  const customThemeResetBtn = document.getElementById('customThemeResetBtn');
+  const customThemeSaveBtn = document.getElementById('customThemeSaveBtn');
+
+  let customThemeDraft = null;    // 編集中の15色（{ '--bg': '#...', ... }）
+  let customThemeBaseline = null; // モーダルを開いた時点の値（「現在のテーマの色に戻す」用）
+  let themeBeforeCustomEdit = null; // モーダルを開く直前に選ばれていたテーマキー（キャンセル時に戻す用）
+
+  // 編集用バッファの色を画面へ即座に反映する。プリセットのactive表示は
+  // 崩さない（applyThemeを使うとcurrentThemeが'custom'扱いになり、
+  // まだ保存していないのにプリセット側のactive表示が消えてしまうため、
+  // ここではCSS変数の直接書き換えのみ行う）。
+  function applyCustomThemeDraftLive() {
+    Object.entries(customThemeDraft).forEach(([prop, val]) => root.style.setProperty(prop, val));
+  }
+
+  function buildCustomThemeGrid() {
+    customThemeGrid.innerHTML = '';
+    CUSTOM_THEME_TOKEN_LABELS.forEach(([tokenName, label]) => {
+      const row = document.createElement('div');
+      row.className = 'custom-theme-row';
+
+      const labelEl = document.createElement('label');
+      labelEl.textContent = label;
+      labelEl.title = tokenName;
+
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = tokenToInputHex(tokenName, customThemeDraft[tokenName]);
+
+      const hexInput = document.createElement('input');
+      hexInput.type = 'text';
+      hexInput.className = 'cts-hex';
+      hexInput.maxLength = 7;
+      hexInput.value = tokenToInputHex(tokenName, customThemeDraft[tokenName]);
+
+      function commit(hex) {
+        customThemeDraft[tokenName] = inputHexToTokenValue(tokenName, hex);
+        applyCustomThemeDraftLive();
+      }
+
+      colorInput.addEventListener('input', () => {
+        hexInput.value = colorInput.value;
+        commit(colorInput.value);
+      });
+      hexInput.addEventListener('input', () => {
+        const v = hexInput.value.trim();
+        // 不正な途中入力（"#f"など）ではまだ反映しない。有効なHEXに
+        // なった時だけ確定させる（フールプルーフ：壊れた色をCSSに
+        // 渡さない）。
+        if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+          colorInput.value = v;
+          commit(v);
+        }
+      });
+
+      row.appendChild(labelEl);
+      row.appendChild(colorInput);
+      row.appendChild(hexInput);
+      customThemeGrid.appendChild(row);
+    });
+  }
+
+  function openCustomThemeModal() {
+    // カスタムテーマ編集モーダルは設定モーダルの中のボタンから開くため、
+    // 両方が同時に重なって表示されないよう、設定モーダル側は閉じる。
+    closeSettings();
+    // 初期値：前回保存済みのカスタムテーマがあればそれ、なければ
+    // 現在選ばれているテーマの15色をコピー（シーバさん合意済み仕様）。
+    const source = themes.custom ? themes.custom.tokens : themes[currentTheme].tokens;
+    customThemeDraft = Object.assign({}, source);
+    customThemeBaseline = Object.assign({}, source);
+    themeBeforeCustomEdit = currentTheme;
+    buildCustomThemeGrid();
+    customThemeOverlay.classList.add('is-open');
+  }
+
+  function closeCustomThemeModalCancelled() {
+    // 保存以外の閉じ方は全てキャンセル扱い：元々選ばれていたテーマの
+    // 色に戻す（シーバさん合意済み仕様）。
+    customThemeOverlay.classList.remove('is-open');
+    if (themeBeforeCustomEdit) applyTheme(themeBeforeCustomEdit);
+    customThemeDraft = null;
+    customThemeBaseline = null;
+    themeBeforeCustomEdit = null;
+  }
+
+  customThemeBtn.addEventListener('click', openCustomThemeModal);
+  customThemeCloseBtn.addEventListener('click', closeCustomThemeModalCancelled);
+  customThemeOverlay.addEventListener('click', (e) => {
+    if (e.target === customThemeOverlay) closeCustomThemeModalCancelled();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && customThemeOverlay.classList.contains('is-open')) {
+      closeCustomThemeModalCancelled();
+    }
+  });
+
+  customThemeResetBtn.addEventListener('click', () => {
+    // 「現在のテーマの色に戻す」：保存はせず、モーダルを開いた時点の
+    // 値（baseline）に編集用バッファを戻すだけ。
+    customThemeDraft = Object.assign({}, customThemeBaseline);
+    buildCustomThemeGrid();
+    applyCustomThemeDraftLive();
+  });
+
+  customThemeSaveBtn.addEventListener('click', () => {
+    const tokens = Object.assign({}, customThemeDraft);
+    themes.custom = {
+      label: 'カスタム',
+      swatchBg: tokens['--bg'] || '#05070a',
+      swatchAccent: tokens['--cyan'] || '#00f0d0',
+      tokens,
+    };
+    buildThemeSwatches(); // themes.customをプリセット一覧にも反映
+    applyTheme('custom');
+    saveSettingsPatch({ themeKey: 'custom', customThemeTokens: tokens });
+    customThemeOverlay.classList.remove('is-open');
+    customThemeDraft = null;
+    customThemeBaseline = null;
+    themeBeforeCustomEdit = null;
+  });
+
+
   /* ===================== EYEDROPPER THEME (generated from wallpaper) ===================== */
   // Samples the current wallpaper image on a hidden canvas, picks a dark
   // dominant color for backgrounds and a couple of vivid colors for

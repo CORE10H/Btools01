@@ -292,6 +292,62 @@
   .theme-eyedropper-btn:disabled { opacity: .3; cursor: not-allowed; filter: grayscale(1); }
   .theme-eyedropper-btn:disabled:hover { border-color: var(--line); transform: none; }
 
+  /* ---- "custom" theme entry point: opens the 15-color editor modal ---- */
+  .theme-custom-btn {
+    width: 20px; height: 20px;
+    border: 1px solid var(--line);
+    cursor: pointer;
+    padding: 0;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-alt);
+    font-size: 11px;
+    line-height: 1;
+  }
+  .theme-custom-btn:hover { border-color: var(--cyan); transform: scale(1.08); }
+
+  /* ---- custom theme editor modal（15色それぞれの調整） ---- */
+  .custom-theme-modal {
+    width: 480px; /* .settings-modal の360pxでは15色の一覧に狭いため拡張 */
+    max-width: 92vw;
+  }
+  .custom-theme-hint {
+    font-size: 10.5px; color: var(--text-faint); line-height: 1.6; margin-bottom: 16px;
+  }
+  .custom-theme-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+    margin-bottom: 18px;
+  }
+  .custom-theme-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .custom-theme-row label {
+    flex: 1; min-width: 0;
+    font-size: 10.5px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .custom-theme-row input[type="color"] {
+    width: 26px; height: 26px;
+    border: 1px solid var(--line);
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .custom-theme-row .cts-hex {
+    width: 62px; flex-shrink: 0;
+    font-family: var(--font-display); font-size: 10px;
+    color: var(--text-faint);
+    background: var(--bg-alt); border: 1px solid var(--line);
+    padding: 4px 5px; outline: none; text-transform: uppercase;
+  }
+  .custom-theme-row .cts-hex:focus { border-color: var(--cyan-dim); }
+  .custom-theme-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+
   /* ---- wallpaper debug control (presets + custom upload) ---- */
   .wallpaper-control {
     display: flex;
