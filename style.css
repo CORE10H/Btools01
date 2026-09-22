@@ -126,6 +126,13 @@
     padding: 0 6px 10px;
     border-bottom: 1px solid var(--line);
     gap: 24px;
+    min-width: 0; /* CSS Gridアイテムのデフォルト(min-width:auto)を打ち消す。
+                     header内の.header-date等がwhite-space:nowrapで
+                     折り返さないため、これが無いと中の文字列の実際の
+                     横幅ぶん、header自身だけでなく同じ列を共有する
+                     .left-colまで押し広げられてしまう不具合があった
+                     （スマホ幅で画面の大半が黒くなる実害として発覚・
+                     13章。真犯人はここだった）。 */
   }
   .brand-block { display: flex; align-items: baseline; gap: 24px; min-width: 0; }
   .brand-block .mark { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 1px; color: var(--text); flex-shrink: 0; }
@@ -1017,7 +1024,18 @@
       transform: none; /* スマホでは3D傾斜を解除（視認性優先） */
     }
     .task-panel-left { display: none; }
-    .cf-item { /* カード幅を左カラム幅=画面幅いっぱいに追従させる（既存width:100%のまま有効） */
+    /* ヘッダー：横幅が狭いスマホでは日時ラベルを非表示にする
+       （13章で合意した仕様：タイトル・日時ラベルから消え、アイコンは
+       最後まで残す）。ロゴ(SIDE-OPS)とアイコン群は残す。 */
+    .header-date { display: none; }
+    .cf-item {
+      /* 応急処置：幅の計算が何らかの理由で画面幅を超えて膨らむ現象が
+         発生することがあり（原因調査中・13章参照）、aspect-ratioに
+         連動してカードの高さも異常に大きくなり画面の大半を覆って
+         しまう実害があった。max-heightで上限を設け、万一幅の計算が
+         崩れても画面からはみ出す実害だけは防ぐ。根本原因の解消後も
+         保険として残して問題ない。 */
+      max-height: 45vh;
     }
     /* スマホ幅ではSTAGEは常にフルスクリーンで開くため、
        サイズ切り替えボタン（縦いっぱい／四方いっぱい）は不要 */
