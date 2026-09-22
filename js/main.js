@@ -1302,21 +1302,36 @@
   function render() {
     const items = track.querySelectorAll('.cf-item');
     const len = cards.length + 1; // ＋新規作成カードの1件を含めた総数
+    // スマホ幅（13章）では3D演出（奥行き・傾き）を完全にオフにし、
+    // 単純に縦へスライドするだけのフラットな見た目にする。
+    // PC版のrotateY全体傾斜は既に.left-colでtransform:noneにしているが、
+    // カード個々のtranslateZ/rotateXはこのrender()が毎回計算し直す値
+    // であり、ここで分岐しないとスマホでも「奥から出てくる」ような
+    // 3D的な出入りになってしまう（実機検証で発覚・13章）。
+    const flat = isMobileWidth();
     items.forEach((el, i) => {
       const offset = shortestOffset(i, centerIndex, len);
       const isCenter = offset === 0;
       const absOff = Math.abs(offset);
-      const ySpacing = 60;
+      const ySpacing = flat ? 0 : 60; // フラット時は中央以外を画面外へ追いやるだけでよい
       const y = offset * ySpacing;
-      const rotX = offset === 0 ? 0 : (offset > 0 ? 38 : -38);
-      const z = isCenter ? 30 : -110 - (absOff - 1) * 30;
-      // side banners scaled to 60% of center size
-      const scale = isCenter ? 1 : Math.max(0.6, 0.6 - (absOff - 1) * 0.05);
-      const opacity = absOff > 2 ? 0 : 1;
+      const rotX = flat ? 0 : (offset === 0 ? 0 : (offset > 0 ? 38 : -38));
+      const z = flat ? 0 : (isCenter ? 30 : -110 - (absOff - 1) * 30);
+      // side banners scaled to 60% of center size（フラット時は中央のみ表示するため常に等倍）
+      const scale = flat ? 1 : (isCenter ? 1 : Math.max(0.6, 0.6 - (absOff - 1) * 0.05));
+      // フラット時は中央カードだけを見せ、それ以外は完全に隠す
+      // （スワイプで縦にスライドさせる演出をしない代わりに、
+      // 常に1枚だけがぱっと切り替わる、スマホで馴染みのある挙動にする）
+      const opacity = flat ? (isCenter ? 1 : 0) : (absOff > 2 ? 0 : 1);
 
       el.style.transform = `translate(-50%, -50%) translateY(${y}px) translateZ(${z}px) rotateX(${rotX}deg) scale(${scale})`;
       el.style.zIndex = 100 - absOff;
       el.style.opacity = opacity;
+      // フラット時、非表示のカードにまでクリック判定が残らないようにする
+      // （opacity:0でも要素自体はクリック可能なままなので、誤操作防止のため
+      // pointer-eventsも明示的に切る）
+      if (flat) el.style.pointerEvents = isCenter ? '' : 'none';
+      else el.style.pointerEvents = '';
       el.classList.toggle('is-center', isCenter);
     });
 
@@ -1332,6 +1347,19 @@
       document.getElementById('stageTag').textContent = '--';
     }
   }
+
+  // ウィンドウ幅がPC⇔スマホの境界をまたいだ場合、render()内の3D演出の
+  // 有無（isMobileWidth()の判定結果）が変わるため、見た目を再計算する。
+  // ブラウザのウィンドウリサイズだけでなく、スマホの画面回転
+  // （orientationchange）でも幅が変わりうるため両方に登録する。
+  let lastIsMobileWidthForRender = isMobileWidth();
+  window.addEventListener('resize', () => {
+    const nowMobile = isMobileWidth();
+    if (nowMobile !== lastIsMobileWidthForRender) {
+      lastIsMobileWidthForRender = nowMobile;
+      render();
+    }
+  });
 
   document.getElementById('cfPrev').addEventListener('click', () => {
     const len = cards.length + 1;
