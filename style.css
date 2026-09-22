@@ -1034,6 +1034,15 @@
       display: none !important;
       pointer-events: none !important;
     }
+
+    /* カード切替時のtransform/opacityアニメーション（transition）を
+       スマホ幅では無効化する。JS側(render())でtranslateZ・rotateXの
+       値自体は0に固定しているが、PC版用のtransitionが生きたままだと
+       「奥から手前へ0.45秒かけて移動してくる」ように見えてしまい、
+       値をフラットにした意味がなくなる（実機検証で発覚・13章）。
+       瞬時に切り替わる素直な表示にするため、transitionそのものを
+       無効化する。 */
+    .cf-item { transition: none !important; }
   }
 
   /* ---- 縦：第一段階（高さが狭まりTIMELINE/タスク/LOGのいずれかを
