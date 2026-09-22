@@ -95,7 +95,6 @@
     flex-direction: column;
     gap: 14px;
     min-height: 0;
-    min-width: 0; /* .left-colと同様の理由（13章参照） */
     transform-style: preserve-3d;
     transform: rotateY(-50deg);
     transform-origin: left center;
@@ -108,11 +107,6 @@
     flex-direction: column;
     gap: 14px;
     min-height: 0;
-    min-width: 0; /* CSS Gridアイテムのデフォルト(min-width:auto)を打ち消す。
-                     これが無いと、中のコンテンツ（カバーフローのカード等）
-                     の内在的な最小幅ぶん、グリッドの列自体が押し広げられ、
-                     スマホ幅で横スクロールが発生する不具合があった
-                     （13章・実機検証で発覚） */
     transform-style: preserve-3d;
     transform: rotateY(50deg);
     transform-origin: right center;
@@ -126,13 +120,6 @@
     padding: 0 6px 10px;
     border-bottom: 1px solid var(--line);
     gap: 24px;
-    min-width: 0; /* CSS Gridアイテムのデフォルト(min-width:auto)を打ち消す。
-                     header内の.header-date等がwhite-space:nowrapで
-                     折り返さないため、これが無いと中の文字列の実際の
-                     横幅ぶん、header自身だけでなく同じ列を共有する
-                     .left-colまで押し広げられてしまう不具合があった
-                     （スマホ幅で画面の大半が黒くなる実害として発覚・
-                     13章。真犯人はここだった）。 */
   }
   .brand-block { display: flex; align-items: baseline; gap: 24px; min-width: 0; }
   .brand-block .mark { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 1px; color: var(--text); flex-shrink: 0; }
@@ -949,144 +936,3 @@
     transition: opacity .2s ease, transform .2s ease; z-index: 300;
   }
   .launcher-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-  /* =====================================================================
-     13. レスポンシブ対応（ウィンドウ幅・高さの段階的な崩し方）
-
-     方針：HTML本体は1つのみ。すべてメディアクエリ（画面幅・高さベース）
-     による見た目の切り替えで対応する。サーバー側やJSでの端末判定は
-     行わない（枯れた技術・堅牢性優先）。
-
-     各パネルの「壊れ方」のルール（制作資料13章に詳細まとめ済み）：
-       - ヘッダー：横が狭まるとタイトル・日時ラベルから消え、アイコンは
-         最後まで残す。縦の最終手段としてヘッダー自体が消え、ランチャー
-         がその領域を使う
-       - INTEL：幅・高さともにデフォルト寸法を維持できなくなったら即消える
-       - タスク／TIMELINE／LOG：デフォルト幅を維持できなくなったら消える。
-         高さは半分を下回ったら消える（3パネル間に優先順位はなく、結果的に
-         実測サイズの余裕が少ないものから消える）
-       - STAGE：幅・高さどちらの圧迫にも「縮む」で耐え、最後まで残る。
-         周囲のパネルが消えるたびに空いた領域を吸収する
-         （右端→下端の順。JS側 computeNormalStageRect が
-         非表示パネルを自動的に無視する形で対応済み）
-       - ランチャー：横幅210pxをPC〜タブレット幅では死守（縮めない）。
-         スマホ幅では画面幅いっぱいに広がる。上下端は隠れてもよいが、
-         中央カードの視認性だけは常に死守する
-
-     ブレークポイントの数値は暫定値。実機で見ながら調整する前提。
-     ===================================================================== */
-
-  /* ---- 横：第一段階（幅が狭まりINTEL・LOGの右カラムを維持できない） ----
-     INTEL・LOGを非表示にし、右カラム分の幅（270px + gap 14px）をSTAGE側に
-     明け渡す。STAGE自身の位置計算はJS側 computeNormalStageRect が
-     .right-col の非表示を検知して自動的にウィンドウ右端を基準にする。 */
-  @media (max-width: 999px) {
-    .shell {
-      grid-template-columns: 210px 1fr 0px;
-      grid-template-areas:
-        "header header header"
-        "left   .      ."
-        "left   timeline  .";
-    }
-    .right-col { display: none; }
-  }
-
-  /* ---- 横：第二段階（さらに狭まりTIMELINEも維持できない） ----
-     TIMELINEも非表示にし、STAGEの下端をウィンドウ下端まで拡張する。
-     STAGEは横幅を保ったまま、ランチャー側（左）へ食い込んでいく形になる
-     （STAGE自体は常時存在するposition:fixedのプレースホルダーのため、
-     周囲が消えるほど相対的にランチャーへ重なっていく = 想定通りの挙動）。 */
-  @media (max-width: 699px) {
-    .shell {
-      grid-template-rows: 56px 1fr 0px;
-      grid-template-areas:
-        "header header header"
-        "left   .      ."
-        "left   .      .";
-    }
-    .timeline-panel { display: none; }
-  }
-
-  /* ---- 横：第三段階（スマホ幅。ランチャー本来幅210pxすら確保できない） ----
-     ランチャーのみを表示し、幅いっぱいに広げる。STAGEは通常時は完全に
-     隠し、カード選択時のみ全画面オーバーレイとして表示する
-     （stage-mode-full と同じ仕組みを流用）。 */
-  @media (max-width: 479px) {
-    .shell {
-      grid-template-columns: 1fr;
-      grid-template-rows: 56px 1fr;
-      grid-template-areas:
-        "header"
-        "left";
-      padding: 12px 16px;
-    }
-    .left-col {
-      transform: none; /* スマホでは3D傾斜を解除（視認性優先） */
-    }
-    .task-panel-left { display: none; }
-    /* ヘッダー：横幅が狭いスマホでは日時ラベルを非表示にする
-       （13章で合意した仕様：タイトル・日時ラベルから消え、アイコンは
-       最後まで残す）。ロゴ(SIDE-OPS)とアイコン群は残す。 */
-    .header-date { display: none; }
-    .cf-item {
-      /* 応急処置：幅の計算が何らかの理由で画面幅を超えて膨らむ現象が
-         発生することがあり（原因調査中・13章参照）、aspect-ratioに
-         連動してカードの高さも異常に大きくなり画面の大半を覆って
-         しまう実害があった。max-heightで上限を設け、万一幅の計算が
-         崩れても画面からはみ出す実害だけは防ぐ。根本原因の解消後も
-         保険として残して問題ない。 */
-      max-height: 45vh;
-    }
-    /* スマホ幅ではSTAGEは常にフルスクリーンで開くため、
-       サイズ切り替えボタン（縦いっぱい／四方いっぱい）は不要 */
-    .stage-size-toggle { display: none !important; }
-
-    /* スマホ幅では3D変形レイヤー（rotateX等でJSが位置を計算する
-       .cf-item本体）と、それに合わせて座標を追従させる透明な当たり
-       判定オーバーレイ（#cfOpenHit）という、PC版の複雑な二重構造を
-       維持する必要がない。カード本体に直接タッチ・クリックが効く
-       ようにし、オーバーレイ自体を完全に無効化する
-       （表示だけでなくpointer-eventsも切ることで、万一表示制御が
-       効かない場合でもクリックが奪われないようにする二重の安全策）。 */
-    .cf-open-hit {
-      display: none !important;
-      pointer-events: none !important;
-    }
-  }
-
-  /* ---- 縦：第一段階（高さが狭まりTIMELINE/タスク/LOGのいずれかを
-     半分未満のサイズでしか確保できない） ----
-     該当パネルを個別に非表示にする。3パネルは優先順位を持たず、
-     実測の余裕が少ないものから先に消える（JS側 ResizeObserver で判定）。
-     CSS側では「消える」ときの見た目（display:none）だけを用意し、
-     判定ロジック自体はJS側に持たせる（14章 実装メモ参照）。 */
-  .timeline-panel.height-collapsed,
-  .task-panel-left.height-collapsed,
-  .log-panel.height-collapsed {
-    display: none;
-  }
-
-  /* ---- 縦：第二段階（ランチャーの上下端が隠れ始める） ----
-     ランチャー自体の高さ・カードサイズは変えず、はみ出た分を
-     overflow:hidden でクリップする。中央カードの位置はJS側の
-     既存ロジック（centerEl基準の描画）でそのまま維持される。 */
-  .coverflow-v.height-clipped {
-    overflow: hidden;
-  }
-
-  /* ---- 縦：第三段階（ヘッダーごと隠れる） ----
-     ヘッダーを非表示にし、ランチャーがその領域まで使う。 */
-  header.top.height-collapsed {
-    display: none;
-  }
-  .shell.header-collapsed {
-    grid-template-rows: 0px 1fr !important;
-    grid-template-areas:
-      "header header header"
-      "left   .      ." !important;
-  }
-
-  /* ---- INTEL：寸法を維持できないなら即消える ---- */
-  .intel-grid.size-collapsed {
-    display: none;
-  }
