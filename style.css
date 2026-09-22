@@ -546,6 +546,12 @@
   .stage-bar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+    /* 日本語アプリ名と英語アプリ名でフォントのフォールバック（行の高さの
+       基準）が変わり、ヘッダー自体の高さがガタつくのを防ぐための保険。
+       本来はStage表示の切り替え頻度自体を下げたことで解消しているが
+       （openStage/closeStageのみが更新する設計に変更済み）、念のため
+       高さを明示的に固定しておく（2026-09-22）。 */
+    min-height: 40px;
   }
   .stage-bar .s-title { display: flex; align-items: center; gap: 8px; }
   .stage-bar .s-title .icon { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .03em; }

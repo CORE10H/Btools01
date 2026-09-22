@@ -1249,6 +1249,7 @@
     if (stageFrame) { stageFrame.remove(); stageFrame = null; }
     stagePlaceholder.style.display = '';
     currentStageCardId = null;
+    document.getElementById('stageTag').textContent = '--'; // Stageが閉じている間は「何も開かれていない」表示に戻す
   }
 
   document.getElementById('stageCloseBtn').addEventListener('click', closeStage);
@@ -1274,17 +1275,13 @@
       el.classList.toggle('is-center', isCenter);
     });
 
-    // 中央のStageタグ表示：中央がカードならそのアプリ名、＋新規作成カードなら'--'。
-    const centerCard = cards[centerIndex];
-    if (centerCard) {
-      const app = findAppForCard(centerCard);
-      const displayName = centerCard.overlayText && centerCard.overlayText.trim()
-        ? centerCard.overlayText.trim()
-        : (app ? app.name : '（本体未設定）');
-      document.getElementById('stageTag').textContent = displayName;
-    } else {
-      document.getElementById('stageTag').textContent = '--';
-    }
+    // Stageタグの表示は「今Stageに実際に開かれているもの」にのみ紐づく
+    // （openStage/closeStageが更新する）。以前はここでランチャー中央の
+    // カード名に毎回上書きしていたが、ランチャーを回すだけでStageの表示
+    // タイトルが変わってしまい、フォントの高さの違いでヘッダーがガタつく
+    // 副作用もあった（シーバさん指摘・2026-09-22修正）。ランチャーは
+    // あくまでプレビューであり、Stageの表示内容を決めるのはStageを
+    // 開いた瞬間（openStage）だけであるべき。
   }
 
   document.getElementById('cfPrev').addEventListener('click', () => {
