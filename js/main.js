@@ -2011,6 +2011,7 @@
     const logPanel = document.querySelector('.log-panel');
     const intelGrid = document.querySelector('.intel-grid');
     const coverflowV = document.querySelector('.coverflow-v');
+    const cfWrapEl = document.querySelector('.cf-wrap');
     const headerEl = document.querySelector('header.top');
     const shellEl = document.querySelector('.shell');
     const leftColEl = document.querySelector('.left-col');
@@ -2028,6 +2029,29 @@
       intelW: null,
       intelH: null,
     };
+
+    // ランチャー（.cf-wrap）が死守すべき高さの基準。
+    // シーバさん指示：「その環境（その端末で最大化した際の）に適合した
+    // 初期寸法」＝ウィンドウを縮めても下限として維持し、逆に今までより
+    // 大きなウィンドウ状態を観測したら基準を更新する「これまでの最大値」
+    // 方式（2026-09-22）。他のdefaultsと違い初回一度きりではなく、
+    // 毎回のリサイズ時に「今の実測値の方が大きければ更新」し続ける。
+    let maxCfWrapH = 0;
+    function updateMaxCfWrapH() {
+      if (!cfWrapEl) return;
+      // タスクパネルが非表示や縮小状態だと.cf-wrapがflex:1で余分に
+      // 伸びてしまい、それを「本来の最大値」と誤記録するおそれがある。
+      // タスクパネルが正規の状態（非表示クラスなし・インライン高さ
+      // 未設定＝CSSの220px基準）の時のみ信頼できる測定とみなす。
+      if (taskPanel) {
+        const taskPanelNormal = !taskPanel.classList.contains('task-panel-hidden')
+          && !taskPanel.style.height;
+        if (taskPanel.offsetParent !== null && !taskPanelNormal) return;
+      }
+      if (cfWrapEl.offsetParent === null) return; // 非表示時は測らない
+      const h = cfWrapEl.getBoundingClientRect().height;
+      if (h > maxCfWrapH) maxCfWrapH = h;
+    }
 
     function recordDefaultsOnce() {
       if (defaultsRecorded) return;
@@ -2062,15 +2086,77 @@
       return result;
     }
 
+    /* -----------------------------------------------------------------
+       タスクパネルの高さ制御（2026-09-22新設）
+
+       背景：以前はランチャー（.cf-wrap, flex:1・下限なし）とタスク
+       パネル（220px固定・flex-shrink:0）が.left-col内で高さを奪い合う
+       設計になっており、.left-colの高さが220px未満まで圧縮される
+       場面でランチャーが潰れ、タスクパネルがランチャー領域に食い込む
+       不具合があった（実機で発覚）。
+
+       仕様（シーバさん指示）：
+         - ランチャーの表示寸法・位置は常に死守する。「死守すべき
+           高さ」＝その端末を最大化した際に表示される高さ（これまで
+           観測した中の最大値 maxCfWrapH で近似する）
+         - タスクパネルは上端固定・下から縮む。デフォルト高さ(220px)の
+           半分(110px)を下回ったら完全非表示にする
+
+       実装：.left-col全体の高さから maxCfWrapH（＋gap）を引いた残りを
+       タスクパネルに割り当てる。ランチャー自身のCSS(flex:1)はそのまま
+       残すため、ウィンドウを広げてまだmaxCfWrapHに達していない場合は
+       ランチャーが自然に育っていく通常の挙動を妨げない。
+    ----------------------------------------------------------------- */
+    function applyTaskPanelHeight() {
+      if (!taskPanel || !leftColEl) return;
+      // defaults.taskの記録はrecordDefaultsOnce（TIMELINE/LOG/INTELが
+      // 全部揃うまで待つ処理）に依存させない。タスクパネル自体の初期
+      // 高さだけは独立して、非表示クラス等が付いていない最初の機会に
+      // 一度だけ記録する（他パネルの状態に関わらずこの保護機構が
+      // 必ず働くようにするためのフールプルーフ。2026-09-22追加）。
+      if (defaults.task === null) {
+        if (taskPanel.offsetParent === null) return; // 測れる状態でない
+        defaults.task = taskPanel.getBoundingClientRect().height;
+      }
+
+      updateMaxCfWrapH();
+      if (!maxCfWrapH) return; // まだ基準が取れていない場合は判定を保留
+
+      const leftColH = leftColEl.getBoundingClientRect().height;
+      const leftColGap = parseFloat(getComputedStyle(leftColEl).rowGap) || 0;
+      const available = leftColH - maxCfWrapH - leftColGap;
+
+      const minH = defaults.task / 2; // 半分＝110px
+
+      if (available < minH) {
+        // 割り当てられる高さが下限未満 → 完全非表示（ランチャー側の
+        // 寸法には一切触れない。タスクパネル自身を消すだけ）
+        taskPanel.classList.add('task-panel-hidden');
+        taskPanel.style.height = '';
+      } else {
+        taskPanel.classList.remove('task-panel-hidden');
+        // デフォルト(220px)を上回る分は伸ばさない（上限220px）。
+        // 上端固定・下から縮む見た目は、taskPanel自身がflexアイテムの
+        // 先頭に来る配置（既存HTML構造：.mini-head→.task-filter→
+        // .task-list、.task-listだけがoverflow-y:autoで可変）により
+        // 自然に実現される。
+        const h = Math.min(defaults.task, available);
+        taskPanel.style.height = h + 'px';
+      }
+    }
+
     function applyVerticalCollapse() {
       recordDefaultsOnce();
+      applyTaskPanelHeight(); // 他パネルのdefaults記録状況に関わらず
+                                // 常に独立して評価する（上記参照）
       if (!defaultsRecorded) return; // まだ基準が取れていない場合は判定を保留
 
-      // --- TIMELINE / タスク / LOG：高さがデフォルトの半分を境に
+      // --- TIMELINE / LOG：高さがデフォルトの半分を境に
       //     非表示・復活の両方を毎回判定し直す ---
+      //     （タスクパネルはランチャーとの高さの奪い合いがあるため専用
+      //     ロジック applyTaskPanelHeight() で別途扱う。2026-09-22変更）
       [
         [timelinePanel, defaults.timeline],
-        [taskPanel, defaults.task],
         [logPanel, defaults.log],
       ].forEach(([el, defaultH]) => {
         if (!el || !defaultH) return;
@@ -2085,6 +2171,8 @@
           el.classList.remove('height-collapsed');
         }
       });
+
+      applyTaskPanelHeight();
 
       // --- INTEL：幅・高さともにデフォルトを維持できているかを
       //     毎回判定し直す（非表示・復活の両方向） ---
