@@ -17,12 +17,15 @@
 
   /* =====================================================================
      スマホ版レイアウト判定（2026-09-24 再構築）
-     CSS側の @media (max-width: 479px) と「完全に同じ条件」を matchMedia で
-     判定する。window.innerWidth での自前比較はスクロールバー幅等で
-     CSSとズレる瞬間があり得るため使わない（CSSとJSの判定不一致防止）。
+     CSS側の @media (max-width: 479px), (max-height: 500px) と「完全に同じ
+     条件」を matchMedia で判定する。window.innerWidth での自前比較は
+     スクロールバー幅等でCSSとズレる瞬間があり得るため使わない
+     （CSSとJSの判定不一致防止）。
+     max-height 条件は横向きスマホ用。横にすると幅が900px超になり幅の条件
+     から外れるが、高さが足りず全パネルが潰れるため高さでも同じ扱いにする。
      値を変える場合は style.css 末尾のスマホ版ブロックも必ず同時に変えること。
      ===================================================================== */
-  const MOBILE_LAYOUT_QUERY = '(max-width: 479px)';
+  const MOBILE_LAYOUT_QUERY = '(max-width: 479px), (max-height: 500px)';
   const mobileLayoutMql = window.matchMedia(MOBILE_LAYOUT_QUERY);
   function isMobileLayout() { return mobileLayoutMql.matches; }
 
