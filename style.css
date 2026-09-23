@@ -998,3 +998,60 @@
     transition: opacity .2s ease, transform .2s ease; z-index: 300;
   }
   .launcher-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* =====================================================================
+     スマホ版レイアウト（479px以下）— 2026-09-24 再構築
+     ---------------------------------------------------------------------
+     方針（前回ロールバックの反省を踏まえて）：
+       ・スマホは「アプリを起動して使う」ことに特化した別レイアウトと
+         割り切る。INTEL・LOG・TIMELINE・タスクの4パネルは丸ごと非表示
+       ・横幅のメディアクエリ1本だけで切り替える。縦方向のリサイズ監視や
+         パネルの自動折りたたみは一切入れない（前回の不具合の温床）
+       ・PC用の既存ルールは1行も書き換えず、このブロックの上書きだけで
+         完結させる（この@mediaを消せば完全にPC版だけの状態に戻る）
+       ・JS側の判定は main.js の MOBILE_LAYOUT_QUERY と必ず同じ値にする
+     ===================================================================== */
+  @media (max-width: 479px) {
+    .shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        "header"
+        "left";
+      height: 100vh;   /* dvh非対応ブラウザ向けのフォールバック */
+      height: 100dvh;  /* アドレスバーの出入りで高さがズレないように */
+      padding: 10px 16px 16px;
+      gap: 10px;
+    }
+
+    /* 不要な4パネルは丸ごと非表示 */
+    .right-col,
+    .timeline-panel,
+    .task-panel-left { display: none; }
+
+    /* 3D傾斜を解除：見えている場所＝触れる場所、にする */
+    .left-col { transform: none; }
+
+    /* カバーフロー：ブラウザ標準のスクロール・引っ張って更新を止め、
+       縦スワイプをJS（カード送り）だけに渡す。上下端のはみ出しは切る */
+    .cf-wrap { touch-action: none; overflow: hidden; }
+
+    /* PC用の固定座標パーツはスマホでは使わない。
+       ・#cfOpenHit：透明な当たり判定の層。前回タッチが効かなかった原因
+       ・▲▼ボタン・APPSラベル：PC画面用のピクセル固定位置のため
+       スマホでは「スワイプ」「脇のカードをタップで中央へ」で操作する */
+    .cf-open-hit,
+    .cf-nav-fixed,
+    .cf-head-fixed { display: none; pointer-events: none; }
+
+    /* ヘッダー：日付は隠し、ロゴ・時計・アイコンのみ */
+    header.top { gap: 12px; padding: 0 2px 8px; }
+    .header-date { display: none; }
+    .brand-block { gap: 14px; }
+    .header-icon-btn { min-width: 36px; min-height: 36px; }
+
+    /* Stage：スマホでは常に四方いっぱい（JS側で強制）なので切替ボタンは不要。
+       閉じるボタンは指で押せる大きさに */
+    .stage.is-open .stage-size-toggle { display: none; }
+    .stage-close { width: 36px; height: 36px; font-size: 16px; top: 6px; right: 6px; }
+  }

@@ -16,6 +16,17 @@
   setInterval(updateClock, 1000);
 
   /* =====================================================================
+     スマホ版レイアウト判定（2026-09-24 再構築）
+     CSS側の @media (max-width: 479px) と「完全に同じ条件」を matchMedia で
+     判定する。window.innerWidth での自前比較はスクロールバー幅等で
+     CSSとズレる瞬間があり得るため使わない（CSSとJSの判定不一致防止）。
+     値を変える場合は style.css 末尾のスマホ版ブロックも必ず同時に変えること。
+     ===================================================================== */
+  const MOBILE_LAYOUT_QUERY = '(max-width: 479px)';
+  const mobileLayoutMql = window.matchMedia(MOBILE_LAYOUT_QUERY);
+  function isMobileLayout() { return mobileLayoutMql.matches; }
+
+  /* =====================================================================
      設定の永続化（sideops_settings）
 
      壁紙・透過率・選択中のテーマ・カスタムテーマの色・スポイトテーマの
@@ -1519,15 +1530,20 @@
   }
 
   function applyStageSizeMode(mode) {
+    // スマホ幅では、カードに保存された表示モードに関わらず常に四方いっぱい。
+    // ただし保存値（sizeMode）とボタンの選択状態は元のまま残すので、
+    // PC幅に戻った瞬間に本来のモードへ自然に復帰する。
+    // （隠れた4パネルの位置から通常/縦モードの座標を計算させないための歯止め）
+    const effectiveMode = isMobileLayout() ? 'full' : mode;
     stageEl.classList.remove('stage-mode-full');
-    if (mode === 'full') {
+    if (effectiveMode === 'full') {
       stageEl.classList.add('stage-mode-full');
       stageEl.style.top = '';
       stageEl.style.bottom = '';
       stageEl.style.left = '';
       stageEl.style.right = '';
       stageEl.style.width = '';
-    } else if (mode === 'vertical') {
+    } else if (effectiveMode === 'vertical') {
       const normalRect = computeNormalStageRect();
       stageEl.style.top = '0px';
       stageEl.style.bottom = '0px';
@@ -1628,15 +1644,24 @@
 
   function render() {
     const items = track.querySelectorAll('.cf-item');
+    const mobile = isMobileLayout();
+    // カード幅＝トラック幅（.cf-item は width:100%）。16:9 で高さを出す。
+    // clientWidth は transform の影響を受けないレイアウト上の幅
+    const cardH = track.clientWidth * 9 / 16;
     const len = cards.length + 1; // ＋新規作成カードの1件を含めた総数
     items.forEach((el, i) => {
       const offset = shortestOffset(i, centerIndex, len);
       const isCenter = offset === 0;
       const absOff = Math.abs(offset);
-      const ySpacing = 60;
+      // スマホ幅：奥行き(translateZ)・傾き(rotateX)だけ0にし、縮小率・不透明度・
+      // アニメーションはPC版と同じ計算のまま（「カバーフローらしさ」は残す）。
+      // 間隔はカード高さに比例させる。PC版の固定60pxのままだと、画面幅いっぱいに
+      // 拡大されたカードでは前後の候補が中央カードの裏にほぼ隠れてしまうため。
+      // 0.62倍 ＝ 60%縮小の隣カードが、中央カードの外に約7割はみ出して見える値
+      const ySpacing = mobile ? Math.round(cardH * 0.62) : 60;
       const y = offset * ySpacing;
-      const rotX = offset === 0 ? 0 : (offset > 0 ? 38 : -38);
-      const z = isCenter ? 30 : -110 - (absOff - 1) * 30;
+      const rotX = mobile || offset === 0 ? 0 : (offset > 0 ? 38 : -38);
+      const z = mobile ? 0 : (isCenter ? 30 : -110 - (absOff - 1) * 30);
       // side banners scaled to 60% of center size
       const scale = isCenter ? 1 : Math.max(0.6, 0.6 - (absOff - 1) * 0.05);
       const opacity = absOff > 2 ? 0 : 1;
@@ -1776,6 +1801,84 @@
   }
   positionOpenHit();
   window.addEventListener('resize', positionOpenHit);
+
+  /* ---------------------------------------------------------------------
+     スマホ：カバーフローの縦スワイプ（2026-09-24 再構築）
+     前回の失敗（透明な当たり判定の層 #cfOpenHit にタッチを付けたが、実際に
+     見えているカードとは別レイヤーだったため反応しなかった）を踏まえ、
+     document 全体で受けて「指が最初に触れた要素がカバーフロー内か」
+     （e.target.closest('.cf-wrap')）だけで判定する。どの層に付けるかに
+     左右されない。
+     誤作動防止：
+       ・スマホ幅のときだけ有効（PCはホイール・▲▼で操作）
+       ・Stageやモーダルが上に重なっていれば、触れた要素がそちらになるので
+         自動的に対象外になる
+       ・40px以上動いたら1回だけ送る（1スワイプ＝1枚。連続送りしない）
+       ・横方向の動きの方が大きければ無視（斜めの誤操作対策）
+       ・2本指以上（ピンチ等）は対象外
+       ・スワイプ直後に指を離した位置のカードが「タップ」扱いされて
+         アプリが開いてしまうのを防ぐため、送った直後の短時間はクリックを捨てる
+     --------------------------------------------------------------------- */
+  const SWIPE_THRESHOLD_PX = 40;
+  const SWIPE_CLICK_GUARD_MS = 400;
+  let swipeState = null;
+  let suppressCardClickUntil = 0;
+
+  function stepCoverflow(dir) {
+    const len = cards.length + 1;
+    centerIndex = (centerIndex + dir + len) % len;
+    render();
+  }
+
+  document.addEventListener('touchstart', (e) => {
+    swipeState = null;
+    if (!isMobileLayout()) return;
+    if (e.touches.length !== 1) return;
+    if (!e.target.closest || !e.target.closest('.cf-wrap')) return;
+    const t = e.touches[0];
+    swipeState = { x: t.clientX, y: t.clientY, fired: false };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!swipeState) return;
+    if (e.touches.length !== 1) { swipeState = null; return; }
+    if (swipeState.fired) return;
+    const t = e.touches[0];
+    const dx = t.clientX - swipeState.x;
+    const dy = t.clientY - swipeState.y;
+    if (Math.abs(dy) < SWIPE_THRESHOLD_PX || Math.abs(dy) <= Math.abs(dx)) return;
+    // 指を上へ払う＝下にある次のカードが中央へ（リストを押し上げる感覚）
+    stepCoverflow(dy < 0 ? 1 : -1);
+    swipeState.fired = true;
+    suppressCardClickUntil = Date.now() + SWIPE_CLICK_GUARD_MS;
+  }, { passive: true });
+
+  const clearSwipe = () => { swipeState = null; };
+  document.addEventListener('touchend', clearSwipe, { passive: true });
+  document.addEventListener('touchcancel', clearSwipe, { passive: true });
+
+  // キャプチャ段階で先に拾い、各カードのclick処理（アプリを開く）に届く前に捨てる
+  track.addEventListener('click', (e) => {
+    if (Date.now() < suppressCardClickUntil) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+
+  // PC⇔スマホの境界をまたいだとき（画面回転・ウィンドウ幅変更）に描画し直す。
+  // Stageが開いていれば、resize側の既存処理が applyStageSizeMode を呼び直し、
+  // その中で isMobileLayout() を見て正しいモードに切り替わる。
+  const onMobileLayoutChange = () => {
+    render();
+    positionOpenHit();
+  };
+  if (mobileLayoutMql.addEventListener) {
+    mobileLayoutMql.addEventListener('change', onMobileLayoutChange);
+  } else if (mobileLayoutMql.addListener) {
+    mobileLayoutMql.addListener(onMobileLayoutChange); // 古いSafari向け
+  }
+  // スマホ幅のままトラック幅が変わった場合も、カード高さ連動の間隔を追従させる
+  window.addEventListener('resize', () => { if (isMobileLayout()) render(); });
 
   // カバーフロー・ランチャーDBの初期化 → データ読み込み → 初回描画。
   // 失敗時（プライベートブラウジング等でIndexedDB不可）は、空のカバーフロー
