@@ -280,15 +280,47 @@
     buildArtistCoverflow();
   }
 
-  /* リングが常に成立して見えるための最低表示枚数（2026-09-24）。
-     .artist-cf-wrap は max-width 480px、カード幅は 66%（≒317px）。
-     横リングの間隔 spacing=150px で中央から左右2枚ずつ（絶対オフセット2まで
-     表示）を敷き詰めるには、中央1＋片側2×2＝5枚が同時に画面へ映る計算になる。
-     そこに1枚分の余裕を足して6枚を「最低表示枚数」とする。
+  /* ===================== アーティスト一覧：横型リング（3Dカルーセル） =====================
+     2026-09-24 作り直し。円筒の「外周」にカードを平らなまま貼り付け、円筒ごと
+     回す方式。CSS 3D transforms の定番の作り方（枯れた手法）を使っている。
+       ・各カードは rotateY(角度) で向きを振ってから translateZ(半径) で外側へ
+         押し出す → カードは曲がらず、円筒の外周に接する向きで平らに貼られる
+       ・回転はカードではなく親（トラック）ごと rotateY で行う
+       ・トラックを rotateX で手前に傾け、斜め上から見下ろす構図にする
+         （見下ろすと奥の物ほど画面の上に見える。奥のカードが手前のカードの
+         上に顔を出すので、最奥のカードも見える）
+     旧版（左右のカードを中央へ向けて傾ける方式）は「リングの内側」から見た
+     見え方になっていたため、方式ごと置き換えた。 */
+
+  // 円筒の面数（＝一周に並ぶ枚数）。8面＝1枚あたり45度
+  const ARTIST_RING_SLOTS = 8;
+  const ARTIST_RING_STEP_DEG = 360 / ARTIST_RING_SLOTS;
+  // 半径の割増率。1.0でカードの角同士がぴったり接する。少し開けて1枚ずつ独立させる
+  const ARTIST_RING_GAP = 1.08;
+  // 見下ろす角度（度）
+  const ARTIST_RING_TILT_DEG = 14;
+  // トラックパッドは1回のジェスチャーでホイールイベントを大量に出すため、
+  // 1コマ送った直後はしばらくホイールを無視する（リングの空回り防止）
+  const ARTIST_WHEEL_COOLDOWN_MS = 220;
+
+  /* リングの面がすべて埋まるための最低枚数＝面数（8枚）。
      実データ（＋追加カード込み）がこれに満たない場合、NOW MASTERINGの
      ダミーカードで埋める。ダミーは「＋追加する」と同じ導線（クリックで
      追加モーダルを開く）を持つ、ラベル違いの同じボタンという位置づけ。 */
-  const ARTIST_MIN_RING_ITEMS = 6;
+  const ARTIST_MIN_RING_ITEMS = ARTIST_RING_SLOTS;
+
+  /* 回転位置（上限なしの整数）。中央インデックス（0〜件数-1）とは別に持つ。
+     末尾→先頭へ送ったときにインデックスは戻るが、リングは逆回転せず
+     常に同じ向きへ1面ぶん（45度）だけ回る、という動きを作るため。 */
+  let artistRingPos = 0;
+
+  function ringMod(n, m) { return ((n % m) + m) % m; }
+
+  // カードiが中央から何面ずれているか（最短の向き。範囲は -floor(len/2) 〜）
+  function artistRingOffset(i, center, len) {
+    const half = Math.floor(len / 2);
+    return ringMod(i - center + half, len) - half;
+  }
 
   function artistItemsWithAdd() {
     // 末尾に「＋アーティストを追加する」の空アイテムを常設。
@@ -329,50 +361,70 @@
           }
           return;
         }
-        artistCenterIndex = i;
+        // 押したカードが最短の向きで手前に来るよう回す
+        artistRingPos += artistRingOffset(i, artistCenterIndex, items.length);
         renderArtistCoverflow();
       });
       artistTrack.appendChild(el);
     });
+    // 作り直し直後は回転位置を中央インデックスに揃え、アニメーションなしで
+    // 反映する（データを読み直すたびにリングが空回りするのを防ぐ）
+    artistRingPos = artistCenterIndex;
+    artistTrack.classList.add('no-anim');
     renderArtistCoverflow();
+    void artistTrack.offsetWidth; // ここで一度描画を確定させてから演出を戻す
+    artistTrack.classList.remove('no-anim');
   }
 
-  /* 横型リング（2026-09-24）：手前中央がフォーカス、左右へ流れながら弧を描いて
-     奥へ回り込む円卓状のカバーフロー。縦型（旧：translateY + rotateX）から
-     軸を入れ替えただけで、計算の骨格（offset・absOff・scale・opacity・
-     zIndexの決め方）は縦型カバーフロー（index.html側のrender()）と同じ
-     考え方を踏襲している。 */
   function renderArtistCoverflow() {
     const items = artistTrack.querySelectorAll('.artist-cf-item');
+    const len = items.length;
+    if (!len) return;
+    artistCenterIndex = ringMod(artistRingPos, len);
+
+    // 半径はカードの実際の幅から計算する（画面幅でカード幅が変わっても、
+    // 8枚がちょうど一周に収まる半径を毎回求め直す）
+    const cardW = items[0].offsetWidth || 1;
+    const radius = Math.round((cardW / 2) / Math.tan(Math.PI / ARTIST_RING_SLOTS) * ARTIST_RING_GAP);
+    // 傾けると手前のカードが下へ下がるので、その半分だけ全体を持ち上げて画面中央に寄せる
+    const lift = Math.round(radius * Math.sin(ARTIST_RING_TILT_DEG * Math.PI / 180) * 0.5);
+
+    artistTrack.style.transform =
+      `translateY(${-lift}px) translateZ(${-radius}px) ` +
+      `rotateX(${-ARTIST_RING_TILT_DEG}deg) rotateY(${-artistRingPos * ARTIST_RING_STEP_DEG}deg)`;
+
     items.forEach((el, i) => {
-      let offset = i - artistCenterIndex;
-      const isCenter = offset === 0;
-      const absOff = Math.abs(offset);
-      const spacing = 165;
-      const x = offset * spacing;
-      // 円卓感を強めるため、傾き角度と奥行きの落ち込みを縦型より強くしている
-      const rotY = isCenter ? 0 : (offset > 0 ? -46 : 46);
-      const z = isCenter ? 30 : -160 - (absOff - 1) * 50;
-      const scale = isCenter ? 1 : Math.max(0.5, 0.58 - (absOff - 1) * 0.07);
-      const opacity = absOff > 2 ? 0 : 1;
-      // 俯瞰視点（2026-09-24）：perspective-originを上にずらしたのに合わせ、
-      // 奥にあるカードほど画面上で下にずらす。斜め上から見下ろすと、
-      // 奥のものほど手元より低い位置に見えるのと同じ原理。中央より奥へ
-      // 1段下がるごとに少しずつ沈める（円卓の奥側が下に見える）
-      const yDrop = absOff * 44;
-      el.style.transform = `translate(-50%, -50%) translateX(${x}px) translateY(${yDrop}px) translateZ(${z}px) rotateY(${rotY}deg) scale(${scale})`;
-      el.style.zIndex = String(100 - absOff);
-      el.style.opacity = String(opacity);
-      el.classList.toggle('is-center', isCenter);
+      const off = artistRingOffset(i, artistCenterIndex, len);
+      // このカードが貼られる面の通し番号（回転位置と同じく上限なし）
+      const k = artistRingPos + off;
+      // 件数が面数より多いと、真裏付近で2枚以上が同じ面に重なる。
+      // 真裏の面には左回り側（off = -面数/2）の1枚だけを残し、それより先は隠す。
+      // 回したとき、真裏の面では出ていく1枚と入ってくる1枚が入れ替わりに
+      // フェードするので、リングに穴が空かない
+      const halfSlots = ARTIST_RING_SLOTS / 2;
+      const hidden = len > ARTIST_RING_SLOTS && (off >= halfSlots || off < -halfSlots);
+      // 90度より奥のカードは背中をこちらに向けている（文字が鏡文字になる）
+      const facingAway = Math.abs(off) * ARTIST_RING_STEP_DEG > 90;
+
+      // 貼る面が変わった（末尾⇔先頭の繋ぎ目をまたいだ）カードは、
+      // アニメーションさせずに瞬時に移す。させるとリングを一周して飛んで見える
+      const prevK = el.dataset.ringK;
+      const jumped = prevK !== undefined && Number(prevK) !== k;
+      if (jumped) el.style.transition = 'none';
+      el.style.transform = `translate(-50%, -50%) rotateY(${k * ARTIST_RING_STEP_DEG}deg) translateZ(${radius}px)`;
+      el.dataset.ringK = String(k);
+      if (jumped) { void el.offsetWidth; el.style.transition = ''; }
+
+      el.classList.toggle('is-center', off === 0);
+      el.classList.toggle('is-back', facingAway && !hidden);
+      el.classList.toggle('is-hidden', hidden);
     });
   }
 
-  /* 1コマ送る処理の共通化（2026-09-24）。以前はprev/next/wheelの3箇所に
-     同じ「centerIndexを進めてrenderし直す」処理が重複していた。
-     ボタン・ホイール・スワイプ・矢印キーの4系統すべてがここを通る。 */
+  /* 1コマ送る処理の共通化。ボタン・ホイール・スワイプ・矢印キーの4系統すべてが
+     ここを通る。回転位置を1つ進めるだけで、中央インデックスは描画時に求める。 */
   function stepArtistCoverflow(dir) {
-    const len = artistItemsWithAdd().length;
-    artistCenterIndex = (artistCenterIndex + dir + len) % len;
+    artistRingPos += dir;
     renderArtistCoverflow();
   }
 
@@ -380,10 +432,19 @@
   artistNextBtn.addEventListener('click', () => stepArtistCoverflow(1));
 
   const artistCfWrapEl = document.querySelector('.artist-cf-wrap');
+  let artistWheelLockUntil = 0;
   artistCfWrapEl.addEventListener('wheel', (e) => {
     e.preventDefault();
-    stepArtistCoverflow(e.deltaY > 0 ? 1 : -1);
+    if (Date.now() < artistWheelLockUntil) return;
+    // 縦ホイールと、トラックパッドの横スクロールの両方を受ける（大きい方を採用）
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (d === 0) return;
+    stepArtistCoverflow(d > 0 ? 1 : -1);
+    artistWheelLockUntil = Date.now() + ARTIST_WHEEL_COOLDOWN_MS;
   }, { passive: false });
+
+  // Stageの表示範囲切替などで画面幅が変わるとカード幅も変わるため、半径を計算し直す
+  window.addEventListener('resize', () => renderArtistCoverflow());
 
   /* 左右矢印キー（2026-09-24）：アーティスト一覧が画面に見えている間だけ
      有効にしたいが、このアプリはStage内のiframeとして常に単独表示される

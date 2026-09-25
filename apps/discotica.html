@@ -56,27 +56,38 @@
   /* ===================== TOP: アーティスト一覧（縦型カバーフロー） ===================== */
   .app-body { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
 
+  /* 横型リング（3Dカルーセル、2026-09-24）。リングの直径はカード幅の約2.6倍に
+     なるため、左右のボタンがカードに被らないよう枠の最大幅を広げている。
+     見下ろす角度はJS側でトラックに rotateX を掛けて作る（視点位置はずらさない） */
   .artist-cf-wrap {
-    position: relative; width: 100%; max-width: 480px; height: 100%;
+    position: relative; width: 100%; max-width: 860px; height: 100%;
     display: flex; align-items: center; justify-content: center;
-    /* 円卓を斜め上から見下ろす構図にするため、視点(perspective-origin)を
-       画面中央よりやや上に置く。加えて各カードの奥行きに応じたtranslateY
-       （renderArtistCoverflow内）と組み合わせて俯瞰感を出す（2026-09-24） */
-    perspective: 1200px; perspective-origin: 50% 20%;
+    perspective: 1000px; perspective-origin: 50% 50%;
   }
   .artist-cf-track {
     position: relative; width: 100%; height: 100%;
     transform-style: preserve-3d;
+    transition: transform .6s cubic-bezier(.22, .61, .36, 1);
   }
+  /* データ読み直し直後など、回転アニメーションを出したくない瞬間だけ付ける */
+  .artist-cf-track.no-anim,
+  .artist-cf-track.no-anim .artist-cf-item { transition: none !important; }
   .artist-cf-item {
-    position: absolute; top: 50%; left: 50%; width: 60%; aspect-ratio: 16/9;
+    /* 幅は画面幅に連動（スマホでも両隣のカードが画面内に収まる大きさ）。
+       リングの半径はJSがこの実際の幅から計算する */
+    position: absolute; top: 50%; left: 50%; width: min(300px, 42vw); aspect-ratio: 16/9;
     background: var(--panel); border: 1px solid var(--line);
     display: flex; align-items: flex-end; overflow: hidden;
     background-size: cover; background-position: center;
-    transition: transform .35s ease, opacity .35s ease;
+    transition: opacity .35s ease;
     cursor: pointer;
   }
   .artist-cf-item.is-center { border-color: var(--cyan-dim); }
+  /* リングの奥側（背中をこちらに向けているカード）：暗く沈め、鏡文字になる名前は隠す */
+  .artist-cf-item.is-back { opacity: .32; }
+  .artist-cf-item.is-back .artist-name-plate { visibility: hidden; }
+  /* 件数が面数より多いとき、真裏付近で重なるカード */
+  .artist-cf-item.is-hidden { opacity: 0; pointer-events: none; }
   .artist-cf-item.empty { display: flex; align-items: center; justify-content: center; color: var(--text-faint); font-size: 32px; font-family: var(--font-display); }
   /* NOW MASTERINGダミーカード（2026-09-24）：リングを常に成立させるための
      頭数埋め。「＋追加する」と同じクリック導線だが、無地の点滅ラベルのみで
