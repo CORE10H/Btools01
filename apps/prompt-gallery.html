@@ -188,26 +188,38 @@
     font-size: 9px; padding: 2px 6px; background: rgba(0,240,208,.12); border: 1px solid var(--cyan-dim);
     color: var(--cyan); white-space: nowrap;
   }
-  /* ---- hover menu（2026-09-25：本文プレビューを廃止し、ボタンだけの
-     操作メニューに変更。プロンプト本文はカード上に表示しない方針にした） ---- */
+  /* ---- hover menu（2026-09-26：スマホ実機でカード縦幅が足りず5ボタンが
+     上下に切れる不具合を受け、グリッド配置に変更。
+     1行目「拡大｜編集」の2列、2〜4行目は1ボタンずつ（プロンプト/
+     ネガティブは📋アイコンで一目でコピー操作と分かるようにする）、
+     最終行は削除🗑のみを右詰め。スクロールバーでの逃げは使わない方針
+     （見た目がダサいと不評だったため、高さそのものを削る方向で対応） ---- */
   .prompt-pop {
     position: absolute; inset: 0; background: rgba(5,7,10,.82);
-    display: flex; flex-direction: column; align-items: stretch; justify-content: center;
-    padding: 14px; gap: 8px;
+    display: grid; grid-template-columns: 1fr 1fr; align-content: center;
+    padding: 10px; gap: 6px;
     opacity: 0; pointer-events: none; transition: opacity .15s ease;
   }
   .card:hover .prompt-pop { opacity: 1; pointer-events: auto; }
   .card.select-target:hover .prompt-pop { opacity: 0; pointer-events: none; }
   .prompt-pop .pp-menu-btn {
     font-size: 11px; padding: 7px 10px; background: transparent; border: 1px solid var(--line);
-    color: var(--text-dim); cursor: pointer; text-align: left;
+    color: var(--text-dim); cursor: pointer; text-align: center;
   }
   .prompt-pop .pp-menu-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
   .prompt-pop .pp-menu-btn.copied { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
   /* コピーする本文が無い（未入力）登録では押せない。ボタン自体は残し、
      何がコピーできて何ができないかが一覧性として分かるようにする */
   .prompt-pop .pp-menu-btn:disabled { color: var(--text-faint); border-color: var(--line-soft); cursor: default; opacity: .5; }
-  .prompt-pop .pp-menu-btn.pp-delete:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  /* 1行目：拡大・編集（2列） */
+  .prompt-pop .pp-zoom, .prompt-pop .pp-edit { grid-column: span 1; }
+  /* 2〜4行目：コピー系とサムネイル拡大以外は2列ぶち抜き */
+  .prompt-pop .pp-copy { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  /* 最終行：削除のみ右詰め。左側の1マスは空けておく */
+  .prompt-pop .pp-delete {
+    grid-column: 2 / 3; justify-self: end; width: auto; min-width: 44px;
+  }
+  .prompt-pop .pp-delete:hover { border-color: var(--magenta-dim); color: var(--magenta); }
 
   /* ---- サムネイル拡大ライトボックス（2026-09-25） ----
      画面に収まる範囲でなるべく大きく、原寸は超えない(object-fit: contain
@@ -808,11 +820,11 @@
         <div class="card-title">${escapeHtml(entry.title || '(無題)')}</div>
         <div class="card-tags">${tagsHtml}</div>
         <div class="prompt-pop">
-          <button class="pp-menu-btn pp-zoom" type="button">サムネイル拡大</button>
-          <button class="pp-menu-btn pp-copy" type="button" data-kind="prompt" ${entry.prompt ? '' : 'disabled'}>プロンプトコピー</button>
-          <button class="pp-menu-btn pp-copy" type="button" data-kind="negative" ${entry.negative ? '' : 'disabled'}>ネガティブプロンプトコピー</button>
-          <button class="pp-menu-btn pp-edit" type="button">サムネイル編集</button>
-          <button class="pp-menu-btn pp-delete" type="button">削除</button>
+          <button class="pp-menu-btn pp-zoom" type="button">拡大</button>
+          <button class="pp-menu-btn pp-edit" type="button">編集</button>
+          <button class="pp-menu-btn pp-copy" type="button" data-kind="prompt" ${entry.prompt ? '' : 'disabled'}>プロンプト📋</button>
+          <button class="pp-menu-btn pp-copy" type="button" data-kind="negative" ${entry.negative ? '' : 'disabled'}>ネガティブ📋</button>
+          <button class="pp-menu-btn pp-delete" type="button" title="削除" aria-label="削除">🗑</button>
         </div>
         <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">消去</span></div>
       `;
