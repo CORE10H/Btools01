@@ -273,13 +273,33 @@
   async function loadArtists() {
     artists = await dbGetAll(STORE_ARTISTS);
     artists.sort((a, b) => a.createdAt - b.createdAt);
-    if (artistCenterIndex >= artists.length + 1) artistCenterIndex = 0;
+    // ダミー埋め込み後の実際の表示件数を基準に境界チェックする
+    // （artists.length+1 のみだと、ダミーで嵩増しした分だけ判定が緩くなり、
+    // 存在しないインデックスを中央に指したままになるバグを生む）
+    if (artistCenterIndex >= artistItemsWithAdd().length) artistCenterIndex = 0;
     buildArtistCoverflow();
   }
 
+  /* リングが常に成立して見えるための最低表示枚数（2026-09-24）。
+     .artist-cf-wrap は max-width 480px、カード幅は 66%（≒317px）。
+     横リングの間隔 spacing=150px で中央から左右2枚ずつ（絶対オフセット2まで
+     表示）を敷き詰めるには、中央1＋片側2×2＝5枚が同時に画面へ映る計算になる。
+     そこに1枚分の余裕を足して6枚を「最低表示枚数」とする。
+     実データ（＋追加カード込み）がこれに満たない場合、NOW MASTERINGの
+     ダミーカードで埋める。ダミーは「＋追加する」と同じ導線（クリックで
+     追加モーダルを開く）を持つ、ラベル違いの同じボタンという位置づけ。 */
+  const ARTIST_MIN_RING_ITEMS = 6;
+
   function artistItemsWithAdd() {
     // 末尾に「＋アーティストを追加する」の空アイテムを常設。
-    return [...artists, { empty: true, id: '__add__' }];
+    const base = [...artists, { empty: true, id: '__add__' }];
+    const shortfall = ARTIST_MIN_RING_ITEMS - base.length;
+    if (shortfall > 0) {
+      for (let i = 0; i < shortfall; i++) {
+        base.push({ dummy: true, id: `__dummy_${i}__` });
+      }
+    }
+    return base;
   }
 
   function buildArtistCoverflow() {
@@ -288,9 +308,11 @@
     const items = artistItemsWithAdd();
     items.forEach((a, i) => {
       const el = document.createElement('div');
-      el.className = 'artist-cf-item' + (a.empty ? ' empty' : '');
+      el.className = 'artist-cf-item' + (a.empty ? ' empty' : '') + (a.dummy ? ' dummy' : '');
       if (a.empty) {
         el.textContent = '＋';
+      } else if (a.dummy) {
+        el.innerHTML = `<div class="artist-name-plate dummy-plate">NOW MASTERING</div>`;
       } else {
         el.innerHTML = `<div class="artist-name-plate">${escapeHtml(a.name)}</div>`;
         if (a.coverImg) {
@@ -299,7 +321,8 @@
       }
       el.addEventListener('click', () => {
         if (i === artistCenterIndex) {
-          if (a.empty) {
+          // ダミーカードは「＋追加する」と同じ導線（ラベル違いの同じボタン）
+          if (a.empty || a.dummy) {
             openArtistModal();
           } else {
             openArtistView(a);
@@ -314,42 +337,111 @@
     renderArtistCoverflow();
   }
 
+  /* 横型リング（2026-09-24）：手前中央がフォーカス、左右へ流れながら弧を描いて
+     奥へ回り込む円卓状のカバーフロー。縦型（旧：translateY + rotateX）から
+     軸を入れ替えただけで、計算の骨格（offset・absOff・scale・opacity・
+     zIndexの決め方）は縦型カバーフロー（index.html側のrender()）と同じ
+     考え方を踏襲している。 */
   function renderArtistCoverflow() {
     const items = artistTrack.querySelectorAll('.artist-cf-item');
-    const len = items.length;
     items.forEach((el, i) => {
       let offset = i - artistCenterIndex;
       const isCenter = offset === 0;
       const absOff = Math.abs(offset);
-      const spacing = 130;
-      const y = offset * spacing;
-      const rotX = isCenter ? 0 : (offset > 0 ? 32 : -32);
-      const z = isCenter ? 20 : -90 - (absOff - 1) * 30;
-      const scale = isCenter ? 1 : Math.max(0.62, 0.62 - (absOff - 1) * 0.06);
+      const spacing = 165;
+      const x = offset * spacing;
+      // 円卓感を強めるため、傾き角度と奥行きの落ち込みを縦型より強くしている
+      const rotY = isCenter ? 0 : (offset > 0 ? -46 : 46);
+      const z = isCenter ? 30 : -160 - (absOff - 1) * 50;
+      const scale = isCenter ? 1 : Math.max(0.5, 0.58 - (absOff - 1) * 0.07);
       const opacity = absOff > 2 ? 0 : 1;
-      el.style.transform = `translate(-50%, -50%) translateY(${y}px) translateZ(${z}px) rotateX(${rotX}deg) scale(${scale})`;
+      // 俯瞰視点（2026-09-24）：perspective-originを上にずらしたのに合わせ、
+      // 奥にあるカードほど画面上で下にずらす。斜め上から見下ろすと、
+      // 奥のものほど手元より低い位置に見えるのと同じ原理。中央より奥へ
+      // 1段下がるごとに少しずつ沈める（円卓の奥側が下に見える）
+      const yDrop = absOff * 44;
+      el.style.transform = `translate(-50%, -50%) translateX(${x}px) translateY(${yDrop}px) translateZ(${z}px) rotateY(${rotY}deg) scale(${scale})`;
       el.style.zIndex = String(100 - absOff);
       el.style.opacity = String(opacity);
       el.classList.toggle('is-center', isCenter);
     });
   }
 
-  artistPrevBtn.addEventListener('click', () => {
+  /* 1コマ送る処理の共通化（2026-09-24）。以前はprev/next/wheelの3箇所に
+     同じ「centerIndexを進めてrenderし直す」処理が重複していた。
+     ボタン・ホイール・スワイプ・矢印キーの4系統すべてがここを通る。 */
+  function stepArtistCoverflow(dir) {
     const len = artistItemsWithAdd().length;
-    artistCenterIndex = (artistCenterIndex - 1 + len) % len;
+    artistCenterIndex = (artistCenterIndex + dir + len) % len;
     renderArtistCoverflow();
-  });
-  artistNextBtn.addEventListener('click', () => {
-    const len = artistItemsWithAdd().length;
-    artistCenterIndex = (artistCenterIndex + 1) % len;
-    renderArtistCoverflow();
-  });
-  document.querySelector('.artist-cf-wrap').addEventListener('wheel', (e) => {
+  }
+
+  artistPrevBtn.addEventListener('click', () => stepArtistCoverflow(-1));
+  artistNextBtn.addEventListener('click', () => stepArtistCoverflow(1));
+
+  const artistCfWrapEl = document.querySelector('.artist-cf-wrap');
+  artistCfWrapEl.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const len = artistItemsWithAdd().length;
-    artistCenterIndex = (artistCenterIndex + (e.deltaY > 0 ? 1 : -1) + len) % len;
-    renderArtistCoverflow();
+    stepArtistCoverflow(e.deltaY > 0 ? 1 : -1);
   }, { passive: false });
+
+  /* 左右矢印キー（2026-09-24）：アーティスト一覧が画面に見えている間だけ
+     有効にしたいが、このアプリはStage内のiframeとして常に単独表示される
+     ため（他のパネルとキー入力を取り合わない）、document全体で拾ってよい。
+     ただし他のモーダル（追加モーダル・詳細ビュー等）が開いている間は
+     誤操作防止のため無効化する。 */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const anyOverlayOpen = document.querySelector('.view-overlay.is-open, .modal-overlay.is-open, .confirm-overlay.is-open');
+    if (anyOverlayOpen) return;
+    e.preventDefault();
+    stepArtistCoverflow(e.key === 'ArrowRight' ? 1 : -1);
+  });
+
+  /* 縦型カバーフロー（js/main.js）と同じ、枯れた実装パターンのスワイプ対応。
+     誤作動防止策も同じ考え方で踏襲：
+       ・1本指のみ／2本指以上（ピンチ等）は対象外
+       ・40px以上の横移動で1回だけ送る（1スワイプ＝1枚、連続送りしない）
+       ・縦方向の動きの方が大きければ無視（斜めの誤操作対策）
+       ・送った直後の短時間はクリックを捨て、指を離した位置のカードが
+         誤ってタップ扱いされるのを防ぐ */
+  const ARTIST_SWIPE_THRESHOLD_PX = 40;
+  const ARTIST_SWIPE_CLICK_GUARD_MS = 400;
+  let artistSwipeState = null;
+  let artistSuppressClickUntil = 0;
+
+  artistCfWrapEl.addEventListener('touchstart', (e) => {
+    artistSwipeState = null;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    artistSwipeState = { x: t.clientX, y: t.clientY, fired: false };
+  }, { passive: true });
+
+  artistCfWrapEl.addEventListener('touchmove', (e) => {
+    if (!artistSwipeState) return;
+    if (e.touches.length !== 1) { artistSwipeState = null; return; }
+    if (artistSwipeState.fired) return;
+    const t = e.touches[0];
+    const dx = t.clientX - artistSwipeState.x;
+    const dy = t.clientY - artistSwipeState.y;
+    if (Math.abs(dx) < ARTIST_SWIPE_THRESHOLD_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    // 指を左へ払う＝右にある次のカードが中央へ
+    stepArtistCoverflow(dx < 0 ? 1 : -1);
+    artistSwipeState.fired = true;
+    artistSuppressClickUntil = Date.now() + ARTIST_SWIPE_CLICK_GUARD_MS;
+  }, { passive: true });
+
+  const clearArtistSwipe = () => { artistSwipeState = null; };
+  artistCfWrapEl.addEventListener('touchend', clearArtistSwipe, { passive: true });
+  artistCfWrapEl.addEventListener('touchcancel', clearArtistSwipe, { passive: true });
+
+  // キャプチャ段階で先に拾い、各カードのclick処理に届く前に捨てる
+  artistTrack.addEventListener('click', (e) => {
+    if (Date.now() < artistSuppressClickUntil) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
 
   /* ===================== アーティスト：追加モーダル ===================== */
   function bindImageDropClick(dropEl, inputEl) {
