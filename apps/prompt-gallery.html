@@ -188,41 +188,45 @@
     font-size: 9px; padding: 2px 6px; background: rgba(0,240,208,.12); border: 1px solid var(--cyan-dim);
     color: var(--cyan); white-space: nowrap;
   }
-  /* ---- hover prompt popup ---- */
-  /* 半透明にして背後の画像が薄っすら透けて見えるようにしつつ、
-     文字は十分読める濃さに調整（右上の別アイコン方式は廃止し、
-     編集・削除もこのポップアップ内に統合した）。 */
+  /* ---- hover menu（2026-09-25：本文プレビューを廃止し、ボタンだけの
+     操作メニューに変更。プロンプト本文はカード上に表示しない方針にした） ---- */
   .prompt-pop {
     position: absolute; inset: 0; background: rgba(5,7,10,.82);
-    display: flex; flex-direction: column; padding: 12px; gap: 8px;
+    display: flex; flex-direction: column; align-items: stretch; justify-content: center;
+    padding: 14px; gap: 8px;
     opacity: 0; pointer-events: none; transition: opacity .15s ease;
-    overflow-y: auto;
   }
   .card:hover .prompt-pop { opacity: 1; pointer-events: auto; }
   .card.select-target:hover .prompt-pop { opacity: 0; pointer-events: none; }
-  .prompt-pop .pp-block { display: flex; flex-direction: column; gap: 4px; }
-  .prompt-pop .pp-label { font-family: var(--font-display); font-size: 9px; letter-spacing: .08em; color: var(--text-faint); }
-  .prompt-pop .pp-text {
-    font-size: 10.5px; line-height: 1.5; color: var(--text-dim);
-    max-height: 78px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+  .prompt-pop .pp-menu-btn {
+    font-size: 11px; padding: 7px 10px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); cursor: pointer; text-align: left;
   }
-  .prompt-pop .pp-copy {
-    align-self: flex-start; font-size: 9.5px; padding: 3px 8px; margin-top: 2px;
-    background: transparent; border: 1px solid var(--cyan-dim); color: var(--cyan); cursor: pointer;
+  .prompt-pop .pp-menu-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .prompt-pop .pp-menu-btn.copied { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  /* コピーする本文が無い（未入力）登録では押せない。ボタン自体は残し、
+     何がコピーできて何ができないかが一覧性として分かるようにする */
+  .prompt-pop .pp-menu-btn:disabled { color: var(--text-faint); border-color: var(--line-soft); cursor: default; opacity: .5; }
+  .prompt-pop .pp-menu-btn.pp-delete:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  /* ---- サムネイル拡大ライトボックス（2026-09-25） ----
+     画面に収まる範囲でなるべく大きく、原寸は超えない(object-fit: contain
+     ではなく、実寸をmax-width/max-heightで上限にして自然サイズを尊重する) */
+  .thumb-lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.86); z-index: 90;
+    display: none; align-items: center; justify-content: center; padding: 32px;
   }
-  .prompt-pop .pp-copy:hover { background: var(--cyan-dim); }
-  .prompt-pop .pp-copy.copied { border-color: var(--cyan); background: var(--cyan-dim); }
-  .prompt-pop .pp-empty { font-size: 10px; color: var(--text-faint); font-style: italic; }
-  .prompt-pop .pp-footer {
-    margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line-soft);
-    display: flex; gap: 8px; justify-content: flex-end;
+  .thumb-lightbox.is-open { display: flex; }
+  .thumb-lightbox img {
+    max-width: 100%; max-height: 100%; width: auto; height: auto;
+    object-fit: contain; box-shadow: 0 0 40px rgba(0,0,0,.6);
   }
-  .prompt-pop .pp-footer button {
-    font-size: 10px; padding: 4px 10px; background: transparent; border: 1px solid var(--line);
-    color: var(--text-dim); cursor: pointer;
+  .thumb-lightbox-close {
+    position: absolute; top: 18px; right: 22px; width: 30px; height: 30px;
+    background: rgba(10,12,16,.7); border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 14px; cursor: pointer;
   }
-  .prompt-pop .pp-footer .pp-edit:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .prompt-pop .pp-footer .pp-delete:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .thumb-lightbox-close:hover { border-color: var(--cyan-dim); color: var(--cyan); }
 
   /* ---- modal (add/edit) ---- */
   .modal-overlay {
@@ -427,6 +431,12 @@
   </div>
 </div>
 
+<!-- サムネイル拡大ライトボックス（2026-09-25） -->
+<div class="thumb-lightbox" id="thumbLightbox">
+  <button class="thumb-lightbox-close" id="thumbLightboxCloseBtn" type="button">✕</button>
+  <img id="thumbLightboxImg" alt="">
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -571,6 +581,10 @@
   const confirmMsg = document.getElementById('confirmMsg');
   const confirmCancelBtn = document.getElementById('confirmCancelBtn');
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+  const thumbLightbox = document.getElementById('thumbLightbox');
+  const thumbLightboxImg = document.getElementById('thumbLightboxImg');
+  const thumbLightboxCloseBtn = document.getElementById('thumbLightboxCloseBtn');
 
   const toastEl = document.getElementById('toast');
   let toastTimer = null;
@@ -794,18 +808,11 @@
         <div class="card-title">${escapeHtml(entry.title || '(無題)')}</div>
         <div class="card-tags">${tagsHtml}</div>
         <div class="prompt-pop">
-          <div class="pp-block">
-            <div class="pp-label">PROMPT</div>
-            ${entry.prompt ? `<div class="pp-text">${escapeHtml(entry.prompt)}</div><button class="pp-copy" data-kind="prompt">本文コピー</button>` : '<div class="pp-empty">未入力</div>'}
-          </div>
-          <div class="pp-block">
-            <div class="pp-label">NEGATIVE</div>
-            ${entry.negative ? `<div class="pp-text">${escapeHtml(entry.negative)}</div><button class="pp-copy" data-kind="negative">ネガティブコピー</button>` : '<div class="pp-empty">未入力</div>'}
-          </div>
-          <div class="pp-footer">
-            <button class="pp-edit" type="button">編集</button>
-            <button class="pp-delete" type="button">削除</button>
-          </div>
+          <button class="pp-menu-btn pp-zoom" type="button">サムネイル拡大</button>
+          <button class="pp-menu-btn pp-copy" type="button" data-kind="prompt" ${entry.prompt ? '' : 'disabled'}>プロンプトコピー</button>
+          <button class="pp-menu-btn pp-copy" type="button" data-kind="negative" ${entry.negative ? '' : 'disabled'}>ネガティブプロンプトコピー</button>
+          <button class="pp-menu-btn pp-edit" type="button">サムネイル編集</button>
+          <button class="pp-menu-btn pp-delete" type="button">削除</button>
         </div>
         <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">消去</span></div>
       `;
@@ -814,6 +821,12 @@
         card.classList.add('select-target');
         card.addEventListener('click', () => toggleSelectForDelete(entry.id));
       } else {
+        const zoomBtn = card.querySelector('.pp-zoom');
+        if (imgUrl) {
+          zoomBtn.addEventListener('click', (e) => { e.stopPropagation(); openThumbLightbox(imgUrl, entry.title); });
+        } else {
+          zoomBtn.disabled = true; // 画像未登録の登録はそもそも拡大するものがない
+        }
         card.querySelector('.pp-edit').addEventListener('click', (e) => { e.stopPropagation(); openEditModal(entry); });
         card.querySelector('.pp-delete').addEventListener('click', (e) => { e.stopPropagation(); openConfirmDelete(entry.id); });
 
@@ -921,6 +934,23 @@
     modalOverlay.classList.add('is-open');
     titleInput.focus();
   }
+
+  /* サムネイル拡大ライトボックス（2026-09-25）。カード一覧描画時に
+     makeObjectUrl() で発行済みのURLをそのまま使う（新たに発行しない）。
+     画面に収まる範囲でなるべく大きく、原寸は超えない
+     （object-fit: containではなくmax-width/max-heightで実寸を尊重、
+     CSS側の .thumb-lightbox img 参照） */
+  function openThumbLightbox(imgUrl, title) {
+    thumbLightboxImg.src = imgUrl;
+    thumbLightboxImg.alt = title || '';
+    thumbLightbox.classList.add('is-open');
+  }
+  function closeThumbLightbox() {
+    thumbLightbox.classList.remove('is-open');
+    thumbLightboxImg.src = '';
+  }
+  thumbLightboxCloseBtn.addEventListener('click', closeThumbLightbox);
+  thumbLightbox.addEventListener('click', (e) => { if (e.target === thumbLightbox) closeThumbLightbox(); });
 
   function openEditModal(entry) {
     editingId = entry.id;
@@ -1036,7 +1066,8 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (confirmOverlay.classList.contains('is-open')) closeConfirmDelete();
+      if (thumbLightbox.classList.contains('is-open')) closeThumbLightbox();
+      else if (confirmOverlay.classList.contains('is-open')) closeConfirmDelete();
       else if (modalOverlay.classList.contains('is-open')) closeModal();
       else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
       else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
