@@ -63,7 +63,22 @@
     position: relative; width: 100%; max-width: 860px; height: 100%;
     display: flex; align-items: center; justify-content: center;
     perspective: 1000px; perspective-origin: 50% 50%;
+    overflow: hidden;
   }
+  /* 中央カード連動の背景（2026-09-25）：センターのカバー画像を拡大・減彩して
+     敷く。2枚を交互に使うクロスフェード方式（片方が消えながらもう片方が
+     浮かぶ）で、切り替わりの一瞬にも背景が途切れない。
+     リングのカード（is-centerや.artist-cf-item）より手前に来ないよう、
+     wrap内の一番最初、z-indexも最背面に置く */
+  .artist-bg-layer {
+    position: absolute; inset: -5%; z-index: 0;
+    background-size: cover; background-position: center;
+    filter: saturate(.35) brightness(.4) blur(2px);
+    opacity: 0; transition: opacity .7s ease;
+    pointer-events: none;
+  }
+  .artist-bg-layer.is-visible { opacity: 1; }
+  .artist-cf-track { z-index: 1; }
   .artist-cf-track {
     position: relative; width: 100%; height: 100%;
     transform-style: preserve-3d;
@@ -318,6 +333,8 @@
   <!-- ① Top: アーティスト一覧（横型リング・2026-09-24変更。旧：縦型カバーフロー） -->
   <div class="app-body">
     <div class="artist-cf-wrap">
+      <div class="artist-bg-layer" id="artistBgLayerA"></div>
+      <div class="artist-bg-layer" id="artistBgLayerB"></div>
       <button class="cf-nav-btn prev" id="artistPrevBtn">◀</button>
       <div class="artist-cf-track" id="artistTrack"></div>
       <button class="cf-nav-btn next" id="artistNextBtn">▶</button>
@@ -399,7 +416,7 @@
       </div>
       <div class="field">
         <label>アーティスト名</label>
-        <input type="text" id="artistNameInput" maxlength="60" placeholder="例：毒林檎と輪舞曲">
+        <input type="text" id="artistNameInput" maxlength="60" placeholder="アーティスト名を入力">
       </div>
       <div class="field">
         <label>概要（任意・後からでも編集可）</label>

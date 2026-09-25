@@ -90,6 +90,24 @@
   }
   const artistListUrls = createUrlPool();   // ①トップ画面のアーティスト一覧用
   const artistBioUrls = createUrlPool();    // ②アーティスト詳細のプロフィール画像用
+
+  /* 背景演出用URL保持（2026-09-25）：createUrlPoolは「一覧を作り直すたびに
+     全部解放」という一覧向けの寿命管理だが、背景は表示され続けている画像を
+     revokeAllで消してしまうと表示中の背景が消える。ここでは「直前の1枚だけ
+     覚えておき、新しい画像に切り替わったタイミングで古い方だけ解放する」
+     という、背景演出向けの寿命管理にする。 */
+  function createSingleUrlHolder() {
+    let current = null;
+    return {
+      make(blob) {
+        const fresh = blob ? URL.createObjectURL(blob) : null;
+        if (current) URL.revokeObjectURL(current);
+        current = fresh;
+        return fresh;
+      },
+    };
+  }
+  const artistBgUrl = createSingleUrlHolder();
   const discographyUrls = createUrlPool();  // ②Discography（アルバム一覧）用
   const modalPreviewUrls = createUrlPool(); // 登録モーダルのプレビュー画像用
 
@@ -116,6 +134,8 @@
   const artistTrack = document.getElementById('artistTrack');
   const artistPrevBtn = document.getElementById('artistPrevBtn');
   const artistNextBtn = document.getElementById('artistNextBtn');
+  const artistBgLayerA = document.getElementById('artistBgLayerA');
+  const artistBgLayerB = document.getElementById('artistBgLayerB');
 
   const artistViewOverlay = document.getElementById('artistViewOverlay');
   const artistViewTitle = document.getElementById('artistViewTitle');
@@ -419,6 +439,51 @@
       el.classList.toggle('is-back', facingAway && !hidden);
       el.classList.toggle('is-hidden', hidden);
     });
+
+    scheduleArtistBgUpdate();
+  }
+
+  /* 中央カード連動の背景（2026-09-25）。
+     ・回転アニメーション（.artist-cf-track の transition: .6s）が収まって
+       からさらに間を置いて読み込む。センターが高速に送られている最中に
+       毎回読み込むとあわただしいため
+     ・連続で送られた場合は、直前の予約をキャンセルして最後の1回だけ発火する
+       （最終的に中央で止まったカードの画像だけを読みに行く） */
+  const ARTIST_BG_SETTLE_MS = 650; // トラックの回転(.6s)が収まってからの余裕分
+  let artistBgTimer = null;
+  let artistBgActiveLayer = artistBgLayerA; // 現在表に出ている側
+
+  function scheduleArtistBgUpdate() {
+    if (artistBgTimer) clearTimeout(artistBgTimer);
+    artistBgTimer = setTimeout(applyArtistBgForCenter, ARTIST_BG_SETTLE_MS);
+  }
+
+  function applyArtistBgForCenter() {
+    artistBgTimer = null;
+    const items = artistItemsWithAdd();
+    const centered = items[artistCenterIndex];
+    // ＋カード／NOW MASTERINGダミー／カバー画像未設定のアーティストが
+    // 中央のときは、背景なし（今の単色背景）に戻す
+    const blob = (centered && !centered.empty && !centered.dummy) ? centered.coverImg : null;
+    const url = artistBgUrl.make(blob || null);
+
+    const incoming = artistBgActiveLayer === artistBgLayerA ? artistBgLayerB : artistBgLayerA;
+    const outgoing = artistBgActiveLayer;
+
+    if (!url) {
+      // 背景なしに戻すときは、表に出ている方をフェードアウトさせるだけでよい
+      outgoing.classList.remove('is-visible');
+      artistBgActiveLayer = incoming; // 次に画像が来たときは空側から使う
+      return;
+    }
+    incoming.style.backgroundImage = `url('${url}')`;
+    // 順序が大事：先に裏側へ新しい画像をセットしてから表へ出す。
+    // 同時に古い方を消すことで、2枚がクロスフェードする
+    requestAnimationFrame(() => {
+      incoming.classList.add('is-visible');
+      outgoing.classList.remove('is-visible');
+    });
+    artistBgActiveLayer = incoming;
   }
 
   /* 1コマ送る処理の共通化。ボタン・ホイール・スワイプ・矢印キーの4系統すべてが
