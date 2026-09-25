@@ -50,14 +50,23 @@
     width: 140px;
   }
   .search-box input::placeholder { color: var(--text-faint); }
+  /* ヘッダー高さの固定化（2026-09-25）：以前はflex-wrapで折り返していたため、
+     登録タグが増えるほどヘッダーの高さが変わってしまっていた。
+     nowrap + overflow: hidden で「入るだけ並べる」構造にし、収まらない分は
+     「+n」ボタン1個にまとめてモーダルへ逃がす（renderTagChips参照）。
+     これにより見えている領域の高さが常に一定になる */
   .tag-filter-chips {
-    display: flex; gap: 5px; flex-wrap: wrap; max-width: 260px;
+    display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; max-width: 260px;
   }
   .chip {
     font-size: 10px; padding: 3px 8px; border: 1px solid var(--line); color: var(--text-dim);
-    cursor: pointer; white-space: nowrap; background: transparent;
+    cursor: pointer; white-space: nowrap; background: transparent; flex-shrink: 0;
   }
   .chip.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .chip-more { border-style: dashed; color: var(--text-faint); }
+  .chip-more:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .tag-more-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+  .tag-more-list .chip { width: 100%; text-align: left; box-sizing: border-box; }
 
   .btn {
     font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
@@ -394,6 +403,19 @@
   </div>
 </div>
 
+<!-- サブモーダル：タグをもっと見る（ヘッダーに入りきらない分。2026-09-25） -->
+<div class="modal-overlay" id="tagMoreModalOverlay">
+  <div class="modal sub-modal">
+    <div class="modal-head">
+      <span class="modal-title">タグで絞り込み</span>
+      <button class="modal-close" id="tagMoreModalCloseBtn">✕</button>
+    </div>
+    <div class="sub-modal-body">
+      <div class="tag-more-list" id="tagMoreList"></div>
+    </div>
+  </div>
+</div>
+
 <!-- 削除確認 -->
 <div class="confirm-overlay" id="confirmOverlay">
   <div class="confirm-box">
@@ -540,6 +562,9 @@
 
   const tagColorModalOverlay = document.getElementById('tagColorModalOverlay');
   const tagColorModalCloseBtn = document.getElementById('tagColorModalCloseBtn');
+  const tagMoreModalOverlay = document.getElementById('tagMoreModalOverlay');
+  const tagMoreModalCloseBtn = document.getElementById('tagMoreModalCloseBtn');
+  const tagMoreList = document.getElementById('tagMoreList');
   const tagColorList = document.getElementById('tagColorList');
 
   const confirmOverlay = document.getElementById('confirmOverlay');
@@ -620,30 +645,97 @@
     return Array.from(set).sort();
   }
 
-  function renderTagChips() {
-    const tags = getAllTags();
-    tagChips.innerHTML = '';
-    tags.forEach(tag => {
-      const chip = document.createElement('button');
-      chip.className = 'chip' + (activeTagFilter === tag ? ' active' : '');
-      chip.textContent = tag;
-      chip.disabled = selectMode;
-      if (activeTagFilter === tag) {
-        const color = tagColors[tag];
-        if (color) {
-          chip.style.borderColor = color;
-          chip.style.color = color;
-          chip.style.background = 'transparent';
-        }
-      }
-      chip.addEventListener('click', () => {
-        activeTagFilter = (activeTagFilter === tag) ? null : tag;
-        renderTagChips();
-        renderGrid();
-      });
-      tagChips.appendChild(chip);
+  /* 出現回数の多い順にタグを並べる。同数の場合はアルファベット順にして、
+     表示順が理由もなく揺れ動かないようにする（安定ソート） */
+  function getAllTagsByFrequency() {
+    const count = new Map();
+    entries.forEach(e => (e.tags || []).forEach(t => count.set(t, (count.get(t) || 0) + 1)));
+    return Array.from(count.keys()).sort((a, b) => {
+      const diff = count.get(b) - count.get(a);
+      return diff !== 0 ? diff : a.localeCompare(b);
     });
   }
+
+  function makeTagChip(tag) {
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (activeTagFilter === tag ? ' active' : '');
+    chip.textContent = tag;
+    chip.disabled = selectMode;
+    if (activeTagFilter === tag) {
+      const color = tagColors[tag];
+      if (color) {
+        chip.style.borderColor = color;
+        chip.style.color = color;
+        chip.style.background = 'transparent';
+      }
+    }
+    chip.addEventListener('click', () => {
+      activeTagFilter = (activeTagFilter === tag) ? null : tag;
+      closeTagMoreModal();
+      renderTagChips();
+      renderGrid();
+    });
+    return chip;
+  }
+
+  /* ヘッダーの高さを一定に保つため、チップは折り返さず(nowrap)、
+     .tag-filter-chips の実際の幅に収まる分だけ描画する。
+     収まりきらない分（絞り込み中の1個を除く）は「+n」ボタン1個にまとめ、
+     クリックでモーダルを開いて全部から選べるようにする（2026-09-25）。
+     誤作動防止：絞り込み中のタグが「+n」側に押し出されて見えなくなると、
+     何で絞り込んでいるか画面から分からなくなるため、選択中のタグは
+     常に手前（左）に出し、打ち切りの対象から除外する */
+  function renderTagChips() {
+    const allTags = getAllTagsByFrequency();
+    tagChips.innerHTML = '';
+    if (!allTags.length) return;
+
+    const ordered = activeTagFilter && allTags.includes(activeTagFilter)
+      ? [activeTagFilter, ...allTags.filter(t => t !== activeTagFilter)]
+      : allTags;
+
+    // 実際に測るため、まず全部を一時的に流し込んでみる
+    ordered.forEach(tag => tagChips.appendChild(makeTagChip(tag)));
+
+    const wrapWidth = tagChips.clientWidth;
+    const children = Array.from(tagChips.children);
+    let usedWidth = 0;
+    let cutAt = children.length;
+    // 「+n」ボタン自体の幅の見積もり（実測前なので概算。狭くはみ出す分は許容する）
+    const MORE_BTN_WIDTH_ESTIMATE = 34;
+    for (let i = 0; i < children.length; i++) {
+      const w = children[i].offsetWidth + 5; // gap分
+      const remaining = ordered.length - (i + 1);
+      const needsMoreBtn = remaining > 0;
+      const budget = wrapWidth - (needsMoreBtn ? MORE_BTN_WIDTH_ESTIMATE : 0);
+      if (usedWidth + w > budget) { cutAt = i; break; }
+      usedWidth += w;
+    }
+    // 1個も入らない極端な幅でも、選択中のタグ（か先頭の1個）だけは出す
+    cutAt = Math.max(cutAt, activeTagFilter ? 1 : 0);
+
+    const hiddenCount = ordered.length - cutAt;
+    if (hiddenCount > 0) {
+      children.slice(cutAt).forEach(el => el.remove());
+      const moreBtn = document.createElement('button');
+      moreBtn.className = 'chip chip-more';
+      moreBtn.textContent = `+${hiddenCount}`;
+      moreBtn.title = 'その他のタグで絞り込み';
+      moreBtn.addEventListener('click', () => openTagMoreModal());
+      tagChips.appendChild(moreBtn);
+    }
+  }
+
+  function openTagMoreModal() {
+    tagMoreList.innerHTML = '';
+    getAllTagsByFrequency().forEach(tag => tagMoreList.appendChild(makeTagChip(tag)));
+    tagMoreModalOverlay.classList.add('is-open');
+  }
+  function closeTagMoreModal() {
+    tagMoreModalOverlay.classList.remove('is-open');
+  }
+  tagMoreModalCloseBtn.addEventListener('click', closeTagMoreModal);
+  tagMoreModalOverlay.addEventListener('click', (e) => { if (e.target === tagMoreModalOverlay) closeTagMoreModal(); });
 
   function matchesFilter(entry) {
     if (activeTagFilter && !(entry.tags || []).includes(activeTagFilter)) return false;
@@ -948,6 +1040,7 @@
       else if (modalOverlay.classList.contains('is-open')) closeModal();
       else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
       else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
+      else if (tagMoreModalOverlay.classList.contains('is-open')) closeTagMoreModal();
       else if (menuPanel.classList.contains('is-open') || selectModeMenuPanel.classList.contains('is-open')) closeMenu();
     }
   });
