@@ -65,7 +65,7 @@
   .chip.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
   .chip-more { border-style: dashed; color: var(--text-faint); }
   .chip-more:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .tag-more-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+  .tag-more-list { display: flex; flex-direction: column; gap: 6px; }
   .tag-more-list .chip { width: 100%; text-align: left; box-sizing: border-box; }
 
   .btn {
@@ -102,9 +102,28 @@
   .menu-panel-item:hover { background: var(--bg-alt); color: var(--cyan); }
   .menu-panel-item.danger:hover { color: var(--magenta); }
 
-  /* ---- サブモーダル（よく使うタグ／タグの色） ---- */
-  .sub-modal { width: 100%; max-width: 340px; }
-  .sub-modal-body { max-height: 60vh; overflow-y: auto; padding-top: 4px; }
+  /* ---- サブモーダル（よく使うタグ／タグの色／タグで絞り込み） ---- */
+  /* 二重スクロールバー対策（2026-09-26）：共通の .modal クラスに
+     max-height:90vh; overflow-y:auto があり、そこに .sub-modal-body の
+     overflow-y:auto が重なって、内容が増えるとスクロールバーが2本
+     並んで出ていた。.sub-modal だけ overflow を hidden にして高さの
+     「枠」に徹し、実際のスクロールは .sub-modal-body 1箇所に一本化する。
+     .modal は他のモーダル（新規登録／編集）でも使う共通クラスのため、
+     ここでは触らず .sub-modal 側で上書きするだけに留める */
+  .sub-modal {
+    width: 100%; max-width: 340px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .sub-modal .modal-head { flex-shrink: 0; }
+  .sub-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-top: 4px; }
+  /* スクロールバーの見た目を細く、パネルの配色に馴染ませる。
+     Firefox系は scrollbar-width/scrollbar-color、Chrome/Safari系は
+     ::-webkit-scrollbar 系で指定する必要があり、枯れた併記が定番 */
+  .sub-modal-body { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .sub-modal-body::-webkit-scrollbar { width: 6px; }
+  .sub-modal-body::-webkit-scrollbar-track { background: transparent; }
+  .sub-modal-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .sub-modal-body::-webkit-scrollbar-thumb:hover { background: var(--cyan-dim); }
   .freq-tag-add-row { display: flex; gap: 6px; margin-bottom: 10px; }
   .freq-tag-add-row input {
     flex: 1; background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px;

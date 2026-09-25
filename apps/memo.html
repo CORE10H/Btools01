@@ -65,7 +65,7 @@
   .chip.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
   .chip-more { border-style: dashed; color: var(--text-faint); }
   .chip-more:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .tag-more-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+  .tag-more-list { display: flex; flex-direction: column; gap: 6px; }
   .tag-more-list .chip { width: 100%; text-align: left; box-sizing: border-box; }
 
   .btn {
@@ -102,8 +102,56 @@
   .menu-panel-item.danger:hover { color: var(--magenta); }
 
   /* ---- サブモーダル（よく使うタグ／タグの色） ---- */
+  /* 既存不具合の修正（2026-09-26）：「よく使うタグ」「タグの色」モーダルは
+     JSが classList.add('is-open') で開こうとしていたが、それに対応する
+     .modal-overlay.is-open { display: flex; } が定義されておらず、
+     インラインの display:none が一度も打ち消されない＝開かない状態だった。
+     editor-overlay や confirm-overlay には同じ形のCSSがあり、
+     .modal-overlay だけ漏れていたと見られる */
+  /* 既存不具合の修正（2026-09-26）：「よく使うタグ」「タグの色」モーダルは
+     JSが classList.add('is-open') で開こうとしていたが、HTML側に
+     display:none がインラインで固定されており、CSSクラスでの
+     display:flex 切り替えが（詳細度で）打ち消されて一度も開かない
+     状態だった。editor-overlay や confirm-overlay はインラインstyleを
+     持たずCSSクラスだけで開閉しており、それに合わせてインライン側の
+     display:none を外し、ここで基本形として定義し直した */
+  .modal-overlay { display: none; }
+  .modal-overlay.is-open { display: flex; }
   .sub-modal { width: 100%; max-width: 340px; }
-  .sub-modal-body { max-height: 60vh; overflow-y: auto; padding-top: 4px; }
+  /* 二重スクロールバー対策（2026-09-26）：以前は外枠(.sub-modal、
+     インラインstyle)と内側(.sub-modal-body)の両方に overflow-y: auto が
+     付いていて、内容が増えるとスクロールバーが2本並んで出ていた。
+     外枠は overflow: hidden にして高さの「枠」だけを持ち、実際に
+     スクロールするのはこの .sub-modal-body 1箇所だけにする。
+     flex-shrink: 0 の modal-head（タイトル行）だけは常に見え、
+     残りの領域をこの要素が埋めてスクロールする */
+  .sub-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-top: 4px; }
+  /* スクロールバーの見た目を細く、パネルの配色に馴染ませる（2026-09-26）。
+     Firefox系は scrollbar-width/scrollbar-color、Chrome/Safari系は
+     ::-webkit-scrollbar 系で指定する必要があり、枯れた併記が定番 */
+  .sub-modal-body,
+  .tag-more-list,
+  .freq-tag-list,
+  .tag-color-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+  .sub-modal-body::-webkit-scrollbar,
+  .tag-more-list::-webkit-scrollbar,
+  .freq-tag-list::-webkit-scrollbar,
+  .tag-color-list::-webkit-scrollbar { width: 6px; }
+  .sub-modal-body::-webkit-scrollbar-track,
+  .tag-more-list::-webkit-scrollbar-track,
+  .freq-tag-list::-webkit-scrollbar-track,
+  .tag-color-list::-webkit-scrollbar-track { background: transparent; }
+  .sub-modal-body::-webkit-scrollbar-thumb,
+  .tag-more-list::-webkit-scrollbar-thumb,
+  .freq-tag-list::-webkit-scrollbar-thumb,
+  .tag-color-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .sub-modal-body::-webkit-scrollbar-thumb:hover,
+  .tag-more-list::-webkit-scrollbar-thumb:hover,
+  .freq-tag-list::-webkit-scrollbar-thumb:hover,
+  .tag-color-list::-webkit-scrollbar-thumb:hover { background: var(--cyan-dim); }
   .freq-tag-add-row { display: flex; gap: 6px; margin-bottom: 10px; }
   .freq-tag-add-row input {
     flex: 1; background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px;
@@ -332,9 +380,9 @@
 </div>
 
 <!-- サブモーダル：よく使うタグ -->
-<div class="modal-overlay" id="freqTagModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;">
-  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
-    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft);">
+<div class="modal-overlay" id="freqTagModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft); flex-shrink:0;">
       <span class="modal-title" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">よく使うタグ</span>
       <button class="modal-close" id="freqTagModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
     </div>
@@ -349,9 +397,9 @@
 </div>
 
 <!-- サブモーダル：タグの色 -->
-<div class="modal-overlay" id="tagColorModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;">
-  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
-    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft);">
+<div class="modal-overlay" id="tagColorModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft); flex-shrink:0;">
       <span class="modal-title" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">タグの色</span>
       <button class="modal-close" id="tagColorModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
     </div>
@@ -362,9 +410,9 @@
 </div>
 
 <!-- サブモーダル：タグをもっと見る（ヘッダーに入りきらない分。2026-09-25） -->
-<div class="modal-overlay" id="tagMoreModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;">
-  <div class="modal sub-modal" style="width:100%; max-width:360px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
-    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft);">
+<div class="modal-overlay" id="tagMoreModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:360px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft); flex-shrink:0;">
       <span class="modal-title" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">タグで絞り込み</span>
       <button class="modal-close" id="tagMoreModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
     </div>
@@ -674,10 +722,10 @@
   function openTagMoreModal() {
     tagMoreList.innerHTML = '';
     getAllTagsByFrequency().forEach(tag => tagMoreList.appendChild(makeTagChip(tag)));
-    tagMoreModalOverlay.style.display = 'flex';
+    tagMoreModalOverlay.classList.add('is-open');
   }
   function closeTagMoreModal() {
-    tagMoreModalOverlay.style.display = 'none';
+    tagMoreModalOverlay.classList.remove('is-open');
   }
   tagMoreModalCloseBtn.addEventListener('click', closeTagMoreModal);
   tagMoreModalOverlay.addEventListener('click', (e) => { if (e.target === tagMoreModalOverlay) closeTagMoreModal(); });
@@ -1029,7 +1077,7 @@
       else if (editorOverlay.classList.contains('is-open')) closeEditor();
       else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
       else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
-      else if (tagMoreModalOverlay.style.display === 'flex') closeTagMoreModal();
+      else if (tagMoreModalOverlay.classList.contains('is-open')) closeTagMoreModal();
       else if (menuPanel.classList.contains('is-open') || selectModeMenuPanel.classList.contains('is-open')) closeMenu();
     }
   });
