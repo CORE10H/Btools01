@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRIBIT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  button, input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .bar-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+    flex-shrink: 0; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 200px;
+    background: var(--panel); border: 1px solid var(--line); z-index: 40; display: none;
+    padding: 6px;
+  }
+  .menu-panel.is-open { display: block; }
+  .menu-panel-item {
+    width: 100%; text-align: left; background: transparent; border: none;
+    color: var(--text-dim); font-size: 12px; padding: 9px 10px; cursor: pointer;
+  }
+  .menu-panel-item:hover { background: var(--bg-alt); color: var(--cyan); }
+
+  .app-body { flex: 1; overflow: hidden; min-height: 0; position: relative; display: flex; flex-direction: column; }
+
+  .empty-state {
+    height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--text-faint); flex-direction: column; gap: 10px; padding: 40px;
+  }
+  .empty-state .big { font-family: var(--font-display); font-size: 13px; color: var(--text-dim); letter-spacing: .04em; }
+  .empty-state .small { font-size: 11px; max-width: 340px; line-height: 1.8; }
+
+  /* =====================================================================
+     一覧ビュー
+  ===================================================================== */
+  #listView { flex: 1; overflow-y: auto; padding: 16px; min-height: 0; }
+  .draft-card {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    background: var(--bg-alt); border: 1px solid var(--line-soft); margin-bottom: 8px; cursor: pointer;
+  }
+  .draft-card:hover { background: var(--panel-hi); border-color: var(--cyan-dim); }
+  .draft-card.is-done { opacity: .55; }
+  .draft-card .dc-status {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--amber);
+  }
+  .draft-card.is-done .dc-status { background: var(--cyan); }
+  .draft-card .dc-title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .draft-card .dc-meta { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; white-space: nowrap; }
+  .draft-card .dc-del {
+    width: 22px; height: 22px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 10px; cursor: pointer; opacity: 0; transition: opacity .12s ease;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .draft-card:hover .dc-del { opacity: 1; }
+  .draft-card .dc-del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .list-section-label {
+    font-size: 10.5px; color: var(--text-faint); letter-spacing: .04em; margin: 18px 0 8px; text-transform: uppercase;
+  }
+  .list-section-label:first-child { margin-top: 0; }
+
+  /* =====================================================================
+     編集ビュー
+  ===================================================================== */
+  #editView { flex: 1; overflow-y: auto; padding: 18px 20px; min-height: 0; display: none; }
+  .edit-back-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .edit-back-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 11px; padding: 6px 12px; cursor: pointer;
+  }
+  .edit-back-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .edit-title-input {
+    flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1px solid var(--line);
+    font-size: 16px; font-family: var(--font-display); color: var(--text); padding: 6px 2px; outline: none;
+  }
+  .edit-title-input:focus { border-color: var(--cyan-dim); }
+  .edit-status-badge {
+    font-size: 10px; padding: 3px 9px; border: 1px solid var(--amber); color: var(--amber); flex-shrink: 0;
+  }
+  .edit-status-badge.is-done { border-color: var(--cyan); color: var(--cyan); }
+
+  .step-block {
+    border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 16px;
+  }
+  .step-head {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft);
+  }
+  .step-head .step-num {
+    font-family: var(--font-display); font-size: 12px; color: var(--cyan); flex-shrink: 0;
+    width: 20px; height: 20px; border: 1px solid var(--cyan-dim); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-head .step-title { font-size: 12.5px; font-family: var(--font-display); letter-spacing: .03em; flex: 1; }
+  .step-head .step-hint { font-size: 10.5px; color: var(--text-faint); }
+  .step-body { padding: 14px; }
+
+  .field-label { font-size: 10.5px; color: var(--text-faint); margin-bottom: 5px; letter-spacing: .03em; }
+  .field-textarea, .field-select {
+    width: 100%; background: var(--bg); border: 1px solid var(--line); padding: 9px 10px;
+    font-size: 12.5px; color: var(--text); outline: none; font-family: var(--font-body);
+    resize: vertical;
+  }
+  .field-textarea:focus, .field-select:focus { border-color: var(--cyan-dim); }
+  .field-textarea.mono { font-family: 'Courier New', monospace; line-height: 1.6; }
+
+  .step2-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .step2-controls .field-select { flex: 1; }
+
+  .prompt-output-wrap { position: relative; }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px; font-size: 10.5px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--text-dim); padding: 5px 10px; cursor: pointer;
+  }
+  .copy-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .copy-btn.is-copied { border-color: var(--cyan); color: var(--cyan); }
+
+  .step-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 14px 14px; }
+  .save-indicator { font-size: 10.5px; color: var(--text-faint); padding: 0 14px 10px; }
+
+  .complete-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+
+  /* =====================================================================
+     モーダル共通
+  ===================================================================== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal {
+    width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--line);
+    padding: 18px 20px 20px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--line-soft);
+  }
+  .modal-title { font-family: var(--font-display); font-size: 13px; color: var(--text); letter-spacing: .04em; }
+  .modal-close {
+    width: 22px; height: 22px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 12px; cursor: pointer;
+  }
+  .modal-close:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .field-group { margin-bottom: 14px; }
+  .field-input {
+    width: 100%; background: var(--bg-alt); border: 1px solid var(--line); padding: 8px 10px;
+    font-size: 12px; color: var(--text); outline: none;
+  }
+  .field-input:focus { border-color: var(--cyan-dim); }
+  .field-error {
+    font-size: 10.5px; color: var(--magenta); margin-top: 5px; line-height: 1.6; display: none;
+  }
+  .field-error.is-shown { display: block; }
+  .field-hint { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; line-height: 1.6; }
+
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 60; max-width: 80vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box {
+    width: 100%; max-width: 340px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px;
+  }
+  .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; white-space: pre-line; }
+  .confirm-box .cf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* =====================================================================
+     テンプレート管理
+  ===================================================================== */
+  .tpl-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 8px;
+  }
+  .tpl-row .tpl-name { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tpl-row .tpl-count { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; }
+  .tpl-row button {
+    width: 22px; height: 22px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .tpl-row button:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .tpl-row button.tpl-del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .tpl-add-row { margin-top: 12px; }
+</style>
+<script src="sideops-theme-bridge.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-bar">
+    <span class="app-title">// SCRIBIT</span>
+    <div class="bar-right">
+      <button class="btn primary" id="addDraftBtn">＋ 新規下書き</button>
+      <div class="menu-wrap">
+        <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
+        <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="menuItemTemplateManage" type="button">テンプレート管理</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div id="listView"></div>
+
+    <div id="editView">
+      <div class="edit-back-row">
+        <button class="edit-back-btn" id="backToListBtn">← 一覧へ戻る</button>
+        <input type="text" class="edit-title-input" id="draftTitleInput" placeholder="下書きのタイトル" maxlength="80">
+        <span class="edit-status-badge" id="draftStatusBadge">進行中</span>
+      </div>
+
+      <!-- ① 下書き -->
+      <div class="step-block">
+        <div class="step-head">
+          <span class="step-num">1</span>
+          <span class="step-title">下書きを書く</span>
+          <span class="step-hint">自動保存されます</span>
+        </div>
+        <div class="step-body">
+          <textarea class="field-textarea" id="draftBodyInput" rows="8" placeholder="記事の下書き本文をここに書いてください。"></textarea>
+        </div>
+      </div>
+
+      <!-- ② プロンプト合成 -->
+      <div class="step-block">
+        <div class="step-head">
+          <span class="step-num">2</span>
+          <span class="step-title">プロンプトを合成する</span>
+        </div>
+        <div class="step-body">
+          <div class="step2-controls">
+            <select class="field-select" id="templateSelect"></select>
+            <button class="btn primary" id="composePromptBtn">合成する</button>
+          </div>
+          <div class="prompt-output-wrap">
+            <textarea class="field-textarea mono" id="promptOutput" rows="8" placeholder="「合成する」を押すと、ここに完成したプロンプトが表示されます。" readonly></textarea>
+            <button class="copy-btn" id="copyPromptBtn">コピー</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 人力：外部AIで生成（アプリの外） -->
+      <div class="step-block">
+        <div class="step-head">
+          <span class="step-num">3</span>
+          <span class="step-title">AIで生成する</span>
+          <span class="step-hint">※ここは手動：②のプロンプトを外部AIに貼り付けて生成してください</span>
+        </div>
+      </div>
+
+      <!-- ④ ファイル変換 -->
+      <div class="step-block">
+        <div class="step-head">
+          <span class="step-num">4</span>
+          <span class="step-title">生成物をテキストファイルに変換する</span>
+        </div>
+        <div class="step-body">
+          <div class="field-label">AIの生成結果を貼り付け</div>
+          <textarea class="field-textarea mono" id="resultInput" rows="10" placeholder="外部AIが生成したMarkdown本文をここに貼り付けてください。"></textarea>
+        </div>
+        <div class="step-footer">
+          <button class="btn primary" id="downloadMdBtn">.mdファイルとしてダウンロード</button>
+        </div>
+      </div>
+
+      <!-- ⑤ 人力：ナレッジへ格納（アプリの外） -->
+      <div class="step-block">
+        <div class="step-head">
+          <span class="step-num">5</span>
+          <span class="step-title">LLMのプロジェクトナレッジに格納する</span>
+          <span class="step-hint">※ここは手動：ダウンロードした.mdファイルをアップロードしてください</span>
+        </div>
+      </div>
+
+      <div class="complete-row">
+        <button class="btn danger" id="deleteDraftBtn">この下書きを削除</button>
+        <button class="btn primary" id="toggleDoneBtn">完了にする</button>
+      </div>
+      <div class="save-indicator" id="saveIndicator"></div>
+    </div>
+  </div>
+</div>
+
+<!-- テンプレート管理モーダル -->
+<div class="modal-overlay" id="templateManageOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">テンプレート管理</span>
+      <button class="modal-close" id="templateManageCloseBtn">✕</button>
+    </div>
+    <div id="templateList"></div>
+    <div class="tpl-add-row">
+      <button class="btn primary" id="addTemplateBtn" style="width:100%;">＋ 新しいテンプレートを作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- テンプレート作成／編集モーダル -->
+<div class="modal-overlay" id="templateModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="templateModalTitle">新しいテンプレート</span>
+      <button class="modal-close" id="templateModalCloseBtn">✕</button>
+    </div>
+    <div class="field-group">
+      <div class="field-label">テンプレート名</div>
+      <input type="text" class="field-input" id="templateNameInput" maxlength="40" placeholder="例：ブログ記事用">
+    </div>
+    <div class="field-group">
+      <div class="field-label">テンプレート本文</div>
+      <textarea class="field-textarea mono" id="templateBodyInput" rows="10" placeholder="固定文面を書き、下書きを差し込みたい位置に {{下書き}} と入力してください。"></textarea>
+      <div class="field-hint">「{{下書き}}」の部分が、①で書いた下書き本文に置き換わります。</div>
+    </div>
+    <div class="field-error" id="templateFormError"></div>
+    <div class="modal-footer">
+      <button class="btn" id="templateCancelBtn">キャンセル</button>
+      <button class="btn primary" id="templateSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 削除確認ダイアログ -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions">
+      <button class="btn" id="confirmCancelBtn">キャンセル</button>
+      <button class="btn danger" id="confirmDeleteBtn">削除する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     IndexedDB レイヤー（SIDE-OPS制作資料 8章「定型パターン」に準拠）
+     DB: sideops_scribit
+       - templates : { id, name, body, createdAt }
+       - drafts    : { id, title, body, templateId, promptOutput, resultText, done, createdAt, updatedAt }
+  ===================================================================== */
+  const DB_NAME = 'sideops_scribit';
+  const DB_VERSION = 1;
+  const STORE_TEMPLATES = 'templates';
+  const STORE_DRAFTS = 'drafts';
+  let db = null;
+
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const _db = ev.target.result;
+        if (!_db.objectStoreNames.contains(STORE_TEMPLATES)) {
+          _db.createObjectStore(STORE_TEMPLATES, { keyPath: 'id' });
+        }
+        if (!_db.objectStoreNames.contains(STORE_DRAFTS)) {
+          _db.createObjectStore(STORE_DRAFTS, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function store(name, mode) { return db.transaction(name, mode).objectStore(name); }
+  function getAll(name) {
+    return new Promise((resolve, reject) => {
+      const req = store(name, 'readonly').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function put(name, value) {
+    return new Promise((resolve, reject) => {
+      const req = store(name, 'readwrite').put(value);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function del(name, id) {
+    return new Promise((resolve, reject) => {
+      const req = store(name, 'readwrite').delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /* ===================== state ===================== */
+  let templates = [];
+  let drafts = [];
+  let currentView = 'list'; // 'list' | 'edit'
+  let currentDraftId = null;
+  let editingTemplateId = null;
+  let deleteTarget = null; // { type: 'draft'|'template', id }
+  let autosaveTimer = null;
+
+  const PLACEHOLDER = '{{下書き}}';
+
+  /* ===================== DOM refs ===================== */
+  const listView = document.getElementById('listView');
+  const editView = document.getElementById('editView');
+  const addDraftBtn = document.getElementById('addDraftBtn');
+  const backToListBtn = document.getElementById('backToListBtn');
+
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+  const menuPanel = document.getElementById('menuPanel');
+  const menuItemTemplateManage = document.getElementById('menuItemTemplateManage');
+
+  const draftTitleInput = document.getElementById('draftTitleInput');
+  const draftStatusBadge = document.getElementById('draftStatusBadge');
+  const draftBodyInput = document.getElementById('draftBodyInput');
+  const templateSelect = document.getElementById('templateSelect');
+  const composePromptBtn = document.getElementById('composePromptBtn');
+  const promptOutput = document.getElementById('promptOutput');
+  const copyPromptBtn = document.getElementById('copyPromptBtn');
+  const resultInput = document.getElementById('resultInput');
+  const downloadMdBtn = document.getElementById('downloadMdBtn');
+  const deleteDraftBtn = document.getElementById('deleteDraftBtn');
+  const toggleDoneBtn = document.getElementById('toggleDoneBtn');
+  const saveIndicator = document.getElementById('saveIndicator');
+
+  const templateManageOverlay = document.getElementById('templateManageOverlay');
+  const templateManageCloseBtn = document.getElementById('templateManageCloseBtn');
+  const templateList = document.getElementById('templateList');
+  const addTemplateBtn = document.getElementById('addTemplateBtn');
+
+  const templateModalOverlay = document.getElementById('templateModalOverlay');
+  const templateModalTitle = document.getElementById('templateModalTitle');
+  const templateModalCloseBtn = document.getElementById('templateModalCloseBtn');
+  const templateNameInput = document.getElementById('templateNameInput');
+  const templateBodyInput = document.getElementById('templateBodyInput');
+  const templateFormError = document.getElementById('templateFormError');
+  const templateCancelBtn = document.getElementById('templateCancelBtn');
+  const templateSaveBtn = document.getElementById('templateSaveBtn');
+
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmMsg = document.getElementById('confirmMsg');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null;
+
+  /* ===================== ユーティリティ ===================== */
+  function showToast(msg, isError) {
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('is-error', !!isError);
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function genId() { return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); }
+  function formatDateTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function getTemplate(id) { return templates.find(t => t.id === id) || null; }
+  function getDraft(id) { return drafts.find(d => d.id === id) || null; }
+
+  /* ===================== 初期化 ===================== */
+  openDb().then(async (_db) => {
+    db = _db;
+    await loadAndRender();
+  }).catch((err) => {
+    console.error('SCRIBIT用DBの初期化に失敗しました', err);
+    listView.innerHTML = `<div class="empty-state">
+      <div class="big">保存機能を利用できません</div>
+      <div class="small">このブラウザ／モードではIndexedDBが利用できないため、下書きは保存されません。プライベートブラウジングモードなどをご確認ください。</div>
+    </div>`;
+  });
+
+  async function loadAndRender() {
+    try {
+      templates = await getAll(STORE_TEMPLATES);
+      drafts = await getAll(STORE_DRAFTS);
+    } catch (err) {
+      console.error('データ読み込みに失敗しました', err);
+      templates = []; drafts = [];
+    }
+    templates.sort((a, b) => a.createdAt - b.createdAt);
+    drafts.sort((a, b) => b.updatedAt - a.updatedAt);
+    renderListView();
+  }
+
+  /* =====================================================================
+     一覧ビュー
+  ===================================================================== */
+  function renderListView() {
+    if (drafts.length === 0) {
+      listView.innerHTML = `<div class="empty-state">
+        <div class="big">まだ下書きがありません</div>
+        <div class="small">右上の「＋ 新規下書き」から書き始めてください。プロンプトのテンプレートは「☰」メニューの「テンプレート管理」から作成できます。</div>
+      </div>`;
+      return;
+    }
+    const inProgress = drafts.filter(d => !d.done);
+    const done = drafts.filter(d => d.done);
+
+    let html = '';
+    if (inProgress.length > 0) {
+      html += '<div class="list-section-label">進行中</div>';
+      inProgress.forEach(d => { html += draftCardHtml(d); });
+    }
+    if (done.length > 0) {
+      html += '<div class="list-section-label">完了</div>';
+      done.forEach(d => { html += draftCardHtml(d); });
+    }
+    listView.innerHTML = html;
+
+    listView.querySelectorAll('.draft-card').forEach(card => {
+      const id = card.dataset.id;
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.dc-del')) return;
+        openEditView(id);
+      });
+      card.querySelector('.dc-del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        requestDeleteDraft(id);
+      });
+    });
+  }
+
+  function draftCardHtml(d) {
+    const title = d.title && d.title.trim() ? d.title : '（無題の下書き）';
+    return `
+      <div class="draft-card${d.done ? ' is-done' : ''}" data-id="${d.id}">
+        <span class="dc-status"></span>
+        <span class="dc-title">${escapeHtml(title)}</span>
+        <span class="dc-meta">${formatDateTime(d.updatedAt)}</span>
+        <button type="button" class="dc-del" title="削除">🗑</button>
+      </div>`;
+  }
+
+  addDraftBtn.addEventListener('click', async () => {
+    if (templates.length === 0) {
+      showToast('先に「☰」からテンプレートを作成してください', true);
+      return;
+    }
+    const draft = {
+      id: genId(), title: '', body: '', templateId: templates[0].id,
+      promptOutput: '', resultText: '', done: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    try {
+      await put(STORE_DRAFTS, draft);
+      drafts.unshift(draft);
+      openEditView(draft.id);
+    } catch (err) {
+      console.error('下書きの作成に失敗しました', err);
+      showToast('作成に失敗しました', true);
+    }
+  });
+
+  /* =====================================================================
+     編集ビュー
+  ===================================================================== */
+  function switchView(view) {
+    currentView = view;
+    listView.style.display = view === 'list' ? '' : 'none';
+    editView.style.display = view === 'edit' ? 'block' : 'none';
+  }
+
+  function populateTemplateSelect(preselectId) {
+    templateSelect.innerHTML = '';
+    templates.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.name;
+      templateSelect.appendChild(opt);
+    });
+    if (preselectId && getTemplate(preselectId)) templateSelect.value = preselectId;
+  }
+
+  function openEditView(draftId) {
+    const draft = getDraft(draftId);
+    if (!draft) return;
+    currentDraftId = draftId;
+
+    draftTitleInput.value = draft.title || '';
+    draftBodyInput.value = draft.body || '';
+    populateTemplateSelect(draft.templateId);
+    promptOutput.value = draft.promptOutput || '';
+    resultInput.value = draft.resultText || '';
+    updateStatusBadge(draft.done);
+    saveIndicator.textContent = '';
+
+    switchView('edit');
+  }
+
+  function updateStatusBadge(done) {
+    draftStatusBadge.textContent = done ? '完了' : '進行中';
+    draftStatusBadge.classList.toggle('is-done', !!done);
+    toggleDoneBtn.textContent = done ? '進行中に戻す' : '完了にする';
+  }
+
+  backToListBtn.addEventListener('click', () => {
+    currentDraftId = null;
+    switchView('list');
+    renderListView();
+  });
+
+  // ---- 自動保存：タイトル・本文・テンプレート選択・生成結果の変更を1秒デバウンスで保存 ----
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    saveIndicator.textContent = '編集中…';
+    autosaveTimer = setTimeout(saveCurrentDraft, 800);
+  }
+  async function saveCurrentDraft() {
+    const draft = getDraft(currentDraftId);
+    if (!draft) return;
+    draft.title = draftTitleInput.value;
+    draft.body = draftBodyInput.value;
+    draft.templateId = templateSelect.value;
+    draft.resultText = resultInput.value;
+    draft.updatedAt = Date.now();
+    try {
+      await put(STORE_DRAFTS, draft);
+      saveIndicator.textContent = '保存済み（' + formatDateTime(draft.updatedAt) + '）';
+    } catch (err) {
+      console.error('下書きの自動保存に失敗しました', err);
+      saveIndicator.textContent = '';
+      showToast('保存に失敗しました', true);
+    }
+  }
+  [draftTitleInput, draftBodyInput, resultInput].forEach(el => el.addEventListener('input', scheduleAutosave));
+  templateSelect.addEventListener('change', scheduleAutosave);
+  // 一覧へ戻る・タブを閉じる前に、デバウンス待ちの変更を取りこぼさない
+  backToListBtn.addEventListener('click', () => { clearTimeout(autosaveTimer); saveCurrentDraft(); }, { capture: true });
+  window.addEventListener('beforeunload', () => { if (currentDraftId) saveCurrentDraft(); });
+
+  /* =====================================================================
+     ② プロンプト合成
+  ===================================================================== */
+  composePromptBtn.addEventListener('click', () => {
+    const body = draftBodyInput.value.trim();
+    if (!body) {
+      showToast('①の下書き本文が空です', true);
+      return;
+    }
+    const tpl = getTemplate(templateSelect.value);
+    if (!tpl) {
+      showToast('テンプレートを選択してください', true);
+      return;
+    }
+    if (!tpl.body.includes(PLACEHOLDER)) {
+      showToast(`テンプレートに ${PLACEHOLDER} が含まれていません`, true);
+      return;
+    }
+    const composed = tpl.body.split(PLACEHOLDER).join(draftBodyInput.value);
+    promptOutput.value = composed;
+    copyPromptBtn.classList.remove('is-copied');
+    copyPromptBtn.textContent = 'コピー';
+
+    const draft = getDraft(currentDraftId);
+    if (draft) {
+      draft.promptOutput = composed;
+      draft.templateId = tpl.id;
+      draft.updatedAt = Date.now();
+      put(STORE_DRAFTS, draft).catch((err) => console.error('プロンプトの保存に失敗しました', err));
+    }
+  });
+
+  copyPromptBtn.addEventListener('click', async () => {
+    if (!promptOutput.value) return;
+    try {
+      await navigator.clipboard.writeText(promptOutput.value);
+    } catch (err) {
+      // クリップボードAPIが使えない環境向けのフォールバック
+      promptOutput.select();
+      document.execCommand('copy');
+    }
+    copyPromptBtn.textContent = 'コピーしました';
+    copyPromptBtn.classList.add('is-copied');
+    setTimeout(() => { copyPromptBtn.textContent = 'コピー'; copyPromptBtn.classList.remove('is-copied'); }, 1800);
+  });
+
+  /* =====================================================================
+     ④ .mdファイルとしてダウンロード
+  ===================================================================== */
+  function sanitizeFileName(name) {
+    // フールプルーフ：ファイル名に使えない文字（OS依存の禁則文字）を全角に置き換え、空なら既定名にする
+    const cleaned = String(name || '').trim().replace(/[\\/:*?"<>|]/g, '_');
+    return cleaned || '無題の下書き';
+  }
+  downloadMdBtn.addEventListener('click', () => {
+    const text = resultInput.value.trim();
+    if (!text) {
+      showToast('④の貼り付け欄が空です', true);
+      return;
+    }
+    const draft = getDraft(currentDraftId);
+    const title = sanitizeFileName(draftTitleInput.value);
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const fileName = `${title}_${dateStr}.md`;
+
+    const blob = new Blob([resultInput.value], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`${fileName} をダウンロードしました`);
+
+    if (draft) {
+      draft.resultText = resultInput.value;
+      draft.updatedAt = Date.now();
+      put(STORE_DRAFTS, draft).catch((err) => console.error('生成結果の保存に失敗しました', err));
+    }
+  });
+
+  /* ===================== 完了トグル・削除 ===================== */
+  toggleDoneBtn.addEventListener('click', async () => {
+    const draft = getDraft(currentDraftId);
+    if (!draft) return;
+    draft.done = !draft.done;
+    draft.updatedAt = Date.now();
+    try {
+      await put(STORE_DRAFTS, draft);
+      updateStatusBadge(draft.done);
+      showToast(draft.done ? '完了にしました' : '進行中に戻しました');
+    } catch (err) {
+      console.error('状態の更新に失敗しました', err);
+      draft.done = !draft.done;
+      showToast('保存に失敗しました', true);
+    }
+  });
+
+  deleteDraftBtn.addEventListener('click', () => requestDeleteDraft(currentDraftId));
+
+  function requestDeleteDraft(draftId) {
+    const draft = getDraft(draftId);
+    if (!draft) return;
+    const title = draft.title && draft.title.trim() ? draft.title : '（無題の下書き）';
+    deleteTarget = { type: 'draft', id: draftId };
+    confirmMsg.textContent = `下書き「${title}」を削除します。\nこの操作は取り消せません。`;
+    confirmOverlay.classList.add('is-open');
+  }
+
+  /* =====================================================================
+     テンプレート管理
+  ===================================================================== */
+  function tasksUsingTemplate(templateId) { return drafts.filter(d => d.templateId === templateId); }
+
+  function renderTemplateList() {
+    if (templates.length === 0) {
+      templateList.innerHTML = '<div class="field-hint">まだテンプレートがありません。下の「＋ 新しいテンプレートを作成」から作成してください。</div>';
+      return;
+    }
+    templateList.innerHTML = '';
+    templates.forEach(t => {
+      const count = tasksUsingTemplate(t.id).length;
+      const row = document.createElement('div');
+      row.className = 'tpl-row';
+      row.innerHTML = `
+        <span class="tpl-name">${escapeHtml(t.name)}</span>
+        <span class="tpl-count">${count}件で使用中</span>
+      `;
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✎'; editBtn.title = '編集';
+      editBtn.addEventListener('click', () => openTemplateModal(t.id));
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '🗑'; delBtn.title = '削除'; delBtn.className = 'tpl-del';
+      delBtn.addEventListener('click', () => requestDeleteTemplate(t.id));
+      row.appendChild(editBtn); row.appendChild(delBtn);
+      templateList.appendChild(row);
+    });
+  }
+
+  function openTemplateManage() {
+    closeMenu();
+    renderTemplateList();
+    templateManageOverlay.classList.add('is-open');
+  }
+  function closeTemplateManage() { templateManageOverlay.classList.remove('is-open'); }
+  menuItemTemplateManage.addEventListener('click', openTemplateManage);
+  templateManageCloseBtn.addEventListener('click', closeTemplateManage);
+  templateManageOverlay.addEventListener('click', (e) => { if (e.target === templateManageOverlay) closeTemplateManage(); });
+
+  function openTemplateModal(templateId) {
+    editingTemplateId = templateId || null;
+    templateFormError.classList.remove('is-shown');
+    if (templateId) {
+      const t = getTemplate(templateId);
+      if (!t) return;
+      templateModalTitle.textContent = 'テンプレートを編集';
+      templateNameInput.value = t.name;
+      templateBodyInput.value = t.body;
+    } else {
+      templateModalTitle.textContent = '新しいテンプレート';
+      templateNameInput.value = '';
+      templateBodyInput.value = `以下の下書きをもとに、記事を執筆してください。\n\n---\n${PLACEHOLDER}\n---\n`;
+    }
+    templateModalOverlay.classList.add('is-open');
+    setTimeout(() => templateNameInput.focus(), 30);
+  }
+  function closeTemplateModal() { templateModalOverlay.classList.remove('is-open'); }
+  addTemplateBtn.addEventListener('click', () => openTemplateModal(null));
+  templateModalCloseBtn.addEventListener('click', closeTemplateModal);
+  templateCancelBtn.addEventListener('click', closeTemplateModal);
+  templateModalOverlay.addEventListener('click', (e) => { if (e.target === templateModalOverlay) closeTemplateModal(); });
+
+  templateSaveBtn.addEventListener('click', async () => {
+    const name = templateNameInput.value.trim();
+    const body = templateBodyInput.value;
+    if (!name) {
+      templateFormError.textContent = 'テンプレート名を入力してください。';
+      templateFormError.classList.add('is-shown');
+      return;
+    }
+    if (!body.trim()) {
+      templateFormError.textContent = 'テンプレート本文を入力してください。';
+      templateFormError.classList.add('is-shown');
+      return;
+    }
+    // フールプルーフ：差し込み位置が無いテンプレートは、合成時に必ず失敗するので保存させない
+    if (!body.includes(PLACEHOLDER)) {
+      templateFormError.textContent = `本文の中に ${PLACEHOLDER} を1つ含めてください（下書きを差し込む位置です）。`;
+      templateFormError.classList.add('is-shown');
+      return;
+    }
+    templateFormError.classList.remove('is-shown');
+
+    const tpl = editingTemplateId ? getTemplate(editingTemplateId) : { id: genId(), createdAt: Date.now() };
+    if (!tpl) return;
+    tpl.name = name; tpl.body = body;
+
+    try {
+      await put(STORE_TEMPLATES, tpl);
+      if (!editingTemplateId) templates.push(tpl);
+      templates.sort((a, b) => a.createdAt - b.createdAt);
+      closeTemplateModal();
+      renderTemplateList();
+      if (currentView === 'edit') populateTemplateSelect(templateSelect.value);
+      showToast(editingTemplateId ? 'テンプレートを更新しました' : 'テンプレートを作成しました');
+    } catch (err) {
+      console.error('テンプレートの保存に失敗しました', err);
+      showToast('保存に失敗しました', true);
+    }
+  });
+
+  function requestDeleteTemplate(templateId) {
+    const t = getTemplate(templateId);
+    if (!t) return;
+    const count = tasksUsingTemplate(templateId).length;
+    if (templates.length <= 1) {
+      showToast('最後の1件のテンプレートは削除できません', true);
+      return;
+    }
+    deleteTarget = { type: 'template', id: templateId };
+    confirmMsg.textContent = count > 0
+      ? `テンプレート「${t.name}」を削除します。\nこのテンプレートを使用中の下書きが ${count}件 あります（下書き自体は削除されません。使用テンプレートが無効になります）。\nこの操作は取り消せません。`
+      : `テンプレート「${t.name}」を削除します。\nこの操作は取り消せません。`;
+    confirmOverlay.classList.add('is-open');
+  }
+
+  /* ===================== 削除確認（共通） ===================== */
+  function closeConfirm() { confirmOverlay.classList.remove('is-open'); deleteTarget = null; }
+  confirmCancelBtn.addEventListener('click', closeConfirm);
+  confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirm(); });
+
+  confirmDeleteBtn.addEventListener('click', async () => {
+    if (!deleteTarget) return;
+    const { type, id } = deleteTarget;
+    try {
+      if (type === 'draft') {
+        await del(STORE_DRAFTS, id);
+        drafts = drafts.filter(d => d.id !== id);
+        showToast('下書きを削除しました');
+        if (currentDraftId === id) { currentDraftId = null; switchView('list'); }
+      } else if (type === 'template') {
+        await del(STORE_TEMPLATES, id);
+        templates = templates.filter(t => t.id !== id);
+        showToast('テンプレートを削除しました');
+        renderTemplateList();
+        if (currentView === 'edit') populateTemplateSelect(templateSelect.value);
+      }
+    } catch (err) {
+      console.error('削除に失敗しました', err);
+      showToast('削除に失敗しました', true);
+    }
+    closeConfirm();
+    renderListView();
+  });
+
+  /* ===================== ハンバーガーメニュー ===================== */
+  function openMenu() { menuPanel.classList.add('is-open'); hamburgerBtn.classList.add('is-active'); }
+  function closeMenu() { menuPanel.classList.remove('is-open'); hamburgerBtn.classList.remove('is-active'); }
+  hamburgerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (menuPanel.classList.contains('is-open')) closeMenu(); else openMenu();
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-wrap') && menuPanel.classList.contains('is-open')) closeMenu();
+  });
+
+  /* ===================== キーボード：Escで最前面のモーダルを閉じる ===================== */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (confirmOverlay.classList.contains('is-open')) closeConfirm();
+    else if (templateModalOverlay.classList.contains('is-open')) closeTemplateModal();
+    else if (templateManageOverlay.classList.contains('is-open')) closeTemplateManage();
+  });
+})();
+</script>
+</body>
+</html>

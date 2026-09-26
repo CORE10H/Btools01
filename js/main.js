@@ -1038,6 +1038,7 @@
     { name: 'メモ', src: 'apps/memo.html', coverImg: 'apps/img/memo.jpg' },
     { name: 'Discotica', src: 'apps/discotica.html', coverImg: 'apps/img/discotica.jpg' },
     { name: 'DONE MORE', src: 'apps/done-more.html', coverImg: 'apps/img/done-more.jpg' },
+    { name: 'SCRIBIT', src: 'apps/scribit.html', coverImg: 'apps/img/scribit.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 
