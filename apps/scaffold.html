@@ -2,57 +2,1524 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>scaffold</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCAFFOLD</title>
+<!-- テーマブリッジ（本体テーマの追従。opt-in方式、apps/配下に実ファイルが揃った時点で機能する） -->
+<script src="sideops-theme-bridge.js" defer></script>
 <style>
+  /* ============================================================
+     デザイントークン（SIDE-OPS本体の基本色・派生色の許可リストに準拠）
+     sideops-theme-bridge.js が :root にこの変数を postMessage 経由
+     で上書きする。単体で直接開いた場合（親ウィンドウが無い）は
+     このデフォルト値（ダークテーマ相当）のまま何も起きない。
+     ============================================================ */
   :root {
-    --bg: #05070a; --panel: #0e1620; --line: #1e3038; --line-soft: #14212a;
-    --cyan: #00f0d0; --cyan-dim: #0a4a44; --text: #f5f9fa; --text-dim: #b8c4cc; --text-faint: #5c6b73;
-    --font-display: 'Rajdhani', sans-serif; --font-body: 'IBM Plex Sans JP', sans-serif;
-    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
-    --bg-rgb: 5, 7, 10;
-    --panel-rgb: 14, 22, 32;
-    --cyan-rgb: 0, 240, 208;
-    --magenta-rgb: 255, 47, 110;
-    --magenta-dim-rgb: 74, 15, 36;
-    --text-rgb: 245, 249, 250;
-    --scrim-rgb: 0, 0, 0;
-    --shadow-rgb: 0, 0, 0;
-    --on-accent: #000000;
+    --bg: #0b0e13;
+    --stage-bg: #0b0e13;
+    --panel: #161b23;
+    --panel-rgb: 22, 27, 35;
+    --line: rgba(255,255,255,0.08);
+    --cyan: #35e0d0;
+    --cyan-rgb: 53, 224, 208;
+    --on-accent: #06211f;
+    --text: #e8edf2;
+    --text-dim: #8a95a3;
+    --magenta: #ff5d5d;
+    --magenta-rgb: 255, 93, 93;
+    --amber: #ffb454;
+    --shadow: 0 8px 30px rgba(0,0,0,0.45);
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
-  .app-shell { height: 100%; display: flex; flex-direction: column; }
-  .app-bar {
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--stage-bg);
+    color: var(--text);
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+    min-height: 100%;
+  }
+
+  /* ---------- ヘッダー ---------- */
+  .app-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+    padding: 14px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 10;
   }
-  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; }
-  .app-bar .app-tag { font-size: 9px; letter-spacing: .1em; color: var(--text-faint); font-family: var(--font-display); border: 1px solid var(--line); padding: 2px 7px; }
-  .app-body {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    text-align: center; padding: 20px;
+  .app-header h1 {
+    font-size: 15px; letter-spacing: 0.08em; margin: 0;
+    font-weight: 600;
   }
-  .placeholder { color: var(--text-faint); display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .placeholder .big { font-family: var(--font-display); font-size: 13px; letter-spacing: .06em; color: var(--text-dim); }
-  .placeholder .small { font-size: 11px; max-width: 320px; line-height: 1.8; }
+  .app-header .badge {
+    font-size: 11px; color: var(--on-accent);
+    background: var(--cyan);
+    padding: 2px 8px; border-radius: 999px;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .header-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .icon-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* ---------- 一覧画面 ---------- */
+  .view { display: none; }
+  .view.is-active { display: block; }
+
+  .list-toolbar {
+    display: flex; gap: 10px; padding: 16px 20px 0;
+    align-items: center;
+  }
+  .list-toolbar input[type="text"] {
+    flex: 1; padding: 9px 12px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--line);
+    color: var(--text); font-size: 13px;
+  }
+  .btn-primary {
+    padding: 9px 16px; border-radius: 8px; border: none;
+    background: var(--cyan); color: var(--on-accent);
+    font-weight: 600; font-size: 13px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost {
+    padding: 9px 14px; border-radius: 8px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 13px; cursor: pointer;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+  .draft-grid {
+    display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 40px;
+    max-width: 720px; margin: 0 auto;
+  }
+  .draft-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 14px;
+    transition: border-color .15s ease;
+  }
+  .draft-card:hover { border-color: var(--cyan); }
+  .draft-card .thumb {
+    width: 128px; aspect-ratio: 16 / 9; border-radius: 10px; flex-shrink: 0;
+    background: var(--bg); border: 1px solid var(--line);
+    background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 22px;
+  }
+  .draft-card .card-body {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .draft-card .title {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .draft-card .title.is-empty { color: var(--text-dim); font-weight: 400; }
+  .status-row { display: flex; align-items: center; gap: 8px; }
+  .status-pill {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--text-dim);
+  }
+  .status-pill[data-stage="1"] { color: var(--text-dim); }
+  .status-pill[data-stage="2"] { color: var(--amber); border-color: rgba(255,180,84,0.35); }
+  .status-pill[data-stage="3"] { color: var(--cyan); border-color: rgba(53,224,208,0.35); }
+  .status-pill[data-stage="4"] { color: var(--text); border-color: rgba(255,255,255,0.2); }
+  .status-pill.is-complete { color: var(--on-accent); background: var(--cyan); border-color: var(--cyan); font-weight: 600; }
+  .draft-card .updated { font-size: 11px; color: var(--text-dim); }
+
+  .empty-state {
+    text-align: center; color: var(--text-dim); font-size: 13px;
+    padding: 60px 20px;
+  }
+
+  /* ---------- 編集画面 ---------- */
+  .editor-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .editor-header input[type="text"] {
+    flex: 1; background: transparent; border: none;
+    color: var(--text); font-size: 15px; font-weight: 600;
+    outline: none;
+  }
+  .editor-header input[type="text"]::placeholder { color: var(--text-dim); font-weight: 400; }
+
+  .cover-upload {
+    width: 78px; aspect-ratio: 16 / 9; border-radius: 8px; flex-shrink: 0;
+    background: var(--bg); border: 1px dashed var(--line);
+    background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 16px; cursor: pointer;
+    position: relative; overflow: hidden;
+  }
+  .cover-upload:hover { border-color: var(--cyan); color: var(--cyan); }
+  .cover-upload input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .cover-upload .clear-cover {
+    position: absolute; top: -2px; right: -2px; z-index: 2;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--magenta); color: #fff; font-size: 10px;
+    line-height: 16px; text-align: center; display: none;
+  }
+  .cover-upload.has-image .clear-cover { display: block; }
+
+  .phase-track {
+    display: flex; padding: 14px 20px 0; gap: 6px;
+  }
+  .phase-step {
+    flex: 1; text-align: center; font-size: 11px; color: var(--text-dim);
+    padding-bottom: 10px; border-bottom: 2px solid var(--line);
+    position: relative;
+  }
+  .phase-step .num {
+    display: inline-block; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--bg); border: 1px solid var(--line);
+    font-size: 10px; line-height: 16px; margin-right: 4px;
+  }
+  .phase-step.is-active { color: var(--cyan); border-bottom-color: var(--cyan); }
+  .phase-step.is-active .num { background: var(--cyan); color: var(--on-accent); border-color: var(--cyan); }
+  .phase-step.is-done { color: var(--text); }
+  .phase-step.is-done .num { background: rgba(53,224,208,0.15); border-color: var(--cyan); color: var(--cyan); }
+
+  .phase-body { padding: 20px; display: flex; flex-direction: column; gap: 22px; max-width: 900px; margin: 0 auto; }
+
+  .phase-block {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px;
+  }
+  .phase-block h2 {
+    font-size: 13px; margin: 0 0 4px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .phase-block h2 .num-badge {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--cyan); color: var(--on-accent);
+    font-size: 11px; line-height: 20px; text-align: center;
+    display: inline-block;
+  }
+  .phase-block .desc { font-size: 12px; color: var(--text-dim); margin: 0 0 14px; }
+
+  textarea {
+    width: 100%; min-height: 160px; resize: vertical;
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px; color: var(--text);
+    font-size: 13px; line-height: 1.7; font-family: inherit;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--cyan); }
+  textarea::placeholder { color: var(--text-dim); }
+
+  .save-indicator {
+    font-size: 11px; color: var(--text-dim); margin-top: 6px;
+    display: flex; align-items: center; gap: 5px; height: 14px;
+  }
+  .save-indicator .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--cyan);
+    opacity: 0; transition: opacity .2s ease;
+  }
+  .save-indicator.is-saving .dot { opacity: 1; }
+
+  .template-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .template-row select {
+    flex: 1; padding: 9px 10px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--line);
+    color: var(--text); font-size: 13px;
+  }
+
+  .prompt-output {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.7;
+    color: var(--text-dim); max-height: 220px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .prompt-output.has-content { color: var(--text); }
+
+  .action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* ---------- ③ パース結果カード ---------- */
+  .parse-empty {
+    font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0;
+  }
+  .parse-warning {
+    font-size: 12px; color: var(--amber); background: rgba(255,180,84,0.08);
+    border: 1px solid rgba(255,180,84,0.3); border-radius: 8px;
+    padding: 8px 12px; margin-bottom: 12px;
+  }
+  .field-card {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px; margin-bottom: 10px;
+  }
+  .field-card .field-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .field-card .field-name { font-size: 12px; font-weight: 600; color: var(--cyan); }
+  .field-card .field-count { font-size: 11px; color: var(--text-dim); }
+  .field-card .field-body {
+    font-size: 12px; line-height: 1.7; color: var(--text);
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 140px; overflow-y: auto;
+  }
+  .copy-btn {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+  .copy-btn.is-copied { color: var(--cyan); border-color: var(--cyan); }
+
+  .charbook-item {
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px; margin-bottom: 8px; background: rgba(255,255,255,0.02);
+  }
+  .charbook-item .tag-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .charbook-item .tag-body { font-size: 12px; color: var(--text-dim); margin-top: 4px; white-space: pre-wrap; }
+  .charbook-item.is-untagged { border-color: rgba(255,180,84,0.35); }
+  .charbook-item.is-untagged .tag-name { color: var(--amber); }
+
+  .banword-count { font-size: 11px; color: var(--text-dim); }
+
+  /* ---------- 削除確認モーダル（簡易） ---------- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal-box {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; width: 320px;
+    box-shadow: var(--shadow);
+  }
+  .modal-box p { font-size: 13px; line-height: 1.6; margin: 0 0 16px; }
+  .modal-box .row { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-danger {
+    padding: 8px 14px; border-radius: 8px; border: none;
+    background: var(--magenta); color: #fff; font-size: 13px; cursor: pointer;
+  }
+  .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---------- テンプレート管理モーダル ---------- */
+  .tpl-modal-box {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; width: 480px; max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 80px); display: flex; flex-direction: column;
+    box-shadow: var(--shadow);
+  }
+  .tpl-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+  }
+  .tpl-modal-head h3 { margin: 0; font-size: 14px; }
+  .tpl-modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; }
+
+  .tpl-list-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px; border: 1px solid var(--line); border-radius: 8px;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .tpl-list-item:hover { border-color: var(--cyan); }
+  .tpl-list-item .tpl-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .tpl-list-item .tpl-preview {
+    font-size: 11px; color: var(--text-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 160px;
+  }
+
+  .tpl-edit-field { margin-bottom: 14px; }
+  .tpl-edit-field label {
+    display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
+  }
+  .tpl-edit-field input[type="text"] {
+    width: 100%; padding: 9px 10px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--line);
+    color: var(--text); font-size: 13px; outline: none;
+  }
+  .tpl-edit-field input[type="text"]:focus { border-color: var(--cyan); }
+  .tpl-edit-field textarea { min-height: 220px; }
+  .tpl-error {
+    font-size: 12px; color: var(--magenta); margin-top: 6px; display: none;
+  }
+  .tpl-error.is-shown { display: block; }
+  .tpl-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
+  .tpl-modal-foot {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 12px 16px; border-top: 1px solid var(--line);
+  }
+  .tpl-modal-foot .left-actions, .tpl-modal-foot .right-actions {
+    display: flex; gap: 8px;
+  }
+  #tplViewEdit.is-hidden, #tplViewList.is-hidden { display: none; }
+
+  .footer-note {
+    text-align: center; font-size: 11px; color: var(--text-dim);
+    padding: 6px 0 30px;
+  }
 </style>
-<script src="sideops-theme-bridge.js"></script>
 </head>
 <body>
-<div class="app-shell">
-  <div class="app-bar">
-    <span class="app-title">// SCAFFOLD</span>
-    <span class="app-tag">既存アプリ統合予定</span>
+
+<!-- ============ ヘッダー ============ -->
+<header class="app-header">
+  <h1 id="headerTitle">SCAFFOLD<span class="badge">モック</span></h1>
+  <div class="header-actions">
+    <button class="icon-btn" id="btnBackToList" title="一覧へ戻る" style="display:none;">←</button>
   </div>
-  <div class="app-body">
-    <div class="placeholder">
-      <div class="big">SCAFFOLD — 未接続</div>
-      <div class="small">既存の scaffold アプリをこの枠に統合予定です。実ファイルが用意でき次第、iframeのsrcをこのファイルから差し替えます。</div>
+</header>
+
+<!-- ============ 画面1：一覧 ============ -->
+<section class="view is-active" id="viewList">
+  <div class="list-toolbar">
+    <input type="text" id="searchInput" placeholder="タイトルで検索…">
+    <button class="btn-primary" id="btnNewDraft">＋ 新規下書き</button>
+  </div>
+  <div class="draft-grid" id="draftGrid"></div>
+</section>
+
+<!-- ============ 画面2：編集 ============ -->
+<section class="view" id="viewEditor">
+  <div class="editor-header">
+    <div class="cover-upload" id="coverUpload" title="カバー画像を設定（任意）">
+      <span id="coverPlaceholder">🖼</span>
+      <input type="file" id="coverFileInput" accept="image/*">
+      <span class="clear-cover" id="btnClearCover" title="カバー画像を削除">✕</span>
+    </div>
+    <input type="text" id="draftTitleInput" placeholder="（無題の下書き）">
+    <button class="icon-btn" id="btnDeleteDraft" title="この下書きを削除">🗑</button>
+  </div>
+
+  <div class="phase-track">
+    <div class="phase-step" id="stepTab1" data-stage="1"><span class="num">1</span>骨子入力</div>
+    <div class="phase-step" id="stepTab2" data-stage="2"><span class="num">2</span>プロンプト生成</div>
+    <div class="phase-step" id="stepTab3" data-stage="3"><span class="num">3</span>分別・整形</div>
+    <div class="phase-step" id="stepTab4" data-stage="4"><span class="num">4</span>清書・本棚入り</div>
+  </div>
+
+  <div class="phase-body">
+
+    <!-- ① 骨子入力 -->
+    <div class="phase-block">
+      <h2><span class="num-badge">1</span>骨子を書く</h2>
+      <p class="desc">主人公・目標・舞台・ジャンル・現状や対立・視点・脇役など、思いついたことをラフに書いてください。整った文章でなくて大丈夫です。</p>
+      <textarea id="skeletonInput" placeholder="例）
+主人公：訳あって田舎に流れてきた元剣士
+目標：正体を隠して静かに暮らしたい
+舞台：辺境の小さな町
+ジャンル：ハートフル×ちょっとダーク
+現状：町長の娘に正体を疑われ始めている
+視点：主人公一人称
+脇役：口の悪い宿屋の女将"></textarea>
+      <div class="save-indicator" id="saveIndicator1"><span class="dot"></span><span class="label">保存済み</span></div>
+    </div>
+
+    <!-- ② プロンプト生成 -->
+    <div class="phase-block">
+      <h2><span class="num-badge">2</span>プロンプトを合成する</h2>
+      <p class="desc">テンプレートを選び「合成する」を押すと、①の骨子を実用段階まで引き上げてもらうための完成プロンプトを生成します。外部LLM（Claude・ChatGPT等）に貼り付けてください。</p>
+      <div class="template-row">
+        <select id="templateSelect">
+          <option>標準テンプレート（骨子肉付け＋AIのべりすと形式出力）</option>
+        </select>
+        <button class="btn-ghost" id="btnManageTemplates">テンプレート管理</button>
+      </div>
+      <button class="btn-primary" id="btnSynthesize">合成する</button>
+      <div class="prompt-output" id="promptOutput" style="margin-top:12px;">（まだ合成されていません）</div>
+      <div class="action-row">
+        <button class="btn-ghost" id="btnCopyPrompt">📋 プロンプトをコピー</button>
+      </div>
+    </div>
+
+    <!-- ③ パース＆分別表示 -->
+    <div class="phase-block">
+      <h2><span class="num-badge">3</span>AIのべりすと形式に分別する</h2>
+      <p class="desc">外部LLMの出力をそのまま貼り付けてください。脚注・メモリ・キャラクターブック・禁止ワードの各欄に自動で分別します。</p>
+      <textarea id="pasteInput" placeholder="外部LLMの出力をここに貼り付け…" style="min-height:100px;"></textarea>
+      <button class="btn-primary" id="btnParse" style="margin-top:10px;">分別する</button>
+
+      <div id="parseResultArea" style="margin-top:16px;">
+        <div class="parse-empty">まだ分別されていません</div>
+      </div>
+    </div>
+
+    <!-- ④ 清書貼り付け -->
+    <div class="phase-block">
+      <h2><span class="num-badge">4</span>清書を貼り付ける</h2>
+      <p class="desc">AIのべりすとで実際に生成した本文を貼り付けてください。公開前の手直しはこの欄で直接編集できます。編集内容は自動保存されます。</p>
+      <textarea id="finalTextInput" placeholder="AIのべりすとで生成した本文をここに貼り付け…" style="min-height:240px;"></textarea>
+      <div class="save-indicator" id="saveIndicator4"><span class="dot"></span><span class="label">保存済み</span></div>
+      <div class="action-row">
+        <span style="font-size:11px; color: var(--text-dim);" id="finalTextCount">0文字</span>
+      </div>
+      <div class="action-row" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+        <button class="btn-primary" id="btnMarkComplete">✓ 完了にする</button>
+        <button class="btn-ghost" id="btnUnmarkComplete" style="display:none;">完了を取り消す</button>
+        <span id="completeBadgeNote" style="font-size:11px; color: var(--text-dim); align-self:center; display:none;">この作品は「完了」としてマークされています</span>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="footer-note">SCAFFOLD（叩き台モック）— データ永続化・テーマブリッジ接続は未実装</p>
+</section>
+
+<!-- ============ 削除確認モーダル ============ -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal-box">
+    <p>この下書きを削除しますか？<br>この操作は取り消せません。</p>
+    <div class="row">
+      <button class="btn-ghost" id="btnCancelDelete">キャンセル</button>
+      <button class="btn-danger" id="btnConfirmDelete">削除する</button>
     </div>
   </div>
 </div>
+
+<!-- ============ テンプレート管理モーダル ============ -->
+<div class="modal-overlay" id="tplModal">
+  <div class="tpl-modal-box">
+
+    <!-- テンプレート一覧ビュー -->
+    <div id="tplViewList">
+      <div class="tpl-modal-head">
+        <h3>テンプレート管理</h3>
+        <button class="icon-btn" id="btnCloseTplModal" title="閉じる">✕</button>
+      </div>
+      <div class="tpl-modal-body" id="tplListBody"></div>
+      <div class="tpl-modal-foot">
+        <div class="left-actions"></div>
+        <div class="right-actions">
+          <button class="btn-primary" id="btnNewTemplate">＋ 新規テンプレート</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- テンプレート編集ビュー -->
+    <div id="tplViewEdit" class="is-hidden">
+      <div class="tpl-modal-head">
+        <h3 id="tplEditHeading">テンプレートを編集</h3>
+        <button class="icon-btn" id="btnCloseTplEdit" title="一覧へ戻る">←</button>
+      </div>
+      <div class="tpl-modal-body">
+        <div class="tpl-edit-field">
+          <label>テンプレート名</label>
+          <input type="text" id="tplNameInput" placeholder="例：ダーク寄り肉付けテンプレート">
+        </div>
+        <div class="tpl-edit-field">
+          <label>本文（<code>{{骨子}}</code> を1箇所含めてください）</label>
+          <textarea id="tplBodyInput" placeholder="{{骨子}}"></textarea>
+          <div class="tpl-error" id="tplBodyError">本文に <code>{{骨子}}</code> が含まれていません。差し込み位置を1箇所含めてください。</div>
+          <div class="tpl-hint">合成時、この本文の末尾に固定のフォーマット指定ブロック（編集不可）が自動で連結されます。</div>
+        </div>
+      </div>
+      <div class="tpl-modal-foot">
+        <div class="left-actions">
+          <button class="btn-danger" id="btnDeleteTemplate">削除する</button>
+        </div>
+        <div class="right-actions">
+          <button class="btn-ghost" id="btnCancelTplEdit">キャンセル</button>
+          <button class="btn-primary" id="btnSaveTemplate">保存する</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ テンプレート削除確認モーダル ============ -->
+<div class="modal-overlay" id="tplDeleteModal">
+  <div class="modal-box">
+    <p id="tplDeleteMessage">このテンプレートを削除しますか？</p>
+    <div class="row">
+      <button class="btn-ghost" id="btnCancelTplDelete">キャンセル</button>
+      <button class="btn-danger" id="btnConfirmTplDelete">削除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   SCAFFOLD 本実装
+   IndexedDB本実装（sideops_scaffold）。entries（下書き）・templates（テンプレート）
+   の2ストア構成。IndexedDB実装パターン仕様書の定型（DB初期化Promiseラッパー、
+   CRUD最小セット、初期化〜初回描画〜フォールバック）に準拠。
+   ========================================================================== */
+
+// ---------------------------------------------------------------
+// DB初期化
+// ---------------------------------------------------------------
+const DB_NAME = 'sideops_scaffold';
+const DB_VERSION = 1;
+const STORE_ENTRIES = 'entries';
+const STORE_TEMPLATES = 'templates';
+let db = null;
+
+function scaffoldOpenDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (ev) => {
+      const _db = ev.target.result;
+      if (!_db.objectStoreNames.contains(STORE_ENTRIES)) {
+        _db.createObjectStore(STORE_ENTRIES, { keyPath: 'id' });
+      }
+      if (!_db.objectStoreNames.contains(STORE_TEMPLATES)) {
+        _db.createObjectStore(STORE_TEMPLATES, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function scaffoldStore(name, mode) {
+  const tx = db.transaction(name, mode);
+  return tx.objectStore(name);
+}
+function scaffoldGetAll(name) {
+  return new Promise((resolve, reject) => {
+    const req = scaffoldStore(name, 'readonly').getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+function scaffoldPut(name, value) {
+  return new Promise((resolve, reject) => {
+    const req = scaffoldStore(name, 'readwrite').put(value);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+function scaffoldDelete(name, id) {
+  return new Promise((resolve, reject) => {
+    const req = scaffoldStore(name, 'readwrite').delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ---- 初期テンプレート（初回起動時のみ投入。最後の1件は削除不可の起点） ----
+const DEFAULT_TEMPLATE_BODY = `以下はある物語のラフな骨子メモです。この骨子を、AIのべりすと（日本語小説生成AI）で使える水準まで具体的に肉付けしてください。
+矛盾のない設定、キャラクターの一貫した口調、舞台の具体的なディテールを補ってください。
+
+【骨子メモ】
+{{骨子}}`;
+
+function makeDefaultTemplate() {
+  return { id: 'tpl_default', name: '標準テンプレート（骨子肉付け＋AIのべりすと形式出力）', body: DEFAULT_TEMPLATE_BODY, createdAt: Date.now() };
+}
+
+// ---------------------------------------------------------------
+// アプリ状態（メモリ上のキャッシュ。DBが唯一の正、これは表示用の写し）
+// ---------------------------------------------------------------
+let drafts = [];
+let templates = [];
+let currentDraftId = null;
+
+// ---- ①〜⑤の見出し名（③パースの契約。ハードコード） ----
+const SECTION_NAMES = ['FOOTNOTE', 'MEMORY', 'CHARACTERBOOK', 'BANWORDS', 'NOTES'];
+const SECTION_LABELS = {
+  FOOTNOTE: '脚注', MEMORY: 'メモリ', CHARACTERBOOK: 'キャラクターブック',
+  BANWORDS: '禁止ワード', NOTES: '備考（アプリ外メモ）'
+};
+
+// ---- 固定フォーマット指定ブロック（テンプレートには含めず、合成時に必ず末尾連結。B案） ----
+const FORMAT_INSTRUCTION_BLOCK = `
+---
+【出力フォーマット指定（厳守）】
+以下の見出し構成のMarkdownで出力してください。見出し文字列は改変しないでください。
+## FOOTNOTE
+（脚注に入れる内容）
+## MEMORY
+（メモリに入れる内容）
+## CHARACTERBOOK
+（キャラクターが複数いる場合は次の形式で区切って列挙。1人もいない場合はこのセクション自体を省略可）
+TAG: キャラクター名
+（説明文）
+@priority 3
+---
+TAG: 次のキャラクター名
+（説明文）
+## BANWORDS
+（禁止したい単語。改行区切りで列挙）
+## NOTES
+（上記に入らない補足があれば自由に記述。無ければ「特になし」）
+`.trim();
+
+const els = {};
+['viewList','viewEditor','draftGrid','searchInput','btnNewDraft','btnBackToList',
+ 'headerTitle','draftTitleInput','btnDeleteDraft','skeletonInput','saveIndicator1',
+ 'templateSelect','btnSynthesize','promptOutput','btnCopyPrompt','pasteInput','btnParse',
+ 'parseResultArea','deleteModal','btnCancelDelete','btnConfirmDelete',
+ 'stepTab1','stepTab2','stepTab3','stepTab4',
+ 'coverUpload','coverPlaceholder','coverFileInput','btnClearCover',
+ 'finalTextInput','saveIndicator4','finalTextCount',
+ 'btnMarkComplete','btnUnmarkComplete','completeBadgeNote',
+ 'btnManageTemplates',
+ 'tplModal','tplViewList','tplViewEdit','tplListBody','btnCloseTplModal','btnNewTemplate',
+ 'tplEditHeading','tplNameInput','tplBodyInput','tplBodyError','btnDeleteTemplate',
+ 'btnCancelTplEdit','btnSaveTemplate','btnCloseTplEdit',
+ 'tplDeleteModal','tplDeleteMessage','btnCancelTplDelete','btnConfirmTplDelete'
+].forEach(id => els[id] = document.getElementById(id));
+
+// ---------------------------------------------------------------
+// 一覧描画
+// ---------------------------------------------------------------
+function renderList(filter) {
+  const q = (filter || '').trim().toLowerCase();
+  const filtered = drafts.filter(d => !q || (d.title || '').toLowerCase().includes(q));
+  els.draftGrid.innerHTML = '';
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = drafts.length === 0
+      ? '下書きがまだありません。「＋ 新規下書き」から始めましょう。'
+      : '該当する下書きが見つかりません。';
+    els.draftGrid.appendChild(empty);
+    return;
+  }
+
+  // 更新日時の新しい順に並べる
+  filtered.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  filtered.forEach(d => {
+    const card = document.createElement('div');
+    card.className = 'draft-card';
+    card.dataset.id = d.id;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    if (d.coverImage) {
+      thumb.style.backgroundImage = `url("${d.coverImage}")`;
+    } else {
+      thumb.textContent = '📄'; // カバー画像未設定時のプレースホルダー
+    }
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const title = document.createElement('div');
+    title.className = 'title' + (d.title ? '' : ' is-empty');
+    title.textContent = d.title || '（無題の下書き）';
+
+    const statusRow = document.createElement('div');
+    statusRow.className = 'status-row';
+    const pill = document.createElement('span');
+    pill.className = 'status-pill' + (d.isComplete ? ' is-complete' : '');
+    pill.dataset.stage = String(d.stage);
+    pill.textContent = d.isComplete
+      ? '完了'
+      : (d.stage === 1 ? '①下書き中' : d.stage === 2 ? '②生成待ち' : d.stage === 3 ? '③分別済み' : '④推敲中');
+    statusRow.appendChild(pill);
+
+    const updated = document.createElement('div');
+    updated.className = 'updated';
+    updated.textContent = '更新: ' + formatRelativeTime(d.updatedAt);
+
+    body.appendChild(title);
+    body.appendChild(statusRow);
+    body.appendChild(updated);
+
+    card.appendChild(thumb);
+    card.appendChild(body);
+    card.addEventListener('click', () => openEditor(d.id));
+    els.draftGrid.appendChild(card);
+  });
+}
+
+function formatRelativeTime(ts) {
+  const diffMs = Date.now() - ts;
+  const h = Math.floor(diffMs / 3600_000);
+  if (h < 1) return 'たった今';
+  if (h < 24) return h + '時間前';
+  const d = Math.floor(h / 24);
+  return d + '日前';
+}
+
+// ---------------------------------------------------------------
+// テンプレート選択欄の描画
+// ---------------------------------------------------------------
+function renderTemplateOptions(selectedId) {
+  els.templateSelect.innerHTML = '';
+
+  const isUnselected = !selectedId || !templates.some(t => t.id === selectedId);
+  if (isUnselected) {
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '（テンプレート未選択 — 選んでください）';
+    els.templateSelect.appendChild(placeholder);
+  }
+
+  templates.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.name;
+    els.templateSelect.appendChild(opt);
+  });
+
+  els.templateSelect.value = isUnselected ? '' : selectedId;
+}
+
+// ---------------------------------------------------------------
+// 一覧 ⇔ 編集画面 切り替え
+// ---------------------------------------------------------------
+function openEditor(id) {
+  currentDraftId = id;
+  const d = drafts.find(x => x.id === id);
+  if (!d) return;
+
+  els.draftTitleInput.value = d.title || '';
+  els.skeletonInput.value = d.skeleton || '';
+  updateCoverDisplay(d.coverImage);
+  els.finalTextInput.value = d.finalText || '';
+  updateFinalTextCount();
+  updateCompleteUI(d.isComplete);
+
+  renderTemplateOptions(d.templateId);
+  els.promptOutput.textContent = d.prompt || '（まだ合成されていません）';
+  els.promptOutput.classList.toggle('has-content', !!d.prompt);
+  els.pasteInput.value = d.pasted || '';
+
+  updatePhaseTrack(d.stage);
+  renderParseResult(d.pasted);
+
+  els.viewList.classList.remove('is-active');
+  els.viewEditor.classList.add('is-active');
+  els.btnBackToList.style.display = 'inline-flex';
+}
+
+function backToList() {
+  els.viewEditor.classList.remove('is-active');
+  els.viewList.classList.add('is-active');
+  els.btnBackToList.style.display = 'none';
+  currentDraftId = null;
+  renderList(els.searchInput.value);
+}
+
+function updatePhaseTrack(stage) {
+  [els.stepTab1, els.stepTab2, els.stepTab3, els.stepTab4].forEach((el, idx) => {
+    const n = idx + 1;
+    el.classList.toggle('is-active', n === stage);
+    el.classList.toggle('is-done', n < stage);
+  });
+}
+
+// ---------------------------------------------------------------
+// 永続化ヘルパー：個別下書きの保存（失敗を個別に握り、ループ全体を落とさない）
+// ---------------------------------------------------------------
+async function persistDraft(d) {
+  try {
+    await scaffoldPut(STORE_ENTRIES, d);
+  } catch (err) {
+    console.error('SCAFFOLD: 下書きの保存に失敗しました', err);
+  }
+}
+
+function getCurrentDraft() {
+  return drafts.find(x => x.id === currentDraftId) || null;
+}
+
+// ---------------------------------------------------------------
+// ① 骨子：デバウンス自動保存（600ms、メモアプリと同方式）
+//    保存処理はPromiseチェーンで直列化し、連続入力による多重実行を防止する。
+// ---------------------------------------------------------------
+let saveTimer = null;
+let saveChain1 = Promise.resolve();
+function scheduleAutoSave() {
+  if (!currentDraftId) return;
+  els.saveIndicator1.classList.add('is-saving');
+  els.saveIndicator1.querySelector('.label').textContent = '保存中…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveChain1 = saveChain1.then(async () => {
+      const d = getCurrentDraft();
+      if (!d) return;
+      d.skeleton = els.skeletonInput.value;
+      d.updatedAt = Date.now();
+      if (d.stage < 1) d.stage = 1;
+      await persistDraft(d);
+      els.saveIndicator1.classList.remove('is-saving');
+      els.saveIndicator1.querySelector('.label').textContent = '保存済み';
+    });
+  }, 600);
+}
+els.skeletonInput.addEventListener('input', scheduleAutoSave);
+
+// タイトル編集も即時保存（軽量データのためデバウンス不要）
+let titleSaveTimer = null;
+els.draftTitleInput.addEventListener('input', () => {
+  if (!currentDraftId) return;
+  const d = getCurrentDraft();
+  if (!d) return;
+  d.title = els.draftTitleInput.value;
+  d.updatedAt = Date.now();
+  clearTimeout(titleSaveTimer);
+  titleSaveTimer = setTimeout(() => persistDraft(d), 400);
+});
+
+// ---------------------------------------------------------------
+// ④ 清書：デバウンス自動保存（①と同方式）。編集可能・公開前の手直し用途。
+// ---------------------------------------------------------------
+let saveTimer4 = null;
+let saveChain4 = Promise.resolve();
+function updateFinalTextCount() {
+  els.finalTextCount.textContent = els.finalTextInput.value.length + '文字';
+}
+function scheduleAutoSaveFinal() {
+  if (!currentDraftId) return;
+  els.saveIndicator4.classList.add('is-saving');
+  els.saveIndicator4.querySelector('.label').textContent = '保存中…';
+  updateFinalTextCount();
+  clearTimeout(saveTimer4);
+  saveTimer4 = setTimeout(() => {
+    saveChain4 = saveChain4.then(async () => {
+      const d = getCurrentDraft();
+      if (!d) return;
+      d.finalText = els.finalTextInput.value;
+      d.updatedAt = Date.now();
+      // ④は「清書を貼り付けた」ことをもって推敲中とする（後戻り可・空にすれば③へ戻ることはしない＝誤操作で進捗が消えるのを防ぐ）
+      if (d.finalText.trim() && d.stage < 4) d.stage = 4;
+      updatePhaseTrack(d.stage);
+      await persistDraft(d);
+      els.saveIndicator4.classList.remove('is-saving');
+      els.saveIndicator4.querySelector('.label').textContent = '保存済み';
+    });
+  }, 600);
+}
+els.finalTextInput.addEventListener('input', scheduleAutoSaveFinal);
+
+// 閉じる操作（一覧へ戻る）の際は、デバウンス待機中の変更を即座にflush（取りこぼし防止）
+function flushPendingSaves() {
+  clearTimeout(saveTimer);
+  clearTimeout(saveTimer4);
+  clearTimeout(titleSaveTimer);
+  const d = getCurrentDraft();
+  if (!d) return Promise.resolve();
+  d.skeleton = els.skeletonInput.value;
+  d.finalText = els.finalTextInput.value;
+  d.title = els.draftTitleInput.value;
+  if (d.finalText.trim() && d.stage < 4) d.stage = 4;
+  if (d.skeleton.trim() && d.stage < 1) d.stage = 1;
+  return persistDraft(d);
+}
+
+// beforeunload：保存待ち中にページ離脱しようとした場合、ブラウザ標準の確認ダイアログを表示
+window.addEventListener('beforeunload', (ev) => {
+  const pendingSave = saveTimer || saveTimer4 || titleSaveTimer;
+  if (pendingSave) {
+    ev.preventDefault();
+    ev.returnValue = '';
+  }
+});
+
+// ---------------------------------------------------------------
+// ② プロンプト合成（B案：フォーマット指定は固定ブロックとして末尾連結）
+// ---------------------------------------------------------------
+els.templateSelect.addEventListener('change', () => {
+  const d = getCurrentDraft();
+  if (!d) return;
+  d.templateId = els.templateSelect.value || null;
+  d.updatedAt = Date.now();
+  persistDraft(d);
+});
+
+els.btnSynthesize.addEventListener('click', async () => {
+  if (!currentDraftId) return;
+  const d = getCurrentDraft();
+  if (!d) return;
+
+  const skeleton = (d.skeleton || '').trim();
+  if (!skeleton) {
+    alert('①の骨子が空です。先に骨子を入力してください。');
+    return;
+  }
+
+  const selectedTplId = els.templateSelect.value;
+  if (!selectedTplId) {
+    alert('テンプレートが選択されていません。テンプレートを選んでください。');
+    return;
+  }
+  const tpl = templates.find(t => t.id === selectedTplId);
+  if (!tpl) {
+    alert('選択中のテンプレートが見つかりません。テンプレート管理から作成してください。');
+    return;
+  }
+
+  const body = tpl.body.replace('{{骨子}}', skeleton);
+  const finalPrompt = body + '\n\n' + FORMAT_INSTRUCTION_BLOCK;
+
+  d.prompt = finalPrompt;
+  d.templateId = tpl.id;
+  d.updatedAt = Date.now();
+  if (d.stage < 2) d.stage = 2;
+  await persistDraft(d);
+
+  els.promptOutput.textContent = finalPrompt;
+  els.promptOutput.classList.add('has-content');
+  updatePhaseTrack(d.stage);
+});
+
+els.btnCopyPrompt.addEventListener('click', () => {
+  const d = getCurrentDraft();
+  if (!d || !d.prompt) return;
+  copyToClipboard(d.prompt, els.btnCopyPrompt);
+});
+
+function copyToClipboard(text, btnEl) {
+  const done = () => {
+    if (!btnEl) return;
+    const original = btnEl.textContent;
+    btnEl.classList.add('is-copied');
+    btnEl.textContent = '✓ コピーしました';
+    setTimeout(() => { btnEl.classList.remove('is-copied'); btnEl.textContent = original; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch (e) { /* 握りつぶし、画面は壊さない */ }
+  document.body.removeChild(ta);
+  cb();
+}
+
+// ---------------------------------------------------------------
+// ③ パース処理（案B：---区切り＋TAG:ラベル、フォールバック付き）
+// ---------------------------------------------------------------
+els.btnParse.addEventListener('click', async () => {
+  if (!currentDraftId) return;
+  const d = getCurrentDraft();
+  if (!d) return;
+
+  const raw = els.pasteInput.value;
+  if (!raw.trim()) {
+    alert('貼り付け欄が空です。外部LLMの出力を貼り付けてください。');
+    return;
+  }
+
+  d.pasted = raw;
+  d.updatedAt = Date.now();
+  if (d.stage < 3) d.stage = 3;
+  await persistDraft(d);
+  updatePhaseTrack(d.stage);
+  renderParseResult(raw);
+});
+
+function parseSections(raw) {
+  // 見出し `## NAME` で分割。見出し名は SECTION_NAMES のみ認識。
+  const result = {};
+  const re = /^##\s*([A-Z]+)\s*$/gm;
+  const matches = [...raw.matchAll(re)];
+
+  if (matches.length === 0) {
+    return { ok: false, sections: {}, unrecognized: raw };
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const name = matches[i][1];
+    if (!SECTION_NAMES.includes(name)) continue; // 未知の見出しはスキップ（落とさない）
+    const start = matches[i].index + matches[i][0].length;
+    const end = (i + 1 < matches.length) ? matches[i + 1].index : raw.length;
+    result[name] = raw.slice(start, end).trim();
+  }
+  return { ok: true, sections: result, unrecognized: null };
+}
+
+function parseCharacterBook(text) {
+  // ---区切り。各ブロックの TAG: 行を抽出。見つからなければ未タグとしてフォールバック表示。
+  if (!text || !text.trim()) return [];
+  const blocks = text.split(/^\s*-{3,}\s*$/m).map(b => b.trim()).filter(Boolean);
+  return blocks.map(block => {
+    const m = block.match(/^TAG:\s*(.+)$/m);
+    if (m) {
+      const tag = m[1].trim();
+      const body = block.replace(/^TAG:\s*.+$/m, '').trim();
+      return { tag, body, isUntagged: false };
+    }
+    // TAG: が見つからない → フォールバックで生テキストのまま1件表示
+    return { tag: '（タグ未検出）', body: block, isUntagged: true };
+  });
+}
+
+function parseBanwords(text) {
+  // 改行 または <<|>> 区切りを両方認識 → 1行1語に正規化、トリム、空行・重複除去
+  if (!text || !text.trim()) return [];
+  const raw = text.split(/<<\|>>|\r?\n/).map(s => s.trim()).filter(Boolean);
+  return [...new Set(raw)];
+}
+
+function renderParseResult(raw) {
+  els.parseResultArea.innerHTML = '';
+
+  if (!raw || !raw.trim()) {
+    const empty = document.createElement('div');
+    empty.className = 'parse-empty';
+    empty.textContent = 'まだ分別されていません';
+    els.parseResultArea.appendChild(empty);
+    return;
+  }
+
+  const { ok, sections, unrecognized } = parseSections(raw);
+
+  if (!ok) {
+    const warn = document.createElement('div');
+    warn.className = 'parse-warning';
+    warn.textContent = '見出し（## FOOTNOTE 等）が見つかりませんでした。貼り付けた内容がAIのべりすと形式に沿っているか確認してください。原文をそのまま表示します。';
+    els.parseResultArea.appendChild(warn);
+
+    const raw_card = document.createElement('div');
+    raw_card.className = 'field-card';
+    raw_card.innerHTML = `<div class="field-body"></div>`;
+    raw_card.querySelector('.field-body').textContent = unrecognized;
+    els.parseResultArea.appendChild(raw_card);
+    return;
+  }
+
+  // FOOTNOTE / MEMORY：単純テキストブロック
+  ['FOOTNOTE', 'MEMORY'].forEach(name => {
+    if (sections[name] === undefined) return;
+    els.parseResultArea.appendChild(buildSimpleFieldCard(name, sections[name]));
+  });
+
+  // CHARACTERBOOK：複数件分割
+  if (sections['CHARACTERBOOK'] !== undefined) {
+    els.parseResultArea.appendChild(buildCharacterBookCard(sections['CHARACTERBOOK']));
+  }
+
+  // BANWORDS：1行1語正規化
+  if (sections['BANWORDS'] !== undefined) {
+    els.parseResultArea.appendChild(buildBanwordsCard(sections['BANWORDS']));
+  }
+
+  // NOTES：単純テキストブロック（アプリ外メモ、コピー対象外でもよいが一応表示）
+  if (sections['NOTES'] !== undefined) {
+    els.parseResultArea.appendChild(buildSimpleFieldCard('NOTES', sections['NOTES']));
+  }
+}
+
+function buildSimpleFieldCard(name, body) {
+  const card = document.createElement('div');
+  card.className = 'field-card';
+  const isEmpty = !body || !body.trim();
+  card.innerHTML = `
+    <div class="field-head">
+      <span class="field-name">${SECTION_LABELS[name]}</span>
+      <button class="copy-btn" ${isEmpty ? 'disabled' : ''}>📋 コピー</button>
+    </div>
+    <div class="field-body"></div>
+  `;
+  card.querySelector('.field-body').textContent = isEmpty ? '（内容なし）' : body;
+  const btn = card.querySelector('.copy-btn');
+  if (!isEmpty) btn.addEventListener('click', () => copyToClipboard(body, btn));
+  return card;
+}
+
+function buildCharacterBookCard(text) {
+  const card = document.createElement('div');
+  card.className = 'field-card';
+  const items = parseCharacterBook(text);
+
+  const head = document.createElement('div');
+  head.className = 'field-head';
+  head.innerHTML = `<span class="field-name">${SECTION_LABELS['CHARACTERBOOK']}</span><span class="field-count">${items.length}件</span>`;
+  card.appendChild(head);
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'field-body';
+    empty.textContent = '（内容なし）';
+    card.appendChild(empty);
+    return card;
+  }
+
+  items.forEach(item => {
+    const wrap = document.createElement('div');
+    wrap.className = 'charbook-item' + (item.isUntagged ? ' is-untagged' : '');
+    const nameRow = document.createElement('div');
+    nameRow.style.display = 'flex';
+    nameRow.style.justifyContent = 'space-between';
+    nameRow.style.alignItems = 'center';
+
+    const tagSpan = document.createElement('span');
+    tagSpan.className = 'tag-name';
+    tagSpan.textContent = item.tag;
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = '📋';
+    copyBtn.addEventListener('click', () => copyToClipboard(item.body, copyBtn));
+
+    nameRow.appendChild(tagSpan);
+    nameRow.appendChild(copyBtn);
+
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'tag-body';
+    bodyDiv.textContent = item.body;
+
+    wrap.appendChild(nameRow);
+    wrap.appendChild(bodyDiv);
+    card.appendChild(wrap);
+  });
+
+  return card;
+}
+
+function buildBanwordsCard(text) {
+  const card = document.createElement('div');
+  card.className = 'field-card';
+  const words = parseBanwords(text);
+  const joined = words.join('\n');
+
+  const head = document.createElement('div');
+  head.className = 'field-head';
+  head.innerHTML = `<span class="field-name">${SECTION_LABELS['BANWORDS']}</span><span class="field-count banword-count">${words.length}件</span>`;
+  card.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'field-body';
+  body.textContent = words.length ? joined : '（内容なし）';
+  card.appendChild(body);
+
+  const actionRow = document.createElement('div');
+  actionRow.style.marginTop = '8px';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-btn';
+  copyBtn.textContent = '📋 コピー（1行1語）';
+  if (!words.length) copyBtn.disabled = true;
+  copyBtn.addEventListener('click', () => copyToClipboard(joined, copyBtn));
+  actionRow.appendChild(copyBtn);
+  card.appendChild(actionRow);
+
+  return card;
+}
+
+// ---------------------------------------------------------------
+// カバー画像アップロード（image/*のみ許可、5MB上限。プロンプトギャラリー等と同基準）
+// 保存方式：Base64（データURL）。下書きが軽量データのため、
+// プロンプトギャラリーのBlob方式ほど厳密でなくてもよいと判断（仕様書の持ち越し論点、今回はBase64を採用）。
+// ---------------------------------------------------------------
+const COVER_MAX_BYTES = 5 * 1024 * 1024; // 5MB上限
+
+function updateCoverDisplay(dataUrl) {
+  if (dataUrl) {
+    els.coverUpload.style.backgroundImage = `url("${dataUrl}")`;
+    els.coverUpload.classList.add('has-image');
+    els.coverPlaceholder.style.display = 'none';
+  } else {
+    els.coverUpload.style.backgroundImage = '';
+    els.coverUpload.classList.remove('has-image');
+    els.coverPlaceholder.style.display = '';
+  }
+}
+
+els.coverFileInput.addEventListener('change', (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    alert('画像ファイルを選択してください。');
+    ev.target.value = '';
+    return;
+  }
+  if (file.size > COVER_MAX_BYTES) {
+    alert('画像サイズが大きすぎます（5MBまで）。');
+    ev.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const d = getCurrentDraft();
+    if (!d) return;
+    d.coverImage = reader.result;
+    d.updatedAt = Date.now();
+    updateCoverDisplay(d.coverImage);
+    await persistDraft(d);
+  };
+  reader.onerror = () => {
+    alert('画像の読み込みに失敗しました。');
+  };
+  reader.readAsDataURL(file);
+  ev.target.value = ''; // 同じファイルを選び直しても change が発火するように
+});
+
+els.btnClearCover.addEventListener('click', async (ev) => {
+  ev.stopPropagation(); // クリックがファイル選択のinputまで貫通しないように
+  const d = getCurrentDraft();
+  if (!d) return;
+  d.coverImage = null;
+  d.updatedAt = Date.now();
+  updateCoverDisplay(null);
+  await persistDraft(d);
+});
+
+// ---------------------------------------------------------------
+// 「完了」：自動判定の4段階とは独立した手動フラグ。
+// ユーザーが公開判断を下すまでは④推敲中のまま留まり、
+// ボタンを押した時だけ確定する（誤操作防止のため自動では立てない）。
+// ---------------------------------------------------------------
+function updateCompleteUI(isComplete) {
+  els.btnMarkComplete.style.display = isComplete ? 'none' : '';
+  els.btnUnmarkComplete.style.display = isComplete ? '' : 'none';
+  els.completeBadgeNote.style.display = isComplete ? '' : 'none';
+}
+
+els.btnMarkComplete.addEventListener('click', async () => {
+  const d = getCurrentDraft();
+  if (!d) return;
+  d.isComplete = true;
+  d.updatedAt = Date.now();
+  updateCompleteUI(true);
+  await persistDraft(d);
+});
+
+els.btnUnmarkComplete.addEventListener('click', async () => {
+  const d = getCurrentDraft();
+  if (!d) return;
+  d.isComplete = false;
+  d.updatedAt = Date.now();
+  updateCompleteUI(false);
+  await persistDraft(d);
+});
+
+// ---------------------------------------------------------------
+// 新規作成・削除
+// ---------------------------------------------------------------
+els.btnNewDraft.addEventListener('click', async () => {
+  const id = 'd' + Date.now();
+  const defaultTemplateId = templates.length ? templates[0].id : null;
+  const draft = {
+    id, title: '', stage: 1, updatedAt: Date.now(),
+    skeleton: '', prompt: '', pasted: '', coverImage: null, finalText: '',
+    isComplete: false, templateId: defaultTemplateId
+  };
+  drafts.unshift(draft);
+  await persistDraft(draft);
+  openEditor(id);
+});
+
+els.btnBackToList.addEventListener('click', async () => {
+  await flushPendingSaves();
+  await deleteIfEmpty();
+  backToList();
+});
+
+// タイトル・骨子・清書のすべてが空の下書きは、閉じる際にゴミデータとして自動削除する
+// （メモアプリと同じフールプルーフ。カバー画像やプロンプト合成・パース結果だけがある状態は
+//  「空」とはみなさない＝ユーザーが何らかの作業をした形跡があるものは残す）
+async function deleteIfEmpty() {
+  const d = getCurrentDraft();
+  if (!d) return;
+  const isEmpty = !d.title.trim() && !d.skeleton.trim() && !d.finalText.trim()
+    && !d.coverImage && !d.prompt && !d.pasted;
+  if (!isEmpty) return;
+  drafts = drafts.filter(x => x.id !== d.id);
+  try {
+    await scaffoldDelete(STORE_ENTRIES, d.id);
+  } catch (err) {
+    console.error('SCAFFOLD: 空下書きの自動削除に失敗しました', err);
+  }
+}
+
+els.searchInput.addEventListener('input', () => renderList(els.searchInput.value));
+
+els.btnDeleteDraft.addEventListener('click', () => {
+  els.deleteModal.classList.add('is-open');
+});
+els.btnCancelDelete.addEventListener('click', () => els.deleteModal.classList.remove('is-open'));
+els.btnConfirmDelete.addEventListener('click', async () => {
+  const id = currentDraftId;
+  drafts = drafts.filter(d => d.id !== id);
+  els.deleteModal.classList.remove('is-open');
+  try {
+    await scaffoldDelete(STORE_ENTRIES, id);
+  } catch (err) {
+    console.error('SCAFFOLD: 下書きの削除に失敗しました', err);
+  }
+  backToList();
+});
+
+// ---------------------------------------------------------------
+// テンプレート管理モーダル（一覧⇔編集の2ビュー切替）
+// ---------------------------------------------------------------
+let tplEditingId = null; // null = 新規作成中
+
+function openTemplateModal() {
+  showTplListView();
+  els.tplModal.classList.add('is-open');
+}
+function closeTemplateModal() {
+  els.tplModal.classList.remove('is-open');
+}
+
+function showTplListView() {
+  els.tplViewEdit.classList.add('is-hidden');
+  els.tplViewList.classList.remove('is-hidden');
+  renderTplList();
+}
+function showTplEditView(tpl) {
+  tplEditingId = tpl ? tpl.id : null;
+  els.tplEditHeading.textContent = tpl ? 'テンプレートを編集' : '新規テンプレート';
+  els.tplNameInput.value = tpl ? tpl.name : '';
+  els.tplBodyInput.value = tpl ? tpl.body : '{{骨子}}';
+  els.tplBodyError.classList.remove('is-shown');
+  // 最後の1件は削除不可（新規作成中は削除ボタン自体が意味を持たないため隠す）
+  els.btnDeleteTemplate.style.display = tpl ? '' : 'none';
+  els.btnDeleteTemplate.disabled = templates.length <= 1;
+  els.btnDeleteTemplate.title = templates.length <= 1 ? '最後の1件は削除できません' : '';
+  els.tplViewList.classList.add('is-hidden');
+  els.tplViewEdit.classList.remove('is-hidden');
+}
+
+function renderTplList() {
+  els.tplListBody.innerHTML = '';
+  templates.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'tpl-list-item';
+    const name = document.createElement('span');
+    name.className = 'tpl-name';
+    name.textContent = t.name || '（無題のテンプレート）';
+    const preview = document.createElement('span');
+    preview.className = 'tpl-preview';
+    preview.textContent = (t.body || '').replace(/\s+/g, ' ').trim();
+    row.appendChild(name);
+    row.appendChild(preview);
+    row.addEventListener('click', () => showTplEditView(t));
+    els.tplListBody.appendChild(row);
+  });
+}
+
+els.btnManageTemplates.addEventListener('click', openTemplateModal);
+els.btnCloseTplModal.addEventListener('click', closeTemplateModal);
+els.btnCloseTplEdit.addEventListener('click', showTplListView);
+els.btnCancelTplEdit.addEventListener('click', showTplListView);
+els.btnNewTemplate.addEventListener('click', () => showTplEditView(null));
+
+els.tplBodyInput.addEventListener('input', () => {
+  els.tplBodyError.classList.remove('is-shown');
+});
+
+els.btnSaveTemplate.addEventListener('click', async () => {
+  const name = els.tplNameInput.value.trim() || '（無題のテンプレート）';
+  const body = els.tplBodyInput.value;
+
+  // フールプルーフ：{{骨子}}が無いと保存できない（合成時に必ず失敗するミスを事前に防ぐ）
+  if (!body.includes('{{骨子}}')) {
+    els.tplBodyError.classList.add('is-shown');
+    return;
+  }
+
+  if (tplEditingId) {
+    const t = templates.find(x => x.id === tplEditingId);
+    if (t) { t.name = name; t.body = body; }
+    await scaffoldPut(STORE_TEMPLATES, t);
+  } else {
+    const t = { id: 'tpl_' + Date.now(), name, body, createdAt: Date.now() };
+    templates.push(t);
+    await scaffoldPut(STORE_TEMPLATES, t);
+  }
+
+  // 開いている編集画面のテンプレート選択欄を最新化
+  const currentDraft = getCurrentDraft();
+  renderTemplateOptions(currentDraft ? currentDraft.templateId : null);
+  showTplListView();
+});
+
+// ---- テンプレート削除（使用中の下書き件数を明記して警告） ----
+let tplPendingDeleteId = null;
+
+els.btnDeleteTemplate.addEventListener('click', () => {
+  if (!tplEditingId || templates.length <= 1) return;
+  tplPendingDeleteId = tplEditingId;
+  const usingCount = drafts.filter(d => d.templateId === tplPendingDeleteId).length;
+  els.tplDeleteMessage.textContent = usingCount > 0
+    ? `このテンプレートを削除しますか？現在このテンプレートを使用している下書きが${usingCount}件あります。削除すると、それらの下書きはテンプレート未選択の状態に戻ります（下書き自体は削除されません）。`
+    : 'このテンプレートを削除しますか？';
+  els.tplDeleteModal.classList.add('is-open');
+});
+
+els.btnCancelTplDelete.addEventListener('click', () => {
+  els.tplDeleteModal.classList.remove('is-open');
+  tplPendingDeleteId = null;
+});
+
+els.btnConfirmTplDelete.addEventListener('click', async () => {
+  const id = tplPendingDeleteId;
+  if (!id) return;
+  els.tplDeleteModal.classList.remove('is-open');
+  tplPendingDeleteId = null;
+
+  templates = templates.filter(t => t.id !== id);
+  try {
+    await scaffoldDelete(STORE_TEMPLATES, id);
+  } catch (err) {
+    console.error('SCAFFOLD: テンプレートの削除に失敗しました', err);
+  }
+
+  // 削除されたテンプレートを使っていた下書きは templateId を null に戻す（案A、選び直しが必要）
+  const affected = drafts.filter(d => d.templateId === id);
+  for (const d of affected) {
+    d.templateId = null;
+    await persistDraft(d);
+  }
+
+  const currentDraft = getCurrentDraft();
+  if (currentDraft && currentDraft.templateId === null) {
+    renderTemplateOptions(null);
+  }
+  showTplListView();
+});
+
+// ---------------------------------------------------------------
+// 初期化〜初回描画〜フォールバック
+// 失敗時にアプリ全体を落とさず、空データで安全に描画する。
+// ---------------------------------------------------------------
+scaffoldOpenDb().then(async (_db) => {
+  db = _db;
+  try {
+    drafts = await scaffoldGetAll(STORE_ENTRIES);
+  } catch (err) {
+    console.error('SCAFFOLD: 下書き一覧の読み込みに失敗しました', err);
+    drafts = [];
+  }
+
+  try {
+    templates = await scaffoldGetAll(STORE_TEMPLATES);
+    if (templates.length === 0) {
+      // 初回起動：初期テンプレートを1件投入
+      const defaultTpl = makeDefaultTemplate();
+      await scaffoldPut(STORE_TEMPLATES, defaultTpl);
+      templates = [defaultTpl];
+    }
+  } catch (err) {
+    console.error('SCAFFOLD: テンプレートの読み込みに失敗しました', err);
+    // テンプレートが1件も無いと②が機能しないため、メモリ上だけでもデフォルトを用意する
+    templates = [makeDefaultTemplate()];
+  }
+
+  renderList('');
+}).catch((err) => {
+  console.error('SCAFFOLD: DBの初期化に失敗しました。保存機能は利用できません。', err);
+  drafts = [];
+  templates = [makeDefaultTemplate()];
+  renderList('');
+  const banner = document.createElement('div');
+  banner.style.cssText = 'padding:10px 20px; background:rgba(255,93,93,0.12); color:#ff8080; font-size:12px; text-align:center;';
+  banner.textContent = '保存機能を利用できません（IndexedDBに接続できませんでした。file://で直接開いていないか確認してください）。この状態でも画面操作は可能ですが、変更は保存されません。';
+  document.body.insertBefore(banner, document.body.firstChild);
+});
+</script>
 </body>
 </html>

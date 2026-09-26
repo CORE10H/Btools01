@@ -1034,7 +1034,7 @@
   const BUILTIN_APP_CHOICES = [
     { name: 'PROMPTGALLERY', src: 'apps/prompt-gallery.html', coverImg: 'apps/img/prompt-gallery.jpg' },
     { name: 'manuscript', src: 'apps/manuscript.html', coverImg: 'apps/img/manuscript.jpg' },
-    { name: 'scaffold', src: 'apps/scaffold.html' },
+    { name: 'SCAFFOLD', src: 'apps/scaffold.html' },
     { name: 'メモ', src: 'apps/memo.html', coverImg: 'apps/img/memo.jpg' },
     { name: 'Discotica', src: 'apps/discotica.html', coverImg: 'apps/img/discotica.jpg' },
     { name: 'DONE MORE', src: 'apps/done-more.html', coverImg: 'apps/img/done-more.jpg' },
