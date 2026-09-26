@@ -492,6 +492,8 @@
     t['--stage-shadow-rgb'] = stageLight ? '60, 75, 85' : '0, 0, 0';
     // 強調色の上に乗せる文字色（選択範囲など）
     t['--on-accent'] = isLightHex(t['--cyan']) ? '#000000' : '#ffffff';
+    // 壁紙の上に直接乗る文字（ヘッダのロゴ・日付・時計）の縁取り色：文字色と反対の明るさ
+    t['--text-halo-rgb'] = isLightHex(t['--text']) ? '0, 0, 0' : '255, 255, 255';
     return t;
   }
 
@@ -593,6 +595,7 @@
   const customThemeCloseBtn = document.getElementById('customThemeCloseBtn');
   const customThemeGrid = document.getElementById('customThemeGrid');
   const customThemeResetBtn = document.getElementById('customThemeResetBtn');
+  const customThemeImportBtn = document.getElementById('customThemeImportBtn');
   const customThemeSaveBtn = document.getElementById('customThemeSaveBtn');
 
   let customThemeDraft = null;    // 編集中の15色（{ '--bg': '#...', ... }）
@@ -687,6 +690,29 @@
     if (e.key === 'Escape' && customThemeOverlay.classList.contains('is-open')) {
       closeCustomThemeModalCancelled();
     }
+  });
+
+  // 「今の配色を取り込む」：この画面を開く直前に使っていたテーマ（プリセット・スポイト等）の
+  // 基本色を下書きに読み込む。保存はしない（保存ボタンを押すまで確定しない）。
+  function draftDiffersFrom(ref) {
+    return BASE_TOKEN_NAMES.some((k) => String(customThemeDraft[k] || '').toLowerCase() !== String(ref[k] || '').toLowerCase());
+  }
+  customThemeImportBtn.addEventListener('click', () => {
+    const srcTheme = themes[themeBeforeCustomEdit];
+    if (!srcTheme) return;
+    const imported = pickBaseTokens(srcTheme.tokens);
+    if (!draftDiffersFrom(imported)) {
+      alert('すでに今の配色と同じ色になっています。');
+      return;
+    }
+    // フールプルーフ：編集途中の色がある場合は、上書きしてよいか確認する
+    if (draftDiffersFrom(customThemeBaseline) &&
+        !confirm('編集中の色を、今の配色（' + srcTheme.label + '）で上書きします。よろしいですか？')) {
+      return;
+    }
+    customThemeDraft = imported;
+    buildCustomThemeGrid();
+    applyCustomThemeDraftLive();
   });
 
   customThemeResetBtn.addEventListener('click', () => {

@@ -222,13 +222,14 @@
     </div>
 
     <div class="custom-theme-hint">
-      15色それぞれを自由に調整できます。変更は即座に画面全体へ反映されます。「保存」を押すと、このアイコンの色として次回以降も使えるようになります。
+      16色それぞれを自由に調整できます。変更は即座に画面全体へ反映されます。「保存」を押すと、このアイコンの色として次回以降も使えるようになります。「今の配色を取り込む」で、開く直前に使っていたテーマ（プリセット・スポイト等）の色を下書きにできます。
     </div>
 
-    <div class="custom-theme-grid" id="customThemeGrid"><!-- JSで動的生成（15色分） --></div>
+    <div class="custom-theme-grid" id="customThemeGrid"><!-- JSで動的生成（16色分） --></div>
 
     <div class="custom-theme-actions">
-      <button class="btn" id="customThemeResetBtn" title="現在選択中のテーマの色に戻す（保存はされません）">現在のテーマの色に戻す</button>
+      <button class="btn" id="customThemeImportBtn" title="この画面を開く直前に使っていたテーマの色を取り込む（保存はされません）">今の配色を取り込む</button>
+      <button class="btn" id="customThemeResetBtn" title="この画面を開いた時点の色に戻す（保存はされません）">編集前に戻す</button>
       <button class="btn primary" id="customThemeSaveBtn">保存して閉じる</button>
     </div>
   </div>

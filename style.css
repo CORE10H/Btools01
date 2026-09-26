@@ -32,6 +32,7 @@
     --scrim-rgb: 0, 0, 0;
     --shadow-rgb: 0, 0, 0;
     --on-accent: #000000;
+    --text-halo-rgb: 0, 0, 0;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -130,7 +131,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 6px 10px;
-    border-bottom: 1px solid var(--line);
     gap: 24px;
   }
   .brand-block { display: flex; align-items: baseline; gap: 24px; min-width: 0; }
@@ -162,6 +162,17 @@
     flex-shrink: 0;
   }
   #clockText { display: inline-block; min-width: 4.6em; }
+  /* ロゴ・日付・時計は壁紙の上に直接乗るため、壁紙によっては読みにくくなる。
+     文字色と反対の明るさの「縁取り（ハロー）」を付けて、どんな壁紙でも読めるようにする。
+     縁取りの色はテーマの文字色から自動計算（--text-halo-rgb）。 */
+  .brand-block .mark, .header-date, .clock {
+    text-shadow:
+      1px 0 0 rgba(var(--text-halo-rgb), .85), -1px 0 0 rgba(var(--text-halo-rgb), .85),
+      0 1px 0 rgba(var(--text-halo-rgb), .85), 0 -1px 0 rgba(var(--text-halo-rgb), .85),
+      1px 1px 0 rgba(var(--text-halo-rgb), .6), -1px -1px 0 rgba(var(--text-halo-rgb), .6),
+      1px -1px 0 rgba(var(--text-halo-rgb), .6), -1px 1px 0 rgba(var(--text-halo-rgb), .6),
+      0 0 10px rgba(var(--text-halo-rgb), .5);
+  }
   .clock .dot { width: 6px; height: 6px; background: var(--cyan); border-radius: 50%; box-shadow: 0 0 8px var(--cyan); animation: pulse 2s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
@@ -614,6 +625,8 @@
   .stage-bar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+    /* STAGEヘッダは本体側の部品なので、STAGE背景ではなくパネルと同じ色にする */
+    background: var(--panel);
     /* 日本語アプリ名と英語アプリ名でフォントのフォールバック（行の高さの
        基準）が変わり、ヘッダー自体の高さがガタつくのを防ぐための保険。
        本来はStage表示の切り替え頻度自体を下げたことで解消しているが
