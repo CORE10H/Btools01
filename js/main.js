@@ -1625,6 +1625,7 @@
         stageFrame.src = project.src;
       }
       stageFrame.title = project.name;
+      attachThemeBridge(stageFrame); // 本体テーマをアプリへ届ける（読み込み完了時に送信）
       stageBody.appendChild(stageFrame);
     } else {
       // 「＋追加」カード：現状はまだアプリ枠の追加UI未実装のため、プレースホルダー表示のまま。
@@ -1645,6 +1646,71 @@
   }
 
   document.getElementById('stageCloseBtn').addEventListener('click', closeStage);
+
+  /* ===================== THEME BRIDGE（本体 → Stage内アプリ） =====================
+     本体のテーマ色（15色のCSS変数）を、Stageに開いているアプリへ postMessage で届ける。
+     アプリ側は apps/sideops-theme-bridge.js を読み込んでいれば受け取って反映する
+     （読み込んでいないアプリには何も起きない＝既存アプリを壊さない opt-in 方式）。
+     - 送信タイミング：
+         ① iframe の読み込み完了時
+         ② アプリ側からの要求（'sideops:theme-request'）受信時
+         ③ :root の style 属性が変わった時（プリセット／カスタム編集中のライブ反映／
+            スポイト、どの経路でテーマが変わっても拾えるよう MutationObserver で監視）
+     - 同じ内容を連続送信しないよう、直前に送った内容と比較してから送る。
+     - 送るのは許可リストの15色のみ（壁紙などの巨大な値は送らない）。 */
+  const THEME_BRIDGE_TOKENS = Object.keys(themes.dark.tokens);
+  let themeBridgeLastSent = null;
+  let themeBridgeRafId = null;
+
+  function collectThemeTokens() {
+    const cs = getComputedStyle(root);
+    const tokens = {};
+    THEME_BRIDGE_TOKENS.forEach((name) => {
+      const v = cs.getPropertyValue(name).trim();
+      if (v) tokens[name] = v;
+    });
+    return tokens;
+  }
+
+  function sendThemeToStage(force) {
+    if (!stageFrame || !stageFrame.contentWindow) return;
+    const tokens = collectThemeTokens();
+    const json = JSON.stringify(tokens);
+    if (!force && json === themeBridgeLastSent) return;
+    // file:// で開いている場合 origin は 'null' になり指定できないため '*' にフォールバック
+    // （送る内容は色コードのみで機密性はない）
+    const targetOrigin = (location.origin && location.origin !== 'null') ? location.origin : '*';
+    try {
+      stageFrame.contentWindow.postMessage({ type: 'sideops:theme', version: 1, tokens }, targetOrigin);
+      themeBridgeLastSent = json;
+    } catch (err) {
+      console.warn('テーマのアプリ連携送信に失敗しました', err);
+    }
+  }
+
+  function attachThemeBridge(frame) {
+    themeBridgeLastSent = null; // 新しいiframeには必ず1回送る
+    frame.addEventListener('load', () => {
+      if (frame === stageFrame) sendThemeToStage(true);
+    });
+  }
+
+  window.addEventListener('message', (e) => {
+    // 今Stageに開いているアプリ以外からの要求は無視
+    if (!stageFrame || e.source !== stageFrame.contentWindow) return;
+    const data = e.data;
+    if (data && data.type === 'sideops:theme-request') sendThemeToStage(true);
+  });
+
+  // テーマ変更の監視。1フレームにまとめてから送る（カラーピッカー操作中の連続変更対策）
+  new MutationObserver(() => {
+    if (!stageFrame) return;
+    if (themeBridgeRafId) return;
+    themeBridgeRafId = requestAnimationFrame(() => {
+      themeBridgeRafId = null;
+      sendThemeToStage(false);
+    });
+  }).observe(root, { attributes: true, attributeFilter: ['style'] });
 
   function render() {
     const items = track.querySelectorAll('.cf-item');
