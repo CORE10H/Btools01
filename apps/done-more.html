@@ -191,6 +191,22 @@
   .gantt-bar.is-done span { text-decoration: line-through; }
   .gantt-bar:hover { filter: brightness(1.18); }
 
+  .gantt-dot {
+    position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+    transform: translate(-50%, -50%); cursor: pointer; border: 2px solid rgba(0,0,0,.35);
+    box-shadow: 0 1px 3px rgba(0,0,0,.5); z-index: 3;
+  }
+  .gantt-dot.is-done { opacity: .45; }
+  .gantt-dot:hover { filter: brightness(1.25); }
+
+  .dot-pick-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg-alt);
+    border: 1px solid var(--line); cursor: pointer; font-size: 12px; text-align: left;
+  }
+  .dot-pick-item:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .dot-pick-item .dpi-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .dot-pick-item span.dpi-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   .gantt-empty-hint {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: var(--text-faint); font-size: 11px; text-align: center; padding: 30px; pointer-events: none;
@@ -376,6 +392,17 @@
   </div>
 </div>
 
+<!-- 単日タスクが同じ日に複数重なっている場合の選択ポップアップ -->
+<div class="confirm-overlay" id="dotPickOverlay">
+  <div class="confirm-box" style="max-width:280px;">
+    <div class="cf-msg" style="margin-bottom:10px;">この日のタスク</div>
+    <div id="dotPickList" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;"></div>
+    <div class="cf-actions">
+      <button class="btn" id="dotPickCancelBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -496,6 +523,10 @@
   const confirmMsg = document.getElementById('confirmMsg');
   const confirmCancelBtn = document.getElementById('confirmCancelBtn');
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+  const dotPickOverlay = document.getElementById('dotPickOverlay');
+  const dotPickList = document.getElementById('dotPickList');
+  const dotPickCancelBtn = document.getElementById('dotPickCancelBtn');
 
   const toastEl = document.getElementById('toast');
   let toastTimer = null;
@@ -765,24 +796,67 @@
         bodyRow.appendChild(cell);
       }
 
+      // ---- 単日タスク（開始日＝終了日）は日付ごとにグルーピングし、●として1個だけ描画 ----
+      const singleDayByDate = new Map(); // dateStr -> [task, ...]
+      const multiDayTasks = [];
       tasksOfProject(proj.id).forEach(task => {
         // フールプルーフ：終了日<開始日、または表示範囲外に大きく外れた異常データは描画スキップ
         if (task.endDate < task.startDate) return;
+        if (task.startDate === task.endDate) {
+          const list = singleDayByDate.get(task.startDate) || [];
+          list.push(task);
+          singleDayByDate.set(task.startDate, list);
+        } else {
+          multiDayTasks.push(task);
+        }
+      });
+
+      // ---- 複数日タスク：境界日（開始日・終了日）のみ半分幅、中間日はフル幅で描画 ----
+      multiDayTasks.forEach(task => {
         let barDays = diffDays(task.startDate, task.endDate) + 1;
         if (barDays > MAX_BAR_DAYS) barDays = MAX_BAR_DAYS;
         const offsetDays = diffDays(start, task.startDate);
         if (offsetDays + barDays < 0 || offsetDays > totalDays) return; // 完全に範囲外
 
+        // 開始日は右半分から、終了日は左半分までなので、
+        // バー全体の左端は「開始日マスの中央」、右端は「終了日マスの中央」になる
+        const left = offsetDays * DAY_WIDTH + DAY_WIDTH / 2;
+        const right = (offsetDays + barDays - 1) * DAY_WIDTH + DAY_WIDTH / 2;
+        const width = Math.max(DAY_WIDTH / 2 - 2, right - left - 2);
+
         const bar = document.createElement('div');
         bar.className = 'gantt-bar' + (task.done ? ' is-done' : '');
-        bar.style.left = (offsetDays * DAY_WIDTH) + 'px';
-        bar.style.width = Math.max(DAY_WIDTH - 2, barDays * DAY_WIDTH - 2) + 'px';
+        bar.style.left = left + 'px';
+        bar.style.width = width + 'px';
         bar.style.background = proj.color;
         bar.style.color = '#0a0a0a';
         bar.title = `${task.title}（${formatDateShort(task.startDate)}〜${formatDateShort(task.endDate)}）`;
         bar.innerHTML = `<span>${escapeHtml(task.title)}</span>`;
         bar.addEventListener('click', () => openTaskModal(task.id));
         bodyRow.appendChild(bar);
+      });
+
+      // ---- 単日タスク：日付マスの中央に●として描画。同日に複数あっても●は1個だけ ----
+      singleDayByDate.forEach((list, dateStr) => {
+        const offsetDays = diffDays(start, dateStr);
+        if (offsetDays < 0 || offsetDays > totalDays) return; // 範囲外
+
+        const anyDone = list.every(t => t.done);
+        const dot = document.createElement('div');
+        dot.className = 'gantt-dot' + (anyDone ? ' is-done' : '');
+        dot.style.left = (offsetDays * DAY_WIDTH + DAY_WIDTH / 2) + 'px';
+        dot.style.background = proj.color;
+        dot.title = list.length === 1
+          ? `${list[0].title}（${formatDateShort(dateStr)}）`
+          : `${formatDateShort(dateStr)}：${list.length}件のタスク`;
+        dot.addEventListener('click', () => {
+          if (list.length === 1) {
+            openTaskModal(list[0].id);
+          } else {
+            openDotPicker(list);
+          }
+        });
+        bodyRow.appendChild(dot);
       });
 
       bodyWrap.appendChild(bodyRow);
@@ -799,6 +873,30 @@
       ganttGrid.appendChild(line);
     }
   }
+
+  // ---- 同一日に単日タスクが複数重なっている場合の選択ポップアップ ----
+  function openDotPicker(taskList) {
+    dotPickList.innerHTML = '';
+    taskList.forEach(task => {
+      const proj = getProject(task.projectId);
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'dot-pick-item';
+      item.innerHTML = `
+        <span class="dpi-swatch" style="background:${proj ? proj.color : '#888'};"></span>
+        <span class="dpi-title">${escapeHtml(task.title)}${task.done ? '（完了）' : ''}</span>
+      `;
+      item.addEventListener('click', () => {
+        closeDotPicker();
+        openTaskModal(task.id);
+      });
+      dotPickList.appendChild(item);
+    });
+    dotPickOverlay.classList.add('is-open');
+  }
+  function closeDotPicker() { dotPickOverlay.classList.remove('is-open'); }
+  dotPickCancelBtn.addEventListener('click', closeDotPicker);
+  dotPickOverlay.addEventListener('click', (e) => { if (e.target === dotPickOverlay) closeDotPicker(); });
 
   /* =====================================================================
      プロジェクト作成／編集モーダル
@@ -1103,7 +1201,8 @@
   /* ===================== キーボード：Escで最前面のモーダルを閉じる ===================== */
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (confirmOverlay.classList.contains('is-open')) closeConfirm();
+    if (dotPickOverlay.classList.contains('is-open')) closeDotPicker();
+    else if (confirmOverlay.classList.contains('is-open')) closeConfirm();
     else if (taskModalOverlay.classList.contains('is-open')) closeTaskModal();
     else if (projectModalOverlay.classList.contains('is-open')) closeProjectModal();
     else if (projectManageOverlay.classList.contains('is-open')) closeProjectManage();
