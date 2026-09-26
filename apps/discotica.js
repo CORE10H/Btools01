@@ -368,7 +368,7 @@
       } else {
         el.innerHTML = `<div class="artist-name-plate">${escapeHtml(a.name)}</div>`;
         if (a.coverImg) {
-          el.style.backgroundImage = `linear-gradient(0deg, rgba(5,7,10,.85), rgba(5,7,10,0) 55%), url('${artistListUrls.make(a.coverImg)}')`;
+          el.style.backgroundImage = `linear-gradient(0deg, rgba(var(--bg-rgb),.85), rgba(var(--bg-rgb),0) 55%), url('${artistListUrls.make(a.coverImg)}')`;
         }
       }
       el.addEventListener('click', () => {

@@ -24,11 +24,21 @@
     --text-faint: #5c6b73;
     --font-display: 'Rajdhani', sans-serif;
     --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
   button, input, textarea { font-family: inherit; color: inherit; }
-  ::selection { background: var(--cyan); color: #000; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
 
   .app-shell { height: 100%; display: flex; flex-direction: column; }
 
@@ -194,12 +204,12 @@
   .card-erase-overlay {
     position: absolute; inset: 0; display: none;
     align-items: center; justify-content: center;
-    background: rgba(74, 15, 36, .55); border: 2px solid var(--magenta);
+    background: rgba(var(--magenta-dim-rgb), .55); border: 2px solid var(--magenta);
   }
   .card-erase-overlay.is-marked { display: flex; }
   .card-erase-overlay .erase-label {
     font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .06em;
-    color: var(--magenta); text-shadow: 0 0 8px rgba(255,47,110,.6);
+    color: var(--magenta); text-shadow: 0 0 8px rgba(var(--magenta-rgb),.6);
   }
 
   /* ---- grid ---- */
@@ -240,7 +250,7 @@
     display: flex; gap: 4px; flex-wrap: wrap; overflow: hidden; max-height: 18px; justify-content: flex-end;
   }
   .card-tags .tag-pill {
-    font-size: 9px; padding: 2px 6px; background: rgba(0,240,208,.12); border: 1px solid var(--cyan-dim);
+    font-size: 9px; padding: 2px 6px; background: rgba(var(--cyan-rgb),.12); border: 1px solid var(--cyan-dim);
     color: var(--cyan); white-space: nowrap;
   }
   .card-delete-btn {
@@ -255,7 +265,7 @@
 
   /* ---- エディタ画面（クリックで全面展開） ---- */
   .editor-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.72); display: none;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.72); display: none;
     align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
   .editor-overlay.is-open { display: flex; }
@@ -316,7 +326,7 @@
 
   /* ---- confirm dialog ---- */
   .confirm-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.6); display: none;
     align-items: center; justify-content: center; z-index: 70; padding: 20px;
   }
   .confirm-overlay.is-open { display: flex; }

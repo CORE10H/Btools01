@@ -24,11 +24,21 @@
     --text-faint: #5c6b73;
     --font-display: 'Rajdhani', sans-serif;
     --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
   button, input, textarea { font-family: inherit; color: inherit; }
-  ::selection { background: var(--cyan); color: #000; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
 
   .app-shell { height: 100%; display: flex; flex-direction: column; }
 
@@ -167,12 +177,12 @@
   .card-erase-overlay {
     position: absolute; inset: 0; display: none;
     align-items: center; justify-content: center;
-    background: rgba(74, 15, 36, .55); border: 2px solid var(--magenta);
+    background: rgba(var(--magenta-dim-rgb), .55); border: 2px solid var(--magenta);
   }
   .card-erase-overlay.is-marked { display: flex; }
   .card-erase-overlay .erase-label {
     font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .06em;
-    color: var(--magenta); text-shadow: 0 0 8px rgba(255,47,110,.6);
+    color: var(--magenta); text-shadow: 0 0 8px rgba(var(--magenta-rgb),.6);
   }
 
   /* ---- grid ---- */
@@ -194,17 +204,17 @@
   .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .card-title {
     position: absolute; top: 0; left: 0; right: 0; padding: 7px 9px 14px;
-    background: linear-gradient(180deg, rgba(5,7,10,.88), transparent);
+    background: linear-gradient(180deg, rgba(var(--bg-rgb),.88), transparent);
     font-size: 11.5px; font-weight: 600; color: var(--text); line-height: 1.3;
     pointer-events: none;
   }
   .card-tags {
     position: absolute; bottom: 0; left: 0; right: 0; padding: 14px 8px 7px;
-    background: linear-gradient(0deg, rgba(5,7,10,.9), transparent);
+    background: linear-gradient(0deg, rgba(var(--bg-rgb),.9), transparent);
     display: flex; gap: 4px; flex-wrap: wrap; pointer-events: none;
   }
   .card-tags .tag-pill {
-    font-size: 9px; padding: 2px 6px; background: rgba(0,240,208,.12); border: 1px solid var(--cyan-dim);
+    font-size: 9px; padding: 2px 6px; background: rgba(var(--cyan-rgb),.12); border: 1px solid var(--cyan-dim);
     color: var(--cyan); white-space: nowrap;
   }
   /* ---- hover menu（2026-09-26：スマホ実機でカード縦幅が足りず5ボタンが
@@ -214,7 +224,7 @@
      最終行は削除🗑のみを右詰め。スクロールバーでの逃げは使わない方針
      （見た目がダサいと不評だったため、高さそのものを削る方向で対応） ---- */
   .prompt-pop {
-    position: absolute; inset: 0; background: rgba(5,7,10,.82);
+    position: absolute; inset: 0; background: rgba(var(--bg-rgb),.82);
     display: grid; grid-template-columns: 1fr 1fr; align-content: center;
     padding: 10px; gap: 6px;
     opacity: 0; pointer-events: none; transition: opacity .15s ease;
@@ -244,24 +254,24 @@
      画面に収まる範囲でなるべく大きく、原寸は超えない(object-fit: contain
      ではなく、実寸をmax-width/max-heightで上限にして自然サイズを尊重する) */
   .thumb-lightbox {
-    position: fixed; inset: 0; background: rgba(0,0,0,.86); z-index: 90;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.86); z-index: 90;
     display: none; align-items: center; justify-content: center; padding: 32px;
   }
   .thumb-lightbox.is-open { display: flex; }
   .thumb-lightbox img {
     max-width: 100%; max-height: 100%; width: auto; height: auto;
-    object-fit: contain; box-shadow: 0 0 40px rgba(0,0,0,.6);
+    object-fit: contain; box-shadow: 0 0 40px rgba(var(--shadow-rgb),.6);
   }
   .thumb-lightbox-close {
     position: absolute; top: 18px; right: 22px; width: 30px; height: 30px;
-    background: rgba(10,12,16,.7); border: 1px solid var(--line); color: var(--text-dim);
+    background: rgba(var(--bg-rgb),.7); border: 1px solid var(--line); color: var(--text-dim);
     font-size: 14px; cursor: pointer;
   }
   .thumb-lightbox-close:hover { border-color: var(--cyan-dim); color: var(--cyan); }
 
   /* ---- modal (add/edit) ---- */
   .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.6); display: none;
     align-items: center; justify-content: center; z-index: 50; padding: 20px;
   }
   .modal-overlay.is-open { display: flex; }
@@ -317,7 +327,7 @@
 
   /* ---- confirm dialog ---- */
   .confirm-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.6); display: none;
     align-items: center; justify-content: center; z-index: 70; padding: 20px;
   }
   .confirm-overlay.is-open { display: flex; }

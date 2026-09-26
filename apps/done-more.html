@@ -25,11 +25,21 @@
     --text-faint: #5c6b73;
     --font-display: 'Rajdhani', sans-serif;
     --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
   button, input, textarea, select { font-family: inherit; color: inherit; }
-  ::selection { background: var(--cyan); color: #000; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
 
   .app-shell { height: 100%; display: flex; flex-direction: column; }
 
@@ -168,15 +178,15 @@
     font-size: 10px; color: var(--text-faint); border-right: 1px solid var(--line-soft);
   }
   .gantt-day-col.is-today { color: var(--cyan); font-weight: 600; }
-  .gantt-day-col.is-weekend { background: rgba(255,255,255,.02); }
+  .gantt-day-col.is-weekend { background: rgba(var(--text-rgb), .03); }
 
   .gantt-body-row { display: flex; height: 40px; position: relative; border-bottom: 1px solid var(--line-soft); }
   .gantt-cell { flex-shrink: 0; border-right: 1px solid var(--line-soft); }
-  .gantt-cell.is-weekend { background: rgba(255,255,255,.02); }
+  .gantt-cell.is-weekend { background: rgba(var(--text-rgb), .03); }
 
   .gantt-today-line {
     position: absolute; top: 0; bottom: 0; width: 1px; background: var(--magenta);
-    z-index: 4; pointer-events: none; box-shadow: 0 0 6px rgba(255,47,110,.6);
+    z-index: 4; pointer-events: none; box-shadow: 0 0 6px rgba(var(--magenta-rgb),.6);
   }
 
   .gantt-bar {
@@ -184,7 +194,7 @@
     display: flex; align-items: center; padding: 0 8px; overflow: hidden;
     cursor: pointer; border: 1px solid rgba(0,0,0,.25);
     font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis;
-    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    box-shadow: 0 1px 3px rgba(var(--shadow-rgb),.4);
   }
   .gantt-bar span { overflow: hidden; text-overflow: ellipsis; }
   .gantt-bar.is-done { opacity: .45; }
@@ -194,7 +204,7 @@
   .gantt-dot {
     position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
     transform: translate(-50%, -50%); cursor: pointer; border: 2px solid rgba(0,0,0,.35);
-    box-shadow: 0 1px 3px rgba(0,0,0,.5); z-index: 3;
+    box-shadow: 0 1px 3px rgba(var(--shadow-rgb),.5); z-index: 3;
   }
   .gantt-dot.is-done { opacity: .45; }
   .gantt-dot:hover { filter: brightness(1.25); }
@@ -216,7 +226,7 @@
      プロジェクト作成モーダル
   ===================================================================== */
   .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.6); display: none;
     align-items: center; justify-content: center; z-index: 50; padding: 20px;
   }
   .modal-overlay.is-open { display: flex; }
@@ -267,7 +277,7 @@
   .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
 
   .confirm-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.6); display: none;
     align-items: center; justify-content: center; z-index: 70; padding: 20px;
   }
   .confirm-overlay.is-open { display: flex; }

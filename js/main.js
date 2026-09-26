@@ -362,6 +362,7 @@
         '--amber': '#ffb020',
         '--text': '#f5f9fa', '--text-dim': '#b8c4cc', '--text-faint': '#5c6b73',
         '--label-color': '#b8c4cc',
+        '--panel-line': '#3d5c68', // 派生色だが、既定テーマは従来の見た目を厳密に維持するため明示
       }
     },
     light: {
@@ -411,10 +412,98 @@
   let currentTheme = 'dark';
   const root = document.documentElement;
 
+  /* ===================== テーマトークンの補完（派生色の自動計算） =====================
+     テーマの色は2種類に分けて扱う。
+       ・基本色：人が決める色（プリセット定義／カスタム編集画面／スポイト生成）
+       ・派生色：基本色から自動計算する色（薄い強調色・暗幕・影・STAGE用の色など）
+     派生色を毎回ここで計算し直すことで、
+       - カスタム／スポイトなど「基本色しか持たない」テーマでも全項目が揃う
+       - 古い保存データ（新項目を持たない）でも前のテーマの色が残らない
+     という2点を保証する（フールプルーフ）。 */
+  const BASE_TOKEN_NAMES = [
+    '--bg', '--bg-alt', '--panel-rgb', '--panel-hi', '--line', '--line-soft',
+    '--cyan', '--cyan-dim', '--magenta', '--magenta-dim', '--amber',
+    '--text', '--text-dim', '--text-faint', '--label-color', '--stage-bg',
+  ];
+  const RGB_SOURCE_TOKENS = [
+    '--bg', '--bg-alt', '--panel-hi', '--line', '--line-soft',
+    '--cyan', '--cyan-dim', '--magenta', '--magenta-dim', '--amber',
+    '--text', '--text-dim', '--text-faint', '--stage-bg', '--stage-bg-alt',
+  ];
+  const FALLBACK_BASE = {
+    '--bg': '#05070a', '--bg-alt': '#070b10', '--panel-rgb': '14, 22, 32', '--panel-hi': '#121d29',
+    '--line': '#1e3038', '--line-soft': '#14212a', '--cyan': '#00f0d0', '--cyan-dim': '#0a4a44',
+    '--magenta': '#ff2f6e', '--magenta-dim': '#4a0f24', '--amber': '#ffb020',
+    '--text': '#f5f9fa', '--text-dim': '#b8c4cc', '--text-faint': '#5c6b73', '--label-color': '#b8c4cc',
+  };
+
+  function isHexColor(v) { return typeof v === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim()); }
+  function hexToRgbArr(hex) {
+    let h = hex.trim().slice(1);
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function rgbArrToHex(a) { return '#' + a.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''); }
+  function mixHex(a, b, t) { // a→b を t(0〜1) の割合で混ぜる
+    const x = hexToRgbArr(a), y = hexToRgbArr(b);
+    return rgbArrToHex(x.map((v, i) => v + (y[i] - v) * t));
+  }
+  function isLightHex(hex) {
+    const [r, g, b] = hexToRgbArr(hex);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150;
+  }
+
+  // 基本色だけを取り出す（カスタム編集の初期値用。STAGE背景が無い古いデータは背景色で補う）
+  function pickBaseTokens(src) {
+    const out = {};
+    BASE_TOKEN_NAMES.forEach((name) => { if (src && src[name]) out[name] = src[name]; });
+    if (!isHexColor(out['--stage-bg'])) out['--stage-bg'] = isHexColor(out['--bg']) ? out['--bg'] : FALLBACK_BASE['--bg'];
+    return out;
+  }
+
+  function completeThemeTokens(src) {
+    const t = Object.assign({}, src);
+    // 基本色の欠け・不正値は既定値で補う（壊れた保存データでも画面が崩れないように）
+    Object.entries(FALLBACK_BASE).forEach(([k, v]) => {
+      if (k === '--panel-rgb') { if (!/^\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*$/.test(t[k] || '')) t[k] = v; }
+      else if (!isHexColor(t[k])) t[k] = v;
+    });
+    if (!isHexColor(t['--stage-bg'])) t['--stage-bg'] = t['--bg'];
+
+    // パネル面（従来 --panel は本体のCSSに固定値で書かれていてテーマに追従していなかった）
+    t['--panel'] = `rgb(${t['--panel-rgb']})`;
+    if (!isHexColor(t['--panel-line'])) t['--panel-line'] = mixHex(t['--line'], t['--text-faint'], 0.5);
+    // STAGE用の一段上の下地：STAGE背景が本体背景と同じなら既存のサブ背景をそのまま使う
+    t['--stage-bg-alt'] = (t['--stage-bg'].toLowerCase() === t['--bg'].toLowerCase())
+      ? t['--bg-alt']
+      : mixHex(t['--stage-bg'], t['--text'], 0.04);
+    t['--amber-dim'] = mixHex(t['--amber'], t['--bg'], 0.72);
+
+    // 「R, G, B」形式（rgba() の中で透明度だけ変えて使うため。既存の --panel-rgb と同じ方式）
+    RGB_SOURCE_TOKENS.forEach((name) => { t[name + '-rgb'] = hexToRgbArr(t[name]).join(', '); });
+
+    // 暗幕・影：ダーク系は黒、ライト系は背景色ベース（白っぽい暗幕）にする
+    const bgLight = isLightHex(t['--bg']);
+    const stageLight = isLightHex(t['--stage-bg']);
+    t['--scrim-rgb'] = bgLight ? t['--bg-rgb'] : '0, 0, 0';
+    t['--shadow-rgb'] = bgLight ? '60, 75, 85' : '0, 0, 0';
+    t['--stage-scrim-rgb'] = stageLight ? t['--stage-bg-rgb'] : '0, 0, 0';
+    t['--stage-shadow-rgb'] = stageLight ? '60, 75, 85' : '0, 0, 0';
+    // 強調色の上に乗せる文字色（選択範囲など）
+    t['--on-accent'] = isLightHex(t['--cyan']) ? '#000000' : '#ffffff';
+    return t;
+  }
+
+  function applyTokenSet(baseTokens) {
+    const full = completeThemeTokens(baseTokens);
+    Object.entries(full).forEach(([prop, val]) => root.style.setProperty(prop, val));
+  }
+
   function applyTheme(key) {
     const theme = themes[key];
     if (!theme) return;
-    Object.entries(theme.tokens).forEach(([prop, val]) => root.style.setProperty(prop, val));
+    applyTokenSet(theme.tokens);
     currentTheme = key;
     document.querySelectorAll('.theme-swatch').forEach(sw => {
       sw.classList.toggle('active', sw.dataset.theme === key);
@@ -476,6 +565,7 @@
     ['--text-dim', '文字（やや薄め）'],
     ['--text-faint', '文字（薄め）'],
     ['--label-color', 'ラベル文字'],
+    ['--stage-bg', 'STAGE（アプリ）背景'],
   ];
 
   // --panel-rgb だけは他の14トークンと違い "R, G, B"（カンマ区切り数値）
@@ -514,7 +604,7 @@
   // まだ保存していないのにプリセット側のactive表示が消えてしまうため、
   // ここではCSS変数の直接書き換えのみ行う）。
   function applyCustomThemeDraftLive() {
-    Object.entries(customThemeDraft).forEach(([prop, val]) => root.style.setProperty(prop, val));
+    applyTokenSet(customThemeDraft);
   }
 
   function buildCustomThemeGrid() {
@@ -571,8 +661,8 @@
     // 初期値：前回保存済みのカスタムテーマがあればそれ、なければ
     // 現在選ばれているテーマの15色をコピー（シーバさん合意済み仕様）。
     const source = themes.custom ? themes.custom.tokens : themes[currentTheme].tokens;
-    customThemeDraft = Object.assign({}, source);
-    customThemeBaseline = Object.assign({}, source);
+    customThemeDraft = pickBaseTokens(source);
+    customThemeBaseline = pickBaseTokens(source);
     themeBeforeCustomEdit = currentTheme;
     buildCustomThemeGrid();
     customThemeOverlay.classList.add('is-open');
@@ -1658,7 +1748,7 @@
             スポイト、どの経路でテーマが変わっても拾えるよう MutationObserver で監視）
      - 同じ内容を連続送信しないよう、直前に送った内容と比較してから送る。
      - 送るのは許可リストの15色のみ（壁紙などの巨大な値は送らない）。 */
-  const THEME_BRIDGE_TOKENS = Object.keys(themes.dark.tokens);
+  const THEME_BRIDGE_TOKENS = Object.keys(completeThemeTokens(themes.dark.tokens));
   let themeBridgeLastSent = null;
   let themeBridgeRafId = null;
 
