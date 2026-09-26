@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DONE MORE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  button, input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: #000; }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .bar-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .view-toggle { display: flex; border: 1px solid var(--line); flex-shrink: 0; }
+  .view-toggle button {
+    background: transparent; border: none; color: var(--text-dim); font-size: 11px;
+    padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--line);
+  }
+  .view-toggle button:last-child { border-right: none; }
+  .view-toggle button.active { color: var(--cyan); background: var(--cyan-dim); }
+
+  .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+    flex-shrink: 0; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 200px;
+    background: var(--panel); border: 1px solid var(--line); z-index: 40; display: none;
+    padding: 6px;
+  }
+  .menu-panel.is-open { display: block; }
+  .menu-panel-item {
+    width: 100%; text-align: left; background: transparent; border: none;
+    color: var(--text-dim); font-size: 12px; padding: 9px 10px; cursor: pointer;
+  }
+  .menu-panel-item:hover { background: var(--bg-alt); color: var(--cyan); }
+  .menu-panel-item.danger:hover { color: var(--magenta); }
+
+  .app-body { flex: 1; overflow: hidden; min-height: 0; position: relative; display: flex; flex-direction: column; }
+
+  .empty-state {
+    height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--text-faint); flex-direction: column; gap: 10px; padding: 40px;
+  }
+  .empty-state .big { font-family: var(--font-display); font-size: 13px; color: var(--text-dim); letter-spacing: .04em; }
+  .empty-state .small { font-size: 11px; max-width: 340px; line-height: 1.8; }
+
+  /* =====================================================================
+     一覧ビュー
+  ===================================================================== */
+  #listView { flex: 1; overflow-y: auto; padding: 16px; min-height: 0; }
+  .project-group { margin-bottom: 22px; }
+  .project-group:last-child { margin-bottom: 0; }
+  .project-group-head {
+    display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+    background: var(--panel); border: 1px solid var(--line); border-left-width: 4px;
+    margin-bottom: 8px;
+  }
+  .project-group-head .pg-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .project-group-head .pg-name { font-family: var(--font-display); font-size: 13px; letter-spacing: .03em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-group-head .pg-count { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; }
+  .project-group-head .pg-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .12s ease; }
+  .project-group-head:hover .pg-actions { opacity: 1; }
+  .pg-actions button {
+    width: 20px; height: 20px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .pg-actions button:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .pg-actions button.pg-del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .task-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 18px;
+    border: 1px solid var(--line-soft); border-top: none; background: var(--bg-alt);
+    cursor: pointer;
+  }
+  .project-group .task-row:first-of-type { border-top: 1px solid var(--line-soft); }
+  .task-row:hover { background: var(--panel-hi); }
+  .task-row.is-done { opacity: .5; }
+  .task-row .t-check {
+    width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; accent-color: var(--cyan);
+  }
+  .task-row .t-title { flex: 1; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-row.is-done .t-title { text-decoration: line-through; }
+  .task-row .t-dates { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; white-space: nowrap; }
+  .task-row .t-del {
+    width: 20px; height: 20px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 10px; cursor: pointer; opacity: 0; transition: opacity .12s ease;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .task-row:hover .t-del { opacity: 1; }
+  .task-row .t-del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .project-empty-hint { padding: 10px 18px; font-size: 11px; color: var(--text-faint); border: 1px solid var(--line-soft); border-top: none; background: var(--bg-alt); }
+
+  /* =====================================================================
+     ガントビュー
+  ===================================================================== */
+  #ganttView { flex: 1; display: flex; min-height: 0; }
+  .gantt-side {
+    width: 150px; flex-shrink: 0; border-right: 1px solid var(--line); overflow-y: hidden;
+    display: flex; flex-direction: column;
+  }
+  .gantt-side-head {
+    height: 34px; flex-shrink: 0; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; padding: 0 10px; font-size: 10px; color: var(--text-faint);
+    letter-spacing: .04em;
+  }
+  .gantt-side-row {
+    height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+    border-bottom: 1px solid var(--line-soft); font-size: 11.5px; overflow: hidden;
+  }
+  .gantt-side-row .pg-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .gantt-side-row span.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .gantt-scroll { flex: 1; overflow: auto; min-width: 0; position: relative; }
+  .gantt-grid { position: relative; }
+  .gantt-header-row {
+    display: flex; height: 34px; position: sticky; top: 0; z-index: 5; background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .gantt-day-col {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text-faint); border-right: 1px solid var(--line-soft);
+  }
+  .gantt-day-col.is-today { color: var(--cyan); font-weight: 600; }
+  .gantt-day-col.is-weekend { background: rgba(255,255,255,.02); }
+
+  .gantt-body-row { display: flex; height: 40px; position: relative; border-bottom: 1px solid var(--line-soft); }
+  .gantt-cell { flex-shrink: 0; border-right: 1px solid var(--line-soft); }
+  .gantt-cell.is-weekend { background: rgba(255,255,255,.02); }
+
+  .gantt-today-line {
+    position: absolute; top: 0; bottom: 0; width: 1px; background: var(--magenta);
+    z-index: 4; pointer-events: none; box-shadow: 0 0 6px rgba(255,47,110,.6);
+  }
+
+  .gantt-bar {
+    position: absolute; top: 6px; height: 28px; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px; overflow: hidden;
+    cursor: pointer; border: 1px solid rgba(0,0,0,.25);
+    font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis;
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+  .gantt-bar span { overflow: hidden; text-overflow: ellipsis; }
+  .gantt-bar.is-done { opacity: .45; }
+  .gantt-bar.is-done span { text-decoration: line-through; }
+  .gantt-bar:hover { filter: brightness(1.18); }
+
+  .gantt-empty-hint {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint); font-size: 11px; text-align: center; padding: 30px; pointer-events: none;
+  }
+
+  /* =====================================================================
+     プロジェクト作成モーダル
+  ===================================================================== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal {
+    width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line);
+    padding: 18px 20px 20px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--line-soft);
+  }
+  .modal-title { font-family: var(--font-display); font-size: 13px; color: var(--text); letter-spacing: .04em; }
+  .modal-close {
+    width: 22px; height: 22px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 12px; cursor: pointer;
+  }
+  .modal-close:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .field-group { margin-bottom: 14px; }
+  .field-label { font-size: 10.5px; color: var(--text-faint); margin-bottom: 5px; letter-spacing: .03em; }
+  .field-input, .field-select {
+    width: 100%; background: var(--bg-alt); border: 1px solid var(--line); padding: 8px 10px;
+    font-size: 12px; color: var(--text); outline: none;
+  }
+  .field-input:focus, .field-select:focus { border-color: var(--cyan-dim); }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field-group { flex: 1; min-width: 0; }
+  .field-error {
+    font-size: 10.5px; color: var(--magenta); margin-top: 5px; line-height: 1.6; display: none;
+  }
+  .field-error.is-shown { display: block; }
+
+  .color-swatch-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+  .color-swatch {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+  }
+  .color-swatch.is-selected { border-color: var(--text); }
+
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 60; max-width: 80vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box {
+    width: 100%; max-width: 320px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px;
+  }
+  .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; white-space: pre-line; }
+  .confirm-box .cf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="app-bar">
+    <span class="app-title">// DONE MORE</span>
+    <div class="bar-right">
+      <div class="view-toggle">
+        <button type="button" id="tabListBtn" class="active">一覧</button>
+        <button type="button" id="tabGanttBtn">ガント</button>
+      </div>
+      <button class="btn" id="addProjectBtn">＋ プロジェクト</button>
+      <button class="btn primary" id="addTaskBtn">＋ タスク</button>
+      <div class="menu-wrap">
+        <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
+        <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="menuItemProjectManage" type="button">プロジェクト管理</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div id="listView"></div>
+    <div id="ganttView" style="display:none;">
+      <div class="gantt-side" id="ganttSide"></div>
+      <div class="gantt-scroll" id="ganttScroll">
+        <div class="gantt-grid" id="ganttGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- プロジェクト作成／編集モーダル -->
+<div class="modal-overlay" id="projectModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="projectModalTitle">新しいプロジェクト</span>
+      <button class="modal-close" id="projectModalCloseBtn">✕</button>
+    </div>
+    <div class="field-group">
+      <div class="field-label">プロジェクト名</div>
+      <input type="text" class="field-input" id="projectNameInput" maxlength="40" placeholder="例：アルファロメオ">
+    </div>
+    <div class="field-group">
+      <div class="field-label">カラー</div>
+      <div class="color-swatch-row" id="projectColorRow"></div>
+    </div>
+    <div class="field-error" id="projectFormError"></div>
+    <div class="modal-footer">
+      <button class="btn" id="projectCancelBtn">キャンセル</button>
+      <button class="btn primary" id="projectSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- タスク作成／編集モーダル -->
+<div class="modal-overlay" id="taskModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="taskModalTitle">新しいタスク</span>
+      <button class="modal-close" id="taskModalCloseBtn">✕</button>
+    </div>
+    <div class="field-group">
+      <div class="field-label">所属プロジェクト</div>
+      <select class="field-select" id="taskProjectSelect"></select>
+    </div>
+    <div class="field-group">
+      <div class="field-label">タスク名</div>
+      <input type="text" class="field-input" id="taskTitleInput" maxlength="60" placeholder="例：プロット作成：アーサー王の帰還">
+    </div>
+    <div class="field-row">
+      <div class="field-group">
+        <div class="field-label">開始日</div>
+        <input type="date" class="field-input" id="taskStartInput">
+      </div>
+      <div class="field-group">
+        <div class="field-label">終了日</div>
+        <input type="date" class="field-input" id="taskEndInput">
+      </div>
+    </div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); margin-bottom:14px; cursor:pointer;">
+      <input type="checkbox" id="taskDoneInput" style="accent-color:var(--cyan); width:15px; height:15px;">
+      完了済みにする
+    </label>
+    <div class="field-error" id="taskFormError"></div>
+    <div class="modal-footer">
+      <button class="btn danger" id="taskDeleteBtn" style="margin-right:auto; display:none;">削除</button>
+      <button class="btn" id="taskCancelBtn">キャンセル</button>
+      <button class="btn primary" id="taskSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- プロジェクト管理モーダル -->
+<div class="modal-overlay" id="projectManageOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">プロジェクト管理</span>
+      <button class="modal-close" id="projectManageCloseBtn">✕</button>
+    </div>
+    <div id="projectManageList"></div>
+  </div>
+</div>
+
+<!-- 削除確認ダイアログ -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions">
+      <button class="btn" id="confirmCancelBtn">キャンセル</button>
+      <button class="btn danger" id="confirmDeleteBtn">削除する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     IndexedDB レイヤー（SIDE-OPS制作資料 8章「定型パターン」に準拠）
+     DB: sideops_donemore
+       - projects : { id, name, color, createdAt }
+       - tasks    : { id, projectId, title, startDate, endDate, done, createdAt, updatedAt }
+         startDate / endDate は 'YYYY-MM-DD' 文字列（タイムゾーン起因のズレを避けるため終日固定）
+  ===================================================================== */
+  const DB_NAME = 'sideops_donemore';
+  const DB_VERSION = 1;
+  const STORE_PROJECTS = 'projects';
+  const STORE_TASKS = 'tasks';
+  let db = null;
+
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const _db = ev.target.result;
+        if (!_db.objectStoreNames.contains(STORE_PROJECTS)) {
+          _db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' });
+        }
+        if (!_db.objectStoreNames.contains(STORE_TASKS)) {
+          const store = _db.createObjectStore(STORE_TASKS, { keyPath: 'id' });
+          store.createIndex('projectId', 'projectId', { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function store(name, mode) {
+    const tx = db.transaction(name, mode);
+    return tx.objectStore(name);
+  }
+  function getAll(name) {
+    return new Promise((resolve, reject) => {
+      const req = store(name, 'readonly').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function put(name, value) {
+    return new Promise((resolve, reject) => {
+      const req = store(name, 'readwrite').put(value);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function del(name, id) {
+    return new Promise((resolve, reject) => {
+      const req = store(name, 'readwrite').delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /* ===================== state ===================== */
+  let projects = [];
+  let tasks = [];
+  let currentView = 'list'; // 'list' | 'gantt'
+  let editingProjectId = null; // null = 新規
+  let editingTaskId = null;    // null = 新規
+  let deleteTarget = null;     // { type: 'project'|'task', id }
+
+  const PROJECT_COLORS = ['#00f0d0', '#ff2f6e', '#ffb020', '#7c9eff', '#c792ea', '#66d97a', '#ff8a5c', '#5cc8ff'];
+
+  /* ===================== DOM refs ===================== */
+  const tabListBtn = document.getElementById('tabListBtn');
+  const tabGanttBtn = document.getElementById('tabGanttBtn');
+  const listView = document.getElementById('listView');
+  const ganttView = document.getElementById('ganttView');
+  const ganttSide = document.getElementById('ganttSide');
+  const ganttScroll = document.getElementById('ganttScroll');
+  const ganttGrid = document.getElementById('ganttGrid');
+
+  const addProjectBtn = document.getElementById('addProjectBtn');
+  const addTaskBtn = document.getElementById('addTaskBtn');
+
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+  const menuPanel = document.getElementById('menuPanel');
+  const menuItemProjectManage = document.getElementById('menuItemProjectManage');
+
+  const projectModalOverlay = document.getElementById('projectModalOverlay');
+  const projectModalTitle = document.getElementById('projectModalTitle');
+  const projectModalCloseBtn = document.getElementById('projectModalCloseBtn');
+  const projectNameInput = document.getElementById('projectNameInput');
+  const projectColorRow = document.getElementById('projectColorRow');
+  const projectFormError = document.getElementById('projectFormError');
+  const projectCancelBtn = document.getElementById('projectCancelBtn');
+  const projectSaveBtn = document.getElementById('projectSaveBtn');
+  let selectedProjectColor = PROJECT_COLORS[0];
+
+  const taskModalOverlay = document.getElementById('taskModalOverlay');
+  const taskModalTitle = document.getElementById('taskModalTitle');
+  const taskModalCloseBtn = document.getElementById('taskModalCloseBtn');
+  const taskProjectSelect = document.getElementById('taskProjectSelect');
+  const taskTitleInput = document.getElementById('taskTitleInput');
+  const taskStartInput = document.getElementById('taskStartInput');
+  const taskEndInput = document.getElementById('taskEndInput');
+  const taskDoneInput = document.getElementById('taskDoneInput');
+  const taskFormError = document.getElementById('taskFormError');
+  const taskDeleteBtn = document.getElementById('taskDeleteBtn');
+  const taskCancelBtn = document.getElementById('taskCancelBtn');
+  const taskSaveBtn = document.getElementById('taskSaveBtn');
+
+  const projectManageOverlay = document.getElementById('projectManageOverlay');
+  const projectManageCloseBtn = document.getElementById('projectManageCloseBtn');
+  const projectManageList = document.getElementById('projectManageList');
+
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmMsg = document.getElementById('confirmMsg');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null;
+
+  /* ===================== ユーティリティ ===================== */
+  function showToast(msg, isError) {
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('is-error', !!isError);
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function genId() {
+    return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+  }
+
+  // 'YYYY-MM-DD' <-> Date（ローカル日付として扱い、UTC変換によるズレを避ける）
+  function parseDateStr(s) {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  function formatDateStr(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+  function todayStr() {
+    return formatDateStr(new Date());
+  }
+  function diffDays(aStr, bStr) {
+    return Math.round((parseDateStr(bStr) - parseDateStr(aStr)) / 86400000);
+  }
+  function formatDateShort(s) {
+    const d = parseDateStr(s);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function getProject(id) {
+    return projects.find(p => p.id === id) || null;
+  }
+  function tasksOfProject(projectId) {
+    return tasks.filter(t => t.projectId === projectId)
+      .sort((a, b) => a.startDate < b.startDate ? -1 : (a.startDate > b.startDate ? 1 : 0));
+  }
+
+  /* =====================================================================
+     フールプルーフ：同一プロジェクト内の日付重複チェック
+     「終了日＝次の開始日」は許容（境界共有はOK）。それ以外の重なりはNG。
+     判定式: 新開始 < 既存終了 かつ 新終了 > 既存開始 → 重複
+  ===================================================================== */
+  function findOverlappingTask(projectId, startDate, endDate, excludeTaskId) {
+    const siblings = tasks.filter(t => t.projectId === projectId && t.id !== excludeTaskId);
+    for (const t of siblings) {
+      const overlap = (startDate < t.endDate) && (endDate > t.startDate);
+      if (overlap) return t;
+    }
+    return null;
+  }
+
+  /* ===================== 初期化〜フォールバック（8.3節の型） ===================== */
+  openDb().then(async (_db) => {
+    db = _db;
+    await loadAndRender();
+  }).catch((err) => {
+    console.error('DONE MORE用DBの初期化に失敗しました', err);
+    projects = [];
+    tasks = [];
+    listView.innerHTML = `<div class="empty-state">
+      <div class="big">保存機能を利用できません</div>
+      <div class="small">このブラウザ／モードではIndexedDBが利用できないため、タスクは保存されません。プライベートブラウジングモードなどをご確認ください。</div>
+    </div>`;
+  });
+
+  async function loadAndRender() {
+    try {
+      projects = await getAll(STORE_PROJECTS);
+      tasks = await getAll(STORE_TASKS);
+    } catch (err) {
+      console.error('データ読み込みに失敗しました', err);
+      projects = []; tasks = [];
+    }
+    projects.sort((a, b) => a.createdAt - b.createdAt);
+    renderAll();
+  }
+
+  function renderAll() {
+    if (currentView === 'list') renderListView();
+    else renderGanttView();
+  }
+
+  /* ===================== タブ切り替え ===================== */
+  function switchView(view) {
+    currentView = view;
+    tabListBtn.classList.toggle('active', view === 'list');
+    tabGanttBtn.classList.toggle('active', view === 'gantt');
+    listView.style.display = view === 'list' ? '' : 'none';
+    ganttView.style.display = view === 'gantt' ? 'flex' : 'none';
+    renderAll();
+  }
+  tabListBtn.addEventListener('click', () => switchView('list'));
+  tabGanttBtn.addEventListener('click', () => switchView('gantt'));
+
+  /* =====================================================================
+     一覧ビュー
+  ===================================================================== */
+  function renderListView() {
+    if (projects.length === 0) {
+      listView.innerHTML = `<div class="empty-state">
+        <div class="big">まだプロジェクトがありません</div>
+        <div class="small">右上の「＋ プロジェクト」から作成し、そのあと「＋ タスク」でタスクを追加してください。</div>
+      </div>`;
+      return;
+    }
+
+    listView.innerHTML = '';
+    projects.forEach(proj => {
+      const group = document.createElement('div');
+      group.className = 'project-group';
+
+      const head = document.createElement('div');
+      head.className = 'project-group-head';
+      head.style.borderLeftColor = proj.color;
+      const list = tasksOfProject(proj.id);
+      head.innerHTML = `
+        <span class="pg-swatch" style="background:${proj.color};"></span>
+        <span class="pg-name">${escapeHtml(proj.name)}</span>
+        <span class="pg-count">${list.length}件</span>
+        <span class="pg-actions">
+          <button type="button" class="pg-edit" title="プロジェクトを編集">✎</button>
+          <button type="button" class="pg-del" title="プロジェクトを削除">🗑</button>
+        </span>
+      `;
+      head.querySelector('.pg-edit').addEventListener('click', () => openProjectModal(proj.id));
+      head.querySelector('.pg-del').addEventListener('click', () => requestDeleteProject(proj.id));
+      group.appendChild(head);
+
+      if (list.length === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'project-empty-hint';
+        hint.textContent = 'タスクがまだありません。';
+        group.appendChild(hint);
+      } else {
+        list.forEach(task => {
+          const row = document.createElement('div');
+          row.className = 'task-row' + (task.done ? ' is-done' : '');
+          row.innerHTML = `
+            <input type="checkbox" class="t-check" ${task.done ? 'checked' : ''}>
+            <span class="t-title">${escapeHtml(task.title)}</span>
+            <span class="t-dates">${formatDateShort(task.startDate)} 〜 ${formatDateShort(task.endDate)}</span>
+            <button type="button" class="t-del" title="削除">🗑</button>
+          `;
+          row.querySelector('.t-check').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleTaskDone(task.id);
+          });
+          row.querySelector('.t-del').addEventListener('click', (e) => {
+            e.stopPropagation();
+            requestDeleteTask(task.id);
+          });
+          row.addEventListener('click', () => openTaskModal(task.id));
+          group.appendChild(row);
+        });
+      }
+
+      listView.appendChild(group);
+    });
+  }
+
+  async function toggleTaskDone(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.done = !task.done;
+    task.updatedAt = Date.now();
+    try {
+      await put(STORE_TASKS, task);
+    } catch (err) {
+      console.error('タスクの更新に失敗しました', err);
+      task.done = !task.done; // ロールバック
+      showToast('保存に失敗しました', true);
+    }
+    renderAll();
+  }
+
+  /* =====================================================================
+     ガントビュー（自前実装・最小限機能）
+     行＝プロジェクト。同一行に複数タスクのバーを時系列で配置。
+     日付軸はCSS gridではなく固定px幅の絶対配置（横スクロール・当日線の実装が単純になるため）
+  ===================================================================== */
+  const DAY_WIDTH = 34; // 1日あたりの幅(px)
+  const RANGE_PADDING_DAYS = 3; // データの前後に余白を持たせる
+  const MAX_BAR_DAYS = 366; // フールプルーフ：異常に長い期間のバーで描画全体が壊れないよう上限
+
+  function computeGanttRange() {
+    if (tasks.length === 0) {
+      const today = todayStr();
+      return { start: today, end: formatDateStr(new Date(Date.now() + 13 * 86400000)) };
+    }
+    let minS = tasks[0].startDate, maxE = tasks[0].endDate;
+    tasks.forEach(t => {
+      if (t.startDate < minS) minS = t.startDate;
+      if (t.endDate > maxE) maxE = t.endDate;
+    });
+    const start = formatDateStr(new Date(parseDateStr(minS).getTime() - RANGE_PADDING_DAYS * 86400000));
+    const end = formatDateStr(new Date(parseDateStr(maxE).getTime() + RANGE_PADDING_DAYS * 86400000));
+    return { start, end };
+  }
+
+  function renderGanttView() {
+    if (projects.length === 0) {
+      ganttSide.innerHTML = '';
+      ganttGrid.innerHTML = '<div class="gantt-empty-hint">まだプロジェクトがありません。「＋ プロジェクト」から作成してください。</div>';
+      return;
+    }
+
+    const { start, end } = computeGanttRange();
+    const totalDays = Math.max(1, diffDays(start, end) + 1);
+    const totalWidth = totalDays * DAY_WIDTH;
+    const today = todayStr();
+
+    // ---- 左側：プロジェクト名リスト ----
+    ganttSide.innerHTML = '<div class="gantt-side-head">プロジェクト</div>';
+    projects.forEach(proj => {
+      const row = document.createElement('div');
+      row.className = 'gantt-side-row';
+      row.innerHTML = `<span class="pg-swatch" style="background:${proj.color};"></span><span class="name">${escapeHtml(proj.name)}</span>`;
+      ganttSide.appendChild(row);
+    });
+
+    // ---- 右側：日付ヘッダー + 行 ----
+    ganttGrid.style.width = totalWidth + 'px';
+    ganttGrid.innerHTML = '';
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'gantt-header-row';
+    headerRow.style.width = totalWidth + 'px';
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(parseDateStr(start).getTime() + i * 86400000);
+      const dStr = formatDateStr(d);
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const col = document.createElement('div');
+      col.className = 'gantt-day-col' + (isWeekend ? ' is-weekend' : '') + (dStr === today ? ' is-today' : '');
+      col.style.width = DAY_WIDTH + 'px';
+      col.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+      headerRow.appendChild(col);
+    }
+    ganttGrid.appendChild(headerRow);
+
+    const bodyWrap = document.createElement('div');
+    bodyWrap.style.position = 'relative';
+
+    projects.forEach(proj => {
+      const bodyRow = document.createElement('div');
+      bodyRow.className = 'gantt-body-row';
+      bodyRow.style.width = totalWidth + 'px';
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(parseDateStr(start).getTime() + i * 86400000);
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const cell = document.createElement('div');
+        cell.className = 'gantt-cell' + (isWeekend ? ' is-weekend' : '');
+        cell.style.width = DAY_WIDTH + 'px';
+        bodyRow.appendChild(cell);
+      }
+
+      tasksOfProject(proj.id).forEach(task => {
+        // フールプルーフ：終了日<開始日、または表示範囲外に大きく外れた異常データは描画スキップ
+        if (task.endDate < task.startDate) return;
+        let barDays = diffDays(task.startDate, task.endDate) + 1;
+        if (barDays > MAX_BAR_DAYS) barDays = MAX_BAR_DAYS;
+        const offsetDays = diffDays(start, task.startDate);
+        if (offsetDays + barDays < 0 || offsetDays > totalDays) return; // 完全に範囲外
+
+        const bar = document.createElement('div');
+        bar.className = 'gantt-bar' + (task.done ? ' is-done' : '');
+        bar.style.left = (offsetDays * DAY_WIDTH) + 'px';
+        bar.style.width = Math.max(DAY_WIDTH - 2, barDays * DAY_WIDTH - 2) + 'px';
+        bar.style.background = proj.color;
+        bar.style.color = '#0a0a0a';
+        bar.title = `${task.title}（${formatDateShort(task.startDate)}〜${formatDateShort(task.endDate)}）`;
+        bar.innerHTML = `<span>${escapeHtml(task.title)}</span>`;
+        bar.addEventListener('click', () => openTaskModal(task.id));
+        bodyRow.appendChild(bar);
+      });
+
+      bodyWrap.appendChild(bodyRow);
+    });
+
+    ganttGrid.appendChild(bodyWrap);
+
+    // ---- 当日ライン ----
+    if (today >= start && today <= end) {
+      const line = document.createElement('div');
+      line.className = 'gantt-today-line';
+      line.style.left = (diffDays(start, today) * DAY_WIDTH + DAY_WIDTH / 2) + 'px';
+      line.style.height = (34 + projects.length * 40) + 'px';
+      ganttGrid.appendChild(line);
+    }
+  }
+
+  /* =====================================================================
+     プロジェクト作成／編集モーダル
+  ===================================================================== */
+  function renderProjectColorRow() {
+    projectColorRow.innerHTML = '';
+    PROJECT_COLORS.forEach(c => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (c === selectedProjectColor ? ' is-selected' : '');
+      sw.style.background = c;
+      sw.addEventListener('click', () => {
+        selectedProjectColor = c;
+        renderProjectColorRow();
+      });
+      projectColorRow.appendChild(sw);
+    });
+  }
+
+  function openProjectModal(projectId) {
+    editingProjectId = projectId || null;
+    projectFormError.classList.remove('is-shown');
+    if (projectId) {
+      const proj = getProject(projectId);
+      if (!proj) return;
+      projectModalTitle.textContent = 'プロジェクトを編集';
+      projectNameInput.value = proj.name;
+      selectedProjectColor = proj.color;
+    } else {
+      projectModalTitle.textContent = '新しいプロジェクト';
+      projectNameInput.value = '';
+      // 既存プロジェクト数に応じて未使用色を軽く回す（誤って同じ色ばかりにならないための配慮）
+      selectedProjectColor = PROJECT_COLORS[projects.length % PROJECT_COLORS.length];
+    }
+    renderProjectColorRow();
+    projectModalOverlay.classList.add('is-open');
+    setTimeout(() => projectNameInput.focus(), 30);
+  }
+  function closeProjectModal() { projectModalOverlay.classList.remove('is-open'); }
+
+  addProjectBtn.addEventListener('click', () => openProjectModal(null));
+  projectModalCloseBtn.addEventListener('click', closeProjectModal);
+  projectCancelBtn.addEventListener('click', closeProjectModal);
+  projectModalOverlay.addEventListener('click', (e) => { if (e.target === projectModalOverlay) closeProjectModal(); });
+
+  projectSaveBtn.addEventListener('click', async () => {
+    const name = projectNameInput.value.trim();
+    if (!name) {
+      projectFormError.textContent = 'プロジェクト名を入力してください。';
+      projectFormError.classList.add('is-shown');
+      return;
+    }
+    projectFormError.classList.remove('is-shown');
+
+    const proj = editingProjectId
+      ? getProject(editingProjectId)
+      : { id: genId(), createdAt: Date.now() };
+    if (!proj) return;
+    proj.name = name;
+    proj.color = selectedProjectColor;
+
+    try {
+      await put(STORE_PROJECTS, proj);
+      if (!editingProjectId) projects.push(proj);
+      projects.sort((a, b) => a.createdAt - b.createdAt);
+      closeProjectModal();
+      renderAll();
+      showToast(editingProjectId ? 'プロジェクトを更新しました' : 'プロジェクトを作成しました');
+    } catch (err) {
+      console.error('プロジェクトの保存に失敗しました', err);
+      showToast('保存に失敗しました', true);
+    }
+  });
+
+  /* =====================================================================
+     タスク作成／編集モーダル
+  ===================================================================== */
+  function populateTaskProjectSelect(preselectId) {
+    taskProjectSelect.innerHTML = '';
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      taskProjectSelect.appendChild(opt);
+    });
+    if (preselectId) taskProjectSelect.value = preselectId;
+  }
+
+  function openTaskModal(taskId, defaultProjectId) {
+    if (projects.length === 0) {
+      showToast('先にプロジェクトを作成してください', true);
+      return;
+    }
+    editingTaskId = taskId || null;
+    taskFormError.classList.remove('is-shown');
+    populateTaskProjectSelect();
+
+    if (taskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      taskModalTitle.textContent = 'タスクを編集';
+      taskProjectSelect.value = task.projectId;
+      taskTitleInput.value = task.title;
+      taskStartInput.value = task.startDate;
+      taskEndInput.value = task.endDate;
+      taskDoneInput.checked = !!task.done;
+      taskDeleteBtn.style.display = '';
+    } else {
+      taskModalTitle.textContent = '新しいタスク';
+      if (defaultProjectId) taskProjectSelect.value = defaultProjectId;
+      taskTitleInput.value = '';
+      taskStartInput.value = todayStr();
+      taskEndInput.value = todayStr();
+      taskDoneInput.checked = false;
+      taskDeleteBtn.style.display = 'none';
+    }
+    taskModalOverlay.classList.add('is-open');
+    setTimeout(() => taskTitleInput.focus(), 30);
+  }
+  function closeTaskModal() { taskModalOverlay.classList.remove('is-open'); }
+
+  addTaskBtn.addEventListener('click', () => openTaskModal(null));
+  taskModalCloseBtn.addEventListener('click', closeTaskModal);
+  taskCancelBtn.addEventListener('click', closeTaskModal);
+  taskModalOverlay.addEventListener('click', (e) => { if (e.target === taskModalOverlay) closeTaskModal(); });
+
+  taskSaveBtn.addEventListener('click', async () => {
+    const projectId = taskProjectSelect.value;
+    const title = taskTitleInput.value.trim();
+    const startDate = taskStartInput.value;
+    const endDate = taskEndInput.value;
+    const done = taskDoneInput.checked;
+
+    // ---- フールプルーフ：入力バリデーション ----
+    if (!projectId) {
+      taskFormError.textContent = 'プロジェクトを選択してください。';
+      taskFormError.classList.add('is-shown');
+      return;
+    }
+    if (!title) {
+      taskFormError.textContent = 'タスク名を入力してください。';
+      taskFormError.classList.add('is-shown');
+      return;
+    }
+    if (!startDate || !endDate) {
+      taskFormError.textContent = '開始日・終了日を入力してください。';
+      taskFormError.classList.add('is-shown');
+      return;
+    }
+    if (endDate < startDate) {
+      taskFormError.textContent = '終了日は開始日より後の日付にしてください。';
+      taskFormError.classList.add('is-shown');
+      return;
+    }
+    // ---- フールプルーフ：同一プロジェクト内の日付重複チェック（境界共有はOK） ----
+    const overlapping = findOverlappingTask(projectId, startDate, endDate, editingTaskId);
+    if (overlapping) {
+      taskFormError.textContent = `同じプロジェクト内の「${overlapping.title}」（${formatDateShort(overlapping.startDate)}〜${formatDateShort(overlapping.endDate)}）と期間が重なっています。日付を調整してください。`;
+      taskFormError.classList.add('is-shown');
+      return;
+    }
+    taskFormError.classList.remove('is-shown');
+
+    const task = editingTaskId
+      ? tasks.find(t => t.id === editingTaskId)
+      : { id: genId(), createdAt: Date.now() };
+    if (!task) return;
+    task.projectId = projectId;
+    task.title = title;
+    task.startDate = startDate;
+    task.endDate = endDate;
+    task.done = done;
+    task.updatedAt = Date.now();
+
+    try {
+      await put(STORE_TASKS, task);
+      if (!editingTaskId) tasks.push(task);
+      closeTaskModal();
+      renderAll();
+      showToast(editingTaskId ? 'タスクを更新しました' : 'タスクを作成しました');
+    } catch (err) {
+      console.error('タスクの保存に失敗しました', err);
+      showToast('保存に失敗しました', true);
+    }
+  });
+
+  taskDeleteBtn.addEventListener('click', () => {
+    if (!editingTaskId) return;
+    closeTaskModal();
+    requestDeleteTask(editingTaskId);
+  });
+
+  /* =====================================================================
+     削除確認（プロジェクト／タスク共通ダイアログ）
+  ===================================================================== */
+  function requestDeleteTask(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    deleteTarget = { type: 'task', id: taskId };
+    confirmMsg.textContent = `タスク「${task.title}」を削除します。\nこの操作は取り消せません。`;
+    confirmOverlay.classList.add('is-open');
+  }
+
+  function requestDeleteProject(projectId) {
+    const proj = getProject(projectId);
+    if (!proj) return;
+    const count = tasksOfProject(projectId).length;
+    deleteTarget = { type: 'project', id: projectId };
+    confirmMsg.textContent = count > 0
+      ? `プロジェクト「${proj.name}」を削除します。\n紐づくタスク ${count}件 もすべて削除されます。\nこの操作は取り消せません。`
+      : `プロジェクト「${proj.name}」を削除します。\nこの操作は取り消せません。`;
+    confirmOverlay.classList.add('is-open');
+  }
+
+  function closeConfirm() {
+    confirmOverlay.classList.remove('is-open');
+    deleteTarget = null;
+  }
+  confirmCancelBtn.addEventListener('click', closeConfirm);
+  confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirm(); });
+
+  confirmDeleteBtn.addEventListener('click', async () => {
+    if (!deleteTarget) return;
+    const { type, id } = deleteTarget;
+    try {
+      if (type === 'task') {
+        await del(STORE_TASKS, id);
+        tasks = tasks.filter(t => t.id !== id);
+        showToast('タスクを削除しました');
+      } else if (type === 'project') {
+        // 連鎖削除：プロジェクト本体＋紐づく全タスク（既存apps「アプリ管理」画面と同じ設計方針）
+        const related = tasksOfProject(id);
+        for (const t of related) {
+          try { await del(STORE_TASKS, t.id); } catch (err) { console.error('タスク削除に失敗', t.id, err); }
+        }
+        await del(STORE_PROJECTS, id);
+        tasks = tasks.filter(t => t.projectId !== id);
+        projects = projects.filter(p => p.id !== id);
+        showToast('プロジェクトを削除しました');
+      }
+    } catch (err) {
+      console.error('削除に失敗しました', err);
+      showToast('削除に失敗しました', true);
+    }
+    closeConfirm();
+    renderAll();
+    if (projectManageOverlay.classList.contains('is-open')) renderProjectManageList();
+  });
+
+  /* =====================================================================
+     ハンバーガーメニュー／プロジェクト管理
+  ===================================================================== */
+  function openMenu() { menuPanel.classList.add('is-open'); hamburgerBtn.classList.add('is-active'); }
+  function closeMenu() { menuPanel.classList.remove('is-open'); hamburgerBtn.classList.remove('is-active'); }
+  hamburgerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (menuPanel.classList.contains('is-open')) closeMenu(); else openMenu();
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-wrap') && menuPanel.classList.contains('is-open')) closeMenu();
+  });
+
+  function renderProjectManageList() {
+    if (projects.length === 0) {
+      projectManageList.innerHTML = '<div class="field-error is-shown" style="color:var(--text-faint);">プロジェクトがありません。</div>';
+      return;
+    }
+    projectManageList.innerHTML = '';
+    projects.forEach(proj => {
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      row.style.paddingLeft = '10px';
+      const count = tasksOfProject(proj.id).length;
+      row.innerHTML = `
+        <span class="pg-swatch" style="background:${proj.color};"></span>
+        <span class="t-title">${escapeHtml(proj.name)}</span>
+        <span class="t-dates">${count}件のタスク</span>
+      `;
+      const editBtn = document.createElement('button');
+      editBtn.className = 't-del'; editBtn.style.opacity = '1'; editBtn.textContent = '✎';
+      editBtn.title = '編集';
+      editBtn.addEventListener('click', () => { closeProjectManage(); openProjectModal(proj.id); });
+      const delBtn = document.createElement('button');
+      delBtn.className = 't-del'; delBtn.style.opacity = '1'; delBtn.textContent = '🗑';
+      delBtn.title = '削除';
+      delBtn.addEventListener('click', () => requestDeleteProject(proj.id));
+      row.appendChild(editBtn);
+      row.appendChild(delBtn);
+      projectManageList.appendChild(row);
+    });
+  }
+
+  function openProjectManage() {
+    closeMenu();
+    renderProjectManageList();
+    projectManageOverlay.classList.add('is-open');
+  }
+  function closeProjectManage() { projectManageOverlay.classList.remove('is-open'); }
+  menuItemProjectManage.addEventListener('click', openProjectManage);
+  projectManageCloseBtn.addEventListener('click', closeProjectManage);
+  projectManageOverlay.addEventListener('click', (e) => { if (e.target === projectManageOverlay) closeProjectManage(); });
+
+  /* ===================== キーボード：Escで最前面のモーダルを閉じる ===================== */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (confirmOverlay.classList.contains('is-open')) closeConfirm();
+    else if (taskModalOverlay.classList.contains('is-open')) closeTaskModal();
+    else if (projectModalOverlay.classList.contains('is-open')) closeProjectModal();
+    else if (projectManageOverlay.classList.contains('is-open')) closeProjectManage();
+  });
+})();
+</script>
+</body>
+</html>
