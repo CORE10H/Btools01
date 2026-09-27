@@ -48,9 +48,9 @@ sideops/
 
 ### GitHub作業の運用ルール
 
-- GitHubの作業にはセッションごとに短期のPATを発行し、作業後に失効させる運用
-- pushは`CORE10H`アカウント側のPATが必要（`yoshimitsu08`側のPATではcloneはできてもpushが403で拒否される）
-- セッション冒頭でPAT発行を依頼し、一連の作業完了後に失効させたかどうかをリマインドする
+- 2026-09-27以降、作業はローカルPC（`D:\dev\Btools01`）上のClaude Code（デスクトップアプリのCodeタブ）で行う
+- GitHubへの認証はGitHub CLI（`gh`）で`CORE10H`アカウントにログイン済み。Claudeがそのままclone/pushできるため、セッションごとのPAT発行・失効は不要になった
+- pushは`CORE10H`アカウントで行うこと（`yoshimitsu08`アカウントではcloneはできてもpushが403で拒否される）
 
 ## ファイル状態の凡例（変更履歴での表記）
 
