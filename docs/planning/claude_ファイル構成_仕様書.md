@@ -15,16 +15,20 @@ sideops/
 └── apps/
     ├── img/                    # 各アプリのカバー画像（BUILTIN_APP_CHOICESのcoverImgとして
     │                            # 「＋新規作成」プルダウン選択時に自動読込される。coverImg未設定の
-    │                            # アプリ（scaffold・blank等）は対象外）
+    │                            # アプリ（blank等）は対象外）
     │   ├── prompt-gallery.jpg
+    │   ├── prompt-gallery-red.jpg
     │   ├── manuscript.jpg
     │   ├── memo.jpg
     │   ├── discotica.jpg
     │   ├── done-more.jpg
-    │   └── scribit.jpg
+    │   ├── scribit.jpg
+    │   └── scaffold.jpg
     ├── sideops-theme-bridge.js  # テーマブリッジの受信側共通スクリプト。各アプリが
     │                            # <head>で1行読み込むopt-in方式
-    ├── prompt-gallery.html  # 画像生成プロンプト見本一覧（本実装済み）
+    ├── prompt-gallery.html      # 画像生成プロンプト見本一覧（本実装済み）
+    ├── prompt-gallery-red.html  # PROMPTGALLERYの微調整版（本実装済み。機能は本家と同一、
+    │                            # 強調色のみアプリ固有の赤に固定・データも独立）
     ├── manuscript.html      # 既存アプリ統合予定（現状ダミーページ）
     ├── scaffold.html        # AIのべりすと執筆支援ツール（本実装済み・push済み）
     ├── memo.html            # メモアプリ（本実装済み）
@@ -54,4 +58,8 @@ sideops/
 - **未push**：ローカルの一時的な作業領域にのみ存在し、セッション終了で失われる可能性がある状態
 - **コード消失**：一度実装されたが、pushされないままセッション終了で失われたことが確認された状態（例：インターネットショートカット機能。`アプリランチャー_仕様書.md`参照）
 
-現時点でのファイル別状態は`SIDE-OPS_変更履歴.md`の最新行を参照。SCAFFOLDは本実装済み・push済みだが、カバー画像（`apps/img/scaffold.jpg`）は未作成のため`coverImg`未設定のまま（後日追加予定）。
+現時点でのファイル別状態は`SIDE-OPS_変更履歴.md`の最新行を参照。全builtinアプリ（blankを除く）のカバー画像が揃っている。
+
+## 開発ナレッジ（docs/）について
+
+仕様書・設計資料は本リポジトリの`docs/`配下（`apps/` `core/` `platform/` `planning/` `history/`の5フォルダ）で管理している。claude.aiの「プロジェクトの知識」欄はClaudeが直接書き込めないため使用しない（経緯・仕分けルールは`docs/README.md`参照）。

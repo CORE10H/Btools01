@@ -63,3 +63,8 @@ IndexedDB（DB名`sideops_prompt_gallery`）。`entries`ストア（登録デー
 ## 「よく使うタグ」「タグの色」機能の横展開
 
 メモアプリ（`アプリ_メモ_仕様書.md`）にも同じロジックが流用実装されている（それぞれ別実装のため、共通化の余地は残っている）。
+
+## 派生版：PROMPTGALLERY RED
+
+本アプリの微調整版として`apps/prompt-gallery-red.html`（PROMPTGALLERY RED）が存在する。詳細は`アプリ_プロンプトギャラリーRED_仕様書.md`参照。機能・ロジックは本仕様書と完全に同一で、強調色の配色とデータの独立のみが異なる。
+

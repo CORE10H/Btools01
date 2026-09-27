@@ -46,9 +46,12 @@
 | 2026-09-26 | ヘッダー視認性・カスタムテーマ改善 | 「今の配色を取り込む」ボタンを追加。STAGEヘッダー背景をパネル色固定に変更、文字に縁取りを追加 |
 | 2026-09-26 | SCAFFOLD本実装 | AIのべりすと執筆支援ツールを本実装（別作業）。①骨子→②プロンプト合成→③AIのべりすと形式パース→④清書貼付の4フェーズ、IndexedDB本実装（`sideops_scaffold`）、テーマブリッジ接続、カバー画像はBase64保存で確定 |
 | 2026-09-26 | SCRIBIT新規作成 | AI代書支援ツールを新規作成・push済み。IndexedDB本実装（`sideops_scribit`）、テーマブリッジへの追従を実機検証済み |
+| 2026-09-27 | PROMPTGALLERY RED新規追加 | PROMPTGALLERYの微調整版を新規追加（`apps/prompt-gallery-red.html`）。機能・ロジックは本家と完全同一、強調色のみアプリ固有の赤（`--brand-accent`系）に置換しテーマブリッジの対象外に。DB名`sideops_prompt_gallery_red`で本家とデータ独立 |
+| 2026-09-27 | SCAFFOLD・PROMPTGALLERY REDのカバー画像追加 | それぞれ`apps/img/scaffold.jpg`・`apps/img/prompt-gallery-red.jpg`を新規追加し、BUILTIN_APP_CHOICESの`coverImg`に設定（RED版は暫定で本家画像を流用していたのを専用画像に差し替え） |
 
 ## 仕様書分割の記録
 
 | 日付 | 内容 |
 |---|---|
 | 2026-09-26 | 従来の`SIDE-OPS_制作資料.md`（および過去スナップショット`-1`〜`-3`）を、機能ごとの個別仕様書・変更履歴（本書）・機能間依存関係マップに分割。分割元の4ファイルはアーカイブとして保持し、新規機能追加や仕様変更は行っていない |
+| 2026-09-27 | claude.aiの「プロジェクトの知識」欄はClaudeが直接書き込めない（読み取り専用）ことが判明したため、本ファイルを含む全仕様書をGitHubリポジトリの`docs/`配下へ移行。用途別に`apps/` `core/` `platform/` `planning/` `history/`の5フォルダに仕分け、`docs/README.md`に移行経緯・仕分けルールを記載。以降、本ファイルは`docs/history/`に置く |
