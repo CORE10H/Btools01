@@ -1033,9 +1033,9 @@
   // （未設定の場合は自動読み込みされず、従来通りユーザーが任意で選択する）。
   const BUILTIN_APP_CHOICES = [
     { name: 'PROMPTGALLERY', src: 'apps/prompt-gallery.html', coverImg: 'apps/img/prompt-gallery.jpg' },
-    { name: 'PROMPTGALLERY RED', src: 'apps/prompt-gallery-red.html', coverImg: 'apps/img/prompt-gallery.jpg' },
+    { name: 'PROMPTGALLERY RED', src: 'apps/prompt-gallery-red.html', coverImg: 'apps/img/prompt-gallery-red.jpg' },
     { name: 'manuscript', src: 'apps/manuscript.html', coverImg: 'apps/img/manuscript.jpg' },
-    { name: 'SCAFFOLD', src: 'apps/scaffold.html' },
+    { name: 'SCAFFOLD', src: 'apps/scaffold.html', coverImg: 'apps/img/scaffold.jpg' },
     { name: 'メモ', src: 'apps/memo.html', coverImg: 'apps/img/memo.jpg' },
     { name: 'Discotica', src: 'apps/discotica.html', coverImg: 'apps/img/discotica.jpg' },
     { name: 'DONE MORE', src: 'apps/done-more.html', coverImg: 'apps/img/done-more.jpg' },
