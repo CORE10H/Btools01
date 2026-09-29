@@ -93,7 +93,7 @@ openDb().then(async (_db) => {
 
 ## 現在稼働中のIndexedDB一覧
 
-`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`等）。
+`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`等）。
 
 ## 今後の検討：共通化するかどうか
 

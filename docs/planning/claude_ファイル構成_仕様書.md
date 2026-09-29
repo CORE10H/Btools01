@@ -29,7 +29,7 @@ sideops/
     ├── prompt-gallery.html      # 画像生成プロンプト見本一覧（本実装済み）
     ├── prompt-gallery-red.html  # PROMPTGALLERYの微調整版（本実装済み。機能は本家と同一、
     │                            # 強調色のみアプリ固有の赤に固定・データも独立）
-    ├── manuscript.html      # 既存アプリ統合予定（現状ダミーページ）
+    ├── manuscript.html      # AI執筆特化の小説制作アプリ（本実装済み）
     ├── scaffold.html        # AIのべりすと執筆支援ツール（本実装済み・push済み）
     ├── memo.html            # メモアプリ（本実装済み）
     ├── discotica.html       # 音楽プロジェクト管理アプリ（本実装済み）

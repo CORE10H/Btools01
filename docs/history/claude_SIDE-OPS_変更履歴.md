@@ -48,6 +48,7 @@
 | 2026-09-26 | SCRIBIT新規作成 | AI代書支援ツールを新規作成・push済み。IndexedDB本実装（`sideops_scribit`）、テーマブリッジへの追従を実機検証済み |
 | 2026-09-27 | PROMPTGALLERY RED新規追加 | PROMPTGALLERYの微調整版を新規追加（`apps/prompt-gallery-red.html`）。機能・ロジックは本家と完全同一、強調色のみアプリ固有の赤（`--brand-accent`系）に置換しテーマブリッジの対象外に。DB名`sideops_prompt_gallery_red`で本家とデータ独立 |
 | 2026-09-27 | SCAFFOLD・PROMPTGALLERY REDのカバー画像追加 | それぞれ`apps/img/scaffold.jpg`・`apps/img/prompt-gallery-red.jpg`を新規追加し、BUILTIN_APP_CHOICESの`coverImg`に設定（RED版は暫定で本家画像を流用していたのを専用画像に差し替え） |
+| 2026-09-29 | MANUSCRIPT（簡易版）本実装 | ダミーページを本実装に差し替え。ネタ帳→設定プロット・設定集→章ごとの本文・要約・完成稿→本棚の流れを、外部AIに貼るプロンプト合成方式で実装。表紙・16:9カバー・章の画像・設定画像を保持。名義・シリーズ、.md書き出し、note記事ID記録、バックアップ警告、1世代退避。DB`sideops_manuscript`、日時入り固定ID、JSONエクスポート／インポート（同一ID照合）。ランチャー表示名を`MANUSCRIPT`に統一 |
 
 ## 仕様書分割の記録
 
