@@ -128,7 +128,8 @@ JSON形式：`{ app:"sideops_manuscript", schemaVersion:2, scope:"all"|"work", e
 
 **保存まわり**
 - 自動保存（入力停止から600ms、Promiseチェーンで直列化）。フォーカスが外れた時点・章の切り替え時・画面を離れる時にも即保存
-- Stageを閉じるとiframeは即破棄されるため、`pagehide`・`visibilitychange`でも保存を試みる。保存待ちが残っていれば`beforeunload`で確認
+- Stageを閉じる・別アプリに切り替えると、本体から`sideops:stage-closing`の合図が届く（iframeは約1.5秒後に破棄）。合図を受けた時点で保存待ちをすべて書き込む（`メインステージ_仕様書.md`参照）
+- 合図が届かない経路（ブラウザのタブを閉じる等）の保険として、`pagehide`・`visibilitychange`でも保存を試みる。保存待ちが残っていれば`beforeunload`で確認
 - 保存に失敗した場合は未保存扱いに戻し、次の機会に再試行
 - 空のまま閉じた新規ネタ・新規の設定項目、何も入力せずに離れた新規作品は、DBにゴミを残さず削除
 - 起動時に`navigator.storage.persist()`を要求。☰メニューで使用量と画像枚数を確認でき、8割を超えたら警告

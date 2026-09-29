@@ -2648,7 +2648,11 @@
   window.addEventListener('beforeunload', (e) => {
     if (netaSaver.pending || loreSaver.pending || workSaver.pending) { flushAll(); e.preventDefault(); e.returnValue = ''; }
   });
-  // Stageを閉じるとiframeは即破棄されるため、隠れた時点で保存を試みる
+  // Stageを閉じると本体から合図が届き、約1.5秒後にiframeが破棄される。合図の時点で保存する
+  window.addEventListener('message', (e) => {
+    if (e.source === window.parent && e.data && e.data.type === 'sideops:stage-closing') flushAll();
+  });
+  // 合図が届かない経路（タブを閉じる等）の保険
   window.addEventListener('pagehide', flushAll);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAll(); });
 })();

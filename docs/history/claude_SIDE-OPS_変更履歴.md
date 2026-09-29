@@ -49,6 +49,7 @@
 | 2026-09-27 | PROMPTGALLERY RED新規追加 | PROMPTGALLERYの微調整版を新規追加（`apps/prompt-gallery-red.html`）。機能・ロジックは本家と完全同一、強調色のみアプリ固有の赤（`--brand-accent`系）に置換しテーマブリッジの対象外に。DB名`sideops_prompt_gallery_red`で本家とデータ独立 |
 | 2026-09-27 | SCAFFOLD・PROMPTGALLERY REDのカバー画像追加 | それぞれ`apps/img/scaffold.jpg`・`apps/img/prompt-gallery-red.jpg`を新規追加し、BUILTIN_APP_CHOICESの`coverImg`に設定（RED版は暫定で本家画像を流用していたのを専用画像に差し替え） |
 | 2026-09-29 | MANUSCRIPT（簡易版）本実装 | ダミーページを本実装に差し替え。ネタ帳→設定プロット・設定集→章ごとの本文・要約・完成稿→本棚の流れを、外部AIに貼るプロンプト合成方式で実装。表紙・16:9カバー・章の画像・設定画像を保持。名義・シリーズ、.md書き出し、note記事ID記録、バックアップ警告、1世代退避。DB`sideops_manuscript`、日時入り固定ID、JSONエクスポート／インポート（同一ID照合）。ランチャー表示名を`MANUSCRIPT`に統一 |
+| 2026-09-30 | Stage閉鎖時の保存漏れ修正 | 入力直後にStageを✕で閉じると内容が消える不具合を修正。iframeを即破棄せず、隠して`sideops:stage-closing`を送り1.5秒後に破棄する方式に変更（別アプリへの切替時も同様）。MANUSCRIPTは合図を受けて即保存。GitHub Pagesの実ブラウザで、縦書き表示・テーマ追従・コピー・JSON／.md書き出し・画像のドロップ／貼り付けを確認済み |
 
 ## 仕様書分割の記録
 

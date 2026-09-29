@@ -1732,7 +1732,7 @@
       // 「＋追加」以外のアプリカードは、Stage内にiframeでダミー/実アプリを読み込む。
       // 既存のiframeがあれば一旦除去してから作り直す（同じアプリの再クリックも含め、
       // 毎回リロードして状態をリセットする挙動にしている）。
-      if (stageFrame) stageFrame.remove();
+      retireStageFrame(stageFrame);
       stagePlaceholder.style.display = 'none';
       stageFrame = document.createElement('iframe');
       stageFrame.className = 'stage-frame';
@@ -1748,16 +1748,30 @@
     } else {
       // 「＋追加」カード：現状はまだアプリ枠の追加UI未実装のため、プレースホルダー表示のまま。
       document.getElementById('stageTag').textContent = '--';
-      if (stageFrame) { stageFrame.remove(); stageFrame = null; }
+      retireStageFrame(stageFrame); stageFrame = null;
       stagePlaceholder.style.display = '';
     }
     stageEl.classList.add('is-open');
   }
 
+  // 閉じたiframeは、アプリが未保存の入力を書き込み終えるまで待ってから破棄する。
+  // 即座にremove()すると、アプリ側の非同期保存（IndexedDB）が途中で打ち切られ、
+  // 入力直後に閉じた内容が消える。バックグラウンドで動かし続けないよう猶予は短く固定。
+  const STAGE_FRAME_RETIRE_MS = 1500;
+  function retireStageFrame(frame) {
+    if (!frame) return;
+    frame.style.display = 'none';
+    try {
+      const targetOrigin = (location.origin && location.origin !== 'null') ? location.origin : '*';
+      frame.contentWindow.postMessage({ type: 'sideops:stage-closing' }, targetOrigin);
+    } catch (err) { /* 読み込み前などで送れない場合は猶予だけ置く */ }
+    setTimeout(() => frame.remove(), STAGE_FRAME_RETIRE_MS);
+  }
+
   function closeStage() {
     stageEl.classList.remove('is-open');
-    // iframeは閉じたタイミングで完全に破棄する（バックグラウンドで動かし続けない）。
-    if (stageFrame) { stageFrame.remove(); stageFrame = null; }
+    // iframeは閉じたら破棄する（バックグラウンドで動かし続けない）。保存の猶予は retireStageFrame を参照
+    if (stageFrame) { retireStageFrame(stageFrame); stageFrame = null; }
     stagePlaceholder.style.display = '';
     currentStageCardId = null;
     document.getElementById('stageTag').textContent = '--'; // Stageが閉じている間は「何も開かれていない」表示に戻す
