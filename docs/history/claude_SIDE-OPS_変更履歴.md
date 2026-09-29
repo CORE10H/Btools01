@@ -50,6 +50,7 @@
 | 2026-09-27 | SCAFFOLD・PROMPTGALLERY REDのカバー画像追加 | それぞれ`apps/img/scaffold.jpg`・`apps/img/prompt-gallery-red.jpg`を新規追加し、BUILTIN_APP_CHOICESの`coverImg`に設定（RED版は暫定で本家画像を流用していたのを専用画像に差し替え） |
 | 2026-09-29 | MANUSCRIPT（簡易版）本実装 | ダミーページを本実装に差し替え。ネタ帳→設定プロット・設定集→章ごとの本文・要約・完成稿→本棚の流れを、外部AIに貼るプロンプト合成方式で実装。表紙・16:9カバー・章の画像・設定画像を保持。名義・シリーズ、.md書き出し、note記事ID記録、バックアップ警告、1世代退避。DB`sideops_manuscript`、日時入り固定ID、JSONエクスポート／インポート（同一ID照合）。ランチャー表示名を`MANUSCRIPT`に統一 |
 | 2026-09-30 | Stage閉鎖時の保存漏れ修正 | 入力直後にStageを✕で閉じると内容が消える不具合を修正。iframeを即破棄せず、隠して`sideops:stage-closing`を送り1.5秒後に破棄する方式に変更（別アプリへの切替時も同様）。MANUSCRIPTは合図を受けて即保存。GitHub Pagesの実ブラウザで、縦書き表示・テーマ追従・コピー・JSON／.md書き出し・画像のドロップ／貼り付けを確認済み |
+| 2026-09-30 | MINDFRAME新規追加 | マインドマップ（作業名）を、フローチャート・UIラフ（画面の検討）にも使える無限キャンバスのアプリとして新規追加（`apps/mindframe.html`・`mindframe.js`・`mindframe-io.js`、カバー`apps/img/mindframe.jpg`）。トピックの自動配置（右／左右／下）・日本語入力のまま直接書き換え、図形10種と接続点からの作図・カギ線の自動経路・自動整列（Sugiyama法）、画面フレーム4種・UI部品19種・ガイド線への吸着、画像の貼り付け、箇条書き／Mermaidの読み込み（AIへの依頼文コピー付き）、PNG・SVG・Markdown・Mermaid・JSON書き出し。DB`sideops_mindframe`、`sideops:stage-closing`対応、別タブとの上書き衝突の確認ダイアログ。ヘッドレスEdgeでの自動操作で検証 |
 
 ## 仕様書分割の記録
 

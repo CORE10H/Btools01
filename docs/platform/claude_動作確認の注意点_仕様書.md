@@ -22,3 +22,20 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 - Service Worker、通知API、位置情報APIなど
 
 **方針**：新しい機能を「実装できた」と判断する前に、必ず実際の配信環境（GitHub Pagesまたはローカルサーバー）で一度動作確認してから完成報告する。
+
+## このPCで自動操作して確認する方法（ヘッドレスEdge＋CDP）
+
+2026-09-30時点、ローカルPC（`D:\dev`）には Python・Node.js が入っていない（`python`はMicrosoft Storeへの誘導だけ）。Playwrightの代わりに、次の組み合わせで自動操作・画面の撮影をした（MINDFRAMEの検証で使用）。
+
+- **ローカルサーバー**：Flutterに同梱のDart（`C:\flutter\bin\cache\dart-sdk\bin\dart.exe`）で、`dart:io`の`HttpServer`を使った数十行の静的ファイルサーバーを書いて起動する（`localhost`限定、`..`を含むパスは拒否、キャッシュ無効）
+- **ブラウザ**：Microsoft Edge（`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`）を`--headless=new --remote-debugging-port=<番号> --user-data-dir=<使い捨てのフォルダ>`で起動。使い捨てのフォルダにすれば毎回IndexedDBが空の状態から試せる
+- **操作**：Dartの`WebSocket`でChrome DevTools Protocolに接続し、`Input.dispatchMouseEvent`（クリック・ドラッグ・ホイール）、`Input.dispatchKeyEvent`（キー）、`Input.insertText`（文字入力）、`Input.imeSetComposition`→`insertText`（日本語入力の変換中→確定）、`Input.dispatchTouchEvent`＋`Emulation.setTouchEmulationEnabled`（タップ・ピンチ）、`Page.captureScreenshot`（撮影）、`Browser.setDownloadBehavior`（書き出したファイルの受け取り）、`DOM.setFileInputFiles`（ファイル選択欄への指定）を使う
+- **iframeの中（Stage）**：同じオリジンなので、親ページから`iframe.contentDocument`で中の要素の位置を取り、ページ全体の座標に足してクリックできる
+
+Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。
+
+## ポインタを捕まえる（setPointerCapture）と click・dblclick の対象が変わる
+
+ドラッグ操作のために`pointerdown`で`setPointerCapture`を呼ぶと、その後の`click`・`dblclick`の`target`は、実際に指・カーソルの下にある要素ではなく**捕まえた要素**になる（Pointer Eventsの仕様どおりの動き）。MINDFRAMEでは、線やノードをダブルクリックしても`target`が常にキャンバス（`<svg>`）になり、「空白をダブルクリックした」扱いになる不具合が出た。
+
+**対策**：`dblclick`の中では`document.elementFromPoint(e.clientX, e.clientY)`で実際に下にある要素を調べて判定する。自前のダブルタップ判定（`pointerup`で行う）も同様。

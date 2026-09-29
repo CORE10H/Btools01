@@ -23,7 +23,8 @@ sideops/
     │   ├── discotica.jpg
     │   ├── done-more.jpg
     │   ├── scribit.jpg
-    │   └── scaffold.jpg
+    │   ├── scaffold.jpg
+    │   └── mindframe.jpg
     ├── sideops-theme-bridge.js  # テーマブリッジの受信側共通スクリプト。各アプリが
     │                            # <head>で1行読み込むopt-in方式
     ├── prompt-gallery.html      # 画像生成プロンプト見本一覧（本実装済み）
@@ -35,6 +36,9 @@ sideops/
     ├── discotica.html       # 音楽プロジェクト管理アプリ（本実装済み）
     ├── done-more.html       # タスク＆ガントチャート管理アプリ（本実装済み）
     ├── scribit.html         # AI代書支援ツール（本実装済み・push済み）
+    ├── mindframe.html       # マインドマップ／フローチャート／UIラフ（本実装済み）。画面の骨組みとCSS
+    ├── mindframe.js         #   本体（描画・操作・保存・書き出し）
+    ├── mindframe-io.js      #   テキストの読み書き（箇条書き・Mermaid）と自動整列。DOMに触れない純粋な関数だけ
     └── blank.html           # 用途未定の予備枠（現状ダミーページ）
 ```
 

@@ -93,7 +93,9 @@ openDb().then(async (_db) => {
 
 ## 現在稼働中のIndexedDB一覧
 
-`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`等）。
+`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`等）。
+
+`sideops_mindframe`（MINDFRAME）は、このパターンに加えて**保存直前の衝突確認**を持つ：保存の前にDBの`updatedAt`を読み、自分が読み込んだ（または最後に保存した）時点より新しければ、別のタブが保存したとみなして黙って上書きしない（どちらを残すか確認する）。同じデータを複数のタブで開ける機能を作るときの参考にする。
 
 ## 今後の検討：共通化するかどうか
 
