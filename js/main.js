@@ -1040,6 +1040,7 @@
     { name: 'Discotica', src: 'apps/discotica.html', coverImg: 'apps/img/discotica.jpg' },
     { name: 'DONE MORE', src: 'apps/done-more.html', coverImg: 'apps/img/done-more.jpg' },
     { name: 'SCRIBIT', src: 'apps/scribit.html', coverImg: 'apps/img/scribit.jpg' },
+    { name: 'MINDFRAME', src: 'apps/mindframe.html', coverImg: 'apps/img/mindframe.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 

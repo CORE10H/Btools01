@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MINDFRAME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
+    /* --- このアプリ固有の寸法 --- */
+    --rail-w: 48px;
+    --insp-w: 256px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); overflow: hidden; }
+  button, input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
+  :focus-visible { outline: 1px solid var(--cyan); outline-offset: 1px; }
+  .is-hidden { display: none !important; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  svg.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .app-bar { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; min-height: 46px; }
+  .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .app-sub { font-size: 10.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-mid { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+  .title-input { flex: 1; min-width: 80px; max-width: 420px; background: transparent; border: none; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 600; color: var(--text); padding: 4px 2px; outline: none; }
+  .title-input:focus { border-color: var(--cyan-dim); }
+  .save-ind { font-size: 10.5px; color: var(--text-faint); white-space: nowrap; }
+  .save-ind.is-error { color: var(--magenta); }
+  .bar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .app-shell[data-mode="home"] .editor-only { display: none !important; }
+  .app-shell[data-mode="editor"] .home-only { display: none !important; }
+  .narrow-only { display: none; }
+
+  .btn { font-size: 11px; color: var(--text-dim); background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn.small { font-size: 10.5px; padding: 4px 9px; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+  .sq-btn { width: 30px; height: 30px; background: transparent; border: 1px solid var(--line); color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; position: relative; }
+  .sq-btn:hover, .sq-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .sq-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .sq-btn:disabled:hover { border-color: var(--line); color: var(--text-dim); }
+  .sq-btn.has-alert::after { content: ''; position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--amber); border: 2px solid var(--bg); }
+
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .menu-panel { position: absolute; top: calc(100% + 6px); right: 0; width: 256px; background: var(--panel); border: 1px solid var(--line); z-index: 60; display: none; padding: 6px; max-height: calc(100vh - 70px); overflow-y: auto; }
+  .menu-panel.is-open { display: block; }
+  .menu-item { width: 100%; text-align: left; background: transparent; border: none; color: var(--text-dim); font-size: 12px; padding: 8px 10px; cursor: pointer; display: block; }
+  .menu-item:hover { background: var(--bg-alt); color: var(--cyan); }
+  .menu-item.danger:hover { color: var(--magenta); }
+  .menu-item small { display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+  .menu-item small.is-alert { color: var(--amber); }
+  .menu-sep { border-top: 1px solid var(--line-soft); margin: 4px 0; }
+  .menu-label { font-size: 10px; color: var(--text-faint); padding: 6px 10px 2px; letter-spacing: .05em; }
+
+  .app-body { flex: 1; overflow: hidden; min-height: 0; position: relative; display: flex; flex-direction: column; }
+  .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .view.is-active { display: flex; }
+
+  /* ===================== ボード一覧 ===================== */
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px 0; flex-shrink: 0; flex-wrap: wrap; }
+  .search-input { flex: 1; min-width: 150px; max-width: 300px; background: var(--bg-alt); border: 1px solid var(--line); padding: 7px 10px; font-size: 12px; color: var(--text); outline: none; }
+  .search-input:focus { border-color: var(--cyan-dim); }
+  .filter-select { background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px; font-size: 11.5px; color: var(--text-dim); outline: none; }
+  .chip { background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 11px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .chip:hover { color: var(--text-dim); }
+  .chip.is-on { border-color: var(--cyan); color: var(--cyan); }
+  .scroll-area { flex: 1; overflow-y: auto; min-height: 0; padding: 14px 16px 24px; }
+  .board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .board-card { position: relative; background: var(--bg-alt); border: 1px solid var(--line-soft); display: flex; flex-direction: column; min-width: 0; }
+  .board-card:hover, .board-card:focus-within { border-color: var(--cyan-dim); }
+  .bc-open { background: transparent; border: none; text-align: left; cursor: pointer; display: flex; flex-direction: column; width: 100%; min-width: 0; }
+  .bc-thumb { aspect-ratio: 16 / 9; width: 100%; background: var(--bg); border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--text-faint); font-size: 10.5px; }
+  .bc-thumb svg { width: 100%; height: 100%; display: block; }
+  .bc-info { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .bc-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .bc-title.is-untitled { color: var(--text-faint); font-weight: 400; }
+  .bc-meta { font-size: 10.5px; color: var(--text-faint); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .kind-badge { font-size: 10px; padding: 1px 7px; border: 1px solid var(--line); color: var(--text-dim); white-space: nowrap; }
+  .kind-badge[data-kind="mindmap"] { border-color: var(--cyan-dim); color: var(--cyan); }
+  .kind-badge[data-kind="flow"] { border-color: var(--amber-dim); color: var(--amber); }
+  .kind-badge[data-kind="ui"] { border-color: var(--magenta-dim); color: var(--magenta); }
+  .bc-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s ease; }
+  .board-card:hover .bc-actions, .board-card:focus-within .bc-actions { opacity: 1; }
+  @media (hover: none) { .bc-actions { opacity: 1; } }
+  .mini-btn { width: 26px; height: 26px; background: var(--panel); border: 1px solid var(--line); color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .mini-btn svg.ic { width: 14px; height: 14px; }
+  .mini-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .mini-btn.del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .empty-state { min-height: 60%; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--text-faint); flex-direction: column; gap: 10px; padding: 40px 20px; }
+  .empty-state .big { font-size: 13px; color: var(--text-dim); }
+  .empty-state .small { font-size: 11px; max-width: 420px; line-height: 1.8; }
+  .storage-banner { margin: 12px 16px 0; padding: 8px 12px; border: 1px solid var(--magenta-dim); color: var(--magenta); font-size: 11px; line-height: 1.7; }
+
+  /* ===================== エディタ ===================== */
+  .editor { flex: 1; min-height: 0; display: flex; position: relative; }
+  .tool-rail { width: var(--rail-w); flex-shrink: 0; border-right: 1px solid var(--line-soft); background: var(--bg-alt); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+  .tool-rail::-webkit-scrollbar { display: none; }
+  .tool-btn { width: 38px; height: 38px; background: transparent; border: 1px solid transparent; color: var(--text-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; flex-shrink: 0; }
+  .tool-btn svg.ic { width: 20px; height: 20px; }
+  .tool-btn:hover { color: var(--cyan); border-color: var(--line); }
+  .tool-btn.is-active { color: var(--on-accent); background: var(--cyan); border-color: var(--cyan); }
+  .tool-btn .kbd { position: absolute; right: 2px; bottom: 0; font-size: 8.5px; font-family: var(--font-display); color: var(--text-faint); pointer-events: none; }
+  .tool-btn.is-active .kbd { color: var(--on-accent); }
+  .tool-btn.has-fly::after { content: ''; position: absolute; left: 3px; bottom: 3px; border-left: 4px solid transparent; border-bottom: 4px solid currentColor; opacity: .6; }
+  .rail-sep { width: 26px; height: 1px; background: var(--line-soft); margin: 4px 0; flex-shrink: 0; }
+
+  .flyout { position: absolute; left: calc(var(--rail-w) + 6px); top: 8px; z-index: 40; background: var(--panel); border: 1px solid var(--line); padding: 10px; display: none; width: 292px; max-height: calc(100% - 16px); overflow-y: auto; box-shadow: 6px 6px 0 rgba(var(--shadow-rgb), .35); }
+  .flyout.is-open { display: block; }
+  .fly-title { font-size: 10.5px; color: var(--text-faint); margin: 0 2px 8px; display: flex; justify-content: space-between; gap: 8px; }
+  .fly-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .fly-item { background: var(--bg-alt); border: 1px solid var(--line-soft); color: var(--text-dim); font-size: 10.5px; padding: 8px 4px 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; line-height: 1.35; min-width: 0; }
+  .fly-item:hover, .fly-item.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .fly-item svg { width: 54px; height: 34px; display: block; overflow: visible; }
+  .fly-item small { font-size: 9.5px; color: var(--text-faint); font-family: var(--font-display); }
+  .fly-sub { font-size: 10px; color: var(--text-faint); margin: 12px 2px 6px; }
+
+  .canvas-wrap { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background-color: var(--bg); outline: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .canvas-wrap.show-grid { background-image: radial-gradient(circle, rgba(var(--text-rgb), .15) 1px, transparent 1.4px); }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; font-family: var(--font-body); overflow: hidden; }
+  .canvas-wrap.cur-grab #stage { cursor: grab; }
+  .canvas-wrap.cur-grabbing #stage { cursor: grabbing; }
+  .canvas-wrap.cur-cross #stage { cursor: crosshair; }
+  .canvas-wrap.cur-move #stage { cursor: move; }
+
+  /* SVG 内の操作用の表示（書き出しには含めない） */
+  .mf-frame-hit { cursor: move; }
+  .ov-sel { fill: none; stroke: var(--cyan); stroke-width: 1.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-sel.is-locked { stroke: var(--amber); stroke-dasharray: 4 3; }
+  .ov-hover { fill: none; stroke: var(--cyan); stroke-width: 1; stroke-opacity: .55; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-edge-sel { fill: none; stroke: var(--cyan); stroke-opacity: .35; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .ov-handle { fill: var(--bg); stroke: var(--cyan); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .ov-handle[data-h="nw"], .ov-handle[data-h="se"] { cursor: nwse-resize; }
+  .ov-handle[data-h="ne"], .ov-handle[data-h="sw"] { cursor: nesw-resize; }
+  .ov-handle[data-h="n"], .ov-handle[data-h="s"] { cursor: ns-resize; }
+  .ov-handle[data-h="e"], .ov-handle[data-h="w"] { cursor: ew-resize; }
+  .ov-end { fill: var(--cyan); stroke: var(--bg); stroke-width: 2; vector-effect: non-scaling-stroke; cursor: grab; }
+  .ov-port { fill: var(--bg); stroke: var(--cyan); stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: crosshair; }
+  .ov-port:hover, .ov-port.is-hot { fill: var(--cyan); }
+  .ov-add { cursor: pointer; }
+  .ov-add circle { fill: var(--cyan); }
+  .ov-add path { stroke: var(--on-accent); stroke-width: 2; vector-effect: non-scaling-stroke; fill: none; }
+  .ov-fold { cursor: pointer; }
+  .ov-fold circle { fill: var(--bg); stroke: var(--text-faint); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .ov-fold:hover circle { stroke: var(--cyan); }
+  .ov-fold path { stroke: var(--text-dim); stroke-width: 1.5; vector-effect: non-scaling-stroke; fill: none; }
+  .ov-marquee { fill: rgba(var(--cyan-rgb), .08); stroke: var(--cyan); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-guide { stroke: var(--magenta); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-target { fill: rgba(var(--cyan-rgb), .1); stroke: var(--cyan); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-insert { stroke: var(--cyan); stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-ghost { fill: rgba(var(--cyan-rgb), .12); stroke: var(--cyan); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-preview { fill: none; stroke: var(--cyan); stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-search { fill: none; stroke: var(--amber); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .ov-search.is-current { stroke-width: 3; }
+  .ov-lock { fill: var(--amber); pointer-events: none; }
+
+  .text-editor { position: absolute; left: 0; top: 0; width: 2px; height: 2px; margin: 0; padding: 0; border: none; outline: none; resize: none; overflow: hidden; background: transparent; color: var(--text); font-family: var(--font-body); white-space: pre-wrap; overflow-wrap: anywhere; z-index: 15; opacity: 0; pointer-events: none; caret-color: var(--cyan); user-select: text; -webkit-user-select: text; }
+  .text-editor.is-editing { opacity: 1; pointer-events: auto; }
+  .edit-tip { position: absolute; z-index: 16; font-size: 10px; color: var(--text-faint); background: var(--panel); border: 1px solid var(--line-soft); padding: 2px 7px; pointer-events: none; white-space: nowrap; display: none; }
+  .edit-tip.is-shown { display: block; }
+
+  .place-hint { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan); font-size: 11px; padding: 6px 12px; z-index: 21; pointer-events: none; display: none; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+  .place-hint.is-shown { display: block; }
+  .sel-bar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: none; gap: 3px; background: var(--panel); border: 1px solid var(--line); padding: 4px; z-index: 22; max-width: calc(100% - 16px); overflow-x: auto; }
+  .sel-bar button { background: transparent; border: 1px solid var(--line-soft); color: var(--text-dim); font-size: 11px; padding: 6px 9px; cursor: pointer; white-space: nowrap; }
+  .sel-bar button:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+  .sel-bar button.danger { color: var(--magenta); }
+  .search-box { position: absolute; right: 12px; top: 10px; display: none; align-items: center; gap: 4px; background: var(--panel); border: 1px solid var(--line); padding: 4px; z-index: 23; }
+  .search-box.is-open { display: flex; }
+  .search-box input { width: 190px; background: var(--bg-alt); border: 1px solid var(--line); padding: 5px 8px; font-size: 12px; color: var(--text); outline: none; }
+  .search-box input:focus { border-color: var(--cyan-dim); }
+  .search-count { font-size: 10.5px; color: var(--text-faint); min-width: 46px; text-align: center; font-family: var(--font-display); }
+  .search-box button { width: 26px; height: 26px; background: transparent; border: 1px solid var(--line-soft); color: var(--text-dim); cursor: pointer; font-size: 11px; }
+  .search-box button:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+  .zoom-ctl { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: stretch; background: var(--panel); border: 1px solid var(--line); z-index: 20; }
+  .zoom-ctl button { min-width: 30px; height: 28px; background: transparent; border: none; border-right: 1px solid var(--line-soft); color: var(--text-dim); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+  .zoom-ctl button:last-child { border-right: none; }
+  .zoom-ctl button:hover { color: var(--cyan); }
+  .zoom-ctl .zoom-val { font-family: var(--font-display); font-size: 12px; min-width: 50px; }
+  .canvas-empty { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); text-align: center; color: var(--text-faint); font-size: 11.5px; line-height: 1.9; pointer-events: none; display: none; }
+  .canvas-empty.is-shown { display: block; }
+  .canvas-empty b { color: var(--text-dim); font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; }
+
+  /* ---- 詳細パネル（右） ---- */
+  .inspector { width: var(--insp-w); flex-shrink: 0; border-left: 1px solid var(--line-soft); background: var(--bg-alt); overflow-y: auto; padding: 12px 12px 24px; font-size: 11.5px; }
+  .inspector.is-collapsed { display: none; }
+  .insp-head { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .insp-head .sub { font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
+  .insp-close { display: none; margin-left: auto; }
+  .insp-sec { border-top: 1px solid var(--line-soft); padding: 10px 0 4px; }
+  .insp-sec.first { border-top: none; padding-top: 0; }
+  .insp-title { font-size: 10.5px; color: var(--text-faint); margin-bottom: 7px; letter-spacing: .03em; }
+  .insp-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; flex-wrap: wrap; }
+  .insp-row > .grow { flex: 1; min-width: 0; }
+  .seg { display: flex; border: 1px solid var(--line); width: 100%; }
+  .seg button { flex: 1; background: transparent; border: none; border-right: 1px solid var(--line); color: var(--text-dim); font-size: 11px; padding: 5px 4px; cursor: pointer; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seg button:last-child { border-right: none; }
+  .seg button:hover { color: var(--cyan); }
+  .seg button.is-on { background: var(--cyan-dim); color: var(--cyan); }
+  .seg button:disabled { opacity: .35; cursor: not-allowed; }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; width: 100%; }
+  .swatch { aspect-ratio: 1; border: 1px solid var(--line); cursor: pointer; padding: 0; min-width: 0; position: relative; }
+  .swatch.is-on { outline: 2px solid var(--cyan); outline-offset: 1px; }
+  .swatch.auto { background: repeating-linear-gradient(45deg, var(--bg), var(--bg) 3px, var(--line) 3px, var(--line) 5px); }
+  .num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+  .num-field { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .num-field span { width: 12px; color: var(--text-faint); font-family: var(--font-display); font-size: 12px; flex-shrink: 0; }
+  .num-field input { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--line); padding: 4px 6px; font-size: 12px; color: var(--text); outline: none; font-family: var(--font-display); }
+  .num-field input:focus, .insp-input:focus, .insp-select:focus { border-color: var(--cyan-dim); }
+  .num-field input:disabled { opacity: .45; }
+  .insp-input, .insp-select { width: 100%; background: var(--bg); border: 1px solid var(--line); padding: 6px 8px; font-size: 12px; color: var(--text); outline: none; }
+  .insp-check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 11.5px; color: var(--text-dim); margin-bottom: 7px; }
+  .insp-check input { accent-color: var(--cyan); }
+  .insp-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+  .insp-btns.three { grid-template-columns: 1fr 1fr 1fr; }
+  .insp-btns .btn { text-align: center; padding: 6px 4px; }
+  .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: 100%; }
+  .icon-grid button { height: 30px; background: transparent; border: 1px solid var(--line); color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .icon-grid button:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+  .icon-grid button:disabled { opacity: .3; cursor: not-allowed; }
+  .icon-grid svg.ic { width: 17px; height: 17px; }
+  .insp-note { font-size: 10.5px; color: var(--text-faint); line-height: 1.75; }
+  .insp-note kbd, .help-table kbd { font-family: var(--font-display); font-size: 11px; border: 1px solid var(--line); padding: 0 4px; color: var(--text-dim); background: var(--bg); white-space: nowrap; }
+  .range-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .range-row input[type="range"] { flex: 1; accent-color: var(--cyan); }
+  .range-row span { font-family: var(--font-display); font-size: 12px; color: var(--text-dim); min-width: 36px; text-align: right; }
+
+  /* ===================== モーダル共通（開閉は classList の is-open のみ） ===================== */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none; align-items: center; justify-content: center; z-index: 80; padding: 20px; }
+  .modal-overlay.is-open { display: flex; }
+  .modal { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--line); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal.wide { max-width: 760px; }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line-soft); }
+  .modal-title { font-size: 13px; font-weight: 600; }
+  .modal-close { width: 22px; height: 22px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 12px; cursor: pointer; flex-shrink: 0; }
+  .modal-close:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .modal-body { padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .modal-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 18px 16px; flex-wrap: wrap; }
+  .modal-footer .left { margin-right: auto; font-size: 10.5px; color: var(--text-faint); }
+  .field-label { font-size: 10.5px; color: var(--text-faint); margin-bottom: 5px; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .field-input, .field-textarea, .field-select { width: 100%; background: var(--bg-alt); border: 1px solid var(--line); padding: 8px 10px; font-size: 12.5px; color: var(--text); outline: none; }
+  .field-textarea { resize: vertical; line-height: 1.7; font-family: var(--font-body); }
+  .field-textarea.mono { font-family: Consolas, 'Courier New', var(--font-body); font-size: 12px; }
+  .field-input:focus, .field-textarea:focus, .field-select:focus { border-color: var(--cyan-dim); }
+  .field-hint { font-size: 10.5px; color: var(--text-faint); line-height: 1.75; }
+  .field-error { font-size: 10.5px; color: var(--magenta); line-height: 1.6; }
+  .tpl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tpl-card { background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 10px 10px 9px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tpl-card:hover { border-color: var(--cyan-dim); }
+  .tpl-card.is-on { border-color: var(--cyan); background: var(--panel-hi); }
+  .tpl-card svg { width: 100%; height: 56px; display: block; }
+  .tpl-card b { font-size: 12px; font-weight: 600; color: var(--text); }
+  .tpl-card span { font-size: 10.5px; color: var(--text-faint); line-height: 1.55; }
+  .radio-list { display: flex; flex-direction: column; gap: 6px; }
+  .radio-list label { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.6; cursor: pointer; }
+  .radio-list label small { display: block; font-size: 10.5px; color: var(--text-faint); }
+  .radio-list input { accent-color: var(--cyan); margin-top: 4px; }
+  .radio-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .radio-row label { display: flex; gap: 6px; align-items: center; font-size: 12px; cursor: pointer; }
+  .radio-row input { accent-color: var(--cyan); }
+  .policy-block.is-disabled { opacity: .4; }
+  .import-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .import-table th, .import-table td { border-bottom: 1px solid var(--line-soft); padding: 6px 4px; text-align: right; }
+  .import-table th:first-child, .import-table td:first-child { text-align: left; }
+  .import-table th { color: var(--text-faint); font-weight: 400; }
+  .ai-box { border: 1px dashed var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .ai-box summary { font-size: 11.5px; color: var(--text-dim); cursor: pointer; }
+  .ai-box[open] summary { margin-bottom: 4px; }
+  .ai-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .detect-line { font-size: 10.5px; color: var(--cyan); min-height: 16px; }
+  .detect-line.is-warn { color: var(--amber); }
+  .export-sec { border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  .export-sec:first-child { border-top: none; padding-top: 0; }
+  .export-sec h3 { font-size: 11.5px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; }
+  .help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; }
+  .help-grid h3 { font-size: 12px; color: var(--cyan); margin-bottom: 6px; font-weight: 600; }
+  .help-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .help-table td { padding: 4px 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; line-height: 1.6; }
+  .help-table td:first-child { width: 46%; padding-right: 8px; }
+  .help-note { font-size: 11px; color: var(--text-dim); line-height: 1.8; }
+
+  .confirm-overlay { position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none; align-items: center; justify-content: center; z-index: 90; padding: 20px; }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box { width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--line); padding: 16px 18px; }
+  .confirm-box.is-danger { border-color: var(--magenta-dim); }
+  .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.75; margin-bottom: 14px; white-space: pre-line; }
+  .cf-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px); background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan); font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 100; max-width: 86vw; text-align: center; line-height: 1.6; white-space: pre-line; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+  .toast.is-warn { border-color: var(--amber-dim); color: var(--amber); }
+
+  /* ===================== スマホ・狭い画面 ===================== */
+  @media (max-width: 640px) {
+    .app-bar { padding: 6px 10px; gap: 8px; }
+    .app-sub { display: none; }
+    .title-input { font-size: 13px; min-width: 40px; }
+    .save-ind { display: none; }
+    /* 編集画面の上のバーは狭いので、ロゴ・書き出し・？ はメニュー（☰）へ */
+    .app-shell[data-mode="editor"] .app-title,
+    .app-shell[data-mode="editor"] #exportBtn,
+    .app-shell[data-mode="editor"] #helpBtn { display: none; }
+    .app-shell[data-mode="editor"] .bar-right { gap: 4px; }
+    #backBtn { padding: 4px 8px; }
+    .menu-item.narrow-only { display: block; }
+    .toolbar { padding: 10px 12px 0; }
+    .scroll-area { padding: 12px; }
+    .board-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .editor { flex-direction: column; }
+    .tool-rail { order: 2; width: auto; height: 50px; flex-direction: row; border-right: none; border-top: 1px solid var(--line-soft); overflow-x: auto; overflow-y: hidden; padding: 0 6px; }
+    .rail-sep { width: 1px; height: 26px; margin: 0 3px; }
+    .canvas-wrap { order: 1; }
+    .flyout { left: 8px; right: 8px; top: auto; bottom: 58px; width: auto; max-height: 55%; }
+    .inspector { position: absolute; left: 0; right: 0; bottom: 50px; height: 56%; width: auto; z-index: 35; border-left: none; border-top: 1px solid var(--line); display: none; box-shadow: 0 -6px 0 rgba(var(--shadow-rgb), .3); }
+    .inspector.is-sheet-open { display: block; }
+    .inspector .insp-close { display: inline-flex; }
+    .zoom-ctl { top: 10px; bottom: auto; right: 8px; }
+    .place-hint { top: auto; bottom: 62px; white-space: normal; text-align: center; width: max-content; max-width: calc(100% - 24px); }
+    .search-box { left: 8px; right: 8px; top: 48px; }
+    .search-box input { width: auto; flex: 1; }
+    .sel-bar.is-shown { display: flex; }
+    .tpl-grid { grid-template-columns: 1fr 1fr; }
+    .help-grid { grid-template-columns: 1fr; }
+    .modal-overlay { padding: 10px; }
+  }
+  @media (pointer: coarse) {
+    .sel-bar.is-shown { display: flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast, .bc-actions { transition: none; }
+  }
+</style>
+<script src="sideops-theme-bridge.js"></script>
+</head>
+<body>
+<!-- アイコン（stroke=currentColor の線画） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3.5l13 7.2-5.6 1.6L9.8 18z"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 11.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 10.5V6a1.5 1.5 0 0 1 3 0v7c0 4.2-2.6 7-6.4 7-2.9 0-4.5-1.4-6-3.9l-2-3.5a1.5 1.5 0 0 1 2.6-1.5L8 13.2"/></symbol>
+  <symbol id="i-topic" viewBox="0 0 24 24"><rect x="8" y="9.5" width="8" height="5" rx="1.5"/><path d="M16 12h2M18 12v-5h2M18 12v5h2M8 12H4"/></symbol>
+  <symbol id="i-shape" viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1"/><path d="M16.5 11l4.5 4.5-4.5 4.5-4.5-4.5z"/></symbol>
+  <symbol id="i-sticky" viewBox="0 0 24 24"><path d="M5 4h14v10l-6 6H5z"/><path d="M13 20v-6h6"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V4.5h14V7M12 4.5v15M9 19.5h6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19L18.5 5.5M11 5h8v8"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 24 24"><path d="M7.5 3v18M16.5 3v18M3 7.5h18M3 16.5h18"/></symbol>
+  <symbol id="i-ui" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 8.5h18M7 12.5h6M7 16h10"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="1"/><path d="M3 16l5-4.5 4 3.5 3-2.5 6 5"/><circle cx="15.5" cy="9" r="1.6"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.8-4.8"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M15 4v16"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5.5" y="11" width="13" height="9" rx="1"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="1"/><path d="M4 15.5V4h11.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-al-left" viewBox="0 0 24 24"><path d="M4 3v18M8 7h10v3.5H8zM8 13.5h6V17H8z"/></symbol>
+  <symbol id="i-al-hc" viewBox="0 0 24 24"><path d="M12 3v18M6 7h12v3.5H6zM8.5 13.5h7V17h-7z"/></symbol>
+  <symbol id="i-al-right" viewBox="0 0 24 24"><path d="M20 3v18M6 7h10v3.5H6zM10 13.5h6V17h-6z"/></symbol>
+  <symbol id="i-al-top" viewBox="0 0 24 24"><path d="M3 4h18M7 8v10h3.5V8zM13.5 8v6H17V8z"/></symbol>
+  <symbol id="i-al-vc" viewBox="0 0 24 24"><path d="M3 12h18M7 6v12h3.5V6zM13.5 8.5v7H17v-7z"/></symbol>
+  <symbol id="i-al-bottom" viewBox="0 0 24 24"><path d="M3 20h18M7 6v10h3.5V6zM13.5 10v6H17v-6z"/></symbol>
+  <symbol id="i-dist-h" viewBox="0 0 24 24"><path d="M4 4v16M20 4v16M9.5 8h5v8h-5z"/></symbol>
+  <symbol id="i-dist-v" viewBox="0 0 24 24"><path d="M4 4h16M4 20h16M8 9.5h8v5H8z"/></symbol>
+</svg>
+
+<div class="app-shell" id="appShell" data-mode="home">
+  <header class="app-bar">
+    <span class="app-title">// MINDFRAME</span>
+    <div class="bar-mid">
+      <span class="app-sub home-only">マインドマップ ・ フローチャート ・ UIラフ</span>
+      <button type="button" class="btn small editor-only" id="backBtn">← 一覧</button>
+      <input type="text" class="title-input editor-only" id="boardTitle" maxlength="100" placeholder="無題のボード" aria-label="ボード名">
+      <span class="save-ind editor-only" id="saveInd"></span>
+    </div>
+    <div class="bar-right">
+      <button type="button" class="btn primary home-only" id="newBoardBtn">＋ 新規ボード</button>
+      <button type="button" class="sq-btn editor-only" id="undoBtn" title="元に戻す（Ctrl+Z）" aria-label="元に戻す"><svg class="ic"><use href="#i-undo"/></svg></button>
+      <button type="button" class="sq-btn editor-only" id="redoBtn" title="やり直す（Ctrl+Shift+Z）" aria-label="やり直す"><svg class="ic"><use href="#i-redo"/></svg></button>
+      <button type="button" class="btn editor-only" id="exportBtn">書き出し</button>
+      <button type="button" class="sq-btn editor-only" id="panelBtn" title="詳細パネルの表示／非表示" aria-label="詳細パネル"><svg class="ic"><use href="#i-panel"/></svg></button>
+      <button type="button" class="sq-btn" id="helpBtn" title="使い方・ショートカット（?）" aria-label="使い方">?</button>
+      <div class="menu-wrap">
+        <button type="button" class="sq-btn" id="menuBtn" aria-label="メニュー" aria-expanded="false"><svg class="ic"><use href="#i-menu"/></svg></button>
+        <div class="menu-panel" id="menuPanel">
+          <div class="editor-only">
+            <div class="menu-label">このボード</div>
+            <button type="button" class="menu-item narrow-only" id="menuExport">書き出し<small>PNG・SVG・箇条書き・Mermaid</small></button>
+            <button type="button" class="menu-item" id="menuTextAdd">テキストから図を追加<small>箇条書き・Mermaid を貼って図にする</small></button>
+            <button type="button" class="menu-item" id="menuDupBoard">このボードを複製</button>
+            <button type="button" class="menu-item" id="menuExportBoard">このボードをJSONで書き出し</button>
+            <button type="button" class="menu-item danger" id="menuDeleteBoard">このボードを削除</button>
+            <div class="menu-sep"></div>
+          </div>
+          <div class="menu-label">データ</div>
+          <button type="button" class="menu-item" id="menuExportAll">すべてをエクスポート（JSON）<small id="menuBackupNote"></small></button>
+          <button type="button" class="menu-item" id="menuImport">JSONからインポート</button>
+          <button type="button" class="menu-item" id="menuStorage">保存容量を確認</button>
+          <div class="menu-sep"></div>
+          <div class="menu-label">操作</div>
+          <button type="button" class="menu-item narrow-only" id="menuHelp">使い方・ショートカット</button>
+          <button type="button" class="menu-item" id="menuWheel">マウスホイール<small id="menuWheelNote"></small></button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-body">
+    <!-- ボード一覧 -->
+    <section class="view is-active" id="homeView">
+      <div class="storage-banner is-hidden" id="storageBanner">このブラウザでは保存機能（IndexedDB）を利用できません。作業内容はページを閉じると失われます。GitHub Pages などの https で開いてください。</div>
+      <div class="toolbar">
+        <input type="search" class="search-input" id="boardSearch" placeholder="ボードを検索（名前・中の文字）">
+        <button type="button" class="chip is-on" data-kind="all">すべて</button>
+        <button type="button" class="chip" data-kind="mindmap">マインドマップ</button>
+        <button type="button" class="chip" data-kind="flow">フローチャート</button>
+        <button type="button" class="chip" data-kind="ui">UIラフ</button>
+        <button type="button" class="chip" data-kind="free">自由</button>
+        <select class="filter-select" id="boardSort" aria-label="並び順">
+          <option value="updated">更新が新しい順</option>
+          <option value="created">作成が新しい順</option>
+          <option value="title">名前順</option>
+        </select>
+      </div>
+      <div class="scroll-area" id="boardList"></div>
+    </section>
+
+    <!-- エディタ -->
+    <section class="view" id="editorView">
+      <div class="editor" id="editor">
+        <nav class="tool-rail" id="toolRail" aria-label="ツール">
+          <button type="button" class="tool-btn" data-tool="select" title="選択（V）"><svg class="ic"><use href="#i-select"/></svg><span class="kbd">V</span></button>
+          <button type="button" class="tool-btn" data-tool="hand" title="手のひら：画面を動かす（H／スペースを押しながらドラッグ）"><svg class="ic"><use href="#i-hand"/></svg><span class="kbd">H</span></button>
+          <div class="rail-sep"></div>
+          <button type="button" class="tool-btn" data-tool="topic" title="マインドマップ：中心トピックを置く（M）"><svg class="ic"><use href="#i-topic"/></svg><span class="kbd">M</span></button>
+          <button type="button" class="tool-btn has-fly" data-tool="shape" data-fly="flyShape" title="図形・フローチャート（R）"><svg class="ic"><use href="#i-shape"/></svg><span class="kbd">R</span></button>
+          <button type="button" class="tool-btn" data-tool="sticky" title="付箋（N）"><svg class="ic"><use href="#i-sticky"/></svg><span class="kbd">N</span></button>
+          <button type="button" class="tool-btn" data-tool="text" title="テキスト（T）"><svg class="ic"><use href="#i-text"/></svg><span class="kbd">T</span></button>
+          <button type="button" class="tool-btn" data-tool="arrow" title="矢印・線（A）"><svg class="ic"><use href="#i-arrow"/></svg><span class="kbd">A</span></button>
+          <div class="rail-sep"></div>
+          <button type="button" class="tool-btn has-fly" data-tool="frame" data-fly="flyFrame" title="画面フレーム（F）"><svg class="ic"><use href="#i-frame"/></svg><span class="kbd">F</span></button>
+          <button type="button" class="tool-btn has-fly" data-tool="ui" data-fly="flyUi" title="UI部品（U）"><svg class="ic"><use href="#i-ui"/></svg><span class="kbd">U</span></button>
+          <button type="button" class="tool-btn" data-tool="image" title="画像を置く（I）※貼り付け・ドロップでも置けます"><svg class="ic"><use href="#i-image"/></svg><span class="kbd">I</span></button>
+          <div class="rail-sep"></div>
+          <button type="button" class="tool-btn" id="searchToolBtn" title="ボード内を検索（Ctrl+F）"><svg class="ic"><use href="#i-search"/></svg></button>
+        </nav>
+
+        <div class="flyout" id="flyShape" role="dialog" aria-label="図形">
+          <div class="fly-title"><span>図形（フローチャート）</span><span>置いてから文字を入力</span></div>
+          <div class="fly-grid" id="flyShapeGrid"></div>
+        </div>
+        <div class="flyout" id="flyFrame" role="dialog" aria-label="画面フレーム">
+          <div class="fly-title"><span>画面フレーム</span><span>中の部品ごと動かせます</span></div>
+          <div class="fly-grid" id="flyFrameGrid"></div>
+        </div>
+        <div class="flyout" id="flyUi" role="dialog" aria-label="UI部品">
+          <div class="fly-title"><span>UI部品</span><span>フレームの中に置くと便利</span></div>
+          <div class="fly-grid" id="flyUiGrid"></div>
+        </div>
+
+        <div class="canvas-wrap show-grid" id="canvasWrap" tabindex="-1">
+          <svg id="stage" xmlns="http://www.w3.org/2000/svg" aria-label="キャンバス">
+            <g id="world">
+              <g id="layerFrames"></g>
+              <g id="layerNodes"></g>
+              <g id="layerEdges"></g>
+              <g id="layerOverlay"></g>
+            </g>
+          </svg>
+          <textarea id="textEditor" class="text-editor" spellcheck="false" autocomplete="off" aria-label="文字の編集"></textarea>
+          <div class="edit-tip" id="editTip"></div>
+          <div class="canvas-empty" id="canvasEmpty"><b>まだ何もありません</b>左のツールから置くか、空いている所をダブルクリックで文字を置けます。<br>箇条書きやMermaidの貼り付け（Ctrl+V）でも図が作れます。</div>
+          <div class="place-hint" id="placeHint"></div>
+          <div class="sel-bar" id="selBar"></div>
+          <div class="search-box" id="searchBox">
+            <input type="search" id="searchInput" placeholder="ボード内の文字を検索" aria-label="ボード内を検索">
+            <span class="search-count" id="searchCount"></span>
+            <button type="button" id="searchPrev" title="前へ（Shift+Enter）">▲</button>
+            <button type="button" id="searchNext" title="次へ（Enter）">▼</button>
+            <button type="button" id="searchClose" title="閉じる（Esc）">✕</button>
+          </div>
+          <div class="zoom-ctl">
+            <button type="button" id="zoomOutBtn" title="縮小" aria-label="縮小">−</button>
+            <button type="button" class="zoom-val" id="zoomVal" title="100%に戻す（Shift+0）">100%</button>
+            <button type="button" id="zoomInBtn" title="拡大" aria-label="拡大">＋</button>
+            <button type="button" id="zoomFitBtn" title="全体を表示（Shift+1）" aria-label="全体を表示"><svg class="ic"><use href="#i-fit"/></svg></button>
+          </div>
+        </div>
+
+        <aside class="inspector" id="inspector" aria-label="詳細パネル"></aside>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 新規ボード -->
+<div class="modal-overlay" id="newModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="newModalTitle">
+    <div class="modal-head"><span class="modal-title" id="newModalTitle">新しいボード</span><button type="button" class="modal-close" data-close="newModal" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div>
+        <div class="field-label"><span>ボード名</span><span>空欄なら「無題のボード」</span></div>
+        <input type="text" class="field-input" id="newTitle" maxlength="100" placeholder="例：新機能のアイデア整理">
+      </div>
+      <div>
+        <div class="field-label"><span>はじめ方</span><span>あとから何でも置けます</span></div>
+        <div class="tpl-grid" id="tplGrid"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" data-close="newModal">キャンセル</button>
+      <button type="button" class="btn primary" id="newCreateBtn">作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- テキストから作成 -->
+<div class="modal-overlay" id="textModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="textModalTitle">
+    <div class="modal-head"><span class="modal-title" id="textModalTitle">テキストから図を作成</span><button type="button" class="modal-close" data-close="textModal" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div id="textNewTitleWrap">
+        <div class="field-label"><span>ボード名</span></div>
+        <input type="text" class="field-input" id="textNewTitle" maxlength="100" placeholder="空欄なら中心トピックなどから自動で付けます">
+      </div>
+      <div>
+        <div class="field-label"><span>形式</span></div>
+        <div class="radio-row" id="textFormat">
+          <label><input type="radio" name="textFormat" value="auto" checked>自動判定</label>
+          <label><input type="radio" name="textFormat" value="outline">箇条書き → マインドマップ</label>
+          <label><input type="radio" name="textFormat" value="mermaid">Mermaid → フローチャート</label>
+        </div>
+      </div>
+      <div>
+        <div class="field-label"><span>テキスト</span><span id="textLen"></span></div>
+        <textarea class="field-textarea mono" id="textSource" rows="11" spellcheck="false" placeholder="例（箇条書き）
+- 新機能のアイデア
+  - 使う人
+    - 自分
+  - 画面
+    - 一覧
+    - 編集
+
+例（Mermaid）
+flowchart TD
+  A([開始]) --> B[入力を確認]
+  B --> C{正しい？}
+  C -->|はい| D[保存]
+  C -->|いいえ| B"></textarea>
+        <div class="detect-line" id="textDetect"></div>
+      </div>
+      <details class="ai-box" id="aiBox">
+        <summary>AIに作ってもらう（依頼文をコピーして外部のAIに貼る）</summary>
+        <div>
+          <div class="field-label"><span>テーマ・内容（依頼文に差し込みます）</span></div>
+          <textarea class="field-textarea" id="aiTopic" rows="2" maxlength="2000" placeholder="例：小説サイトの新機能の案 ／ ログインから投稿までの流れ"></textarea>
+        </div>
+        <div class="ai-row">
+          <button type="button" class="btn small" id="aiMindBtn">マインドマップ用の依頼文をコピー</button>
+          <button type="button" class="btn small" id="aiFlowBtn">フローチャート用の依頼文をコピー</button>
+        </div>
+        <div class="field-hint">AIの返答をそのまま上の欄に貼り付けてください（```で囲まれていても大丈夫です）。</div>
+      </details>
+    </div>
+    <div class="modal-footer">
+      <span class="left" id="textTargetNote"></span>
+      <button type="button" class="btn" data-close="textModal">キャンセル</button>
+      <button type="button" class="btn primary" id="textCreateBtn">作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 書き出し -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+    <div class="modal-head"><span class="modal-title" id="exportModalTitle">書き出し</span><button type="button" class="modal-close" data-close="exportModal" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="export-sec">
+        <h3>画像として書き出す</h3>
+        <div class="field-label"><span>範囲</span></div>
+        <select class="field-select" id="exRange"></select>
+        <div class="radio-row" style="margin-top:10px">
+          <label><input type="radio" name="exFormat" value="png" checked>PNG</label>
+          <label><input type="radio" name="exFormat" value="svg">SVG</label>
+        </div>
+        <div class="field-label" style="margin-top:10px"><span>背景と配色</span></div>
+        <div class="radio-row">
+          <label><input type="radio" name="exBg" value="theme" checked>今のテーマのまま</label>
+          <label><input type="radio" name="exBg" value="light">白地（印刷・資料向け）</label>
+          <label><input type="radio" name="exBg" value="clear">背景なし（透過）</label>
+        </div>
+        <div class="field-label" style="margin-top:10px"><span>倍率（PNGのみ）</span></div>
+        <div class="radio-row">
+          <label><input type="radio" name="exScale" value="1">1倍</label>
+          <label><input type="radio" name="exScale" value="2" checked>2倍</label>
+          <label><input type="radio" name="exScale" value="3">3倍</label>
+        </div>
+        <div style="margin-top:12px"><button type="button" class="btn primary" id="exImageBtn">画像を書き出す</button></div>
+      </div>
+      <div class="export-sec">
+        <h3>文字として書き出す（コピー・ファイル保存）</h3>
+        <div class="insp-btns">
+          <button type="button" class="btn" id="exOutlineBtn">箇条書き（Markdown）</button>
+          <button type="button" class="btn" id="exMermaidBtn">Mermaid</button>
+        </div>
+        <div class="field-hint" style="margin-top:8px">箇条書きはマインドマップ（トピック）が対象です。Mermaid は図形・トピック・付箋・テキストと線が対象で、GitHub や Notion などに貼ると図になります。</div>
+      </div>
+      <div class="export-sec">
+        <h3>バックアップ</h3>
+        <button type="button" class="btn" id="exJsonBtn">このボードをJSONで書き出し</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 文字の書き出し結果 -->
+<div class="modal-overlay" id="textOutModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="textOutTitle">
+    <div class="modal-head"><span class="modal-title" id="textOutTitle">書き出し</span><button type="button" class="modal-close" data-close="textOutModal" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <textarea class="field-textarea mono" id="textOutBody" rows="16" readonly spellcheck="false"></textarea>
+      <div class="field-hint" id="textOutNote"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" id="textOutDownload">ファイルに保存</button>
+      <button type="button" class="btn primary" id="textOutCopy">コピー</button>
+    </div>
+  </div>
+</div>
+
+<!-- JSONインポート -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-head"><span class="modal-title" id="importModalTitle">JSONからインポート</span><button type="button" class="modal-close" data-close="importModal" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="field-hint" id="importSource"></div>
+      <table class="import-table" id="importTable"></table>
+      <div class="field-error" id="importInvalid"></div>
+      <div class="policy-block" id="importPolicyBlock">
+        <div class="field-label"><span>同じIDのボードが手元にあるとき</span></div>
+        <div class="radio-list">
+          <label><input type="radio" name="importPolicy" value="newer" checked><span>更新日時が新しい方を残す<small>同じ日時なら何もしません（おすすめ）</small></span></label>
+          <label><input type="radio" name="importPolicy" value="overwrite"><span>ファイルの内容で上書き</span></label>
+          <label><input type="radio" name="importPolicy" value="dup"><span>別のボードとして複製<small>新しいIDを付け、名前に「（複製）」を付けます</small></span></label>
+          <label><input type="radio" name="importPolicy" value="skip"><span>取り込まない</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" data-close="importModal">キャンセル</button>
+      <button type="button" class="btn primary" id="importRunBtn">取り込む</button>
+    </div>
+  </div>
+</div>
+
+<!-- 使い方 -->
+<div class="modal-overlay" id="helpModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-head"><span class="modal-title" id="helpTitle">使い方・ショートカット</span><button type="button" class="modal-close" data-close="helpModal" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="help-grid">
+        <div>
+          <h3>基本</h3>
+          <table class="help-table">
+            <tr><td>画面を動かす</td><td><kbd>Space</kbd>＋ドラッグ／ホイール／中ボタンドラッグ／指1本（スマホ）</td></tr>
+            <tr><td>拡大・縮小</td><td><kbd>Ctrl</kbd>＋ホイール／ピンチ／右下のボタン</td></tr>
+            <tr><td>全体を表示／100%</td><td><kbd>Shift</kbd>+<kbd>1</kbd> ／ <kbd>Shift</kbd>+<kbd>0</kbd></td></tr>
+            <tr><td>範囲選択</td><td>空いている所をドラッグ（<kbd>Shift</kbd>で追加）</td></tr>
+            <tr><td>文字の編集</td><td>ダブルクリック／<kbd>Enter</kbd>／<kbd>F2</kbd></td></tr>
+            <tr><td>編集を終える</td><td><kbd>Esc</kbd>／外をクリック（図形・付箋は <kbd>Ctrl</kbd>+<kbd>Enter</kbd>）</td></tr>
+            <tr><td>元に戻す／やり直す</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> ／ <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+            <tr><td>コピー／貼り付け／複製</td><td><kbd>Ctrl</kbd>+<kbd>C</kbd> ／ <kbd>V</kbd> ／ <kbd>D</kbd></td></tr>
+            <tr><td>削除</td><td><kbd>Delete</kbd>／<kbd>Backspace</kbd></td></tr>
+            <tr><td>少し動かす</td><td>矢印キー（<kbd>Shift</kbd>で10px）</td></tr>
+            <tr><td>ロック（固定）</td><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td></tr>
+            <tr><td>前面・背面へ</td><td><kbd>Ctrl</kbd>+<kbd>]</kbd> ／ <kbd>Ctrl</kbd>+<kbd>[</kbd>（<kbd>Shift</kbd>で最前面・最背面）</td></tr>
+            <tr><td>ボード内を検索</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td></tr>
+          </table>
+        </div>
+        <div>
+          <h3>マインドマップ</h3>
+          <table class="help-table">
+            <tr><td>子トピックを追加</td><td><kbd>Tab</kbd>／右の＋ボタン</td></tr>
+            <tr><td>兄弟トピックを追加</td><td><kbd>Enter</kbd></td></tr>
+            <tr><td>すぐ入力</td><td>選んだまま文字を打つと書き換え</td></tr>
+            <tr><td>トピック間の移動</td><td>矢印キー</td></tr>
+            <tr><td>並び替え</td><td><kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd>／ドラッグ</td></tr>
+            <tr><td>付け替え</td><td>別のトピックの上にドロップ</td></tr>
+            <tr><td>折りたたむ</td><td><kbd>/</kbd>／枝の先の○</td></tr>
+            <tr><td>枝の配置</td><td>中心トピックを選んで詳細パネルで 右／左右／下</td></tr>
+          </table>
+          <h3 style="margin-top:14px">フローチャート</h3>
+          <table class="help-table">
+            <tr><td>つなぐ</td><td>図形のふちの○からドラッグして別の図形へ</td></tr>
+            <tr><td>つないで次を作る</td><td>○をクリック（その方向に同じ図形）／空いている所へドラッグ</td></tr>
+            <tr><td>線に文字</td><td>線をダブルクリック（はい／いいえ等）</td></tr>
+            <tr><td>線の形</td><td>詳細パネルで 直線／カギ線／曲線</td></tr>
+            <tr><td>自動整列</td><td>図形を複数選んで詳細パネル「自動整列」</td></tr>
+          </table>
+        </div>
+        <div>
+          <h3>UIラフ（画面の検討）</h3>
+          <p class="help-note">画面フレーム（<kbd>F</kbd>）にUI部品（<kbd>U</kbd>）を並べます。フレームを動かすと中の部品も一緒に動きます。ドラッグ中は他の部品のふち・中心にガイド線が出て吸着します（<kbd>Alt</kbd>を押している間は吸着しません）。詳細パネルで位置・サイズを数値で指定できます。画面同士を矢印でつなぐと画面遷移図になります。スクリーンショットを貼り付けてロックすれば、上に案を描き込めます。</p>
+        </div>
+        <div>
+          <h3>保存と書き出し</h3>
+          <p class="help-note">入力は自動で保存されます（このブラウザ内）。定期的に ☰「すべてをエクスポート」でバックアップしてください（7日空くと ☰ に印が付きます）。「書き出し」から PNG／SVG／箇条書き／Mermaid にできます。「テキストから図を追加」では、AIに作らせた箇条書きや Mermaid を貼るだけで図になります。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 確認ダイアログ -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box" id="confirmBox" role="alertdialog" aria-modal="true">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions" id="confirmActions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="importFile" accept=".json,application/json" class="visually-hidden" tabindex="-1">
+<input type="file" id="imageFile" accept="image/png,image/jpeg,image/webp,image/gif" class="visually-hidden" tabindex="-1">
+
+<script src="mindframe-io.js"></script>
+<script src="mindframe.js"></script>
+</body>
+</html>
