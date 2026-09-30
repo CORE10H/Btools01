@@ -1041,6 +1041,8 @@
     { name: 'DONE MORE', src: 'apps/done-more.html', coverImg: 'apps/img/done-more.jpg' },
     { name: 'SCRIBIT', src: 'apps/scribit.html', coverImg: 'apps/img/scribit.jpg' },
     { name: 'MINDFRAME', src: 'apps/mindframe.html', coverImg: 'apps/img/mindframe.jpg' },
+    // RECON：販売データの取込・分析。カバー画像は未作成（用意できたら coverImg に apps/img/recon.jpg を設定）
+    { name: 'RECON', src: 'apps/recon.html' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<!--
+  CSP：このアプリはネット通信を一切行わない（CSVはブラウザ内で読むだけ）。
+  顧客データ（購入者名）を扱うため、外部への送信経路を塞いでおく。
+  許可しているのは、同じサイト内のファイルと、見た目用のWebフォント（Google Fonts）だけ。
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RECON</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --amber-rgb: 255, 176, 32;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 13px; }
+  button, input, select { font-family: inherit; color: inherit; font-size: inherit; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
+  :focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- 上部バー ---- */
+  .app-bar {
+    display: flex; align-items: stretch; justify-content: space-between; gap: 12px;
+    padding: 0 16px; min-height: 46px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .bar-left { display: flex; align-items: stretch; gap: 16px; min-width: 0; }
+  .app-title {
+    font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--cyan);
+    letter-spacing: .06em; display: flex; align-items: center; white-space: nowrap;
+  }
+  .tabs { display: flex; gap: 2px; }
+  .tab {
+    background: transparent; border: none; border-bottom: 2px solid transparent; border-top: 2px solid transparent;
+    color: var(--text-dim); padding: 0 10px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--cyan); border-bottom-color: var(--cyan); }
+  .bar-right { display: flex; align-items: center; gap: 8px; }
+
+  .btn {
+    font-size: 11.5px; color: var(--text-dim); background: transparent; border: 1px solid var(--line);
+    padding: 6px 12px; cursor: pointer; flex-shrink: 0; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+  .btn.toggle[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); background: rgba(var(--amber-rgb), .08); }
+
+  .menu-wrap { position: relative; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn[aria-expanded="true"] { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 190px; background: var(--panel);
+    border: 1px solid var(--line); z-index: 40; display: none; padding: 6px;
+    box-shadow: 0 8px 24px rgba(var(--shadow-rgb), .35);
+  }
+  .menu-panel.is-open { display: block; }
+  .menu-item {
+    width: 100%; text-align: left; background: transparent; border: none; color: var(--text-dim);
+    font-size: 12px; padding: 9px 10px; cursor: pointer;
+  }
+  .menu-item:hover { background: var(--bg-alt); color: var(--cyan); }
+
+  /* ---- 本文 ---- */
+  .app-body { flex: 1; min-height: 0; position: relative; }
+  .view { display: none; height: 100%; overflow-y: auto; }
+  .view.is-active { display: block; }
+  .view-inner { max-width: 1120px; margin: 0 auto; padding: 16px 16px 40px; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    text-align: center; padding: 56px 24px; color: var(--text-faint);
+  }
+  .empty-state .big { font-size: 13.5px; color: var(--text-dim); }
+  .empty-state .small { font-size: 11.5px; max-width: 380px; line-height: 1.8; }
+
+  .field-hint { font-size: 11px; color: var(--text-faint); line-height: 1.7; }
+  .field-input, .filters select, .filters input, .kind-row select, .brand-pick select {
+    background: var(--bg); border: 1px solid var(--line); padding: 6px 8px; font-size: 12px; color: var(--text); outline: none;
+    min-width: 0;
+  }
+  .field-input:focus, .filters select:focus, .filters input:focus, .kind-row select:focus, .brand-pick select:focus { border-color: var(--cyan-dim); }
+
+  /* ---- 取込：ファイル選択 ---- */
+  .drop-zone {
+    display: block; width: 100%; text-align: left; border: 1px dashed var(--line); background: var(--bg-alt);
+    padding: 20px 18px; cursor: pointer; color: inherit;
+  }
+  .drop-zone:hover, .drop-zone.is-over { border-color: var(--cyan); background: rgba(var(--cyan-rgb), .05); }
+  .dz-main { display: block; font-size: 14px; color: var(--text); }
+  .dz-sub { display: block; font-size: 11px; color: var(--text-faint); margin-top: 6px; line-height: 1.7; }
+  .dz-sub em { font-style: normal; color: var(--text-dim); }
+
+  /* ---- 取込：確認画面 ---- */
+  .preview { display: none; margin-top: 16px; }
+  .preview.is-active { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  .pv-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .pv-block { border: 1px solid var(--line-soft); background: var(--bg-alt); padding: 12px 14px; }
+  .pv-block.is-hidden { display: none; }
+  .pv-block.is-warn { border-color: rgba(var(--amber-rgb), .5); }
+  .pv-block.is-fatal { border-color: var(--magenta); background: rgba(var(--magenta-rgb), .06); }
+  .pv-h { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  .pv-block.is-warn .pv-h { color: var(--amber); }
+  .pv-block.is-fatal .pv-h { color: var(--magenta); }
+  .pv-text { font-size: 12px; color: var(--text-dim); line-height: 1.7; white-space: pre-line; }
+
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; }
+  .fact dt { font-size: 10.5px; color: var(--text-faint); }
+  .fact dd { font-size: 12.5px; color: var(--text); margin-top: 3px; overflow-wrap: anywhere; }
+  .fact select { background: var(--bg); border: 1px solid var(--line); padding: 3px 6px; font-size: 12px; }
+
+  .brand-pick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .brand-pick select { min-width: 200px; }
+  .issuer-note { margin-top: 8px; }
+
+  .kind-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto minmax(150px, 180px); gap: 12px;
+    align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px;
+  }
+  .kind-row:first-child { border-top: none; }
+  .kind-name { overflow-wrap: anywhere; }
+  .kind-count { color: var(--text-dim); }
+  .kind-sum { color: var(--text-dim); text-align: right; }
+  .kind-row.is-pending select { border-color: var(--amber); }
+  .tag {
+    display: inline-block; font-size: 10px; line-height: 1.5; border: 1px solid var(--line); color: var(--text-faint);
+    padding: 0 5px; margin-left: 6px; vertical-align: 1px; white-space: nowrap;
+  }
+  .tag.is-new { border-color: var(--amber); color: var(--amber); }
+
+  .check-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 12px; color: var(--text); cursor: pointer; line-height: 1.6; }
+  .check-row input { margin-top: 3px; accent-color: var(--cyan); }
+  .issue-list { list-style: none; font-size: 11.5px; color: var(--text-dim); max-height: 168px; overflow: auto; margin-top: 8px; }
+  .issue-list li { padding: 4px 0; border-bottom: 1px dashed var(--line-soft); line-height: 1.6; }
+  .issue-list li:last-child { border-bottom: none; }
+
+  /* ---- 検算（台帳） ---- */
+  .ledger {
+    position: sticky; top: 0; background: var(--panel); border: 1px solid var(--line);
+    padding: 14px 16px 16px;
+  }
+  .ledger-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: .03em; }
+  .ledger-sub { font-size: 10.5px; color: var(--text-faint); line-height: 1.7; margin: 2px 0 10px; }
+  .lg-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-dim);
+  }
+  .lg-row .num { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text); }
+  .lg-row.is-neg .num { color: var(--magenta); }
+  /* 帳簿の作法：合計の下に二重線 */
+  .lg-row.is-total { border-bottom: 3px double var(--text-dim); padding-top: 9px; }
+  .lg-row.is-total span:first-child { color: var(--text); font-weight: 600; }
+  .lg-row.is-total .num { font-size: 28px; font-weight: 700; color: var(--cyan); }
+  .lg-split { margin-top: 14px; display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; font-size: 11.5px; color: var(--text-dim); }
+  .lg-split b { font-weight: 600; color: var(--text); text-align: right; }
+  .lg-added {
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; color: var(--text-dim);
+  }
+  .lg-added .num { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
+  .commit-note { list-style: none; font-size: 11px; color: var(--amber); line-height: 1.6; margin-top: 12px; }
+  .commit-note li::before { content: '・'; }
+  .ledger-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+  /* ---- 取込の履歴 ---- */
+  .section-h { font-size: 12.5px; font-weight: 600; color: var(--text); margin: 26px 0 10px; }
+  .hist-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; align-items: center;
+    padding: 10px 12px; border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 6px;
+  }
+  .hist-file { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hist-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 10.5px; color: var(--text-faint); margin-top: 4px; }
+  .hist-meta .brand-chip { color: var(--text-dim); }
+  .hist-net { font-family: var(--font-display); font-size: 16px; font-weight: 600; text-align: right; }
+  .hist-net small { display: block; font-family: var(--font-body); font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
+  .hist-empty { font-size: 11.5px; color: var(--text-faint); padding: 6px 0; }
+
+  .brand-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+  .brand-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text-faint); }
+
+  /* ---- 取引一覧 ---- */
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft);
+    position: sticky; top: 0; background: var(--bg); z-index: 2;
+  }
+  .filters input { flex: 1; min-width: 180px; }
+  .tx-summary { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 12px 16px 6px; font-size: 11.5px; color: var(--text-dim); align-items: baseline; }
+  .tx-summary b { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--text); margin-left: 6px; }
+  .tx-summary .is-neg b { color: var(--magenta); }
+  .tx-summary .is-net b { color: var(--cyan); }
+  .tx-list { padding: 0 16px 12px; }
+  .pv-block .tx-list { padding: 0; }
+  .tx-row {
+    display: grid; grid-template-columns: 120px 124px minmax(0, 1fr) minmax(0, 1.5fr) 64px 96px; gap: 10px;
+    align-items: center; padding: 8px 8px; border-bottom: 1px solid var(--line-soft); font-size: 12px;
+  }
+  .tx-row:hover { background: var(--bg-alt); }
+  .tx-sub { display: contents; }
+  .tx-date { grid-column: 1; grid-row: 1; color: var(--text-dim); white-space: nowrap; }
+  .tx-brand { grid-column: 2; grid-row: 1; }
+  .tx-buyer { grid-column: 3; grid-row: 1; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-content { grid-column: 4; grid-row: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-kind { grid-column: 5; grid-row: 1; font-size: 11px; color: var(--text-dim); }
+  .tx-amount { grid-column: 6; grid-row: 1; text-align: right; font-weight: 600; white-space: nowrap; }
+  .tx-row.k-refund .tx-amount, .tx-row.k-refund .tx-kind { color: var(--magenta); }
+  .tx-row.k-ignore { opacity: .5; }
+  .tx-row.k-pending .tx-kind { color: var(--amber); }
+  .tx-more { display: block; margin: 12px auto 0; }
+
+  /* ---- 月別 ---- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line-soft); }
+  table.mtable { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .mtable th, .mtable td { padding: 9px 14px; border-bottom: 1px solid var(--line-soft); text-align: right; white-space: nowrap; }
+  .mtable thead th { font-weight: 600; color: var(--text-dim); font-size: 11px; background: var(--bg-alt); }
+  .mtable th:first-child, .mtable td:first-child { text-align: left; position: sticky; left: 0; background: var(--bg); }
+  .mtable thead th:first-child { background: var(--bg-alt); }
+  .mtable .cnt { display: block; font-size: 10px; color: var(--text-faint); font-weight: 400; }
+  .mtable td.is-total { color: var(--cyan); font-weight: 600; }
+  .mtable td.is-neg { color: var(--magenta); }
+  .mtable .brand-chip { justify-content: flex-end; }
+  .ym-link {
+    background: none; border: none; color: var(--text); cursor: pointer; font-size: 12.5px;
+    text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px;
+  }
+  .ym-link:hover { color: var(--cyan); text-decoration-color: var(--cyan); }
+  .monthly-note { margin-top: 10px; }
+
+  /* ---- モーダル共通（開閉は classList の is-open のみで行う） ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal {
+    width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--line);
+    padding: 18px 20px 20px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--line-soft);
+  }
+  .modal-title { font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: .03em; }
+  .modal-close {
+    width: 24px; height: 24px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 12px; cursor: pointer;
+  }
+  .modal-close:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+  .brand-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .brand-row input[type="color"] { width: 34px; height: 30px; padding: 2px; background: var(--bg); border: 1px solid var(--line); cursor: pointer; }
+  .brand-row .field-input { width: 100%; }
+  .brand-add { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .form-error { font-size: 11px; color: var(--magenta); margin-top: 6px; min-height: 1em; }
+  .stat-list { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 12px; }
+  .stat-list dt { color: var(--text-faint); }
+  .stat-list dd { color: var(--text); }
+  .pv-note { margin-top: 8px; }
+  .kinds-box { margin-top: 6px; }
+  .modal-lead { margin-bottom: 12px; }
+  .modal-note { margin-top: 14px; }
+  .modal-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box { width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px; }
+  .confirm-msg { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 14px; white-space: pre-line; overflow-wrap: anywhere; }
+  .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11.5px; padding: 8px 16px; opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease; z-index: 80; max-width: 86vw; text-align: center; line-height: 1.6;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  /* ---- 狭い画面（スマホ版Stage等） ---- */
+  @media (max-width: 860px) {
+    .preview.is-active { grid-template-columns: minmax(0, 1fr); }
+    .ledger { position: static; }
+  }
+  @media (max-width: 640px) {
+    .app-bar { padding: 0 10px; gap: 8px; }
+    .bar-left { gap: 8px; }
+    .tab { padding: 0 7px; }
+    .view-inner { padding: 12px 12px 32px; }
+    .kind-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 10px; }
+    .kind-row select { grid-column: 1 / -1; }
+    .tx-row { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 9px 4px; }
+    .tx-content { grid-column: 1; grid-row: 1; }
+    .tx-amount { grid-column: 2; grid-row: 1; }
+    .tx-sub { display: flex; grid-column: 1; grid-row: 2; gap: 10px; min-width: 0; font-size: 11px; }
+    .tx-sub > * { min-width: 0; }
+    .tx-date, .tx-brand, .tx-buyer { grid-column: auto; grid-row: auto; }
+    .tx-kind { grid-column: 2; grid-row: 2; text-align: right; }
+    .hist-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .hist-row .btn { grid-column: 1 / -1; justify-self: end; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast { transition: none; }
+  }
+</style>
+<script src="sideops-theme-bridge.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-bar">
+    <div class="bar-left">
+      <span class="app-title">RECON</span>
+      <nav class="tabs" role="tablist" aria-label="画面の切り替え">
+        <button class="tab" role="tab" type="button" data-tab="import" aria-selected="true">取込</button>
+        <button class="tab" role="tab" type="button" data-tab="tx" aria-selected="false">取引</button>
+        <button class="tab" role="tab" type="button" data-tab="monthly" aria-selected="false">月別</button>
+      </nav>
+    </div>
+    <div class="bar-right">
+      <button class="btn toggle" type="button" id="maskBtn" aria-pressed="false" title="購入者名などを伏せて表示します（スクリーンショット用）">伏せ字</button>
+      <div class="menu-wrap">
+        <button class="hamburger-btn" type="button" id="menuBtn" aria-label="メニュー" aria-expanded="false" aria-controls="menuPanel">☰</button>
+        <div class="menu-panel" id="menuPanel">
+          <button class="menu-item" type="button" data-action="brands">ブランドの管理</button>
+          <button class="menu-item" type="button" data-action="storage">保存領域の状態</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-body">
+    <!-- ================= 取込 ================= -->
+    <section class="view is-active" id="view-import" role="tabpanel">
+      <div class="view-inner">
+        <button class="drop-zone" type="button" id="dropZone">
+          <span class="dz-main">noteの販売履歴CSVを選ぶ</span>
+          <span class="dz-sub">
+            ここにドロップするか、クリックして選択（.csv／10MBまで）。<br>
+            noteの<em>ダッシュボード → 販売履歴 → エクスポート</em>で書き出したファイルです。取り込む前に確認画面が出ます。
+          </span>
+        </button>
+        <input type="file" id="fileInput" accept=".csv,.tsv,.txt,text/csv" hidden>
+
+        <div class="preview" id="preview">
+          <div class="pv-main">
+            <section class="pv-block is-fatal is-hidden" id="pvFatalBlock">
+              <h3 class="pv-h">このファイルは取り込めません</h3>
+              <div class="pv-text" id="pvFatalText"></div>
+            </section>
+
+            <section class="pv-block">
+              <h3 class="pv-h">ファイル</h3>
+              <dl class="facts">
+                <div class="fact"><dt>ファイル名</dt><dd id="pvFileName"></dd></div>
+                <div class="fact"><dt>文字コード</dt><dd>
+                  <select id="pvEncoding" aria-label="文字コード">
+                    <option value="utf-8">UTF-8</option>
+                    <option value="shift_jis">Shift_JIS</option>
+                    <option value="utf-16le">UTF-16</option>
+                  </select>
+                </dd></div>
+                <div class="fact"><dt>データ行</dt><dd class="num" id="pvRows"></dd></div>
+                <div class="fact"><dt>期間</dt><dd class="num" id="pvPeriod"></dd></div>
+              </dl>
+              <div class="field-hint pv-note" id="pvFileNote"></div>
+            </section>
+
+            <section class="pv-block" id="pvBrandBlock">
+              <h3 class="pv-h">どのブランドの売上ですか</h3>
+              <div class="brand-pick">
+                <select id="pvBrand" aria-label="ブランド"></select>
+                <button class="btn" type="button" id="pvAddBrand">ブランドを追加</button>
+              </div>
+              <div class="field-hint issuer-note" id="pvIssuer"></div>
+            </section>
+
+            <section class="pv-block" id="pvKindsBlock">
+              <h3 class="pv-h">決済種別の扱い</h3>
+              <div class="field-hint">初めて出てきた値は扱いを選んでください。選んだ内容は次回から自動で使います。</div>
+              <div class="kinds-box" id="pvKinds"></div>
+            </section>
+
+            <section class="pv-block is-warn is-hidden" id="pvErrorsBlock">
+              <h3 class="pv-h">読み取れない行があります</h3>
+              <ul class="issue-list" id="pvErrorsList"></ul>
+              <label class="check-row"><input type="checkbox" id="pvExcludeErrors"><span id="pvExcludeLabel"></span></label>
+            </section>
+
+            <section class="pv-block is-warn is-hidden" id="pvCrossBlock">
+              <h3 class="pv-h">別のブランドで取込済みの取引IDがあります</h3>
+              <div class="pv-text" id="pvCrossText"></div>
+              <ul class="issue-list" id="pvCrossList"></ul>
+              <label class="check-row"><input type="checkbox" id="pvCrossConfirm"><span>ブランドの選択は正しい（取引IDが偶然一致している）</span></label>
+            </section>
+
+            <section class="pv-block is-hidden" id="pvInfoBlock">
+              <h3 class="pv-h">お知らせ</h3>
+              <ul class="issue-list" id="pvInfoList"></ul>
+            </section>
+
+            <section class="pv-block" id="pvSampleBlock">
+              <h3 class="pv-h" id="pvSampleTitle">新しく追加される取引</h3>
+              <div class="tx-list" id="pvSample"></div>
+            </section>
+          </div>
+
+          <aside class="ledger" aria-label="検算">
+            <div class="ledger-title">検算</div>
+            <div class="ledger-sub">このファイル全体の合計です。noteの管理画面の数字と見比べてください。</div>
+            <div class="lg-row"><span>売上</span><span class="num" id="lgSale">—</span></div>
+            <div class="lg-row is-neg"><span>返金</span><span class="num" id="lgRefund">—</span></div>
+            <div class="lg-row is-total"><span>差引</span><span class="num" id="lgNet">—</span></div>
+            <div class="lg-split">
+              <span>新しく追加</span><b class="num" id="lgNew">—</b>
+              <span>取込済みのためスキップ</span><b class="num" id="lgDup">—</b>
+              <span>読み取れず除外</span><b class="num" id="lgErr">—</b>
+              <span>集計しない種別</span><b class="num" id="lgIgnore">—</b>
+            </div>
+            <div class="lg-added"><span>今回増える差引</span><span class="num" id="lgNewNet">—</span></div>
+            <ul class="commit-note" id="commitNote"></ul>
+            <div class="ledger-actions">
+              <button class="btn" type="button" id="pvCancel">やめる</button>
+              <button class="btn primary" type="button" id="pvCommit" disabled>取り込む</button>
+            </div>
+          </aside>
+        </div>
+
+        <h2 class="section-h">取込の履歴</h2>
+        <div id="historyList"></div>
+      </div>
+    </section>
+
+    <!-- ================= 取引 ================= -->
+    <section class="view" id="view-tx" role="tabpanel">
+      <div class="filters">
+        <select id="fBrand" aria-label="ブランドで絞り込み"></select>
+        <select id="fMonth" aria-label="月で絞り込み"></select>
+        <select id="fKind" aria-label="種別で絞り込み">
+          <option value="">すべての種別</option>
+          <option value="sale">売上</option>
+          <option value="refund">返金</option>
+          <option value="ignore">集計しない</option>
+        </select>
+        <input type="search" id="fQuery" placeholder="作品名・購入者名・取引IDで検索" aria-label="検索">
+      </div>
+      <div class="tx-summary" id="txSummary"></div>
+      <div class="tx-list" id="txList"></div>
+      <button class="btn tx-more" type="button" id="txMore">さらに表示</button>
+    </section>
+
+    <!-- ================= 月別 ================= -->
+    <section class="view" id="view-monthly" role="tabpanel">
+      <div class="view-inner" id="monthlyInner"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ブランドの管理 -->
+<div class="modal-overlay" id="brandsOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="brandsTitle">
+    <div class="modal-head">
+      <span class="modal-title" id="brandsTitle">ブランドの管理</span>
+      <button class="modal-close" type="button" data-close="brandsOverlay" aria-label="閉じる">✕</button>
+    </div>
+    <div class="field-hint modal-lead">名前と色は、取引一覧や月別の表に使います。取引が1件でもあるブランドは削除できません（取込の履歴から取り消すと削除できます）。</div>
+    <div id="brandRows"></div>
+    <div class="brand-add">
+      <div class="brand-row">
+        <input type="color" id="newBrandColor" aria-label="新しいブランドの色">
+        <input class="field-input" type="text" id="newBrandName" maxlength="40" placeholder="ブランド名を入力" aria-label="新しいブランド名">
+        <button class="btn primary" type="button" id="newBrandAdd">追加</button>
+      </div>
+      <div class="form-error" id="brandError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 保存領域の状態 -->
+<div class="modal-overlay" id="storageOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="storageTitle">
+    <div class="modal-head">
+      <span class="modal-title" id="storageTitle">保存領域の状態</span>
+      <button class="modal-close" type="button" data-close="storageOverlay" aria-label="閉じる">✕</button>
+    </div>
+    <dl class="stat-list" id="storageStats"></dl>
+    <div class="field-hint modal-note">データはこの端末のこのブラウザの中だけに保存されます。元のCSVファイルは、PCの手元のフォルダに保管しておいてください（取込済みのデータは、元のCSVからいつでも作り直せます）。</div>
+    <div class="modal-actions">
+      <button class="btn" type="button" id="persistBtn">保存を消されにくくする</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認ダイアログ -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-describedby="confirmMsg">
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-actions">
+      <button class="btn" type="button" id="confirmCancel">キャンセル</button>
+      <button class="btn danger" type="button" id="confirmOk">実行する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/papaparse.min.js"></script>
+<script src="recon.js"></script>
+</body>
+</html>

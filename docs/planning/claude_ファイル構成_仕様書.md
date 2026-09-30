@@ -39,6 +39,11 @@ sideops/
     ├── mindframe.html       # マインドマップ／フローチャート／UIラフ（本実装済み）。画面の骨組みとCSS
     ├── mindframe.js         #   本体（描画・操作・保存・書き出し）
     ├── mindframe-io.js      #   テキストの読み書き（箇条書き・Mermaid）と自動整列。DOMに触れない純粋な関数だけ
+    ├── recon.html           # 販売データの取込・分析（段階1実装済み）。画面の骨組みとCSS、CSP
+    ├── recon.js             #   本体（CSV取込・検算・重複防止・取消・取引一覧・月別）
+    ├── vendor/              # 同梱の外部ライブラリ（CDNは使わない）
+    │   ├── papaparse.min.js      # Papa Parse 5.7.0（CSV解析、MIT）。RECONが使用
+    │   └── papaparse.LICENSE.txt # 上記のライセンス全文
     └── blank.html           # 用途未定の予備枠（現状ダミーページ）
 ```
 
@@ -55,6 +60,7 @@ sideops/
 - 2026-09-27以降、作業はローカルPC（`D:\dev\Btools01`）上のClaude Code（デスクトップアプリのCodeタブ）で行う
 - GitHubへの認証はGitHub CLI（`gh`）で`CORE10H`アカウントにログイン済み。Claudeがそのままclone/pushできるため、セッションごとのPAT発行・失効は不要になった
 - pushは`CORE10H`アカウントで行うこと（`yoshimitsu08`アカウントではcloneはできてもpushが403で拒否される）
+- ローカルのClaude Codeを使えないとき（claude.aiのチャットから作業するとき）は、従来どおりセッションの冒頭で短期のPAT（`CORE10H`、`Btools01`のみ、Contents: Read and write）を発行してもらい、作業後に失効させる。PATは会話に貼った時点で履歴に残るため、必ず短期・最小権限にし、作業後の失効を忘れないこと
 
 ## ファイル状態の凡例（変更履歴での表記）
 
@@ -62,7 +68,7 @@ sideops/
 - **未push**：ローカルの一時的な作業領域にのみ存在し、セッション終了で失われる可能性がある状態
 - **コード消失**：一度実装されたが、pushされないままセッション終了で失われたことが確認された状態（例：インターネットショートカット機能。`アプリランチャー_仕様書.md`参照）
 
-現時点でのファイル別状態は`SIDE-OPS_変更履歴.md`の最新行を参照。全builtinアプリ（blankを除く）のカバー画像が揃っている。
+現時点でのファイル別状態は`SIDE-OPS_変更履歴.md`の最新行を参照。builtinアプリのカバー画像は、blankとRECON（未作成。用意したら`apps/img/recon.jpg`）を除いて揃っている。
 
 ## 開発ナレッジ（docs/）について
 

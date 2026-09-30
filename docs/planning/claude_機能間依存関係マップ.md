@@ -23,7 +23,7 @@
       │           各アプリ（apps/*.html）      │◀─┤ テーマブリッジ  │
       │ プロンプトギャラリー系／メモ／Discotica／ │  │(postMessage方式)│
       │ DONE MORE／SCRIBIT／SCAFFOLD／          │  └──────────────┘
-      │ MANUSCRIPT／MINDFRAME                  │
+      │ MANUSCRIPT／MINDFRAME／RECON            │
       └──────────────┬─────────────────────┘
                       │ 共通実装パターン
                       ▼
@@ -53,7 +53,7 @@ Stageを閉じる・別アプリに切り替えるとき、本体はiframeを隠
 スマホ版レイアウトでは、メインステージの表示モードが強制的に「四方いっぱい」になり、アプリランチャーの3D傾斜・PC用固定パーツ（`#cfOpenHit`等）が無効化される。CSSとJSで同じ判定条件（`MOBILE_LAYOUT_QUERY`）を共有しており、両方を同時に変更する必要がある。
 
 ### 各アプリ → IndexedDB実装パターン
-プロンプトギャラリー・PROMPTGALLERY RED・メモ・Discotica・DONE MORE・SCRIBIT・SCAFFOLD・MANUSCRIPT・MINDFRAMEはいずれも同じDB初期化・CRUD・フォールバックの定型パターンを踏襲している（共通モジュール化はされておらず、コピーによる独立実装）。新しいアプリを追加する際はこのパターンを土台にする。
+プロンプトギャラリー・PROMPTGALLERY RED・メモ・Discotica・DONE MORE・SCRIBIT・SCAFFOLD・MANUSCRIPT・MINDFRAME・RECONはいずれも同じDB初期化・CRUD・フォールバックの定型パターンを踏襲している（共通モジュール化はされておらず、コピーによる独立実装）。新しいアプリを追加する際はこのパターンを土台にする。
 
 ### テーマブリッジ → MINDFRAME（描き直し）
 MINDFRAMEのキャンバスはテーマのCSS変数を読んで実際の色コードに解決してから描く（PNG書き出しと見た目を一致させるため）。そのためCSS変数の上書きだけでは色が変わらず、テーマブリッジが発火する`sideops:themechange`を受けて全体を描き直している。テーマブリッジ側でこのイベントの名前や発火のタイミングを変えると、MINDFRAMEだけテーマに追従しなくなる。
@@ -70,21 +70,22 @@ PROMPTGALLERY REDはプロンプトギャラリーの機能・ロジックをそ
 ### MANUSCRIPT ⇄ SCRIBIT
 「テンプレートに素材を差し込んでプロンプトを合成→外部AIに貼る→結果を貼り戻す」という同じ型を持つ。SCRIBITが1本の下書きを1工程で扱うのに対し、MANUSCRIPTはネタ→プロット→本文・キービジュアル→推敲の4工程を1作品IDで束ね、完成品を「本」として保管する。コードは共有しておらず、コピーによる独立実装。
 
-### MANUSCRIPT → note連携（INTELパネル）
-MANUSCRIPTは章の公開URLからnote記事ID（`n`から始まる不変の文字列）を`chapters[].noteId`として記録している。INTELパネルの内部データ`works[].platformIds`（`note連携_仕様書.md`）を実装する際は、この記事IDで突合できる。現時点ではデータの受け渡しは未実装（DBも別）。
+### MANUSCRIPT → RECON（作品の突合）
+MANUSCRIPTは章の公開URLからnote記事ID（`n`から始まる不変の文字列）を`chapters[].noteId`として記録している。RECONの作品管理（段階3、`works`・`aliases`）を実装する際は、この記事IDで突合できる。ただしnoteの販売CSVには記事IDがなくコンテンツ名（タイトル）しかないため、CSVとの突合はタイトルの対応表で行う。現時点ではデータの受け渡しは未実装（DBも別）。
 
 ### SCAFFOLD ⇄ SCRIBIT
 どちらも「執筆準備プロンプトの生成→外部LLM生成→整形」という同型の役割を持つが、SCAFFOLDは③（LLM出力を固定見出しで解析しAIのべりすとの複数入力欄へ分別するパース処理）を必須で持つ点がSCRIBITと本質的に異なる。統合案は検討したが、パースの有無で必要な工程数・データ構造が変わり複雑化するため見送り、独立アプリとして維持する方針で確定（`アプリ_SCAFFOLD_仕様書.md`参照）。
 
-### note連携 → INTELパネル（ダッシュボードパネル群）
-note連携で設計されているINTELパネルの内部データ構造（readers/works/transactions/followerLog）は、ダッシュボードパネル群のINTEL表示面（売上・稼働時間・コスト・純利益の4枠）への反映方法が未設計のまま。実装時はnote連携の仕様書のチェックリストに従う。
+### note連携 → RECON → INTELパネル（ダッシュボードパネル群）
+note連携で設計したINTELパネルの内部データ（readers/works/transactions）は、**正本をRECON（`sideops_recon`）に移した**（2026-09-30）。3層構造・完全一致・隔離の考え方はそのまま引き継ぎ、ブランド軸・決済種別の3択などを加えている（`アプリ_RECON_仕様書.md`）。INTELパネルは、RECONの段階2で`sideops:panel-feed`により「集計済みの要約」（月別×ブランドの合計など。個人名なし）を受け取り、本体の`sideops_settings`に保存して売上枠に表示する予定（未実装）。本体がRECONのDBを直接読む設計にはしない（versionchangeのブロック・空のDBを作ってしまう罠のため）。`sideops:panel-feed`はDONE MORE→タスクパネルの連携にも流用する想定。
 
 ### タスクパネル（ダッシュボードパネル群） → DONE MORE
-タスクパネルは表示のみでデータを持たず、DONE MORE側のDB（`sideops_donemore`）と連携する設計だが未実装。
+タスクパネルは表示のみでデータを持たず、DONE MORE側のDB（`sideops_donemore`）と連携する設計だが未実装。連携するときは、RECON→INTELと同じ`sideops:panel-feed`（アプリが要約を送り、本体が検証して保存する方式）を使う。
 
 ## 改修時の確認ルート（例）
 
 - **新しいアプリを追加する場合**：`アプリランチャー_仕様書.md`（builtin登録）→`IndexedDB実装パターン_仕様書.md`（DB設計）→`テーマブリッジ_仕様書.md`（テーマ追従が必要なら`<head>`で読み込み）→`ファイル構成_仕様書.md`（カバー画像・ファイル配置）
 - **モーダル・オーバーレイを新設する場合**：`3D変形とスタッキングコンテキスト_仕様書.md`（`.shell`外配置のルール）→`アプリ_メモ_仕様書.md`のモーダル開閉ルール（`classList`方式の徹底）
 - **スマホ対応を触る場合**：`レスポンシブ対応_仕様書.md`を先に読み、CSSとJSの条件を必ず同時変更する
+- **販売データ・INTELパネルを触る場合**：`アプリ_RECON_仕様書.md`（データの正本・段階計画）→`note連携_仕様書.md`（3層構造の考え方）→`ダッシュボードパネル群_仕様書.md`（INTELの表示面）
 - **色・テーマ関連を触る場合**：`ヘッダーと設定モーダル_仕様書.md`（基本色/派生色の設計）→`テーマブリッジ_仕様書.md`（アプリへの反映）

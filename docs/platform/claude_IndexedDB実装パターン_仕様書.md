@@ -93,9 +93,36 @@ openDb().then(async (_db) => {
 
 ## 現在稼働中のIndexedDB一覧
 
-`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`等）。
+`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`等）。
 
 `sideops_mindframe`（MINDFRAME）は、このパターンに加えて**保存直前の衝突確認**を持つ：保存の前にDBの`updatedAt`を読み、自分が読み込んだ（または最後に保存した）時点より新しければ、別のタブが保存したとみなして黙って上書きしない（どちらを残すか確認する）。同じデータを複数のタブで開ける機能を作るときの参考にする。
+
+## 一括取込の型：1トランザクション＋`add`（RECONで採用）
+
+CSV取込のように「数十〜数百件をまとめて書き、1件でも失敗したら全部なかったことにしたい」場合の型。
+
+```js
+const tx = db.transaction(['transactions', 'imports'], 'readwrite');
+const done = new Promise((resolve, reject) => {
+  tx.oncomplete = () => resolve();
+  tx.onabort = () => reject(tx.error || new Error('中断されました'));
+});
+try {
+  const store = tx.objectStore('transactions');
+  records.forEach((rec) => store.add(rec)); // put ではなく add
+  tx.objectStore('imports').add(importRecord);
+} catch (syncErr) {
+  try { tx.abort(); } catch (e) { /* すでに終了 */ }  // 途中で例外→積んだ分も含めて全部取り消す
+}
+await done; // 失敗時はここで例外になる（何も保存されていない）
+```
+
+**ポイント**：
+
+- `put`ではなく`add`を使う。同じ主キーがすでにあれば、その書き込みが失敗してトランザクション全体が中止される＝別タブなどとの競合でも二重登録が起きない
+- `add`などを積んでいる途中で同期的な例外（不正なキー等）が出た場合、何もしないとそれまでに積んだ分だけが確定してしまう。catchで明示的に`abort()`する
+- 取り消し（取込1回分の削除）も同じく1トランザクションで行う。取込ごとのID（`importId`）に索引を張っておき、`index('importId').getAllKeys(id)`で主キーを集めて削除する
+- 重複判定は保存前にも行う（確認画面で「取込済み」を見せるため）が、最後の砦は`add`の一意制約
 
 ## 今後の検討：共通化するかどうか
 
