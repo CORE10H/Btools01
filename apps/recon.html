@@ -66,6 +66,7 @@
   /* 幅が足りないときは、ボタンと重ならないよう横にスクロールさせる（最後の歯止め） */
   .tabs { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
+  .tab .t-short { display: none; }
   .tab {
     background: transparent; border: none; border-bottom: 2px solid transparent; border-top: 2px solid transparent;
     color: var(--text-dim); padding: 0 10px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
@@ -339,6 +340,48 @@
   .work-names small { color: var(--text-faint); margin-left: 6px; white-space: nowrap; }
   .work-edit-actions { justify-content: space-between; gap: 8px; }
 
+  /* ---- 顧客管理 ---- */
+  .cust-row {
+    display: grid; grid-template-columns: 22px minmax(0, 1fr) 56px 120px; gap: 10px;
+    align-items: center; padding: 9px 8px; border-bottom: 1px solid var(--line-soft); font-size: 12px;
+  }
+  .cust-row:hover { background: var(--bg-alt); }
+  .cust-row.is-selected { background: rgba(var(--cyan-rgb), .06); }
+  .cust-row input { accent-color: var(--cyan); margin: 0; }
+  .cust-row .work-meta .tag { cursor: default; }
+  .cust-count { text-align: right; color: var(--text-dim); }
+  .pending-block { margin-bottom: 12px; }
+  .pending-block summary { cursor: pointer; margin-bottom: 0; }
+  .pending-block[open] summary { margin-bottom: 8px; }
+  #pendingList { margin-top: 8px; }
+  .pend-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) 80px minmax(200px, 260px); gap: 4px 12px; align-items: center;
+    padding: 8px 0; border-top: 1px dashed var(--line-soft); font-size: 12px;
+  }
+  .pend-info { min-width: 0; }
+  .pend-top { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 11px; color: var(--text-dim); }
+  .pend-buyer { color: var(--amber); }
+  .pend-work { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .pend-form { display: flex; gap: 6px; }
+  .pend-form .field-input { flex: 1; min-width: 0; }
+  .pend-row .form-error { grid-column: 1 / -1; min-height: 0; margin-top: 0; }
+  .pend-row .form-error:empty { display: none; }
+  .modal.modal-wide { max-width: 640px; }
+  .cust-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .cust-fields .field-label { margin-top: 0; }
+  .cust-stats { margin: 4px 0 10px; font-size: 11.5px; }
+  .cust-history { border-top: 1px solid var(--line-soft); max-height: 46vh; overflow-y: auto; }
+  .ch-row {
+    display: grid; grid-template-columns: 84px minmax(0, 110px) minmax(0, 1fr) 76px auto; gap: 10px; align-items: center;
+    padding: 7px 2px; border-bottom: 1px solid var(--line-soft); font-size: 12px;
+  }
+  .ch-date { color: var(--text-dim); }
+  .ch-work { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-amount { text-align: right; font-weight: 600; }
+  .ch-row.is-neg .ch-amount { color: var(--magenta); }
+  .ch-row .btn { padding: 3px 8px; font-size: 10.5px; }
+  .field-input:disabled { opacity: .6; }
+
   /* ---- バックアップ忘れの印・狭い画面のメニュー ---- */
   .hamburger-btn { position: relative; }
   .hamburger-btn.has-alert::after {
@@ -425,15 +468,29 @@
   @media (max-width: 640px) {
     .work-row { grid-template-columns: 20px 28px minmax(0, 1fr) auto; gap: 4px 8px; }
     .work-bar { grid-column: 3 / -1; grid-row: 2; }
+    .cust-row { grid-template-columns: 20px minmax(0, 1fr) auto; gap: 4px 8px; }
+    .cust-count { display: none; }
+    .pend-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .pend-form { grid-column: 1 / -1; }
+    .cust-fields { grid-template-columns: 1fr; }
+    .cust-fields .field-label { margin-top: 10px; }
+    .ch-row { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 2px 8px; }
+    .ch-row .brand-chip { display: none; }
+    .ch-row .btn { grid-column: 1 / -1; justify-self: end; }
   }
-  /* タブ名が長い（データ取込・取引履歴・月別売上・作品別売上）ので、スマホでは左上の「RECON」を省き（Stageの見出しにアプリ名が出ている）、
+  /* タブが5つ（データ取込・取引履歴・月別売上・作品別売上・顧客管理）あるので、幅560px以下では左上の「RECON」を省き（Stageの見出しにアプリ名が出ている）、
      「伏せ字」は☰メニューへ移す。伏せ字の間は☰を琥珀色にして、伏せていることが分かるようにする */
-  @media (max-width: 420px) {
+  @media (max-width: 560px) {
     .app-title { display: none; }
-    .tab { padding: 0 5px; font-size: 11.5px; }
+    .tab { padding: 0 4px; font-size: 11px; }
     #maskBtn { display: none; }
     .menu-item.narrow-only { display: block; }
     .hamburger-btn.is-masked { border-color: var(--amber); color: var(--amber); }
+  }
+  /* さらに狭い画面（320px級）では、タブ名を2文字の短い名前にする（5つを☰と重ねずに並べるため） */
+  @media (max-width: 350px) {
+    .tab .t-long { display: none; }
+    .tab .t-short { display: inline; }
   }
   @media (prefers-reduced-motion: reduce) {
     .toast { transition: none; }
@@ -447,10 +504,11 @@
     <div class="bar-left">
       <span class="app-title">RECON</span>
       <nav class="tabs" role="tablist" aria-label="画面の切り替え">
-        <button class="tab" role="tab" type="button" data-tab="import" aria-selected="true">データ取込</button>
-        <button class="tab" role="tab" type="button" data-tab="tx" aria-selected="false">取引履歴</button>
-        <button class="tab" role="tab" type="button" data-tab="monthly" aria-selected="false">月別売上</button>
-        <button class="tab" role="tab" type="button" data-tab="works" aria-selected="false">作品別売上</button>
+        <button class="tab" role="tab" type="button" data-tab="import" aria-selected="true"><span class="t-long">データ取込</span><span class="t-short">取込</span></button>
+        <button class="tab" role="tab" type="button" data-tab="tx" aria-selected="false"><span class="t-long">取引履歴</span><span class="t-short">履歴</span></button>
+        <button class="tab" role="tab" type="button" data-tab="monthly" aria-selected="false"><span class="t-long">月別売上</span><span class="t-short">月別</span></button>
+        <button class="tab" role="tab" type="button" data-tab="works" aria-selected="false"><span class="t-long">作品別売上</span><span class="t-short">作品</span></button>
+        <button class="tab" role="tab" type="button" data-tab="customers" aria-selected="false"><span class="t-long">顧客管理</span><span class="t-short">顧客</span></button>
       </nav>
     </div>
     <div class="bar-right">
@@ -639,6 +697,44 @@
         <p class="field-hint works-note" id="worksNote"></p>
       </div>
     </section>
+
+    <!-- ================= 顧客管理 ================= -->
+    <section class="view" id="view-customers" role="tabpanel">
+      <div class="filters">
+        <select id="cBrand" aria-label="ブランドで絞り込み"></select>
+        <select id="cSort" aria-label="並べ方">
+          <option value="net">累計額の順</option>
+          <option value="count">購入回数の順</option>
+          <option value="last">最近買った順</option>
+          <option value="name">名前の順</option>
+        </select>
+        <input type="search" id="cQuery" placeholder="名前・note IDで検索" aria-label="顧客を検索">
+      </div>
+      <div class="view-inner works-inner">
+        <details class="pv-block is-warn pending-block is-hidden" id="pendingBlock">
+          <summary class="pv-h">特定待ちのゲスト <span class="num" id="pendingCount"></span></summary>
+          <div class="field-hint">「ゲスト」は名前を設定していないnoteのアカウントです。noteの販売履歴で購入者のアカウントページを開き、URL（https://note.com/〇〇）の〇〇の部分＝note IDを入れると、その人の購入として顧客に加わります（URLをそのまま貼っても構いません）。同じnote IDの人には、まとめて加わります。</div>
+          <div id="pendingList"></div>
+        </details>
+        <section class="pv-block is-warn is-hidden" id="custSuggest">
+          <h3 class="pv-h">表記違いかもしれない名前</h3>
+          <div class="field-hint">空白や記号を除くと同じになる購入者名です。同じ人なら「まとめる」、別の人なら「別の人」を押してください（自動ではまとめません）。</div>
+          <div id="custSuggestList"></div>
+        </section>
+        <div class="tx-summary works-summary" id="custSummary"></div>
+        <div class="work-mergebar is-hidden" id="custMergeBar">
+          <span class="work-mergebar-text" id="custMergeText"></span>
+          <span class="work-mergebar-note" id="custMergeNote"></span>
+          <span class="work-mergebar-actions">
+            <button class="btn" type="button" id="custSelClear">選択を解除</button>
+            <button class="btn primary" type="button" id="custMergeBtn">選んだ顧客をまとめる</button>
+          </span>
+        </div>
+        <div class="works-list" id="custList"></div>
+        <button class="btn tx-more" type="button" id="custMore">さらに表示</button>
+        <p class="field-hint works-note" id="custNote"></p>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -686,7 +782,7 @@
     </div>
     <div class="field-hint modal-lead" id="workMergeLead"></div>
     <div class="work-names" id="workMergeNames" role="radiogroup" aria-label="表示する作品名"></div>
-    <label class="field-label" for="workMergeName">表示する作品名</label>
+    <label class="field-label" for="workMergeName" id="workMergeNameLabel">表示する作品名</label>
     <input class="field-input work-name-input" type="text" id="workMergeName" maxlength="200">
     <div class="form-error" id="workMergeError"></div>
     <div class="modal-actions">
@@ -711,6 +807,33 @@
     <div class="modal-actions work-edit-actions">
       <button class="btn danger" type="button" id="workEditUnmerge">まとめを解除</button>
       <button class="btn primary" type="button" id="workEditSave">名前を保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 顧客の詳細（購入履歴・名前・note ID） -->
+<div class="modal-overlay" id="custOverlay">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="custTitle">
+    <div class="modal-head">
+      <span class="modal-title" id="custTitle">顧客の詳細</span>
+      <button class="modal-close" type="button" data-close="custOverlay" aria-label="閉じる">✕</button>
+    </div>
+    <div class="cust-fields">
+      <div>
+        <label class="field-label" for="custName">表示する名前</label>
+        <input class="field-input work-name-input" type="text" id="custName" maxlength="100">
+      </div>
+      <div>
+        <label class="field-label" for="custNoteId">note ID（任意）</label>
+        <input class="field-input work-name-input" type="text" id="custNoteId" maxlength="200" placeholder="例 abc123（アカウントページのURLでも可）">
+      </div>
+    </div>
+    <div class="form-error" id="custError"></div>
+    <div class="pv-text cust-stats" id="custStats"></div>
+    <div class="cust-history" id="custHistory"></div>
+    <div class="modal-actions work-edit-actions">
+      <button class="btn danger" type="button" id="custReset">まとめ・note IDを解除</button>
+      <button class="btn primary" type="button" id="custSave">保存</button>
     </div>
   </div>
 </div>

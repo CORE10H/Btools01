@@ -4,6 +4,7 @@
    段階1：noteの「記事の販売履歴」CSVの取込（確認画面・検算・取消）、
           取引一覧、月別集計、ブランド管理、伏せ字モード。
    段階3a：作品別売上（ランキング・表記違いのまとめ）、JSONバックアップ。
+   段階3b：顧客管理（購入履歴・名寄せ・ゲストへのnote IDの割り当て）。
    データの正本はこのアプリのDB（sideops_recon）。INTELパネルへは
    段階2で「集計済みの要約」だけを送る（個人名は送らない）。
    仕様：docs/apps/claude_アプリ_RECON_仕様書.md
@@ -16,9 +17,9 @@
   const DB_VERSION = 1;
   const S_TX = 'transactions';
   const S_IMPORTS = 'imports';
-  const S_READERS = 'readers';   // 段階3（名寄せ）で使用。器だけ先に作っておく
-  const S_WORKS = 'works';       // 同上
-  const S_ALIASES = 'aliases';   // 同上（表記・IDの対応表）
+  const S_READERS = 'readers';   // 顧客（段階3b）
+  const S_WORKS = 'works';       // 作品のまとめ（段階3a）
+  const S_ALIASES = 'aliases';   // 表記・取引→作品・顧客の対応表
   const S_PROFILES = 'profiles';
   const S_SETTINGS = 'settings';
 
@@ -58,6 +59,10 @@
 
   // 「ゲスト」などの共通表記。同じ表記でも別人の可能性が高いため、名寄せの自動照合に使わない（識別不能扱い）
   const GENERIC_BUYER_NAMES = ['ゲスト', 'ゲストユーザー', '退会したユーザー', '退会済みユーザー', '退会ユーザー', '名無し', '匿名', 'unknown', 'guest', '-', '―', '−'];
+  // 顧客管理の対象外：アカウントを持たない購入で、誰かを追う手段がない（ユーザー判断 2026-10-02）。売上の集計には含める。
+  // 「ゲスト」（名前を設定していないアカウント）は、noteの画面でアカウントページのURLからIDを調べれば特定できるので対象にする
+  const EXCLUDED_BUYER_NAMES = ['ゲストユーザー'];
+  const NOTE_ID_MAX = 64;
 
   const KIND_LABEL = { sale: '売上', refund: '返金', ignore: '集計しない' };
   const KIND_CHOICES = [
@@ -91,6 +96,13 @@
   let txWorkFilter = null;      // 取引履歴の作品での絞り込み { gid, name }
   let mergeGids = [];           // 「作品をまとめる」の対象
   let workEditGid = null;       // 「作品のまとめ」で開いている作品
+  let readersById = new Map();  // 顧客（まとめた・note IDを登録した人）：readerId → { id, name, noteId, createdAt, updatedAt }
+  let buyerAliases = new Map(); // 購入者名 → 顧客：aliases の id → { id, type: 'buyer', key（NFKC正規化した名前）, readerId, createdAt }
+  let buyerTxAliases = new Map(); // ゲストの取引 → 顧客（note IDで特定）：aliases の id → { id, type: 'buyerTx', txRecordId, readerId, createdAt }
+  let custSuggestIgnore = [];   // 「別の人」とした候補の組
+  let custSel = new Set();      // 顧客管理で「まとめる」ために選んだ行
+  let custMergeGids = [];       // 「顧客をまとめる」の対象
+  let custEditGid = null;       // 顧客の詳細で開いている顧客
 
   /* ===================== DOM ===================== */
   const $ = (id) => document.getElementById(id);
@@ -309,11 +321,14 @@
   }
 
   async function loadAll() {
-    const [txs, imps, settingsRows, profs, wks, als] = await Promise.all([
-      getAll(S_TX), getAll(S_IMPORTS), getAll(S_SETTINGS), getAll(S_PROFILES), getAll(S_WORKS), getAll(S_ALIASES),
+    const [txs, imps, settingsRows, profs, wks, als, rds] = await Promise.all([
+      getAll(S_TX), getAll(S_IMPORTS), getAll(S_SETTINGS), getAll(S_PROFILES), getAll(S_WORKS), getAll(S_ALIASES), getAll(S_READERS),
     ]);
     worksById = new Map(wks.filter((w) => w && typeof w.id === 'string' && typeof w.name === 'string').map((w) => [w.id, w]));
     workAliases = new Map(als.filter((a) => a && a.type === 'work' && typeof a.id === 'string').map((a) => [a.id, a]));
+    readersById = new Map(rds.filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string').map((r) => [r.id, r]));
+    buyerAliases = new Map(als.filter((a) => a && a.type === 'buyer' && typeof a.id === 'string').map((a) => [a.id, a]));
+    buyerTxAliases = new Map(als.filter((a) => a && a.type === 'buyerTx' && typeof a.id === 'string').map((a) => [a.id, a]));
     txAll = txs.sort((a, b) => (a.paidAt < b.paidAt ? 1 : a.paidAt > b.paidAt ? -1 : (a.id < b.id ? 1 : -1)));
     imports = imps.sort((a, b) => b.importedAt - a.importedAt);
     const sMap = new Map(settingsRows.map((r) => [r.key, r.value]));
@@ -322,6 +337,8 @@
     ui = { mask: !!(savedUi && savedUi.mask) };
     const ign = sMap.get('workSuggestIgnore');
     suggestIgnore = Array.isArray(ign) ? ign.filter((s) => typeof s === 'string') : [];
+    const cign = sMap.get('custSuggestIgnore');
+    custSuggestIgnore = Array.isArray(cign) ? cign.filter((s) => typeof s === 'string') : [];
     const bi = sMap.get('backup');
     backupInfo = { lastExportAt: Number(bi && bi.lastExportAt) || 0 };
     profiles = new Map(profs.map((p) => [p.id, p]));
@@ -1428,13 +1445,20 @@
     const all = buildWorkGroups(txAll);
     const problem = mergeProblem(gids, all);
     if (problem) { showToast(problem, true); return; }
+    mergeMode = 'work';
     mergeGids = gids.slice();
     const gs = gids.map((id) => all.get(id));
+    $('workMergeTitle').textContent = '作品をまとめる';
     $('workMergeLead').textContent = `${gs.length}つの作品名を、1つの作品として集計します。取引のデータは書き換えません（あとから解除できます）。表示する作品名を選ぶか、入力してください。`;
+    $('workMergeNameLabel').textContent = '表示する作品名';
+    fillMergeNames(gs.map((g) => ({ name: g.name, sales: g.sales })), '件');
+    openModal('workMergeOverlay');
+  }
+  // 「まとめる」画面の名前の選択肢（作品・顧客で共用）。件数の多いものを既定の表示名にする
+  function fillMergeNames(items, unit) {
     const box = $('workMergeNames');
     box.textContent = '';
-    // 売上件数の多い表記を既定の表示名にする
-    const names = gs.map((g) => ({ name: g.name, sales: g.sales })).sort((a, b) => b.sales - a.sales);
+    const names = items.slice().sort((a, b) => b.sales - a.sales);
     names.forEach((n, i) => {
       const lab = el('label');
       const r = el('input');
@@ -1442,12 +1466,11 @@
       r.name = 'workMergePick';
       r.checked = i === 0;
       r.addEventListener('change', () => { if (r.checked) $('workMergeName').value = n.name; });
-      lab.append(r, el('span', '', n.name), el('small', 'num', `${n.sales}件`));
+      lab.append(r, el('span', '', n.name), el('small', 'num', `${n.sales}${unit}`));
       box.append(lab);
     });
     $('workMergeName').value = names[0].name;
     $('workMergeError').textContent = '';
-    openModal('workMergeOverlay');
   }
   async function doWorkMerge() {
     const all = buildWorkGroups(txAll);
@@ -1542,13 +1565,471 @@
     showToast('まとめを解除しました');
   }
 
+  /* ===================== 顧客管理（購入履歴・名寄せ・ゲストのnote ID） ===================== */
+  // 顧客の単位：購入者名（NFKC正規化）の完全一致で、ブランドをまたいで1人。表記違いは人が「まとめる」（自動ではまとめない）。
+  // 「ゲスト」等の共通表記は名前では人を特定できないので、取引ごとにnote IDを入れて顧客に割り当てる（入れるまでは「特定待ち」）。
+  // 「ゲストユーザー」は追えないので対象外（売上の集計には含める）。まとめ・割り当ては readers と aliases に持ち、取引は書き換えない
+  const EXCLUDED_BUYER_SET = new Set(EXCLUDED_BUYER_NAMES.map((s) => normKey(s).toLowerCase()));
+  const READER_NAME_MAX = 100;
+  let custShown = PAGE_SIZE;
+  let mergeMode = 'work'; // 「まとめる」画面を作品と顧客で共用する
+  function buyerAliasId(key) { return JSON.stringify(['buyer', key]); }
+  function buyerTxAliasId(txRecordId) { return JSON.stringify(['buyerTx', txRecordId]); }
+  function buyerCategory(t) {
+    if (t.buyerStatus !== 'unidentifiable') return 'person';
+    return EXCLUDED_BUYER_SET.has(String(t.buyerKey || '').toLowerCase()) ? 'excluded' : 'pending';
+  }
+  function customerGidOf(t) {
+    const ax = buyerTxAliases.get(buyerTxAliasId(t.id));
+    if (ax && readersById.has(ax.readerId)) return 'r:' + ax.readerId;
+    if (buyerCategory(t) !== 'person') return null;
+    const an = buyerAliases.get(buyerAliasId(t.buyerKey));
+    if (an && readersById.has(an.readerId)) return 'r:' + an.readerId;
+    return 'n:' + t.buyerKey;
+  }
+  // note ID：アカウントページのURL（https://note.com/xxxx や note.com/xxxx/n/…）を貼っても、IDだけを取り出す
+  function parseNoteId(input) {
+    let s = nfkc(input).trim();
+    if (!s) return { ok: true, id: '' };
+    const m = /^(?:https?:\/\/)?(?:www\.)?note\.com\/@?([A-Za-z0-9_]+)(?:[/?#].*)?$/i.exec(s);
+    s = m ? m[1] : s.replace(/^@/, '');
+    if (!/^[A-Za-z0-9_]+$/.test(s) || s.length > NOTE_ID_MAX) return { ok: false, msg: 'note IDは英数字と「_」です（アカウントページのURLを貼っても構いません）' };
+    return { ok: true, id: s };
+  }
+  function readerByNoteId(id) {
+    const k = String(id || '').toLowerCase();
+    if (!k) return null;
+    for (const r of readersById.values()) if (r.noteId && String(r.noteId).toLowerCase() === k) return r;
+    return null;
+  }
+  function shownName(name) { return shownBuyer(name, 'unmatched'); }
+  function shownNoteId(id) { return id ? (ui.mask ? '@●●●' : '@' + id) : ''; }
+
+  function buildCustomerGroups(txs) {
+    const groups = new Map();
+    const pending = [];
+    let excluded = 0;
+    txs.forEach((t) => {
+      const gid = customerGidOf(t);
+      if (!gid) {
+        if (buyerCategory(t) === 'excluded') excluded++; else pending.push(t);
+        return;
+      }
+      let g = groups.get(gid);
+      if (!g) {
+        g = { gid, readerId: gid.startsWith('r:') ? gid.slice(2) : null, names: new Map(), txs: [], brands: new Set(), net: 0, sales: 0, first: t.date, last: t.date };
+        groups.set(gid, g);
+      }
+      g.txs.push(t);
+      g.brands.add(t.brand);
+      if (buyerCategory(t) === 'person') {
+        // txAll は新しい順なので、最初に出てきた表記がその名前の最新の表記
+        const nm = g.names.get(t.buyerKey) || { key: t.buyerKey, name: t.buyerName, sales: 0 };
+        if (t.kind === 'sale') nm.sales++;
+        g.names.set(t.buyerKey, nm);
+      }
+      g.net += t.amount || 0;
+      if (t.kind === 'sale') g.sales++;
+      if (t.date < g.first) g.first = t.date;
+      if (t.date > g.last) g.last = t.date;
+    });
+    groups.forEach((g) => {
+      const r = g.readerId ? readersById.get(g.readerId) : null;
+      g.reader = r;
+      g.noteId = r && r.noteId ? r.noteId : '';
+      g.name = r ? r.name : (g.names.size ? g.names.values().next().value.name : g.noteId);
+    });
+    return { groups, pending, excluded };
+  }
+
+  function renderCustFilters() {
+    fillSelect($('cBrand'), 'すべてのブランド', brands.map((b) => ({ value: b.id, label: b.name })), true);
+  }
+
+  function renderCustomers() {
+    const list = $('custList');
+    list.textContent = '';
+    $('custSummary').textContent = '';
+    $('custNote').textContent = '';
+    $('custMore').style.display = 'none';
+    const allRes = buildCustomerGroups(txAll);
+    custSel.forEach((gid) => { if (!allRes.groups.has(gid)) custSel.delete(gid); });
+    renderCustSuggest(allRes.groups);
+    renderCustMergeBar(allRes.groups);
+    renderPendingGuests(allRes.pending);
+    if (!txAll.length) {
+      const es = el('div', 'empty-state');
+      es.append(el('div', 'big', 'まだ顧客のデータがありません'), el('div', 'small', '「データ取込」タブから、noteの販売履歴CSVを読み込んでください。'));
+      list.append(es);
+      return;
+    }
+    const fb = $('cBrand').value;
+    const sortBy = $('cSort').value;
+    const q = normKey($('cQuery').value).toLowerCase();
+    const res = buildCustomerGroups(txAll.filter((t) => !fb || t.brand === fb));
+    let gs = Array.from(res.groups.values());
+    if (q) gs = gs.filter((g) => [g.name, g.noteId, ...Array.from(g.names.keys())].some((v) => String(v || '').toLowerCase().includes(q)));
+    const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ja');
+    const sorters = {
+      net: (a, b) => b.net - a.net || b.sales - a.sales || byName(a, b),
+      count: (a, b) => b.sales - a.sales || b.net - a.net || byName(a, b),
+      last: (a, b) => (a.last < b.last ? 1 : a.last > b.last ? -1 : byName(a, b)),
+      name: byName,
+    };
+    gs.sort(sorters[sortBy] || sorters.net);
+    const item = (label, value, cls) => { const s = el('span', cls || '', label); s.append(el('b', 'num', value)); return s; };
+    $('custSummary').append(
+      item('顧客', `${gs.length}人`),
+      item('累計', yen(gs.reduce((s, g) => s + g.net, 0)), 'is-net'),
+      item('購入', `${gs.reduce((s, g) => s + g.sales, 0)}件`)
+    );
+    if (!gs.length) list.append(el('div', 'hist-empty', q ? '条件に合う顧客はいません。' : '顧客として集計できる取引はありません。'));
+    const frag = document.createDocumentFragment();
+    gs.slice(0, custShown).forEach((g) => frag.append(custRowEl(g)));
+    list.append(frag);
+    const rest = gs.length - custShown;
+    $('custMore').style.display = rest > 0 ? 'block' : 'none';
+    $('custMore').textContent = `さらに表示（残り${rest}人）`;
+    const notes = ['金額は差引（売上−返金）・税込の販売額、回数は購入（売上）の件数です。名前を押すと購入履歴を開きます。同じ人の表記違いは、左のチェックで選んで「まとめる」と1人として集計できます（取引のデータは書き換えず、いつでも解除できます）。'];
+    if (res.excluded) notes.push(`「ゲストユーザー」の取引${res.excluded}件は、アカウントのない購入で誰かを追えないため、顧客管理の対象外です（売上の集計には含みます）。`);
+    $('custNote').textContent = notes.join('');
+  }
+
+  function custRowEl(g) {
+    const row = el('div', 'cust-row' + (custSel.has(g.gid) ? ' is-selected' : ''));
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = custSel.has(g.gid);
+    cb.setAttribute('aria-label', `「${shownName(g.name)}」を選ぶ（まとめる用）`);
+    cb.addEventListener('change', () => {
+      if (cb.checked) custSel.add(g.gid); else custSel.delete(g.gid);
+      row.classList.toggle('is-selected', cb.checked);
+      renderCustMergeBar(buildCustomerGroups(txAll).groups);
+    });
+    const main = el('div', 'work-main');
+    const title = el('button', 'work-title', shownName(g.name));
+    title.type = 'button';
+    title.title = '購入履歴を開く';
+    title.addEventListener('click', () => openCustEdit(g.gid));
+    const meta = el('div', 'work-meta');
+    Array.from(g.brands).forEach((b) => meta.append(brandChip(b)));
+    if (g.noteId) meta.append(el('span', 'tag is-ok', shownNoteId(g.noteId)));
+    if (g.names.size > 1) meta.append(el('span', 'tag', `${g.names.size}表記をまとめ済み`));
+    main.append(title, meta);
+    const cnt = el('div', 'cust-count num', `${g.sales}回`);
+    const amount = el('div', 'work-amount num' + (g.net < 0 ? ' is-neg' : ''), yen(g.net));
+    amount.append(el('small', '', `最終 ${String(g.last).replace(/-/g, '/')}`));
+    row.append(cb, main, cnt, amount);
+    return row;
+  }
+
+  /* ---- 特定待ちのゲスト（note IDの割り当て） ---- */
+  function renderPendingGuests(pending) {
+    const block = $('pendingBlock');
+    block.classList.toggle('is-hidden', !pending.length);
+    $('pendingCount').textContent = `${pending.length}件`;
+    const box = $('pendingList');
+    box.textContent = '';
+    pending.slice(0, 200).forEach((t) => {
+      const row = el('div', 'pend-row');
+      const info = el('div', 'pend-info');
+      const top = el('div', 'pend-top');
+      top.append(el('span', 'num', fmtDateTimeIso(t.paidAt)), brandChip(t.brand), el('span', 'pend-buyer', t.buyerName || '（名前なし）'));
+      const work = el('div', 'pend-work', t.contentName || '（作品名なし）');
+      work.title = t.contentName || '';
+      info.append(top, work);
+      const amount = el('div', 'work-amount num', yen(t.amount));
+      const form = el('div', 'pend-form');
+      const input = el('input', 'field-input');
+      input.type = 'text';
+      input.maxLength = 200;
+      input.placeholder = 'note ID またはURL';
+      input.setAttribute('aria-label', `${fmtDateTimeIso(t.paidAt)}の取引の購入者のnote ID`);
+      const btn = el('button', 'btn', '割り当て');
+      btn.type = 'button';
+      const err = el('div', 'form-error');
+      btn.addEventListener('click', () => assignGuest(t, input, err));
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) assignGuest(t, input, err); });
+      form.append(input, btn);
+      row.append(info, amount, form, err);
+      box.append(row);
+    });
+    if (pending.length > 200) box.append(el('div', 'hist-empty', `ほか${pending.length - 200}件（新しい順に200件まで表示）`));
+  }
+  async function assignGuest(t, input, errEl) {
+    const p = parseNoteId(input.value);
+    if (!p.ok) { errEl.textContent = p.msg; return; }
+    if (!p.id) { errEl.textContent = 'note IDを入力してください'; return; }
+    errEl.textContent = '';
+    const now = Date.now();
+    let r = readerByNoteId(p.id);
+    const isNew = !r;
+    if (!r) r = { id: 'r_' + stamp(now) + '_' + randId(4), name: p.id, noteId: p.id, createdAt: now, updatedAt: now };
+    try {
+      const tx = requireDb().transaction([S_READERS, S_ALIASES], 'readwrite');
+      const done = txDone(tx);
+      if (isNew) tx.objectStore(S_READERS).put(r);
+      tx.objectStore(S_ALIASES).put({ id: buyerTxAliasId(t.id), type: 'buyerTx', txRecordId: t.id, readerId: r.id, createdAt: now });
+      await done;
+    } catch (e) {
+      console.error('割り当てに失敗しました', e);
+      errEl.textContent = '保存できませんでした。データは変わっていません。';
+      return;
+    }
+    await reloadAndRender();
+    showToast(isNew ? `新しい顧客（${shownNoteId(p.id)}）として登録しました` : `${shownName(r.name)}（${shownNoteId(r.noteId)}）に割り当てました`);
+  }
+
+  /* ---- 表記違いの候補（顧客） ---- */
+  function custSuggestions(groups) {
+    const buckets = new Map();
+    groups.forEach((g) => {
+      g.names.forEach((nm) => {
+        const lk = looseTitleKey(nm.name);
+        if (!lk) return;
+        if (!buckets.has(lk)) buckets.set(lk, new Map());
+        buckets.get(lk).set(g.gid, g);
+      });
+    });
+    const out = [];
+    buckets.forEach((m) => {
+      if (m.size < 2) return;
+      const gids = Array.from(m.keys()).sort();
+      const sig = gids.join('|');
+      if (!custSuggestIgnore.includes(sig)) out.push({ sig, gids, groups: gids.map((id) => m.get(id)) });
+    });
+    return out;
+  }
+  function renderCustSuggest(groups) {
+    const sugs = custSuggestions(groups);
+    $('custSuggest').classList.toggle('is-hidden', !sugs.length);
+    const box = $('custSuggestList');
+    box.textContent = '';
+    sugs.forEach((s) => {
+      const item = el('div', 'sug-item');
+      const ul = el('ul', 'sug-titles');
+      s.groups.forEach((g) => {
+        const li = el('li', '', shownName(g.name));
+        li.append(el('small', 'num', `${g.sales}回・${yen(g.net)}`));
+        ul.append(li);
+      });
+      const acts = el('div', 'sug-actions');
+      const no = el('button', 'btn', '別の人');
+      no.type = 'button';
+      no.addEventListener('click', async () => {
+        custSuggestIgnore = custSuggestIgnore.concat([s.sig]);
+        try { await putOne(S_SETTINGS, { key: 'custSuggestIgnore', value: custSuggestIgnore }); } catch (e) { console.error(e); showToast('保存できませんでした', true); }
+        renderCustomers();
+      });
+      const yes = el('button', 'btn primary', 'まとめる');
+      yes.type = 'button';
+      yes.addEventListener('click', () => openCustMerge(s.gids));
+      acts.append(no, yes);
+      item.append(ul, acts);
+      box.append(item);
+    });
+  }
+
+  /* ---- 顧客をまとめる ---- */
+  function custMergeProblem(gids, groups) {
+    const gs = gids.map((id) => groups.get(id)).filter(Boolean);
+    if (gs.length < 2) return 'まとめる顧客を2人以上選んでください';
+    const ids = new Set(gs.map((g) => String(g.noteId || '').toLowerCase()).filter(Boolean));
+    if (ids.size > 1) return 'note IDが違う顧客はまとめられません（別の人です）';
+    return '';
+  }
+  function renderCustMergeBar(groups) {
+    const bar = $('custMergeBar');
+    bar.classList.toggle('is-hidden', !custSel.size);
+    if (!custSel.size) return;
+    const problem = ui.mask ? '伏せ字を解除すると、まとめられます' : custMergeProblem(Array.from(custSel), groups);
+    $('custMergeText').textContent = `${custSel.size}人を選択中`;
+    $('custMergeNote').textContent = custSel.size >= 2 || ui.mask ? problem : '';
+    $('custMergeBtn').disabled = !!problem;
+  }
+  function openCustMerge(gids) {
+    if (ui.mask) { showToast('伏せ字を解除すると、まとめられます', true); return; }
+    const groups = buildCustomerGroups(txAll).groups;
+    const problem = custMergeProblem(gids, groups);
+    if (problem) { showToast(problem, true); return; }
+    mergeMode = 'cust';
+    custMergeGids = gids.slice();
+    const gs = gids.map((id) => groups.get(id));
+    $('workMergeTitle').textContent = '顧客をまとめる';
+    $('workMergeLead').textContent = `${gs.length}人を、同じ1人の顧客として集計します。取引のデータは書き換えません（あとから解除できます）。表示する名前を選ぶか、入力してください。`;
+    $('workMergeNameLabel').textContent = '表示する名前';
+    fillMergeNames(gs.map((g) => ({ name: g.name, sales: g.sales })), '回');
+    openModal('workMergeOverlay');
+  }
+  async function doCustMerge() {
+    const groups = buildCustomerGroups(txAll).groups;
+    const problem = ui.mask ? '伏せ字を解除すると、まとめられます' : custMergeProblem(custMergeGids, groups);
+    if (problem) { $('workMergeError').textContent = problem; return; }
+    const name = cleanName($('workMergeName').value);
+    if (!name) { $('workMergeError').textContent = '名前を入力してください'; return; }
+    if (name.length > READER_NAME_MAX) { $('workMergeError').textContent = `名前は${READER_NAME_MAX}文字までです`; return; }
+    const gs = custMergeGids.map((id) => groups.get(id));
+    const existing = gs.filter((g) => g.readerId).map((g) => g.readerId);
+    const noteId = (gs.find((g) => g.noteId) || {}).noteId || null;
+    const now = Date.now();
+    const targetId = existing[0] || ('r_' + stamp(now) + '_' + randId(4));
+    const prev = readersById.get(targetId);
+    const absorbed = existing.slice(1);
+    const keys = new Set();
+    gs.forEach((g) => g.names.forEach((nm, k) => keys.add(k)));
+    buyerAliases.forEach((a) => { if (existing.includes(a.readerId)) keys.add(a.key); }); // 取引のない表記も引き継ぐ
+    try {
+      const tx = requireDb().transaction([S_READERS, S_ALIASES], 'readwrite');
+      const done = txDone(tx);
+      try {
+        const sR = tx.objectStore(S_READERS);
+        const sA = tx.objectStore(S_ALIASES);
+        sR.put({ id: targetId, name, noteId, createdAt: prev ? prev.createdAt : now, updatedAt: now });
+        absorbed.forEach((id) => sR.delete(id));
+        keys.forEach((k) => sA.put({ id: buyerAliasId(k), type: 'buyer', key: k, readerId: targetId, createdAt: now }));
+        buyerTxAliases.forEach((a) => { if (absorbed.includes(a.readerId)) sA.put(Object.assign({}, a, { readerId: targetId })); });
+      } catch (syncErr) {
+        console.error(syncErr);
+        try { tx.abort(); } catch (e) { /* すでに終了している */ }
+      }
+      await done;
+    } catch (err) {
+      console.error('顧客をまとめられませんでした', err);
+      $('workMergeError').textContent = 'まとめられませんでした。データは変わっていません。';
+      return;
+    }
+    closeModal('workMergeOverlay');
+    custMergeGids.forEach((id) => custSel.delete(id));
+    await reloadAndRender();
+    showToast(`「${shownName(name)}」としてまとめました`);
+  }
+
+  /* ---- 顧客の詳細（購入履歴・名前・note ID・解除） ---- */
+  function openCustEdit(gid) {
+    const g = buildCustomerGroups(txAll).groups.get(gid);
+    if (!g) return;
+    custEditGid = gid;
+    const locked = ui.mask;
+    $('custName').value = locked ? shownName(g.name) : g.name;
+    $('custNoteId').value = locked ? shownNoteId(g.noteId) : g.noteId;
+    $('custName').disabled = locked;
+    $('custNoteId').disabled = locked;
+    $('custSave').disabled = locked;
+    $('custReset').disabled = locked || !g.readerId;
+    $('custReset').style.display = g.readerId ? '' : 'none';
+    $('custError').textContent = locked ? '伏せ字を解除すると、名前やnote IDを編集できます' : '';
+    const names = Array.from(g.names.values()).map((n) => shownName(n.name));
+    $('custStats').textContent = `${g.sales}回の購入・累計 ${yen(g.net)}・初回 ${String(g.first).replace(/-/g, '/')}・最終 ${String(g.last).replace(/-/g, '/')}` +
+      (names.length > 1 ? `\nまとめている表記：${names.join('／')}` : '');
+    const box = $('custHistory');
+    box.textContent = '';
+    g.txs.forEach((t) => {
+      const row = el('div', 'ch-row' + (t.kind === 'refund' ? ' is-neg' : ''));
+      row.append(el('span', 'ch-date num', fmtDateTimeIso(t.paidAt).slice(0, 10)), brandChip(t.brand));
+      const work = el('span', 'ch-work', t.contentName || '（作品名なし）');
+      work.title = t.contentName || '';
+      row.append(work, el('span', 'ch-amount num', yen(t.amount)));
+      const ax = buyerTxAliases.get(buyerTxAliasId(t.id));
+      if (ax && ax.readerId === g.readerId) {
+        const un = el('button', 'btn', '割り当てを外す');
+        un.type = 'button';
+        un.title = 'このゲストの取引を「特定待ち」に戻す';
+        un.disabled = locked;
+        un.addEventListener('click', () => unassignGuest(t));
+        row.append(un);
+      } else row.append(el('span'));
+      box.append(row);
+    });
+    openModal('custOverlay');
+  }
+  async function saveCust() {
+    if (ui.mask) return;
+    const g = buildCustomerGroups(txAll).groups.get(custEditGid);
+    if (!g) { closeModal('custOverlay'); return; }
+    const name = cleanName($('custName').value);
+    if (!name) { $('custError').textContent = '名前を入力してください'; return; }
+    if (name.length > READER_NAME_MAX) { $('custError').textContent = `名前は${READER_NAME_MAX}文字までです`; return; }
+    const p = parseNoteId($('custNoteId').value);
+    if (!p.ok) { $('custError').textContent = p.msg; return; }
+    const other = p.id ? readerByNoteId(p.id) : null;
+    if (other && other.id !== g.readerId) {
+      $('custError').textContent = `このnote IDは別の顧客「${other.name}」に登録済みです。同じ人なら、2人を選んで「まとめる」でまとめてください`;
+      return;
+    }
+    if (!g.readerId && name === g.name && !p.id) { closeModal('custOverlay'); return; } // 何も変わっていない
+    const now = Date.now();
+    try {
+      const tx = requireDb().transaction([S_READERS, S_ALIASES], 'readwrite');
+      const done = txDone(tx);
+      if (g.reader) {
+        tx.objectStore(S_READERS).put(Object.assign({}, g.reader, { name, noteId: p.id || null, updatedAt: now }));
+      } else {
+        // 名前だけの顧客に名前の変更・note IDを付けるときは、顧客のレコードを作って名前の表記を紐付ける
+        const id = 'r_' + stamp(now) + '_' + randId(4);
+        tx.objectStore(S_READERS).put({ id, name, noteId: p.id || null, createdAt: now, updatedAt: now });
+        g.names.forEach((nm, k) => tx.objectStore(S_ALIASES).put({ id: buyerAliasId(k), type: 'buyer', key: k, readerId: id, createdAt: now }));
+      }
+      await done;
+    } catch (e) {
+      console.error(e);
+      $('custError').textContent = '保存できませんでした。データは変わっていません。';
+      return;
+    }
+    closeModal('custOverlay');
+    await reloadAndRender();
+    showToast('顧客の情報を保存しました');
+  }
+  async function unassignGuest(t) {
+    try {
+      const tx = requireDb().transaction(S_ALIASES, 'readwrite');
+      const done = txDone(tx);
+      tx.objectStore(S_ALIASES).delete(buyerTxAliasId(t.id));
+      await done;
+    } catch (e) {
+      console.error(e);
+      showToast('外せませんでした。データは変わっていません。', true);
+      return;
+    }
+    await reloadAndRender();
+    const g = buildCustomerGroups(txAll).groups.get(custEditGid);
+    if (g) openCustEdit(custEditGid); else closeModal('custOverlay');
+    showToast('割り当てを外しました（特定待ちに戻りました）');
+  }
+  async function resetCust() {
+    const g = buildCustomerGroups(txAll).groups.get(custEditGid);
+    if (!g || !g.readerId || ui.mask) return;
+    let assigned = 0;
+    buyerTxAliases.forEach((a) => { if (a.readerId === g.readerId) assigned++; });
+    const ok = await confirmDialog(
+      `「${g.name}」のまとめとnote IDを解除しますか？\n名前でまとめた表記はそれぞれ別の顧客に戻り、note IDで割り当てたゲストの取引${assigned}件は「特定待ち」に戻ります。取引のデータは変わりません。`,
+      '解除する'
+    );
+    if (!ok) return;
+    try {
+      const tx = requireDb().transaction([S_READERS, S_ALIASES], 'readwrite');
+      const done = txDone(tx);
+      tx.objectStore(S_READERS).delete(g.readerId);
+      buyerAliases.forEach((a) => { if (a.readerId === g.readerId) tx.objectStore(S_ALIASES).delete(a.id); });
+      buyerTxAliases.forEach((a) => { if (a.readerId === g.readerId) tx.objectStore(S_ALIASES).delete(a.id); });
+      await done;
+    } catch (e) {
+      console.error(e);
+      showToast('解除できませんでした。データは変わっていません。', true);
+      return;
+    }
+    closeModal('custOverlay');
+    await reloadAndRender();
+    showToast('まとめとnote IDを解除しました');
+  }
+
   /* ===================== バックアップ（書き出し・復元） ===================== */
   // 取込のデータは元のCSVから作り直せるが、作品のまとめなどの手作業はCSVから作り直せない。
   // そのため、手作業のデータがあるときだけ「最後の書き出しから7日」で☰に印を付ける
   const BACKUP_STORES = [S_TX, S_IMPORTS, S_READERS, S_WORKS, S_ALIASES, S_PROFILES, S_SETTINGS];
   function manualDataSince() {
     let t = 0;
-    workAliases.forEach((a) => { const c = Number(a.createdAt) || 0; if (c && (!t || c < t)) t = c; });
+    const see = (x) => { const c = Number(x.createdAt) || 0; if (c && (!t || c < t)) t = c; };
+    [workAliases, buyerAliases, buyerTxAliases, readersById].forEach((m) => m.forEach(see));
     return t;
   }
   function backupStatus() {
@@ -1662,6 +2143,8 @@
     renderMonthly();
     renderWorkFilters();
     renderWorks();
+    renderCustFilters();
+    renderCustomers();
     renderBackupAlert();
     if (preview) renderPreview();
   }
@@ -1793,6 +2276,7 @@
     views.forEach((v) => v.classList.toggle('is-active', v.id === 'view-' + name));
     if (name === 'tx') renderTx();
     if (name === 'works') renderWorks();
+    if (name === 'customers') renderCustomers();
   }
 
   /* ===================== イベント ===================== */
@@ -1831,7 +2315,7 @@
   });
 
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
-  const MODAL_IDS = ['brandsOverlay', 'storageOverlay', 'workMergeOverlay', 'workEditOverlay'];
+  const MODAL_IDS = ['brandsOverlay', 'storageOverlay', 'workMergeOverlay', 'workEditOverlay', 'custOverlay'];
   MODAL_IDS.forEach((id) => {
     $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeModal(id); });
   });
@@ -1919,11 +2403,25 @@
   ['wBrand', 'wPeriod', 'wSort', 'wTop'].forEach((id) => $(id).addEventListener('change', renderWorks));
   $('workSelClear').addEventListener('click', () => { workSel = new Set(); renderWorks(); });
   $('workMergeBtn').addEventListener('click', () => openWorkMerge(Array.from(workSel)));
-  $('workMergeOk').addEventListener('click', doWorkMerge);
-  $('workMergeName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doWorkMerge(); });
+  const doMerge = () => (mergeMode === 'cust' ? doCustMerge() : doWorkMerge());
+  $('workMergeOk').addEventListener('click', doMerge);
+  $('workMergeName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doMerge(); });
   $('workEditSave').addEventListener('click', saveWorkName);
   $('workEditName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) saveWorkName(); });
   $('workEditUnmerge').addEventListener('click', unmergeWork);
+
+  // 顧客管理
+  ['cBrand', 'cSort'].forEach((id) => $(id).addEventListener('change', () => { custShown = PAGE_SIZE; renderCustomers(); }));
+  let custQueryTimer = null;
+  $('cQuery').addEventListener('input', () => {
+    clearTimeout(custQueryTimer);
+    custQueryTimer = setTimeout(() => { custShown = PAGE_SIZE; renderCustomers(); }, 200);
+  });
+  $('custMore').addEventListener('click', () => { custShown += PAGE_SIZE; renderCustomers(); });
+  $('custSelClear').addEventListener('click', () => { custSel = new Set(); renderCustomers(); });
+  $('custMergeBtn').addEventListener('click', () => openCustMerge(Array.from(custSel)));
+  $('custSave').addEventListener('click', saveCust);
+  $('custReset').addEventListener('click', resetCust);
 
   /* ===================== 初期化 ===================== */
   function fatalInit(msg) {

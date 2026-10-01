@@ -40,8 +40,8 @@ sideops/
     ├── mindframe.html       # マインドマップ／フローチャート／UIラフ（本実装済み）。画面の骨組みとCSS
     ├── mindframe.js         #   本体（描画・操作・保存・書き出し）
     ├── mindframe-io.js      #   テキストの読み書き（箇条書き・Mermaid）と自動整列。DOMに触れない純粋な関数だけ
-    ├── recon.html           # 販売データの取込・分析（段階1・3a実装済み）。画面の骨組みとCSS、CSP
-    ├── recon.js             #   本体（CSV取込・検算・照合・重複防止・取消・取引履歴・月別・作品別・バックアップ）
+    ├── recon.html           # 販売データの取込・分析（段階1・3a・3b実装済み）。画面の骨組みとCSS、CSP
+    ├── recon.js             #   本体（CSV取込・検算・照合・重複防止・取消・取引履歴・月別・作品別・顧客管理・バックアップ）
     ├── vendor/              # 同梱の外部ライブラリ（CDNは使わない）
     │   ├── papaparse.min.js      # Papa Parse 5.7.0（CSV解析、MIT）。RECONが使用
     │   └── papaparse.LICENSE.txt # 上記のライセンス全文
