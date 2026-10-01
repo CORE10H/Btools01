@@ -1031,7 +1031,7 @@
     sum.textContent = '';
     if (!txAll.length) {
       const es = el('div', 'empty-state');
-      es.append(el('div', 'big', 'まだ取引がありません'), el('div', 'small', '「取込」タブから、noteの販売履歴CSVを読み込んでください。'));
+      es.append(el('div', 'big', 'まだ取引がありません'), el('div', 'small', '「データ取込」タブから、noteの販売履歴CSVを読み込んでください。'));
       list.append(es);
       $('txMore').style.display = 'none';
       return;
@@ -1065,7 +1065,7 @@
     box.textContent = '';
     if (!txAll.length) {
       const es = el('div', 'empty-state');
-      es.append(el('div', 'big', 'まだ集計するデータがありません'), el('div', 'small', '「取込」タブから、noteの販売履歴CSVを読み込んでください。'));
+      es.append(el('div', 'big', 'まだ集計するデータがありません'), el('div', 'small', '「データ取込」タブから、noteの販売履歴CSVを読み込んでください。'));
       const go = el('button', 'btn primary', '取込を開く');
       go.type = 'button';
       go.addEventListener('click', () => switchTab('import'));

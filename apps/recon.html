@@ -63,7 +63,9 @@
     font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--cyan);
     letter-spacing: .06em; display: flex; align-items: center; white-space: nowrap;
   }
-  .tabs { display: flex; gap: 2px; }
+  /* 幅が足りないときは、ボタンと重ならないよう横にスクロールさせる（最後の歯止め） */
+  .tabs { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab {
     background: transparent; border: none; border-bottom: 2px solid transparent; border-top: 2px solid transparent;
     color: var(--text-dim); padding: 0 10px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
@@ -355,6 +357,11 @@
     .hist-row { grid-template-columns: minmax(0, 1fr) auto; }
     .hist-row .btn { grid-column: 1 / -1; justify-self: end; }
   }
+  /* タブ名が長い（データ取込・取引履歴・月別売上）ので、スマホでは左上の「RECON」を省く（Stageの見出しにアプリ名が出ている） */
+  @media (max-width: 420px) {
+    .app-title { display: none; }
+    .tab { padding: 0 6px; font-size: 12px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .toast { transition: none; }
   }
@@ -367,9 +374,9 @@
     <div class="bar-left">
       <span class="app-title">RECON</span>
       <nav class="tabs" role="tablist" aria-label="画面の切り替え">
-        <button class="tab" role="tab" type="button" data-tab="import" aria-selected="true">取込</button>
-        <button class="tab" role="tab" type="button" data-tab="tx" aria-selected="false">取引</button>
-        <button class="tab" role="tab" type="button" data-tab="monthly" aria-selected="false">月別</button>
+        <button class="tab" role="tab" type="button" data-tab="import" aria-selected="true">データ取込</button>
+        <button class="tab" role="tab" type="button" data-tab="tx" aria-selected="false">取引履歴</button>
+        <button class="tab" role="tab" type="button" data-tab="monthly" aria-selected="false">月別売上</button>
       </nav>
     </div>
     <div class="bar-right">

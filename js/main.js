@@ -1211,6 +1211,8 @@
       isImportMode = true;
       launcherImportZone.classList.add('is-visible');
       launcherImportNameInput.style.display = '';
+      // 直前に選んだ先天的アプリの画像が自動で入っていたら外す（手動で選んだ画像は残す）
+      if (!coverIsUserSelected) loadBuiltinCoverImage(null);
     } else {
       selectedBuiltinIndex = Number(v);
       isImportMode = false;
@@ -1243,13 +1245,26 @@
 
   // builtinのデフォルトカバー画像（apps/img/配下）をfetchしてBlob化し、
   // 通常の「手動アップロードされた画像」と同じ扱いでプレビュー表示する。
-  // coverImg未設定のbuiltin（scaffold・blank）では何もしない（画像欄は空のまま）。
+  // coverImg未設定のbuiltin（blank）やインポートを選んだら、自動で入れた画像を外して空に戻す
+  // （外さないと、直前に選んだアプリの画像がそのまま残り、別のアプリのカードに保存されてしまう）。
+  // 読み込みは非同期なので、選び直しが速いと古い画像が後から届いて上書きすることがある。
+  // 呼ぶたびに番号を進め、最後に呼んだ分の結果だけを使う。
+  let coverLoadSeq = 0;
+  function clearCoverDrop() {
+    pendingCoverFile = null;
+    launcherCoverDrop.classList.remove('has-image');
+    launcherCoverDrop.innerHTML = '<span>クリックして画像を選択</span>';
+    bindCoverDropClick();
+  }
   async function loadBuiltinCoverImage(choice) {
-    if (!choice || !choice.coverImg) return;
+    const seq = ++coverLoadSeq;
+    if (!choice || !choice.coverImg) { clearCoverDrop(); return; }
     try {
       const res = await fetch(choice.coverImg);
       if (!res.ok) throw new Error('fetch failed: ' + res.status);
       const blob = await res.blob();
+      // 届くまでの間に選び直された・手動で画像が選ばれた・モーダルが開き直された場合は捨てる
+      if (seq !== coverLoadSeq || coverIsUserSelected) return;
       pendingCoverFile = blob;
       const url = URL.createObjectURL(blob);
       launcherCoverDrop.classList.add('has-image');
@@ -1257,8 +1272,9 @@
       bindCoverDropClick();
     } catch (err) {
       // 自動読み込みに失敗しても致命的ではない（ユーザーが手動で選べば良いため）、
-      // トーストは出さず静かに諦める
+      // トーストは出さず静かに諦める。ただし直前のアプリの画像が残らないよう空に戻す
       console.error('デフォルトカバー画像の読み込みに失敗しました', err);
+      if (seq === coverLoadSeq && !coverIsUserSelected) clearCoverDrop();
     }
   }
 
@@ -1346,9 +1362,8 @@
     launcherImportDrop.classList.remove('has-file');
     launcherImportDropText.textContent = 'クリックしてhtmlファイルを選択（.html / .htm、5MBまで）';
     launcherImportInput.value = '';
-    launcherCoverDrop.classList.remove('has-image');
-    launcherCoverDrop.innerHTML = '<span>クリックして画像を選択</span>';
-    bindCoverDropClick();
+    coverLoadSeq++; // 前回開いたときの読み込みが後から届いても使わない
+    clearCoverDrop();
     bindImportDropClick();
     renderAppPicker();
   }
