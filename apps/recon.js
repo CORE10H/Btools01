@@ -3,6 +3,7 @@
    ---------------------------------------------------------------------
    段階1：noteの「記事の販売履歴」CSVの取込（確認画面・検算・取消）、
           取引一覧、月別集計、ブランド管理、伏せ字モード。
+   段階3a：作品別売上（ランキング・表記違いのまとめ）、JSONバックアップ。
    データの正本はこのアプリのDB（sideops_recon）。INTELパネルへは
    段階2で「集計済みの要約」だけを送る（個人名は送らない）。
    仕様：docs/apps/claude_アプリ_RECON_仕様書.md
@@ -28,6 +29,11 @@
   const HEADER_SEARCH_ROWS = 10;
   const MAX_ISSUES_SHOWN = 50;
   const BRAND_NAME_MAX = 40;
+  const WORK_NAME_MAX = 200;
+  const BACKUP_FORMAT = 'sideops-recon-backup';
+  const BACKUP_VERSION = 1;
+  const BACKUP_MAX_BYTES = 100 * 1024 * 1024;
+  const BACKUP_WARN_DAYS = 7;
 
   const PLATFORM_NOTE = 'note';
   const NOTE_PROFILE_ID = 'note';
@@ -77,6 +83,14 @@
   let txShown = PAGE_SIZE;
   let brandModalFromPreview = false;
   let queryTimer = null;
+  let worksById = new Map();    // 作品のまとめ：workId → { id, brand, name, createdAt, updatedAt }
+  let workAliases = new Map();  // 作品名の表記 → 作品：aliases の id → { id, type: 'work', brand, key, workId, createdAt }
+  let suggestIgnore = [];       // 「別の作品」とした候補の組（グループIDを並べた文字列）
+  let backupInfo = { lastExportAt: 0 };
+  let workSel = new Set();      // 作品別売上で「まとめる」ために選んだ行（グループID）
+  let txWorkFilter = null;      // 取引履歴の作品での絞り込み { gid, name }
+  let mergeGids = [];           // 「作品をまとめる」の対象
+  let workEditGid = null;       // 「作品のまとめ」で開いている作品
 
   /* ===================== DOM ===================== */
   const $ = (id) => document.getElementById(id);
@@ -295,13 +309,21 @@
   }
 
   async function loadAll() {
-    const [txs, imps, settingsRows, profs] = await Promise.all([getAll(S_TX), getAll(S_IMPORTS), getAll(S_SETTINGS), getAll(S_PROFILES)]);
+    const [txs, imps, settingsRows, profs, wks, als] = await Promise.all([
+      getAll(S_TX), getAll(S_IMPORTS), getAll(S_SETTINGS), getAll(S_PROFILES), getAll(S_WORKS), getAll(S_ALIASES),
+    ]);
+    worksById = new Map(wks.filter((w) => w && typeof w.id === 'string' && typeof w.name === 'string').map((w) => [w.id, w]));
+    workAliases = new Map(als.filter((a) => a && a.type === 'work' && typeof a.id === 'string').map((a) => [a.id, a]));
     txAll = txs.sort((a, b) => (a.paidAt < b.paidAt ? 1 : a.paidAt > b.paidAt ? -1 : (a.id < b.id ? 1 : -1)));
     imports = imps.sort((a, b) => b.importedAt - a.importedAt);
     const sMap = new Map(settingsRows.map((r) => [r.key, r.value]));
     brands = sanitizeBrands(sMap.get('brands'));
     const savedUi = sMap.get('ui');
     ui = { mask: !!(savedUi && savedUi.mask) };
+    const ign = sMap.get('workSuggestIgnore');
+    suggestIgnore = Array.isArray(ign) ? ign.filter((s) => typeof s === 'string') : [];
+    const bi = sMap.get('backup');
+    backupInfo = { lastExportAt: Number(bi && bi.lastExportAt) || 0 };
     profiles = new Map(profs.map((p) => [p.id, p]));
   }
 
@@ -1014,6 +1036,7 @@
     const fk = $('fKind').value;
     const q = normKey($('fQuery').value).toLowerCase();
     return txAll.filter((t) => {
+      if (txWorkFilter && workGroupOf(t) !== txWorkFilter.gid) return false;
       if (fb && t.brand !== fb) return false;
       if (fm && t.ym !== fm) return false;
       if (fk && t.kind !== fk) return false;
@@ -1029,6 +1052,10 @@
     const sum = $('txSummary');
     list.textContent = '';
     sum.textContent = '';
+    // 作品での絞り込み（作品別売上から来たとき）。まとめの解除・取消でその作品が消えていたら外す
+    if (txWorkFilter && !txAll.some((t) => workGroupOf(t) === txWorkFilter.gid)) txWorkFilter = null;
+    $('txWorkFilter').classList.toggle('is-hidden', !txWorkFilter);
+    $('txWorkFilterText').textContent = txWorkFilter ? `作品で絞り込み中：${txWorkFilter.name}` : '';
     if (!txAll.length) {
       const es = el('div', 'empty-state');
       es.append(el('div', 'big', 'まだ取引がありません'), el('div', 'small', '「データ取込」タブから、noteの販売履歴CSVを読み込んでください。'));
@@ -1111,6 +1138,7 @@
         $('fBrand').value = '';
         $('fKind').value = '';
         $('fQuery').value = '';
+        txWorkFilter = null;
         txShown = PAGE_SIZE;
         switchTab('tx');
       });
@@ -1154,12 +1182,487 @@
     box.append(el('p', 'field-hint monthly-note', '金額は差引（売上−返金）で、税込の販売額です（noteの手数料を引く前）。件数は売上の件数です。月の名前を押すと、その月の取引一覧を開きます。'));
   }
 
+  /* ===================== 作品別売上（作品のまとめ・ランキング） ===================== */
+  // 作品の単位：ブランド＋作品名（NFKC正規化）の完全一致。表記違いは人が「まとめる」で同じ作品にする（自動ではまとめない）。
+  // まとめは aliases（表記→作品）と works（作品の表示名）に持ち、取引のデータは書き換えない（解除すれば元どおり）
+  function workAliasId(brand, key) { return JSON.stringify(['work', brand, key]); }
+  function workGroupOf(t) {
+    const a = workAliases.get(workAliasId(t.brand, t.contentKey));
+    if (a && worksById.has(a.workId)) return 'w:' + a.workId;
+    return 'k:' + JSON.stringify([t.brand, t.contentKey]);
+  }
+  // 候補の判定用：空白・記号・句読点を除いて小文字にそろえた作品名（【】や「」の中の文字は残す）
+  // 人が入力した表示名：空白の連続と前後の空白だけ整える（全角記号などは入力どおりに残す）
+  function cleanName(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+  function looseTitleKey(s) { return nfkc(s).toLowerCase().replace(/[\s\p{P}\p{S}]/gu, ''); }
+
+  function buildWorkGroups(txs) {
+    const groups = new Map();
+    txs.forEach((t) => {
+      if (t.kind === 'ignore') return;
+      const gid = workGroupOf(t);
+      let g = groups.get(gid);
+      if (!g) {
+        g = { gid, brand: t.brand, workId: gid.startsWith('w:') ? gid.slice(2) : null, titles: new Map(), net: 0, sales: 0, first: t.date, last: t.date };
+        groups.set(gid, g);
+      }
+      // txAll は新しい順なので、最初に出てきた表記がその作品名の最新の表記
+      const ti = g.titles.get(t.contentKey) || { key: t.contentKey, name: t.contentName, sales: 0, net: 0 };
+      if (t.kind === 'sale') ti.sales++;
+      ti.net += t.amount || 0;
+      g.titles.set(t.contentKey, ti);
+      g.net += t.amount || 0;
+      if (t.kind === 'sale') g.sales++;
+      if (t.date < g.first) g.first = t.date;
+      if (t.date > g.last) g.last = t.date;
+    });
+    groups.forEach((g) => {
+      const w = g.workId ? worksById.get(g.workId) : null;
+      g.name = w ? w.name : g.titles.values().next().value.name;
+    });
+    return groups;
+  }
+
+  function workPeriodMatch(t, p) {
+    if (!p) return true;
+    if (p.startsWith('y:')) return String(t.ym).slice(0, 4) === p.slice(2);
+    if (p.startsWith('m:')) return t.ym === p.slice(2);
+    return true;
+  }
+  function renderWorkFilters() {
+    fillSelect($('wBrand'), 'すべてのブランド', brands.map((b) => ({ value: b.id, label: b.name })), true);
+    const sel = $('wPeriod');
+    const prev = sel.value;
+    sel.textContent = '';
+    const o0 = el('option', '', '全期間');
+    o0.value = '';
+    sel.append(o0);
+    const yms = monthsInData();
+    const years = Array.from(new Set(yms.map((ym) => ym.slice(0, 4))));
+    const group = (label, items) => {
+      if (!items.length) return;
+      const g = el('optgroup');
+      g.label = label;
+      items.forEach((it) => { const o = el('option', '', it.label); o.value = it.value; g.append(o); });
+      sel.append(g);
+    };
+    group('年', years.map((y) => ({ value: 'y:' + y, label: `${y}年` })));
+    group('月', yms.map((ym) => ({ value: 'm:' + ym, label: fmtYm(ym) })));
+    sel.value = Array.from(sel.options).some((o) => o.value === prev) ? prev : '';
+  }
+
+  function renderWorks() {
+    const list = $('worksList');
+    const sum = $('worksSummary');
+    list.textContent = '';
+    sum.textContent = '';
+    $('worksNote').textContent = '';
+    const all = buildWorkGroups(txAll);
+    // 選択中の行のうち、もう存在しないもの（解除・取消で消えた）は外す
+    workSel.forEach((gid) => { if (!all.has(gid)) workSel.delete(gid); });
+    renderWorkSuggest(all);
+    renderMergeBar(all);
+    if (!txAll.length) {
+      const es = el('div', 'empty-state');
+      es.append(el('div', 'big', 'まだ集計するデータがありません'), el('div', 'small', '「データ取込」タブから、noteの販売履歴CSVを読み込んでください。'));
+      list.append(es);
+      return;
+    }
+    const fb = $('wBrand').value;
+    const fp = $('wPeriod').value;
+    const sortBy = $('wSort').value === 'count' ? 'count' : 'net';
+    const top = $('wTop').value;
+    const groups = Array.from(buildWorkGroups(txAll.filter((t) => (!fb || t.brand === fb) && workPeriodMatch(t, fp))).values());
+    const metric = (g) => (sortBy === 'count' ? g.sales : g.net);
+    const second = (g) => (sortBy === 'count' ? g.net : g.sales);
+    groups.sort((a, b) => metric(b) - metric(a) || second(b) - second(a) || a.name.localeCompare(b.name, 'ja'));
+    // 同じ値は同じ順位（1, 2, 2, 4…）
+    groups.forEach((g, i) => { g.rank = i > 0 && metric(g) === metric(groups[i - 1]) ? groups[i - 1].rank : i + 1; });
+
+    const totalNet = groups.reduce((s, g) => s + g.net, 0);
+    const totalSales = groups.reduce((s, g) => s + g.sales, 0);
+    const item = (label, value, cls) => { const s = el('span', cls || '', label); s.append(el('b', 'num', value)); return s; };
+    sum.append(item('作品数', `${groups.length}作品`), item('差引', yen(totalNet), 'is-net'), item('売上件数', `${totalSales}件`));
+    if (!groups.length) { list.append(el('div', 'hist-empty', '条件に合う取引はありません。')); return; }
+
+    // TOP n の境目で同じ順位が続く場合は、その順位までは全部出す
+    let end = top === 'all' ? groups.length : Math.min(Number(top) || 10, groups.length);
+    while (end < groups.length && groups[end].rank === groups[end - 1].rank) end++;
+    const shown = groups.slice(0, end);
+    const maxVal = Math.max(1, ...shown.map((g) => Math.max(0, metric(g))));
+    const frag = document.createDocumentFragment();
+    shown.forEach((g) => frag.append(workRowEl(g, Math.max(0, metric(g)) / maxVal, fp, all)));
+    list.append(frag);
+    const notes = [];
+    if (groups.length > end) notes.push(`ほか${groups.length - end}作品（「すべて」で全部を表示します）。`);
+    notes.push('金額は差引（売上−返金）・税込の販売額（noteの手数料を引く前）、件数は売上の件数です。作品名を押すと、その作品の取引履歴を開きます。表記違いの作品名は、左のチェックで選んで「まとめる」と1つの作品として集計できます（取引のデータは書き換えず、いつでも解除できます）。');
+    $('worksNote').textContent = notes.join('');
+  }
+
+  function workRowEl(g, ratio, fp, all) {
+    const row = el('div', 'work-row' + (g.rank <= 3 ? ' is-top' : '') + (workSel.has(g.gid) ? ' is-selected' : ''));
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = workSel.has(g.gid);
+    cb.setAttribute('aria-label', `「${g.name}」を選ぶ（まとめる用）`);
+    cb.addEventListener('change', () => {
+      if (cb.checked) workSel.add(g.gid); else workSel.delete(g.gid);
+      row.classList.toggle('is-selected', cb.checked);
+      renderMergeBar(buildWorkGroups(txAll));
+    });
+    const rank = el('div', 'work-rank num', String(g.rank));
+    const main = el('div', 'work-main');
+    const title = el('button', 'work-title', g.name);
+    title.type = 'button';
+    title.title = `${g.name}\nこの作品の取引履歴を開く`;
+    title.addEventListener('click', () => openTxForWork(g, fp));
+    const meta = el('div', 'work-meta');
+    meta.append(brandChip(g.brand), el('span', 'num', `最終 ${String(g.last).replace(/-/g, '/')}`));
+    if (g.workId) {
+      const n = allTitlesOfWork(g.workId, all).length;
+      const tag = el('button', 'tag is-ok', `${n}表記をまとめ済み`);
+      tag.type = 'button';
+      tag.title = 'まとめている作品名の確認・名前の変更・解除';
+      tag.addEventListener('click', () => openWorkEdit(g.gid));
+      meta.append(tag);
+    }
+    main.append(title, meta);
+    const bar = el('div', 'work-bar');
+    const fill = el('i');
+    fill.style.width = `${Math.round(ratio * 1000) / 10}%`;
+    bar.append(fill);
+    const amount = el('div', 'work-amount num' + (g.net < 0 ? ' is-neg' : ''), yen(g.net));
+    amount.append(el('small', '', `${g.sales}件`));
+    row.append(cb, rank, main, bar, amount);
+    return row;
+  }
+
+  function openTxForWork(g, fp) {
+    txWorkFilter = { gid: g.gid, name: g.name };
+    $('fBrand').value = '';
+    $('fKind').value = '';
+    $('fQuery').value = '';
+    $('fMonth').value = fp && fp.startsWith('m:') ? fp.slice(2) : '';
+    txShown = PAGE_SIZE;
+    switchTab('tx');
+  }
+
+  // まとめた作品の表記の一覧（取引にまだ残っている表記と、取引のない表記の両方）
+  function allTitlesOfWork(workId, all) {
+    const g = (all || buildWorkGroups(txAll)).get('w:' + workId);
+    const out = g ? Array.from(g.titles.values()) : [];
+    workAliases.forEach((a) => {
+      if (a.workId === workId && !out.some((t) => t.key === a.key)) out.push({ key: a.key, name: a.key, sales: 0, net: 0, noTx: true });
+    });
+    return out;
+  }
+
+  /* ---- 表記違いの候補 ---- */
+  function workSuggestions(all) {
+    const buckets = new Map();
+    all.forEach((g) => {
+      g.titles.forEach((ti) => {
+        const lk = looseTitleKey(ti.name);
+        if (!lk) return;
+        const bk = g.brand + '\u0000' + lk;
+        if (!buckets.has(bk)) buckets.set(bk, new Map());
+        buckets.get(bk).set(g.gid, g);
+      });
+    });
+    const out = [];
+    buckets.forEach((m) => {
+      if (m.size < 2) return;
+      const gids = Array.from(m.keys()).sort();
+      const sig = gids.join('|');
+      if (!suggestIgnore.includes(sig)) out.push({ sig, gids, groups: gids.map((id) => m.get(id)) });
+    });
+    return out;
+  }
+  function renderWorkSuggest(all) {
+    const sugs = workSuggestions(all);
+    $('workSuggest').classList.toggle('is-hidden', !sugs.length);
+    const box = $('workSuggestList');
+    box.textContent = '';
+    sugs.forEach((s) => {
+      const item = el('div', 'sug-item');
+      const ul = el('ul', 'sug-titles');
+      s.groups.forEach((g) => {
+        const li = el('li', '', g.name);
+        li.append(el('small', 'num', `${g.sales}件・${yen(g.net)}`));
+        ul.append(li);
+      });
+      const acts = el('div', 'sug-actions');
+      const no = el('button', 'btn', '別の作品');
+      no.type = 'button';
+      no.addEventListener('click', async () => {
+        suggestIgnore = suggestIgnore.concat([s.sig]);
+        try { await putOne(S_SETTINGS, { key: 'workSuggestIgnore', value: suggestIgnore }); } catch (e) { console.error(e); showToast('保存できませんでした', true); }
+        renderWorks();
+      });
+      const yes = el('button', 'btn primary', 'まとめる');
+      yes.type = 'button';
+      yes.addEventListener('click', () => openWorkMerge(s.gids));
+      acts.append(no, yes);
+      item.append(ul, acts);
+      box.append(item);
+    });
+  }
+
+  /* ---- まとめる ---- */
+  function mergeProblem(gids, all) {
+    const gs = gids.map((id) => all.get(id)).filter(Boolean);
+    if (gs.length < 2) return 'まとめる作品を2つ以上選んでください';
+    if (gs.some((g) => g.brand !== gs[0].brand)) return '別のブランドの作品はまとめられません（作品は1つのブランドに属します）';
+    return '';
+  }
+  function renderMergeBar(all) {
+    const bar = $('workMergeBar');
+    bar.classList.toggle('is-hidden', !workSel.size);
+    if (!workSel.size) return;
+    const problem = mergeProblem(Array.from(workSel), all);
+    $('workMergeText').textContent = `${workSel.size}作品を選択中`;
+    $('workMergeNote').textContent = workSel.size >= 2 ? problem : '';
+    $('workMergeBtn').disabled = !!problem;
+  }
+  function openWorkMerge(gids) {
+    const all = buildWorkGroups(txAll);
+    const problem = mergeProblem(gids, all);
+    if (problem) { showToast(problem, true); return; }
+    mergeGids = gids.slice();
+    const gs = gids.map((id) => all.get(id));
+    $('workMergeLead').textContent = `${gs.length}つの作品名を、1つの作品として集計します。取引のデータは書き換えません（あとから解除できます）。表示する作品名を選ぶか、入力してください。`;
+    const box = $('workMergeNames');
+    box.textContent = '';
+    // 売上件数の多い表記を既定の表示名にする
+    const names = gs.map((g) => ({ name: g.name, sales: g.sales })).sort((a, b) => b.sales - a.sales);
+    names.forEach((n, i) => {
+      const lab = el('label');
+      const r = el('input');
+      r.type = 'radio';
+      r.name = 'workMergePick';
+      r.checked = i === 0;
+      r.addEventListener('change', () => { if (r.checked) $('workMergeName').value = n.name; });
+      lab.append(r, el('span', '', n.name), el('small', 'num', `${n.sales}件`));
+      box.append(lab);
+    });
+    $('workMergeName').value = names[0].name;
+    $('workMergeError').textContent = '';
+    openModal('workMergeOverlay');
+  }
+  async function doWorkMerge() {
+    const all = buildWorkGroups(txAll);
+    const problem = mergeProblem(mergeGids, all);
+    if (problem) { $('workMergeError').textContent = problem; return; }
+    const name = cleanName($('workMergeName').value);
+    if (!name) { $('workMergeError').textContent = '作品名を入力してください'; return; }
+    if (name.length > WORK_NAME_MAX) { $('workMergeError').textContent = `作品名は${WORK_NAME_MAX}文字までです`; return; }
+    const gs = mergeGids.map((id) => all.get(id));
+    const brand = gs[0].brand;
+    // すでにまとめた作品が含まれていれば、その作品を残して他を吸収する（2つ以上なら先頭を残す）
+    const existing = gs.filter((g) => g.workId).map((g) => g.workId);
+    const now = Date.now();
+    const targetId = existing[0] || ('w_' + stamp(now) + '_' + randId(4));
+    const prev = worksById.get(targetId);
+    const keys = new Set();
+    gs.forEach((g) => g.titles.forEach((ti, k) => keys.add(k)));
+    workAliases.forEach((a) => { if (existing.includes(a.workId)) keys.add(a.key); }); // 取引のない表記も引き継ぐ
+    try {
+      const tx = requireDb().transaction([S_WORKS, S_ALIASES], 'readwrite');
+      const done = txDone(tx);
+      try {
+        const sW = tx.objectStore(S_WORKS);
+        const sA = tx.objectStore(S_ALIASES);
+        sW.put({ id: targetId, brand, name, createdAt: prev ? prev.createdAt : now, updatedAt: now });
+        existing.slice(1).forEach((id) => sW.delete(id));
+        keys.forEach((k) => sA.put({ id: workAliasId(brand, k), type: 'work', brand, key: k, workId: targetId, createdAt: now }));
+      } catch (syncErr) {
+        console.error(syncErr);
+        try { tx.abort(); } catch (e) { /* すでに終了している */ }
+      }
+      await done;
+    } catch (err) {
+      console.error('作品をまとめられませんでした', err);
+      $('workMergeError').textContent = 'まとめられませんでした。データは変わっていません。';
+      return;
+    }
+    closeModal('workMergeOverlay');
+    mergeGids.forEach((id) => workSel.delete(id));
+    await reloadAndRender();
+    showToast(`「${name}」としてまとめました`);
+  }
+
+  /* ---- まとめの名前変更・解除 ---- */
+  function openWorkEdit(gid) {
+    const workId = gid.startsWith('w:') ? gid.slice(2) : null;
+    const w = workId ? worksById.get(workId) : null;
+    if (!w) return;
+    workEditGid = gid;
+    $('workEditName').value = w.name;
+    $('workEditError').textContent = '';
+    const ul = $('workEditTitles');
+    ul.textContent = '';
+    allTitlesOfWork(workId).forEach((t) => ul.append(el('li', '', t.noTx ? `${t.name}（取引なし）` : `${t.name}（${t.sales}件・${yen(t.net)}）`)));
+    openModal('workEditOverlay');
+  }
+  async function saveWorkName() {
+    const w = workEditGid ? worksById.get(workEditGid.slice(2)) : null;
+    if (!w) { closeModal('workEditOverlay'); return; }
+    const name = cleanName($('workEditName').value);
+    if (!name) { $('workEditError').textContent = '作品名を入力してください'; return; }
+    if (name.length > WORK_NAME_MAX) { $('workEditError').textContent = `作品名は${WORK_NAME_MAX}文字までです`; return; }
+    try { await putOne(S_WORKS, Object.assign({}, w, { name, updatedAt: Date.now() })); } catch (e) {
+      console.error(e);
+      $('workEditError').textContent = '保存できませんでした';
+      return;
+    }
+    closeModal('workEditOverlay');
+    await reloadAndRender();
+    showToast('作品名を変更しました');
+  }
+  async function unmergeWork() {
+    const w = workEditGid ? worksById.get(workEditGid.slice(2)) : null;
+    if (!w) { closeModal('workEditOverlay'); return; }
+    const n = allTitlesOfWork(w.id).length;
+    const ok = await confirmDialog(`「${w.name}」のまとめを解除しますか？\n${n}つの作品名が、それぞれ別の作品として集計されるようになります。取引のデータは変わりません。`, '解除する');
+    if (!ok) return;
+    try {
+      const tx = requireDb().transaction([S_WORKS, S_ALIASES], 'readwrite');
+      const done = txDone(tx);
+      tx.objectStore(S_WORKS).delete(w.id);
+      workAliases.forEach((a) => { if (a.workId === w.id) tx.objectStore(S_ALIASES).delete(a.id); });
+      await done;
+    } catch (e) {
+      console.error(e);
+      showToast('解除できませんでした。データは変わっていません。', true);
+      return;
+    }
+    closeModal('workEditOverlay');
+    if (txWorkFilter && txWorkFilter.gid === workEditGid) txWorkFilter = null;
+    await reloadAndRender();
+    showToast('まとめを解除しました');
+  }
+
+  /* ===================== バックアップ（書き出し・復元） ===================== */
+  // 取込のデータは元のCSVから作り直せるが、作品のまとめなどの手作業はCSVから作り直せない。
+  // そのため、手作業のデータがあるときだけ「最後の書き出しから7日」で☰に印を付ける
+  const BACKUP_STORES = [S_TX, S_IMPORTS, S_READERS, S_WORKS, S_ALIASES, S_PROFILES, S_SETTINGS];
+  function manualDataSince() {
+    let t = 0;
+    workAliases.forEach((a) => { const c = Number(a.createdAt) || 0; if (c && (!t || c < t)) t = c; });
+    return t;
+  }
+  function backupStatus() {
+    const since = manualDataSince();
+    if (!since) return { needed: false };
+    const ref = backupInfo.lastExportAt || since;
+    const days = Math.floor((Date.now() - ref) / 86400000);
+    return { needed: true, never: !backupInfo.lastExportAt, days, warn: days >= BACKUP_WARN_DAYS };
+  }
+  function renderBackupAlert() {
+    const st = backupStatus();
+    const item = $('menuBackupExport');
+    let label = 'バックアップを書き出す';
+    if (st.needed) label += st.never ? '（まだ書き出していません）' : `（前回から${st.days}日）`;
+    item.textContent = label;
+    item.classList.toggle('is-alert', !!st.warn);
+    menuBtn.classList.toggle('has-alert', !!st.warn);
+    menuBtn.title = st.warn ? 'バックアップを書き出してください（作品のまとめは元のCSVから作り直せません）' : '';
+  }
+  async function exportBackup() {
+    let obj;
+    try {
+      const stores = {};
+      const tx = requireDb().transaction(BACKUP_STORES, 'readonly');
+      await Promise.all(BACKUP_STORES.map(async (s) => { stores[s] = await reqP(tx.objectStore(s).getAll()); }));
+      obj = { format: BACKUP_FORMAT, version: BACKUP_VERSION, dbVersion: DB_VERSION, exportedAt: new Date().toISOString(), stores };
+    } catch (e) {
+      console.error('バックアップの作成に失敗しました', e);
+      showToast('バックアップを作れませんでした', true);
+      return;
+    }
+    const now = Date.now();
+    const s = stamp(now);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(obj)], { type: 'application/json' }));
+    a.download = `recon-backup-${s.slice(0, 8)}-${s.slice(8, 12)}.json`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    backupInfo = { lastExportAt: now };
+    try { await putOne(S_SETTINGS, { key: 'backup', value: backupInfo }); } catch (e) { console.error(e); }
+    renderBackupAlert();
+    showToast('バックアップを書き出しました。購入者名を含むので、公開の場所には置かないでください');
+  }
+  function validateBackup(obj) {
+    if (!obj || typeof obj !== 'object' || obj.format !== BACKUP_FORMAT) return { ok: false, msg: 'RECONのバックアップファイルではありません' };
+    if (obj.version !== BACKUP_VERSION) return { ok: false, msg: '対応していない形式のバックアップです（新しいRECONで書き出した可能性があります）' };
+    if (!obj.stores || typeof obj.stores !== 'object') return { ok: false, msg: 'バックアップの中身が壊れています' };
+    for (const s of BACKUP_STORES) {
+      const arr = obj.stores[s];
+      const keyField = s === S_SETTINGS ? 'key' : 'id';
+      if (!Array.isArray(arr)) return { ok: false, msg: `バックアップの中身が壊れています（${s}がありません）` };
+      if (arr.some((r) => !r || typeof r !== 'object' || typeof r[keyField] !== 'string' || !r[keyField])) return { ok: false, msg: `バックアップの中身が壊れています（${s}）` };
+    }
+    if (obj.stores[S_TX].some((t) => typeof t.amount !== 'number' || typeof t.ym !== 'string' || typeof t.brand !== 'string')) {
+      return { ok: false, msg: 'バックアップの中身が壊れています（取引）' };
+    }
+    return { ok: true };
+  }
+  async function importBackup(file) {
+    if (!file) return;
+    if (!/\.json$/i.test(file.name)) { showToast('バックアップ（.json）を選んでください', true); return; }
+    if (file.size > BACKUP_MAX_BYTES) { showToast('ファイルが大きすぎます', true); return; }
+    let obj;
+    try { obj = JSON.parse(await file.text()); } catch (e) { showToast('バックアップを読み取れません（JSONではありません）', true); return; }
+    const v = validateBackup(obj);
+    if (!v.ok) { showToast(v.msg, true); return; }
+    const cnt = (st) => (Array.isArray(st[S_WORKS]) ? st[S_WORKS].length : 0);
+    const cur = `取引${txAll.length}件・取込の履歴${imports.length}件・作品のまとめ${worksById.size}件`;
+    const nxt = `取引${obj.stores[S_TX].length}件・取込の履歴${obj.stores[S_IMPORTS].length}件・作品のまとめ${cnt(obj.stores)}件`;
+    const when = Date.parse(obj.exportedAt);
+    const ok = await confirmDialog(
+      `バックアップから復元しますか？\n書き出した日時：${Number.isFinite(when) ? fmtTs(when) : '不明'}\n\n今のデータ（${cur}）をすべて消して、バックアップの内容（${nxt}）に置き換えます。元に戻せません。\n※心配なら、先に今のデータを書き出しておいてください。`,
+      '置き換える'
+    );
+    if (!ok) return;
+    closePreview();
+    try {
+      const tx = requireDb().transaction(BACKUP_STORES, 'readwrite');
+      const done = txDone(tx);
+      try {
+        BACKUP_STORES.forEach((s) => {
+          const st = tx.objectStore(s);
+          st.clear();
+          obj.stores[s].forEach((r) => st.put(r));
+        });
+      } catch (syncErr) {
+        console.error(syncErr);
+        try { tx.abort(); } catch (e) { /* すでに終了している */ }
+      }
+      await done;
+    } catch (err) {
+      console.error('復元に失敗しました', err);
+      showToast('復元できませんでした。データは変わっていません。', true);
+      return;
+    }
+    workSel = new Set();
+    txWorkFilter = null;
+    await reloadAndRender();
+    showToast('バックアップから復元しました');
+  }
+
   function renderAll() {
     maskBtn.setAttribute('aria-pressed', ui.mask ? 'true' : 'false');
+    menuBtn.classList.toggle('is-masked', ui.mask);
+    $('menuMask').textContent = ui.mask ? '伏せ字をやめる' : '伏せ字にする';
     renderHistory();
     renderTxFilters();
     renderTx();
     renderMonthly();
+    renderWorkFilters();
+    renderWorks();
+    renderBackupAlert();
     if (preview) renderPreview();
   }
 
@@ -1289,16 +1792,18 @@
     tabs.forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'));
     views.forEach((v) => v.classList.toggle('is-active', v.id === 'view-' + name));
     if (name === 'tx') renderTx();
+    if (name === 'works') renderWorks();
   }
 
   /* ===================== イベント ===================== */
   tabs.forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
-  maskBtn.addEventListener('click', async () => {
+  async function toggleMask() {
     ui.mask = !ui.mask;
     renderAll();
     try { await saveUi(); } catch (e) { console.error(e); }
-  });
+  }
+  maskBtn.addEventListener('click', toggleMask);
 
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1312,13 +1817,22 @@
     closeMenu();
     if (btn.dataset.action === 'brands') { brandModalFromPreview = false; renderBrandModal(); openModal('brandsOverlay'); }
     if (btn.dataset.action === 'storage') { renderStorageModal(); openModal('storageOverlay'); }
+    if (btn.dataset.action === 'backupExport') exportBackup();
+    if (btn.dataset.action === 'backupImport') $('backupFile').click();
+    if (btn.dataset.action === 'mask') toggleMask();
+  });
+  $('backupFile').addEventListener('change', () => {
+    const f = $('backupFile').files && $('backupFile').files[0];
+    $('backupFile').value = '';
+    importBackup(f);
   });
   document.addEventListener('click', (e) => {
     if (menuPanel.classList.contains('is-open') && !e.target.closest('.menu-wrap')) closeMenu();
   });
 
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
-  ['brandsOverlay', 'storageOverlay'].forEach((id) => {
+  const MODAL_IDS = ['brandsOverlay', 'storageOverlay', 'workMergeOverlay', 'workEditOverlay'];
+  MODAL_IDS.forEach((id) => {
     $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeModal(id); });
   });
   $('confirmOverlay').addEventListener('click', (e) => { if (e.target === $('confirmOverlay')) settleConfirm(false); });
@@ -1327,7 +1841,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if ($('confirmOverlay').classList.contains('is-open')) { settleConfirm(false); return; }
-    const open = ['brandsOverlay', 'storageOverlay'].find((id) => $(id).classList.contains('is-open'));
+    const open = MODAL_IDS.find((id) => $(id).classList.contains('is-open'));
     if (open) { closeModal(open); return; }
     closeMenu();
   });
@@ -1399,6 +1913,17 @@
     queryTimer = setTimeout(() => { txShown = PAGE_SIZE; renderTx(); }, 200);
   });
   $('txMore').addEventListener('click', () => { txShown += PAGE_SIZE; renderTx(); });
+  $('txWorkFilterClear').addEventListener('click', () => { txWorkFilter = null; txShown = PAGE_SIZE; renderTx(); });
+
+  // 作品別売上
+  ['wBrand', 'wPeriod', 'wSort', 'wTop'].forEach((id) => $(id).addEventListener('change', renderWorks));
+  $('workSelClear').addEventListener('click', () => { workSel = new Set(); renderWorks(); });
+  $('workMergeBtn').addEventListener('click', () => openWorkMerge(Array.from(workSel)));
+  $('workMergeOk').addEventListener('click', doWorkMerge);
+  $('workMergeName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doWorkMerge(); });
+  $('workEditSave').addEventListener('click', saveWorkName);
+  $('workEditName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) saveWorkName(); });
+  $('workEditUnmerge').addEventListener('click', unmergeWork);
 
   /* ===================== 初期化 ===================== */
   function fatalInit(msg) {

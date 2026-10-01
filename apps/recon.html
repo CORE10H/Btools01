@@ -283,6 +283,70 @@
   .ym-link:hover { color: var(--cyan); text-decoration-color: var(--cyan); }
   .monthly-note { margin-top: 10px; }
 
+  /* ---- 作品別売上 ---- */
+  .works-inner { padding-top: 12px; }
+  .works-summary { padding: 4px 0 10px; }
+  .works-list { border-top: 1px solid var(--line-soft); }
+  .work-row {
+    display: grid; grid-template-columns: 22px 34px minmax(0, 1fr) minmax(80px, 160px) 104px; gap: 10px;
+    align-items: center; padding: 9px 8px; border-bottom: 1px solid var(--line-soft); font-size: 12px;
+  }
+  .work-row:hover { background: var(--bg-alt); }
+  .work-row.is-selected { background: rgba(var(--cyan-rgb), .06); }
+  .work-row input { accent-color: var(--cyan); margin: 0; }
+  .work-rank { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text-dim); text-align: right; }
+  .work-row.is-top .work-rank { color: var(--cyan); }
+  .work-main { min-width: 0; }
+  .work-title {
+    display: block; max-width: 100%; background: none; border: none; padding: 0; color: var(--text); font-size: 12.5px;
+    text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .work-title:hover { color: var(--cyan); text-decoration: underline; text-underline-offset: 3px; }
+  .work-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; margin-top: 3px; font-size: 10.5px; color: var(--text-faint); }
+  .work-meta .tag { margin-left: 0; cursor: pointer; background: transparent; font-family: inherit; }
+  .work-meta .tag:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .work-bar { height: 6px; background: var(--line-soft); position: relative; }
+  .work-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cyan-dim); }
+  .work-row.is-top .work-bar i { background: var(--cyan); }
+  .work-amount { text-align: right; font-weight: 600; white-space: nowrap; }
+  .work-amount small { display: block; font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
+  .work-amount.is-neg { color: var(--magenta); }
+  .works-note { margin-top: 10px; }
+  .work-mergebar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; margin-bottom: 10px;
+    border: 1px solid var(--cyan-dim); background: rgba(var(--cyan-rgb), .05); font-size: 12px; position: sticky; top: 0; z-index: 1;
+  }
+  .work-mergebar.is-hidden, .work-filter.is-hidden { display: none; }
+  .work-mergebar-note { flex: 1; min-width: 160px; font-size: 11px; color: var(--amber); }
+  .work-mergebar-actions { display: flex; gap: 8px; margin-left: auto; }
+  .sug-item { padding: 8px 0; border-top: 1px dashed var(--line-soft); }
+  .sug-item:first-child { border-top: none; }
+  .sug-titles { list-style: none; font-size: 12px; color: var(--text); }
+  .sug-titles li { padding: 2px 0; overflow-wrap: anywhere; }
+  .sug-titles small { color: var(--text-faint); margin-left: 8px; }
+  .sug-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  #workSuggestList { margin-top: 8px; }
+  .work-filter {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 16px; font-size: 12px; color: var(--cyan);
+    border-bottom: 1px solid var(--line-soft); background: rgba(var(--cyan-rgb), .05);
+  }
+  .work-filter span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .field-label { display: block; font-size: 11px; color: var(--text-faint); margin: 12px 0 4px; }
+  .work-name-input { width: 100%; }
+  .work-names { display: flex; flex-direction: column; gap: 6px; }
+  .work-names label { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text); cursor: pointer; line-height: 1.6; overflow-wrap: anywhere; }
+  .work-names input { margin-top: 3px; accent-color: var(--cyan); }
+  .work-names small { color: var(--text-faint); margin-left: 6px; white-space: nowrap; }
+  .work-edit-actions { justify-content: space-between; gap: 8px; }
+
+  /* ---- バックアップ忘れの印・狭い画面のメニュー ---- */
+  .hamburger-btn { position: relative; }
+  .hamburger-btn.has-alert::after {
+    content: ''; position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber);
+  }
+  .menu-item.is-alert { color: var(--amber); }
+  .menu-item.narrow-only { display: none; }
+
   /* ---- モーダル共通（開閉は classList の is-open のみで行う） ---- */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
@@ -358,9 +422,18 @@
     .hist-row .btn { grid-column: 1 / -1; justify-self: end; }
   }
   /* タブ名が長い（データ取込・取引履歴・月別売上）ので、スマホでは左上の「RECON」を省く（Stageの見出しにアプリ名が出ている） */
+  @media (max-width: 640px) {
+    .work-row { grid-template-columns: 20px 28px minmax(0, 1fr) auto; gap: 4px 8px; }
+    .work-bar { grid-column: 3 / -1; grid-row: 2; }
+  }
+  /* タブ名が長い（データ取込・取引履歴・月別売上・作品別売上）ので、スマホでは左上の「RECON」を省き（Stageの見出しにアプリ名が出ている）、
+     「伏せ字」は☰メニューへ移す。伏せ字の間は☰を琥珀色にして、伏せていることが分かるようにする */
   @media (max-width: 420px) {
     .app-title { display: none; }
-    .tab { padding: 0 6px; font-size: 12px; }
+    .tab { padding: 0 5px; font-size: 11.5px; }
+    #maskBtn { display: none; }
+    .menu-item.narrow-only { display: block; }
+    .hamburger-btn.is-masked { border-color: var(--amber); color: var(--amber); }
   }
   @media (prefers-reduced-motion: reduce) {
     .toast { transition: none; }
@@ -377,6 +450,7 @@
         <button class="tab" role="tab" type="button" data-tab="import" aria-selected="true">データ取込</button>
         <button class="tab" role="tab" type="button" data-tab="tx" aria-selected="false">取引履歴</button>
         <button class="tab" role="tab" type="button" data-tab="monthly" aria-selected="false">月別売上</button>
+        <button class="tab" role="tab" type="button" data-tab="works" aria-selected="false">作品別売上</button>
       </nav>
     </div>
     <div class="bar-right">
@@ -386,6 +460,9 @@
         <div class="menu-panel" id="menuPanel">
           <button class="menu-item" type="button" data-action="brands">ブランドの管理</button>
           <button class="menu-item" type="button" data-action="storage">保存領域の状態</button>
+          <button class="menu-item" type="button" data-action="backupExport" id="menuBackupExport">バックアップを書き出す</button>
+          <button class="menu-item" type="button" data-action="backupImport">バックアップから復元</button>
+          <button class="menu-item narrow-only" type="button" data-action="mask" id="menuMask">伏せ字にする</button>
         </div>
       </div>
     </div>
@@ -513,6 +590,10 @@
         </select>
         <input type="search" id="fQuery" placeholder="作品名・購入者名・取引IDで検索" aria-label="検索">
       </div>
+      <div class="work-filter is-hidden" id="txWorkFilter">
+        <span id="txWorkFilterText"></span>
+        <button class="btn" type="button" id="txWorkFilterClear">作品の絞り込みを解除</button>
+      </div>
       <div class="tx-summary" id="txSummary"></div>
       <div class="tx-list" id="txList"></div>
       <button class="btn tx-more" type="button" id="txMore">さらに表示</button>
@@ -521,6 +602,42 @@
     <!-- ================= 月別 ================= -->
     <section class="view" id="view-monthly" role="tabpanel">
       <div class="view-inner" id="monthlyInner"></div>
+    </section>
+
+    <!-- ================= 作品別売上 ================= -->
+    <section class="view" id="view-works" role="tabpanel">
+      <div class="filters">
+        <select id="wBrand" aria-label="ブランドで絞り込み"></select>
+        <select id="wPeriod" aria-label="期間"></select>
+        <select id="wSort" aria-label="並べ方">
+          <option value="net">売上額の順</option>
+          <option value="count">件数の順</option>
+        </select>
+        <select id="wTop" aria-label="表示する件数">
+          <option value="10">TOP 10</option>
+          <option value="20">TOP 20</option>
+          <option value="50">TOP 50</option>
+          <option value="all">すべて</option>
+        </select>
+      </div>
+      <div class="view-inner works-inner">
+        <section class="pv-block is-warn is-hidden" id="workSuggest">
+          <h3 class="pv-h">表記違いかもしれない作品名</h3>
+          <div class="field-hint">空白や記号を除くと同じになる作品名です。同じ作品なら「まとめる」、別の作品なら「別の作品」を押してください（自動ではまとめません）。</div>
+          <div id="workSuggestList"></div>
+        </section>
+        <div class="tx-summary works-summary" id="worksSummary"></div>
+        <div class="work-mergebar is-hidden" id="workMergeBar">
+          <span class="work-mergebar-text" id="workMergeText"></span>
+          <span class="work-mergebar-note" id="workMergeNote"></span>
+          <span class="work-mergebar-actions">
+            <button class="btn" type="button" id="workSelClear">選択を解除</button>
+            <button class="btn primary" type="button" id="workMergeBtn">選んだ作品をまとめる</button>
+          </span>
+        </div>
+        <div class="works-list" id="worksList"></div>
+        <p class="field-hint works-note" id="worksNote"></p>
+      </div>
     </section>
   </main>
 </div>
@@ -559,6 +676,46 @@
     </div>
   </div>
 </div>
+
+<!-- 作品をまとめる -->
+<div class="modal-overlay" id="workMergeOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="workMergeTitle">
+    <div class="modal-head">
+      <span class="modal-title" id="workMergeTitle">作品をまとめる</span>
+      <button class="modal-close" type="button" data-close="workMergeOverlay" aria-label="閉じる">✕</button>
+    </div>
+    <div class="field-hint modal-lead" id="workMergeLead"></div>
+    <div class="work-names" id="workMergeNames" role="radiogroup" aria-label="表示する作品名"></div>
+    <label class="field-label" for="workMergeName">表示する作品名</label>
+    <input class="field-input work-name-input" type="text" id="workMergeName" maxlength="200">
+    <div class="form-error" id="workMergeError"></div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-close="workMergeOverlay">キャンセル</button>
+      <button class="btn primary" type="button" id="workMergeOk">まとめる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 作品のまとめ（名前の変更・解除） -->
+<div class="modal-overlay" id="workEditOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="workEditTitle">
+    <div class="modal-head">
+      <span class="modal-title" id="workEditTitle">作品のまとめ</span>
+      <button class="modal-close" type="button" data-close="workEditOverlay" aria-label="閉じる">✕</button>
+    </div>
+    <label class="field-label" for="workEditName">表示する作品名</label>
+    <input class="field-input work-name-input" type="text" id="workEditName" maxlength="200">
+    <div class="form-error" id="workEditError"></div>
+    <div class="field-hint modal-lead">この作品としてまとめている作品名（CSVの表記）</div>
+    <ul class="issue-list" id="workEditTitles"></ul>
+    <div class="modal-actions work-edit-actions">
+      <button class="btn danger" type="button" id="workEditUnmerge">まとめを解除</button>
+      <button class="btn primary" type="button" id="workEditSave">名前を保存</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="backupFile" accept=".json,application/json" hidden>
 
 <!-- 確認ダイアログ -->
 <div class="confirm-overlay" id="confirmOverlay">
