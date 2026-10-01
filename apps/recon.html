@@ -200,6 +200,19 @@
     display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; color: var(--text-dim);
   }
   .lg-added .num { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
+  /* 管理画面との照合（月ごとの入力欄） */
+  .lg-recon { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+  .lg-recon.is-hidden, .check-row.is-hidden { display: none; }
+  .lg-recon-h { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .recon-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: center; margin-top: 8px; }
+  .recon-ym { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
+  .recon-input { width: 100%; text-align: right; }
+  .recon-result { grid-column: 1 / -1; font-size: 10.5px; color: var(--text-faint); line-height: 1.6; overflow-wrap: anywhere; }
+  .recon-result.is-ok { color: var(--cyan); }
+  .recon-result.is-bad { color: var(--magenta); }
+  .recon-hint:empty { display: none; }
+  .recon-hint { margin-top: 6px; }
+  .tag.is-ok { border-color: var(--cyan-dim); color: var(--cyan); }
   .commit-note { list-style: none; font-size: 11px; color: var(--amber); line-height: 1.6; margin-top: 12px; }
   .commit-note li::before { content: '・'; }
   .ledger-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
@@ -458,6 +471,13 @@
               <span>取込済みのためスキップ</span><b class="num" id="lgDup">—</b>
               <span>読み取れず除外</span><b class="num" id="lgErr">—</b>
               <span>集計しない種別</span><b class="num" id="lgIgnore">—</b>
+            </div>
+            <div class="lg-recon is-hidden" id="lgReconBlock">
+              <div class="lg-recon-h">管理画面と照合<span class="tag">任意</span></div>
+              <div class="field-hint">noteの管理画面に出ている月の合計（税込）を入れると、CSVの差引・売上と突き合わせます。</div>
+              <div id="lgRecon"></div>
+              <div class="field-hint recon-hint" id="lgReconHint"></div>
+              <label class="check-row is-hidden" id="lgReconConfirmRow"><input type="checkbox" id="lgReconConfirm"><span>一致しない理由を確かめた（このまま取り込む）</span></label>
             </div>
             <div class="lg-added"><span>今回増える差引</span><span class="num" id="lgNewNet">—</span></div>
             <ul class="commit-note" id="commitNote"></ul>

@@ -62,6 +62,8 @@
   const BRAND_PALETTE = ['#38d9c0', '#ff6b9a', '#ffb547', '#7aa7ff', '#b98cff', '#8ee06b'];
   const RE_HEX6 = /^#[0-9a-fA-F]{6}$/;
   const RE_DATETIME = /^(\d{4})[/\-.年](\d{1,2})[/\-.月](\d{1,2})日?(?:[ T]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/;
+  // 区切りなしの数字だけの日時（noteの実際のCSVは「20251113205937」＝年月日時分秒の14桁）。12桁（秒なし）・8桁（日付のみ）も受け付ける
+  const RE_DATETIME_COMPACT = /^(\d{4})(\d{2})(\d{2})(?:(\d{2})(\d{2})(\d{2})?)?$/;
 
   /* ===================== 状態 ===================== */
   let db = null;
@@ -154,7 +156,7 @@
   // 日時：CSVの日本時間の文字列から、年・月・日を直接切り出す（UTC変換を挟まない＝月の区切りがずれない）
   function parseDateTime(value) {
     const t = nfkc(value).trim();
-    const m = RE_DATETIME.exec(t);
+    const m = RE_DATETIME.exec(t) || RE_DATETIME_COMPACT.exec(t);
     if (!m) return null;
     const Y = +m[1], M = +m[2], D = +m[3];
     const h = m[4] ? +m[4] : 0, mi = m[5] ? +m[5] : 0, s = m[6] ? +m[6] : 0;
@@ -389,6 +391,8 @@
       period: { from: '', to: '' },
       brandId: carry ? carry.brandId : '',
       kindChoices: {}, excludeErrors: false, crossConfirmed: false,
+      // 管理画面との照合：月（YYYY-MM）→ 入力された金額の文字列。文字コードを切り替えても引き継ぐ
+      reconInputs: carry && carry.reconInputs ? Object.assign({}, carry.reconInputs) : {}, reconConfirmed: false,
       keyIndex: carry ? carry.keyIndex : null,
       sameFile: null, totals: null, blockers: [],
     };
@@ -433,7 +437,11 @@
 
       if (!txId) errs.push('取引IDが空です');
       else if (/^\d(?:\.\d+)?E\+?\d+$/i.test(txId)) errs.push('取引IDが「1.2E+11」のような指数表記に崩れています（Excelで開いて上書き保存すると起きます。noteから書き出し直したCSVを使ってください）');
-      if (!dt) errs.push(`日時を読み取れません（${short(get('paidAt'), 20) || '空欄'}）`);
+      if (!dt) {
+        const rawDt = nfkc(get('paidAt')).trim();
+        if (/^\d(?:\.\d+)?E\+?\d+$/i.test(rawDt)) errs.push(`日時が「${short(rawDt, 16)}」のような指数表記に崩れています（Excelで開いて上書き保存すると起きます。noteから書き出し直したCSVを使ってください）`);
+        else errs.push(`日時を読み取れません（${short(get('paidAt'), 20) || '空欄'}）`);
+      }
       if (!price.ok) errs.push(`販売額を読み取れません（${short(get('price'), 16) || '空欄'}）`);
       else if (!Number.isInteger(price.value)) errs.push('販売額が整数ではありません');
       if (!content) errs.push('コンテンツ名が空です');
@@ -528,8 +536,11 @@
       crossCount: 0, sameTxCount: 0, pendingKinds: 0,
       added: { sale: 0, refund: 0, net: 0 },
     };
+    const monthMap = new Map(); // 管理画面との照合用：月ごとのファイル全体の合計（取込済みでスキップする行も含む）
     pv.rows.forEach((r) => {
       if (r.status === 'error') { t.errCount++; return; }
+      const mo = monthMap.get(r.ym) || { ym: r.ym, sale: 0, refund: 0, net: 0 };
+      monthMap.set(r.ym, mo);
       if (r.status === 'dup') t.dupCount++;
       if (r.status === 'new') {
         t.newCount++;
@@ -540,8 +551,9 @@
       if (!rule) return;
       if (rule === 'ignore') { t.ignoreCount++; return; }
       const c = contribution(rule, r.priceRaw);
-      if (rule === 'sale') t.sale += c; else t.refund += Math.abs(r.priceRaw);
+      if (rule === 'sale') { t.sale += c; mo.sale += c; } else { t.refund += Math.abs(r.priceRaw); mo.refund += Math.abs(r.priceRaw); }
       t.net += c;
+      mo.net += c;
       if (r.status === 'new') {
         t.newNet += c;
         if (rule === 'sale') t.added.sale += c; else t.added.refund += Math.abs(r.priceRaw);
@@ -549,6 +561,23 @@
       }
     });
     t.pendingKinds = pv.kinds.filter((k) => !pv.kindChoices[k.key]).length;
+    // 管理画面との照合：入力された金額が、その月の差引か売上のどちらかと一致すれば「一致」
+    // state：empty（未入力）／invalid（数字でない）／waiting（決済種別の扱いが未設定で、まだ比べられない）／net・sale（一致）／mismatch
+    t.recon = Array.from(monthMap.values()).sort((a, b) => (a.ym < b.ym ? -1 : 1)).map((m) => {
+      const raw = String(pv.reconInputs[m.ym] || '').trim();
+      let state = 'empty';
+      let entered = null;
+      if (raw) {
+        const a = parseAmount(raw);
+        if (!a.ok || !Number.isInteger(a.value)) state = 'invalid';
+        else {
+          entered = a.value;
+          if (t.pendingKinds) state = 'waiting';
+          else state = a.value === m.net ? 'net' : a.value === m.sale ? 'sale' : 'mismatch';
+        }
+      }
+      return Object.assign({}, m, { raw, entered, state });
+    });
     pv.totals = t;
 
     const b = [];
@@ -559,6 +588,8 @@
       if (t.pendingKinds) b.push(`決済種別の扱いを選んでください（残り${t.pendingKinds}種類）`);
       if (t.errCount && !pv.excludeErrors) b.push(`読み取れない行が${t.errCount}件あります。除外してよければチェックを入れてください`);
       if (t.crossCount && !pv.crossConfirmed) b.push('別のブランドで取込済みの取引IDがあります。確認してチェックを入れてください');
+      if (t.recon.some((x) => x.state === 'invalid')) b.push('管理画面の金額を読み取れない欄があります（数字で入力するか、空欄にしてください）');
+      if (t.recon.some((x) => x.state === 'mismatch') && !pv.reconConfirmed) b.push('管理画面の金額と一致しない月があります。理由を確かめて、取り込む場合はチェックを入れてください');
       if (pv.brandId && t.newCount === 0) b.push('新しく追加される取引がありません（すべて取込済みです）');
     }
     pv.blockers = b;
@@ -586,7 +617,7 @@
   async function changeEncoding(enc) {
     if (!preview) return;
     const old = preview;
-    const pv = buildPreview(old.file, old.buf, old.hash, enc, { brandId: old.brandId, kindChoices: old.kindChoices, keyIndex: old.keyIndex });
+    const pv = buildPreview(old.file, old.buf, old.hash, enc, { brandId: old.brandId, kindChoices: old.kindChoices, keyIndex: old.keyIndex, reconInputs: old.reconInputs });
     classifyPreview(pv);
     preview = pv;
     renderPreview();
@@ -633,6 +664,9 @@
       periodFrom: pv.period.from, periodTo: pv.period.to,
       counts: { rows: pv.rows.length, added: records.length, duplicate: t.dupCount, excluded: t.errCount },
       totals: { sale: t.added.sale, refund: t.added.refund, net: t.added.net },
+      // 管理画面との照合の記録（入力した月だけ）。result：'net'／'sale'（一致した相手）・'mismatch'（承知の上で取込）
+      reconcile: t.recon.filter((x) => x.state === 'net' || x.state === 'sale' || x.state === 'mismatch')
+        .map((x) => ({ ym: x.ym, entered: x.entered, csvSale: x.sale, csvNet: x.net, result: x.state })),
       importedAt: now,
     };
     const cur = profiles.get(NOTE_PROFILE_ID) || { id: NOTE_PROFILE_ID, platform: PLATFORM_NOTE, name: 'note 記事の販売履歴', builtin: true, createdAt: now };
@@ -825,12 +859,83 @@
     $('lgErr').textContent = show ? `${t.errCount}件` : '—';
     $('lgIgnore').textContent = show ? `${t.ignoreCount}件` : '—';
     $('lgNewNet').textContent = show ? yen(t.newNet) : '—';
+    renderReconcile(pv);
+    renderCommitState(pv);
+  }
+
+  // 確定できない理由とボタン（照合欄の入力のたびに、画面全体を作り直さずにここだけ更新する）
+  function renderCommitState(pv) {
+    const t = pv.totals || {};
     const note = $('commitNote');
     note.textContent = '';
     pv.blockers.forEach((m) => note.append(el('li', '', m)));
     const btn = $('pvCommit');
     btn.disabled = !!pv.blockers.length || committing;
     btn.textContent = !pv.blockers.length && t.newCount ? `${t.newCount}件を取り込む` : '取り込む';
+  }
+
+  /* ===================== 描画：管理画面との照合（検算欄） ===================== */
+  // 入力欄は、ファイルか月の並びが変わったときだけ作り直す（入力中にフォーカスと文字が消えないように）
+  function renderReconcile(pv) {
+    const t = pv.totals || {};
+    const rc = (!pv.fatal.length && !pv.sameFile && t.recon) || [];
+    $('lgReconBlock').classList.toggle('is-hidden', !rc.length);
+    const box = $('lgRecon');
+    const key = rc.map((x) => x.ym).join(',');
+    if (box.reconOwner !== pv || box.dataset.key !== key) {
+      box.reconOwner = pv;
+      box.dataset.key = key;
+      box.reconRefs = {};
+      box.textContent = '';
+      rc.forEach((x) => {
+        const row = el('div', 'recon-row');
+        const label = el('label', 'recon-ym', fmtYm(x.ym));
+        const input = el('input', 'field-input num recon-input');
+        input.type = 'text';
+        input.inputMode = 'numeric';
+        input.autocomplete = 'off';
+        input.maxLength = 20;
+        input.placeholder = '例 12,345';
+        input.id = 'lgReconIn_' + x.ym;
+        label.htmlFor = input.id;
+        input.setAttribute('aria-label', `${fmtYm(x.ym)}の管理画面の金額`);
+        input.value = pv.reconInputs[x.ym] || '';
+        input.addEventListener('input', () => {
+          pv.reconInputs[x.ym] = input.value;
+          pv.reconConfirmed = false; // 金額を変えたら、不一致の確認はやり直し
+          computePreviewTotals(pv);
+          renderReconcile(pv);
+          renderCommitState(pv);
+        });
+        const result = el('div', 'recon-result');
+        row.append(label, input, result);
+        box.append(row);
+        box.reconRefs[x.ym] = result;
+      });
+    }
+    rc.forEach((x) => {
+      const res = box.reconRefs[x.ym];
+      if (!res) return;
+      let text;
+      let cls = '';
+      if (x.state === 'invalid') { text = '金額を読み取れません'; cls = 'is-bad'; }
+      else if (x.state === 'waiting' || (x.state === 'empty' && t.pendingKinds)) text = '決済種別の扱いを選ぶと照合します';
+      else if (x.state === 'net') { text = `一致（差引 ${yen(x.net)}）`; cls = 'is-ok'; }
+      else if (x.state === 'sale') { text = `一致（売上 ${yen(x.sale)}）`; cls = 'is-ok'; }
+      else if (x.state === 'mismatch') {
+        const diff = x.entered - x.net;
+        text = `不一致：CSVの差引 ${yen(x.net)}・売上 ${yen(x.sale)}（差引との差 ${diff > 0 ? '+' : ''}${yen(diff)}）`;
+        cls = 'is-bad';
+      } else text = `CSV：差引 ${yen(x.net)}・売上 ${yen(x.sale)}`;
+      res.textContent = text;
+      res.className = 'recon-result' + (cls ? ' ' + cls : '');
+    });
+    const anyMismatch = rc.some((x) => x.state === 'mismatch');
+    $('lgReconConfirmRow').classList.toggle('is-hidden', !anyMismatch);
+    $('lgReconConfirm').checked = pv.reconConfirmed;
+    $('lgReconHint').textContent = anyMismatch && t.errCount
+      ? `読み取れずに除外した行（${t.errCount}件）が差の原因かもしれません。`
+      : '';
   }
 
   /* ===================== 描画：取引の1行（一覧・見本で共用） ===================== */
@@ -866,6 +971,15 @@
       file.title = imp.fileName;
       const meta = el('div', 'hist-meta');
       meta.append(brandChip(imp.brand), el('span', 'num', `期間 ${fmtPeriod(imp.periodFrom, imp.periodTo)}`), el('span', 'num', `取込 ${fmtTs(imp.importedAt)}`));
+      const rec = Array.isArray(imp.reconcile) ? imp.reconcile : [];
+      if (rec.length) {
+        const bad = rec.filter((x) => x.result === 'mismatch');
+        const tag = bad.length
+          ? el('span', 'tag is-new', `管理画面と不一致 ${bad.map((x) => fmtYm(x.ym)).join('・')}`)
+          : el('span', 'tag is-ok', '管理画面と一致');
+        tag.title = rec.map((x) => `${fmtYm(x.ym)}：入力 ${yen(x.entered)}／CSVの差引 ${yen(x.csvNet)}・売上 ${yen(x.csvSale)}`).join('\n');
+        meta.append(tag);
+      }
       main.append(file, meta);
       const net = el('div', 'hist-net num', yen(imp.totals && imp.totals.net));
       net.append(el('small', '', `${(imp.counts && imp.counts.added) || 0}件を追加`));
@@ -1268,6 +1382,12 @@
     preview.crossConfirmed = e.target.checked;
     computePreviewTotals(preview);
     renderPreview();
+  });
+  $('lgReconConfirm').addEventListener('change', (e) => {
+    if (!preview) return;
+    preview.reconConfirmed = e.target.checked;
+    computePreviewTotals(preview);
+    renderCommitState(preview);
   });
   $('pvCancel').addEventListener('click', closePreview);
   $('pvCommit').addEventListener('click', commitPreview);

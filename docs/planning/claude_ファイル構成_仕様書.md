@@ -24,7 +24,8 @@ sideops/
     │   ├── done-more.jpg
     │   ├── scribit.jpg
     │   ├── scaffold.jpg
-    │   └── mindframe.jpg
+    │   ├── mindframe.jpg
+    │   └── recon.jpg
     ├── sideops-theme-bridge.js  # テーマブリッジの受信側共通スクリプト。各アプリが
     │                            # <head>で1行読み込むopt-in方式
     ├── prompt-gallery.html      # 画像生成プロンプト見本一覧（本実装済み）
@@ -68,7 +69,7 @@ sideops/
 - **未push**：ローカルの一時的な作業領域にのみ存在し、セッション終了で失われる可能性がある状態
 - **コード消失**：一度実装されたが、pushされないままセッション終了で失われたことが確認された状態（例：インターネットショートカット機能。`アプリランチャー_仕様書.md`参照）
 
-現時点でのファイル別状態は`SIDE-OPS_変更履歴.md`の最新行を参照。builtinアプリのカバー画像は、blankとRECON（未作成。用意したら`apps/img/recon.jpg`）を除いて揃っている。
+現時点でのファイル別状態は`SIDE-OPS_変更履歴.md`の最新行を参照。builtinアプリのカバー画像は、blankを除いて揃っている（RECONは2026-10-02に追加）。
 
 ## 開発ナレッジ（docs/）について
 
