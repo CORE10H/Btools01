@@ -1733,7 +1733,75 @@
     applyStageSizeMode(activeMode);
   });
 
+  /* ===================== 戻る操作でStageを閉じる（History API） =====================
+     スマホの戻るボタン／戻るジェスチャー、PCのブラウザの「戻る」（マウスの戻るボタン・Alt+←）で
+     Stageを閉じる。枯れた定番の方式（history.pushState + popstate）を使う。
+       ・Stageを開いたとき（クリック・タップ等のユーザー操作の中）に、履歴を1件だけ積む
+       ・戻る操作でその1件が戻されたら（popstate）、Stageを閉じる
+       ・✕で閉じたときは、積んだ1件を自分で戻して消費する。消費しないと、次の戻る操作が
+         「何も起きない空振り」になる
+     歯止め：
+       ・開いたまま別のアプリに切り替えても積み増さない（1回の展開につき1件だけ）
+       ・自分の1件が今の位置だと確認できたときだけ history.back() する。確認できないまま
+         戻すと、SIDE-OPSそのものから離れてしまう恐れがあるため
+       ・積んだ1件には毎回別の目印（token）を付け、リロード前などの古い1件と取り違えない
+       ・戻る操作を受けて積み直すことはしない。ユーザー操作なしで積んだ履歴は、Chromeの
+         「戻るボタン乗っ取り対策」で読み飛ばされることがあるため。積むのはユーザー操作の中だけ
+       ・iframe内のアプリは履歴に触らない前提（触ると本体の履歴と混ざる）。
+         詳細は docs/core/claude_メインステージ_仕様書.md「戻る操作」 */
+  const STAGE_HISTORY_KEY = 'sideopsStage';
+  const STAGE_HISTORY_SELF_BACK_TIMEOUT_MS = 1000;
+  let stageHistoryToken = null;     // 今積んでいる1件の目印（積んでいなければnull）
+  let stageHistorySelfBack = false; // ✕で閉じた後、自分で戻した結果（popstate）を待っている間true
+  let stageHistorySelfBackTimer = null;
+
+  function isCurrentStageHistoryEntry(state) {
+    return !!(stageHistoryToken && state && typeof state === 'object'
+      && state[STAGE_HISTORY_KEY] === stageHistoryToken);
+  }
+
+  function pushStageHistory() {
+    if (stageHistoryToken) return; // 開いたまま別のアプリへ切り替えた場合：積み増さない
+    const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try {
+      history.pushState({ [STAGE_HISTORY_KEY]: token }, '');
+      stageHistoryToken = token;
+    } catch (err) {
+      // 履歴を操作できない環境では何もしない（従来どおり✕で閉じるだけになる）
+      console.warn('戻る操作との連携を開始できませんでした', err);
+    }
+  }
+
+  function consumeStageHistory() {
+    if (!stageHistoryToken) return;
+    const isCurrent = isCurrentStageHistoryEntry(history.state);
+    stageHistoryToken = null;
+    if (!isCurrent) return; // 自分の1件の位置にいると確認できなければ、履歴には触らない
+    stageHistorySelfBack = true;
+    clearTimeout(stageHistorySelfBackTimer);
+    // 万一 popstate が届かなくても、待ち状態のまま固まらないようにする
+    stageHistorySelfBackTimer = setTimeout(() => { stageHistorySelfBack = false; }, STAGE_HISTORY_SELF_BACK_TIMEOUT_MS);
+    history.back();
+  }
+
+  window.addEventListener('popstate', (ev) => {
+    if (stageHistorySelfBack) {
+      // ✕で閉じた後の後片付け（自分で戻した分）。Stageはもう閉じているので何もしない
+      stageHistorySelfBack = false;
+      clearTimeout(stageHistorySelfBackTimer);
+      return;
+    }
+    if (isCurrentStageHistoryEntry(ev.state)) return; // 自分の1件の位置にいる：閉じる必要なし
+    if (!stageHistoryToken) return; // Stage用の1件を積んでいない間の戻る・進むには関与しない
+    // 自分の1件より手前へ戻った＝戻る操作でStageを閉じる
+    stageHistoryToken = null;
+    closeStageView();
+  });
+
   function openStage(ev, project, cardId) {
+    // ✕で閉じた直後、履歴の後片付け（数十ms程度）が終わるまでは開かない。
+    // 後片付けの「戻る」が新しく開いたStageを閉じてしまう食い違いを防ぐ
+    if (stageHistorySelfBack) return;
     currentStageCardId = cardId || null;
     const card = cardId ? cards.find(c => c.id === cardId) : null;
     const mode = (card && card.sizeMode) || 'normal';
@@ -1770,6 +1838,7 @@
       stagePlaceholder.style.display = '';
     }
     stageEl.classList.add('is-open');
+    pushStageHistory(); // 戻る操作で閉じられるよう履歴を1件積む（開いたままの切り替えでは積み増さない）
   }
 
   // 閉じたiframeは、アプリが未保存の入力を書き込み終えるまで待ってから破棄する。
@@ -1786,7 +1855,8 @@
     setTimeout(() => frame.remove(), STAGE_FRAME_RETIRE_MS);
   }
 
-  function closeStage() {
+  // Stageの見た目を閉じる共通部分（戻る操作・✕の両方から使う）
+  function closeStageView() {
     stageEl.classList.remove('is-open');
     // iframeは閉じたら破棄する（バックグラウンドで動かし続けない）。保存の猶予は retireStageFrame を参照
     if (stageFrame) { retireStageFrame(stageFrame); stageFrame = null; }
@@ -1795,7 +1865,13 @@
     document.getElementById('stageTag').textContent = '--'; // Stageが閉じている間は「何も開かれていない」表示に戻す
   }
 
-  document.getElementById('stageCloseBtn').addEventListener('click', closeStage);
+  // 画面上の操作（✕）で閉じる：見た目を閉じたうえで、戻る操作用に積んだ履歴1件を消費する
+  function closeStage() {
+    closeStageView();
+    consumeStageHistory();
+  }
+
+  document.getElementById('stageCloseBtn').addEventListener('click', () => closeStage());
 
   /* ===================== THEME BRIDGE（本体 → Stage内アプリ） =====================
      本体のテーマ色（15色のCSS変数）を、Stageに開いているアプリへ postMessage で届ける。

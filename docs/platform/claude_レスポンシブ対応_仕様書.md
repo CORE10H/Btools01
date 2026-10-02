@@ -41,6 +41,7 @@
 
 - **判定**：`isMobileLayout()`は`window.matchMedia(MOBILE_LAYOUT_QUERY).matches`を返すだけ。`window.innerWidth`との自前比較は使わない（スクロールバー幅などでCSSとズレる瞬間があり得るため）
 - **Stage**：`applyStageSizeMode()`内で、スマホ版の間だけ`effectiveMode = 'full'`に置き換える。保存済みの`sizeMode`とボタンの選択状態は書き換えない（`メインステージ_仕様書.md`参照）
+- **戻る操作**：スマホの戻るボタン／戻るジェスチャーでStageを閉じる。PC版と共通の仕組みで、スマホ版だけの分岐は持たない（`メインステージ_仕様書.md`「戻る操作」参照）
 - **カバーフローの描画（`render()`）**：スマホ版では`translateZ`（奥行き）と`rotateX`（傾き）だけを0に固定。`scale`（脇のカードの縮小）・`opacity`（不透明度のグラデーション）・`transition`（アニメーション）はPC版と同じ計算のまま残す
 - **カード間隔（`ySpacing`）**：PC版は60px固定、スマホ版は`Math.round(cardH * 0.62)`（カードの高さに連動）
 - **縦スワイプ**：`document`全体で`touchstart`/`touchmove`/`touchend`/`touchcancel`を受け、指が最初に触れた要素が`e.target.closest('.cf-wrap')`に当てはまるかだけで判定する
