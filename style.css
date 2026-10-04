@@ -991,6 +991,29 @@
   .log-src-status.is-error { color: var(--magenta); }
   .log-src-status.is-ok { color: var(--cyan); }
 
+  /* ---- 同期モーダル（js/sync.js） ---- */
+  .sync-modal { width: min(420px, calc(100vw - 24px)); }
+  .sync-device-name { margin-bottom: 8px; }
+  .sync-status { font-size: 10.5px; color: var(--text-dim); line-height: 1.7; white-space: pre-line; }
+  .sync-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sync-db-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .sync-db-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); cursor: pointer; min-width: 0; }
+  .sync-db-item input { accent-color: var(--cyan); flex-shrink: 0; }
+  .sync-result { font-size: 11px; color: var(--text-dim); line-height: 1.7; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .sync-result:empty { display: none; }
+  .sync-result.is-ok { color: var(--cyan); }
+  .sync-result.is-error { color: var(--magenta); }
+  .sync-result .btn { margin: 8px 8px 0 0; }
+  .settings-overlay.is-busy .settings-close-btn { opacity: .35; cursor: wait; }
+  .sync-dialog { z-index: 270; }
+  .sync-dialog .launcher-confirm-box { border-color: var(--cyan-dim); max-width: 360px; }
+  .sync-dialog-msg { white-space: pre-line; margin-bottom: 12px; }
+  .sync-pass { width: 100%; margin-bottom: 8px; }
+  .sync-dialog-err { font-size: 10.5px; color: var(--magenta); min-height: 14px; margin-bottom: 8px; }
+  @media (max-width: 479px) {
+    .sync-db-list { grid-template-columns: 1fr; }
+  }
+
   /* ---- アプリ管理：一覧行 ---- */
   .app-manage-control { display: flex; }
   .app-manage-control .btn { width: 100%; }

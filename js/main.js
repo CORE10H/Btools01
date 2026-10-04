@@ -165,8 +165,8 @@
   document.addEventListener('fullscreenchange', updateFullscreenBtnState);
   updateFullscreenBtnState();
 
-  // Cloud sync: not implemented yet — the button is present as a
-  // placeholder for the eventual feature and stays disabled.
+  // ☁ 同期：js/sync.js が読み込み後にボタンを有効にする（読み込めなければ無効のまま）。
+  // 設計は docs/planning/claude_クラウド同期_仕様書.md
 
   const settingsOverlay = document.getElementById('settingsOverlay');
   const settingsBtn = document.getElementById('settingsBtn');

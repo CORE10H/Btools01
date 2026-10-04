@@ -24,7 +24,7 @@
     </div>
     <div class="header-icons">
       <button class="header-icon-btn" id="fullscreenBtn" title="全画面表示（このボタン推奨。F11で入った場合、解除はEscキーのみ対応）">⛶</button>
-      <button class="header-icon-btn" id="cloudSyncBtn" title="クラウド連携（未実装）" disabled>☁</button>
+      <button class="header-icon-btn" id="cloudSyncBtn" title="同期（複数の端末でデータを使う）" disabled>☁</button>
       <button class="header-icon-btn" id="settingsBtn" title="設定">⚙</button>
     </div>
   </header>
@@ -415,6 +415,69 @@
 
 <div class="launcher-toast" id="launcherToast"></div>
 
+<!-- ===== 同期モーダル（段階1：同期ファイルによる手動同期。js/sync.js） ===== -->
+<div class="settings-overlay" id="syncOverlay">
+  <div class="settings-modal sync-modal">
+    <div class="settings-modal-head">
+      <span class="settings-modal-title">// SYNC</span>
+      <button class="settings-close-btn" id="syncCloseBtn" title="閉じる">✕</button>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">この端末</div>
+      <input type="text" id="syncDeviceName" class="log-src-input sync-device-name" maxlength="40" placeholder="端末の名前" autocomplete="off" spellcheck="false" title="ほかの端末に表示される、この端末の名前">
+      <div class="sync-status" id="syncStatus"></div>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">同期ファイルで同期（手動）</div>
+      <div class="settings-row-hint">
+        別の端末に移るときは、この端末で同期 → できた同期ファイルを別の端末へ移す → 別の端末で「同期ファイルを読み込む」。中身はパスフレーズで暗号化されています。<br>
+        最初の1回（または手元に同期ファイルがないとき）だけ「新しく作る」を使います。
+      </div>
+      <div class="sync-actions">
+        <button class="btn primary" id="syncImportBtn" data-sync-action>同期ファイルを読み込む</button>
+        <button class="btn" id="syncCreateBtn" data-sync-action>新しく作る</button>
+      </div>
+      <input type="file" id="syncPackageInput" accept=".json,application/json" hidden>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">同期するデータ</div>
+      <div class="settings-row-hint">壁紙・パネルの透過率・通知（LOG）・MINDFRAMEの表示位置は、端末ごとに持ちます。</div>
+      <div class="sync-db-list" id="syncDbList"></div>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">バックアップ・その他</div>
+      <div class="sync-actions">
+        <button class="btn" id="syncBackupBtn" data-sync-action>全データを書き出す</button>
+        <button class="btn" id="syncRestoreBtn" data-sync-action>バックアップから復元</button>
+        <button class="btn" id="syncConflictsBtn" data-sync-action>競合の控えを書き出す</button>
+        <button class="btn danger" id="syncForgetBtn" data-sync-action>この端末を忘れる</button>
+      </div>
+      <input type="file" id="syncBackupInput" accept=".json,application/json" hidden>
+    </div>
+
+    <div class="sync-result" id="syncResult"></div>
+  </div>
+</div>
+
+<!-- 同期：確認・パスフレーズ入力 -->
+<div class="launcher-confirm-overlay sync-dialog" id="syncDialog">
+  <div class="launcher-confirm-box">
+    <div class="launcher-confirm-msg sync-dialog-msg" id="syncDialogMsg"></div>
+    <input type="password" id="syncDialogPass" class="log-src-input sync-pass" placeholder="パスフレーズ" autocomplete="off" hidden>
+    <input type="password" id="syncDialogPass2" class="log-src-input sync-pass" placeholder="もう一度入力" autocomplete="off" hidden>
+    <div class="sync-dialog-err" id="syncDialogErr"></div>
+    <div class="launcher-confirm-actions">
+      <button class="btn" id="syncDialogCancel">やめる</button>
+      <button class="btn primary" id="syncDialogOk">OK</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/main.js"></script>
+<script src="js/sync.js"></script>
 </body>
 </html>
