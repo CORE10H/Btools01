@@ -430,7 +430,20 @@
     </div>
 
     <div class="settings-row settings-row-col">
-      <div class="settings-row-label">同期ファイルで同期（手動）</div>
+      <div class="settings-row-label">Googleドライブで同期</div>
+      <div class="settings-row-hint">
+        Googleドライブの「このアプリ専用の見えない領域」に、暗号化して保存します（ドライブのほかのファイルには触れません）。ログインは約1時間で切れます。切れたら☁を押すと、ログインし直して同期します。
+      </div>
+      <div class="sync-actions">
+        <button class="btn primary" id="syncDriveBtn" data-sync-action>Googleドライブで同期</button>
+        <button class="btn" id="syncDriveOffBtn" data-sync-action>接続を解除</button>
+      </div>
+      <label class="sync-db-item sync-auto"><input type="checkbox" id="syncDriveAuto" data-sync-action><span>ログイン中は自動で同期する（画面を離れるとき・戻ったとき・アプリを閉じたとき・5分ごと）</span></label>
+      <div class="sync-status" id="syncDriveStatus"></div>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">同期ファイルで同期（手動・クラウドを使わないとき）</div>
       <div class="settings-row-hint">
         別の端末に移るときは、この端末で同期 → できた同期ファイルを別の端末へ移す → 別の端末で「同期ファイルを読み込む」。中身はパスフレーズで暗号化されています。<br>
         最初の1回（または手元に同期ファイルがないとき）だけ「新しく作る」を使います。
@@ -478,6 +491,7 @@
 </div>
 
 <script src="js/main.js"></script>
+<script src="js/sync-gdrive.js"></script>
 <script src="js/sync.js"></script>
 </body>
 </html>

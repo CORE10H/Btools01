@@ -55,6 +55,10 @@
   const MAX_DEPTH = 64;
   const LOG_MAX = 200;
   const CONFLICT_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+  const BLOB_GRACE_MS = 30 * 24 * 60 * 60 * 1000; // クラウドで、参照されなくなった画像を消すまでの猶予
+  const STALE_SYNC_MS = 3 * 24 * 60 * 60 * 1000;  // 最後の同期からこれ以上たったら☁に印を付ける
+  const AUTO_INTERVAL_MS = 5 * 60 * 1000;         // ログイン中の自動の同期の間隔
+  const AUTO_MIN_GAP_MS = 60 * 1000;              // 画面に戻ったとき、前回の自動の同期からこれ以上たっていれば取り込む
   const STAGE_RETIRE_WAIT_MS = 2500;    // Stageを閉じたあと、アプリが未保存の入力を書き終えるまでの猶予（main.jsは1.5秒）
   const MANIFEST_NAME = 'sideops-sync-manifest.json';
   const PACKAGE_FORMAT = 'sideops-sync-package';
@@ -712,6 +716,25 @@
     const hash = (bytes) => hmacHex(keys.nameKey, bytes);
     const report = { results: [], applied: false, conflicts: 0 };
 
+    // クラウドでは、中身が前回書いたときと同じファイルは書き直さない（通信を減らす）。
+    // 前回書いた時点の「中身の要約」と「保存先での更新時刻・大きさ」の両方が一致するときだけ省く。
+    // 同期ファイル（手で運ぶ形）は、古いファイルを読み込み直した場合に備えて、毎回すべて書く
+    let written = null;
+    if (backend.kind !== 'file' && typeof backend.stamp === 'function') {
+      const w = await metaGet('written');
+      written = w && w.spaceId === spaceId && w.kind === backend.kind && isPlainObject(w.files) ? w : { key: 'written', spaceId, kind: backend.kind, files: {} };
+    }
+    async function writeIfChanged(name, obj) {
+      const rest = { ...obj };
+      delete rest.writtenAt;
+      const digest = written ? await sha256Hex(te.encode(canonical(rest))) : '';
+      const prev = written && written.files[name];
+      if (prev && prev.digest === digest && prev.stamp === backend.stamp(name)) return false;
+      await writeJsonFile(backend, keys, spaceId, name, obj);
+      if (written) written.files[name] = { digest, stamp: backend.stamp(name) };
+      return true;
+    }
+
     // ---- 他の端末のファイルを読む（検査を通るまで、何も書き換えない） ----
     const listed = new Set(await backend.list());
     const remoteDevices = [];
@@ -780,7 +803,13 @@
 
       // 顧客データ（RECON）は、初めて同期する前に1回確認する（送る側でも受け取る側でも）
       if (rule.sensitive && !prefs.sensitiveOk[rule.name]) {
-        const ok = hooks.confirmSensitive ? await hooks.confirmSensitive(rule) : false;
+        if (!hooks.confirmSensitive) {
+          // 自動の同期では確認を出せないので、今回は飛ばす（同期しない設定にはしない）
+          res.note = '確認待ち（☁から同期すると確認が出ます）';
+          keepPrev();
+          continue;
+        }
+        const ok = await hooks.confirmSensitive(rule);
         if (!ok) {
           prefs.disabled[rule.name] = true;
           await metaPut(prefs);
@@ -843,6 +872,12 @@
           if (!s.dirty) { s.baseVer = s.ver; s.dirty = true; }
           s.ver = clock.next(); s.deleted = true; s.fp = null;
           changed.add(id);
+        }
+        // 初めての合流で、同じ内容のデータが別々のIDで両方にあれば知らせる
+        // （両方の端末で別々に登録した同じデータは、IDが違うので両方残る）
+        if (firstTime && usable.length) {
+          const dup = await countLikelyDuplicates(scan, best);
+          if (dup) res.note = (res.note ? res.note + ' / ' : '') + `同じ内容で別々のIDのデータが${dup}件あります（両方の端末で別々に登録した可能性。不要な方を消すと、ほかの端末にも反映されます）`;
         }
 
         // ---- 合流：レコードごとに版の大きい方を採用。両方で変えていたら負けた方を控える ----
@@ -951,10 +986,13 @@
         }
 
         // ---- 自分のファイルを書く：画像 → DBのファイル（端末の情報は最後にまとめて） ----
+        // 並び順はキーの順に固定する（中身が同じなら、ファイルも同じになるように。
+        // 並びが毎回変わると、変わっていないファイルを書き直してしまう）
         const outStores = {};
         scan.stores.forEach((n) => { outStores[n] = []; });
         const usedBlobs = new Set();
-        for (const s of st.values()) {
+        const ordered = Array.from(st.values()).sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+        for (const s of ordered) {
           if (!outStores[s.store]) continue;
           if (s.deleted) { outStores[s.store].push({ key: s.key, ver: s.ver, deleted: true }); continue; }
           const c = scan.recs.get(s.id);
@@ -972,10 +1010,10 @@
           listed.add(name);
         }
         const dbFile = await names.db(dev.id, rule.name);
-        await writeJsonFile(backend, keys, spaceId, dbFile, {
+        await writeIfChanged(dbFile, {
           format: 'sideops-sync-db', formatVersion: FORMAT_VERSION, db: rule.name, dbVersion: db.version,
           schema: scan.schema, appBuild: SYNC_APP_BUILD, device: dev.id, writtenAt: new Date().toISOString(),
-          blobs: Array.from(usedBlobs), stores: outStores,
+          blobs: Array.from(usedBlobs).sort(), stores: outStores,
         });
         listed.add(dbFile);
         ownDbs[rule.name] = { file: dbFile, dbVersion: db.version, count: scan.recs.size };
@@ -1003,7 +1041,7 @@
 
     // ---- 端末の情報（どのDBのファイルを持っているか）を最後に書く ----
     const devFile = await names.device(dev.id);
-    await writeJsonFile(backend, keys, spaceId, devFile, {
+    await writeIfChanged(devFile, {
       format: 'sideops-sync-device', formatVersion: FORMAT_VERSION, device: dev.id, deviceName: dev.name,
       appBuild: SYNC_APP_BUILD, writtenAt: new Date().toISOString(), dbs: ownDbs,
     });
@@ -1013,13 +1051,14 @@
         if (!ownDbs[n] && ref && typeof ref.file === 'string' && listed.has(ref.file)) await backend.remove(ref.file);
       }
     }
-    // 同期ファイル（手で運ぶ形）では、どこからも参照されない画像をその場で片付ける。
-    // クラウドでは他の端末が書き込み途中の可能性があるため、猶予を置いて片付ける（段階2）
-    if (backend.kind === 'file') {
-      for (const n of await backend.list()) {
-        if (n.startsWith('x_') && !referenced.has(n.slice(2, -4))) await backend.remove(n);
-      }
+    // どこからも参照されない画像を片付ける。同期ファイル（手で運ぶ形）ではその場で消す。
+    // クラウドでは、ほかの端末が書き込みの途中（画像を置いた後、DBのファイルを書く前）の
+    // 可能性があるため、最後に書き換えられてから一定期間たったものだけを消す
+    for (const n of await backend.list()) {
+      if (!n.startsWith('x_') || referenced.has(n.slice(2, -4))) continue;
+      if (backend.kind === 'file' || (typeof backend.ageMs === 'function' && backend.ageMs(n) > BLOB_GRACE_MS)) await backend.remove(n);
     }
+    if (written) await metaPut(written);
 
     await metaPut(clock.save());
     await metaPut(dbsMeta);
@@ -1029,6 +1068,32 @@
       .map((r) => `${r.label}：取込${r.pulled}・削除${r.removed}・送出${r.pushed}${r.conflicts ? '・競合' + r.conflicts : ''}${r.note ? '（' + r.note + '）' : ''}`).join(' / ');
     await addLog('sync', summary || '変更なし');
     return report;
+  }
+
+  // 重複の候補：IDと日時を除いた中身が同じで、IDが違うレコード（ストアごと）
+  const SIG_IGNORE = ['id', 'createdAt', 'updatedAt', 'updated'];
+  async function contentSig(encoded, keyPath) {
+    if (!isPlainObject(encoded)) return null;
+    const o = { ...encoded };
+    SIG_IGNORE.forEach((f) => { delete o[f]; });
+    if (typeof keyPath === 'string') delete o[keyPath];
+    if (!Object.keys(o).length) return null;
+    return sha256Hex(te.encode(canonical(o)));
+  }
+  async function countLikelyDuplicates(scan, best) {
+    const local = new Set();
+    for (const [id, c] of scan.recs) {
+      if (best.has(id)) continue;
+      const sig = await contentSig(c.encoded, (scan.schema[c.store] || {}).keyPath);
+      if (sig) local.add(c.store + '|' + sig);
+    }
+    let n = 0;
+    for (const [id, r] of best) {
+      if (r.deleted || scan.recs.has(id)) continue;
+      const sig = await contentSig(r.value, (scan.schema[r.store] || {}).keyPath);
+      if (sig && local.has(r.store + '|' + sig)) n++;
+    }
+    return n;
   }
 
   async function purgeConflicts() {
@@ -1237,6 +1302,7 @@
     function setBusy(b) {
       overlay.querySelectorAll('[data-sync-action]').forEach((el) => { el.disabled = b; });
       overlay.classList.toggle('is-busy', b);
+      if (!b) { applyDriveAvailability(); refreshDrive(); }
     }
     function showResult(lines, kind) {
       resultEl.textContent = '';
@@ -1287,12 +1353,20 @@
           label.append(cb, span);
           dbListEl.appendChild(label);
         }
+        await refreshDrive();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
       }
     }
 
-    function open() { overlay.classList.add('is-open'); refresh(); }
+    // ☁を押したとき：Googleドライブにつないでいれば、そのまま同期する（ログインが切れていればログインから）
+    async function open() {
+      overlay.classList.add('is-open');
+      refresh();
+      if (!driveReady() || overlay.classList.contains('is-busy')) return;
+      const g = await driveMeta();
+      if (g.connected) run(driveSyncFlow);
+    }
     function close() {
       if (overlay.classList.contains('is-busy')) return;
       overlay.classList.remove('is-open');
@@ -1383,20 +1457,232 @@
       await refresh();
     }
 
+    const userFacing = (err) => err instanceof SyncError || !!(err && err.userFacing);
     async function run(task) {
       setBusy(true);
       showResult(['処理中です…'], '');
       try {
         await task();
       } catch (err) {
-        if (err instanceof SyncError) console.warn('同期を中止しました：' + err.message); // 想定内（利用者に理由を表示する）
+        if (userFacing(err)) console.warn('同期を中止しました：' + err.message); // 想定内（利用者に理由を表示する）
         else console.error(err);
-        showResult([err instanceof SyncError ? err.message : '同期に失敗しました：' + (err && err.message)], 'error');
-        if (!(err instanceof SyncError)) addLog('error', err && err.stack ? err.stack : String(err));
+        showResult([userFacing(err) ? err.message : '同期に失敗しました：' + (err && err.message)], 'error');
+        if (!userFacing(err)) addLog('error', err && err.stack ? err.stack : String(err));
       } finally {
         setBusy(false);
+        updateIndicator();
       }
     }
+
+    // ===================== Googleドライブ（段階2） =====================
+    const drive = window.SideOpsSyncDrive || null;
+    const driveBtn = $('syncDriveBtn');
+    const driveOffBtn = $('syncDriveOffBtn');
+    const driveAuto = $('syncDriveAuto');
+    const driveStatus = $('syncDriveStatus');
+    const driveReady = () => !!(drive && drive.configured());
+    async function driveMeta() {
+      const m = await metaGet('gdrive');
+      return { key: 'gdrive', connected: false, auto: true, ...(m || {}) };
+    }
+    function applyDriveAvailability() {
+      if (driveReady()) return;
+      [driveBtn, driveOffBtn, driveAuto].forEach((el) => { if (el) el.disabled = true; });
+    }
+
+    // ☁ボタンの印：同期済み（cyan）／ログインが必要・しばらく同期していない（amber）／失敗（magenta）／同期中
+    let indicatorError = false;
+    async function updateIndicator(state) {
+      try {
+        if (state === 'error') indicatorError = true;
+        if (state === 'ok') indicatorError = false;
+        const g = await driveMeta();
+        const status = await metaGet('status');
+        openBtn.classList.remove('sync-ok', 'sync-warn', 'sync-error', 'sync-busy');
+        let cls = '';
+        let title = '同期（複数の端末でデータを使う）';
+        const stale = status && status.lastSyncAt && Date.now() - status.lastSyncAt > STALE_SYNC_MS;
+        if (state === 'busy') { cls = 'sync-busy'; title = '同期しています…'; }
+        else if (indicatorError) { cls = 'sync-error'; title = '前回の同期に失敗しました（押して確認）'; }
+        else if (g.connected && driveReady() && !drive.tokenValid()) { cls = 'sync-warn'; title = 'Googleドライブのログインが必要です（押すと同期します）'; }
+        else if (stale) { cls = 'sync-warn'; title = 'しばらく同期していません（最後の同期：' + new Date(status.lastSyncAt).toLocaleString('ja-JP') + '）'; }
+        else if (g.connected) { cls = 'sync-ok'; title = 'Googleドライブと同期しています（最後の同期：' + (status && status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('ja-JP') : 'なし') + '）'; }
+        if (cls) openBtn.classList.add(cls);
+        openBtn.title = title;
+      } catch (err) { /* 印が出せなくても同期には影響しない */ }
+    }
+
+    async function refreshDrive() {
+      if (!driveStatus) return;
+      const g = await driveMeta();
+      driveAuto.checked = g.auto;
+      if (!driveReady()) {
+        driveStatus.textContent = '準備中です（Google Cloudの登録待ち）';
+        applyDriveAvailability();
+        return;
+      }
+      driveStatus.textContent = g.connected
+        ? (drive.tokenValid() ? '接続中（ログイン済み）' : '接続中（ログインが切れています。「Googleドライブで同期」を押すとログインし直します）')
+        : 'まだ接続していません';
+      driveOffBtn.disabled = !g.connected;
+    }
+
+    // Googleドライブで同期する（手動）。ログインのポップアップを開くため、押した直後にトークンを取りに行く
+    async function driveSyncFlow() {
+      if (!driveReady()) throw new SyncError('Googleドライブの設定（クライアントID）がまだありません');
+      if (!drive.tokenValid()) {
+        showResult(['Googleにログインしています…'], '');
+        await drive.requestToken();
+      }
+      await withLock(async () => {
+        await precheck();
+        showResult(['Googleドライブを確認しています…'], '');
+        const backend = drive.createBackend();
+        let info = await inspect(backend);
+        if (info.state === 'empty') {
+          // ドライブにまだ同期がない：この端末の同期（同期ファイルで使っていたもの）を置くか、新しく作る
+          let manifest;
+          if (await getKeys()) {
+            const m = await metaGet('manifest');
+            manifest = m && m.value;
+            if (!manifest) throw new SyncError('同期の設定が見つかりません。「この端末を忘れる」を実行してからやり直してください');
+            const ok = await dialog({ message: 'Googleドライブにはまだ同期がありません。この端末で使っている同期（今のパスフレーズ）を、Googleドライブに置きます。\nほかの端末は、同じパスフレーズのまま、Googleドライブで同期できます。', okLabel: '置く' });
+            if (!ok) { showResult(['やめました'], ''); return; }
+            if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
+          } else {
+            const p = await dialog({
+              message: `同期用のパスフレーズを決めてください（${PASSPHRASE_MIN}文字以上）。\n忘れるとGoogleドライブのデータは誰にも開けません。ほかの端末で同期を始めるときに入力します。`,
+              pass: 2, okLabel: '決定', validate: checkPassphraseRule,
+            });
+            if (p === null) { showResult(['やめました'], ''); return; }
+            if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
+            showResult(['鍵を作っています…'], '');
+            manifest = await createSpace(p);
+          }
+          await backend.write(MANIFEST_NAME, te.encode(JSON.stringify(manifest)));
+          info = await inspect(backend);
+        }
+        if (info.state === 'otherSpace') {
+          const ok = await dialog({ message: 'この端末は、別のパスフレーズで作った同期を使っています。Googleドライブの同期に切り替えますか？\n（この端末のデータは消えません。切り替えた後は、この端末のデータとGoogleドライブのデータを合流させます）', okLabel: '切り替える', danger: true });
+          if (!ok) { showResult(['やめました'], ''); return; }
+          await forgetDevice();
+          info = await inspect(backend);
+        }
+        if (info.state === 'needsPassphrase') {
+          const p = await dialog({
+            message: '同期のパスフレーズを入力してください（最初の端末で決めたもの）',
+            pass: 1, okLabel: '開く',
+            validate: async (pp) => {
+              try { dlgErr.textContent = '確認しています…'; await unlock(info.manifest, pp); return ''; } catch (err) { return userFacing(err) ? err.message : '確認に失敗しました'; }
+            },
+          });
+          if (p === null) { showResult(['やめました'], ''); return; }
+        }
+        if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
+        showResult(['同期しています…'], '');
+        const report = await syncWith(backend, { confirmSensitive });
+        const g = await driveMeta();
+        await metaPut({ ...g, connected: true });
+        lastAuto = Date.now();
+        const lines = ['Googleドライブと同期しました。', ...reportLines(report)];
+        if (report.conflicts) lines.push(`両方の端末で変えていたデータが${report.conflicts}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました`);
+        if (report.applied) { needReload = true; lines.push('取り込んだ変更を画面に反映するため、閉じると再読み込みします'); }
+        showResult(lines, 'ok');
+        if (report.applied) appendButton('再読み込みして反映する', () => location.reload(), 'primary');
+        updateIndicator('ok');
+        await refresh();
+      });
+    }
+    if (driveBtn) driveBtn.addEventListener('click', () => run(driveSyncFlow));
+    if (driveOffBtn) driveOffBtn.addEventListener('click', () => run(async () => {
+      const ok = await dialog({ message: 'Googleドライブとの接続を解除します。この端末では自動の同期もしなくなります。\nGoogleドライブ上のデータと、この端末のデータは消えません。', okLabel: '解除する', danger: true });
+      if (!ok) { showResult(['やめました'], ''); return; }
+      drive.signOut();
+      const g = await driveMeta();
+      await metaPut({ ...g, connected: false });
+      showResult(['Googleドライブとの接続を解除しました'], 'ok');
+      await refresh();
+    }));
+    if (driveAuto) driveAuto.addEventListener('change', async () => {
+      const g = await driveMeta();
+      await metaPut({ ...g, auto: driveAuto.checked });
+    });
+
+    // ---- 自動の同期：ログイン中だけ。確認が必要な場面（パスフレーズ・顧客データ）では何もしない ----
+    let lastAuto = 0;
+    let autoRunning = false;
+    let reloadPending = false;
+    function otherModalOpen() {
+      return !!document.querySelector('.settings-overlay.is-open, .launcher-modal-overlay.is-open, .launcher-confirm-overlay.is-open');
+    }
+    function scheduleReload() {
+      if (reloadPending) return;
+      reloadPending = true;
+      showToast('ほかの端末の変更を取り込みました。画面に反映するため、再読み込みします');
+      const tryReload = () => {
+        if (!stageBusy() && !otherModalOpen()) location.reload();
+        else setTimeout(tryReload, 2000);
+      };
+      setTimeout(tryReload, 2500);
+    }
+    async function autoSync() {
+      if (autoRunning || !driveReady() || !drive.tokenValid() || reloadPending) return;
+      const g = await driveMeta();
+      if (!g.connected || !g.auto) return;
+      if (stageBusy() || otherModalOpen()) return; // アプリや設定を開いている間は後回し
+      autoRunning = true;
+      try {
+        if (await otherTabsOpen()) return;
+        updateIndicator('busy');
+        const report = await withLock(async () => {
+          const backend = drive.createBackend();
+          const info = await inspect(backend);
+          if (info.state !== 'ready') throw new SyncError('Googleドライブの同期を確認してください（☁から同期してください）');
+          return syncWith(backend, {});
+        });
+        lastAuto = Date.now();
+        updateIndicator('ok');
+        if (report.applied) scheduleReload();
+      } catch (err) {
+        if (userFacing(err)) console.warn('自動の同期を中止しました：' + err.message);
+        else { console.error(err); addLog('error', err && err.stack ? err.stack : String(err)); }
+        const loginLost = err && err.code === 'login';
+        updateIndicator(loginLost ? undefined : 'error');
+      } finally {
+        autoRunning = false;
+      }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') autoSync();                 // 画面を離れるとき：送り出す
+      else if (Date.now() - lastAuto > AUTO_MIN_GAP_MS) autoSync();          // 戻ったとき：取り込む
+      else updateIndicator();
+    });
+    const stageEl = document.getElementById('stageEl');
+    if (stageEl) {
+      let wasOpen = stageEl.classList.contains('is-open');
+      new MutationObserver(() => {
+        const nowOpen = stageEl.classList.contains('is-open');
+        if (wasOpen && !nowOpen) setTimeout(autoSync, STAGE_RETIRE_WAIT_MS + 500); // アプリを閉じたら、保存し終えるのを待って送る
+        wasOpen = nowOpen;
+      }).observe(stageEl, { attributes: true, attributeFilter: ['class'] });
+    }
+    setInterval(() => { if (document.visibilityState === 'visible') autoSync(); else updateIndicator(); }, AUTO_INTERVAL_MS);
+
+    function showToast(text) {
+      let el = document.getElementById('syncToast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'syncToast';
+        el.className = 'sync-toast';
+        document.body.appendChild(el);
+      }
+      el.textContent = text;
+      el.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => el.classList.remove('show'), 4000);
+    }
+    applyDriveAvailability();
+    updateIndicator();
 
     // 「同期ファイルを作る」：この端末のデータから同期ファイルを作る（初回はパスフレーズを決める）
     $('syncCreateBtn').addEventListener('click', () => run(() => withLock(async () => {
@@ -1513,7 +1799,7 @@
 
   // 動作確認・開発用（同じオリジンのスクリプトは元々すべてのDBを読めるので、新たな危険は増えない）
   window.SideOpsSync = {
-    SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME,
+    SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME, SyncError,
     createMemoryBackend, backendFromPackage, packageBlob, inspect, unlock, createSpace, syncWith,
     forgetDevice, buildBackup, restoreBackup, countConflicts, getDevice, localDbVersions,
   };

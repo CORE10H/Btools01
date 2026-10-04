@@ -32,6 +32,7 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 - **操作**：Dartの`WebSocket`でChrome DevTools Protocolに接続し、`Input.dispatchMouseEvent`（クリック・ドラッグ・ホイール）、`Input.dispatchKeyEvent`（キー）、`Input.insertText`（文字入力）、`Input.imeSetComposition`→`insertText`（日本語入力の変換中→確定）、`Input.dispatchTouchEvent`＋`Emulation.setTouchEmulationEnabled`（タップ・ピンチ）、`Page.captureScreenshot`（撮影）、`Browser.setDownloadBehavior`（書き出したファイルの受け取り）、`DOM.setFileInputFiles`（ファイル選択欄への指定）を使う
 - **iframeの中（Stage）**：同じオリジンなので、親ページから`iframe.contentDocument`で中の要素の位置を取り、ページ全体の座標に足してクリックできる
 - **端末2台の受け渡し（同期）**：使い捨てプロファイルのEdgeを2つ（別々のポート・別々の`--user-data-dir`）立ち上げ、同じローカルサーバーを開くと、IndexedDBが別々の「端末A・B」になる。`Target.createTarget`で同じブラウザにタブを足せば「他のタブで開いている」状態も作れる。端末の時計のずれは`Page.addScriptToEvaluateOnNewDocument`で`Date.now`を置き換えて再現する。キットは`D:\dev\sideops_sync_verify\`（`planning/claude_クラウド同期_仕様書.md`の「動作確認」）
+- **ログインが要る外部サービス（Googleドライブ）**：本物にはログインできないので、同じ形の要求・応答を返す偽のサーバー（Dartの`HttpServer`。CORSの応答も付ける）を別のポートで立て、ページの読み込み前に`Page.addScriptToEvaluateOnNewDocument`で差し替え用の変数を入れる。差し替えはlocalhostのときだけ効くようにしておく（公開サイトでは効かない）。画面を離れた・戻ったことは、`document.visibilityState`を上書きして`visibilitychange`を起こして再現する
 
 Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。
 

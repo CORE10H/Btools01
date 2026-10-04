@@ -12,8 +12,10 @@ sideops/
 │   │             # テーマ（基本色＋派生色・テーマブリッジ送信）・
 │   │             # スポイト・カバーフロー（アプリランチャー、
 │   │             # cards/apps分離のIndexedDB駆動）・アンビエントFX
+│   ├── sync-gdrive.js # 同期の保存先：Googleドライブ（ログイン・appDataFolderの読み書き）。
+│   │                   # sync.jsより前に読み込む
 │   └── sync.js  # 同期（複数端末）：暗号化・同期ファイル・3方向比較・同期モーダル・
-│                 # 全データのバックアップと復元。main.jsの後に読み込む
+│                 # 自動の同期・☁の印・全データのバックアップと復元。main.jsの後に読み込む
 │                 # （planning/claude_クラウド同期_仕様書.md）
 └── apps/
     ├── img/                    # 各アプリのカバー画像（BUILTIN_APP_CHOICESのcoverImgとして

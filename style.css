@@ -1010,6 +1010,28 @@
   .sync-dialog-msg { white-space: pre-line; margin-bottom: 12px; }
   .sync-pass { width: 100%; margin-bottom: 8px; }
   .sync-dialog-err { font-size: 10.5px; color: var(--magenta); min-height: 14px; margin-bottom: 8px; }
+  .sync-modal .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .sync-modal .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+  .sync-db-item:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+  .sync-auto { margin-top: 10px; align-items: flex-start; line-height: 1.6; }
+  .sync-auto input { margin-top: 2px; }
+  #syncDriveStatus { margin-top: 6px; }
+  /* ☁ボタンの印（js/sync.js の updateIndicator） */
+  #cloudSyncBtn { position: relative; }
+  #cloudSyncBtn::after {
+    content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; display: none;
+  }
+  #cloudSyncBtn.sync-ok::after { display: block; background: var(--cyan); }
+  #cloudSyncBtn.sync-warn::after { display: block; background: var(--amber); }
+  #cloudSyncBtn.sync-error::after { display: block; background: var(--magenta); }
+  #cloudSyncBtn.sync-busy::after { display: block; background: var(--cyan); animation: pulse 1s ease-in-out infinite; }
+  .sync-toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 280;
+    max-width: calc(100vw - 32px); padding: 10px 16px; font-size: 12px; line-height: 1.6;
+    color: var(--text); background: rgba(var(--panel-rgb), .96); border: 1px solid var(--cyan-dim);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .sync-toast.show { opacity: 1; }
   @media (max-width: 479px) {
     .sync-db-list { grid-template-columns: 1fr; }
   }
