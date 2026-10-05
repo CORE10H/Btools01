@@ -530,7 +530,12 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 ### OneDriveとのやり取り（Microsoft Graph）
 
 - 一覧：`GET /v1.0/me/drive/special/approot/children`（`@odata.nextLink`でページ送り）
-- 読む：ブラウザからは`/content`を使えない（302のリダイレクトがCORSの事前確認と両立しないため）。一覧に付いてくる`@microsoft.graph.downloadUrl`（事前認証済み・数分で切れる）を、Authorizationを付けずに読む。失敗したら、そのファイルの`downloadUrl`を取り直して1回だけやり直す
+- 読む（2026-10-05、Androidの実機で「OneDriveのファイルを読めませんでした」が出たため強化）：次の順に試す
+  1. 一覧に付いてくる`@microsoft.graph.downloadUrl`（事前認証済み・数分で切れる。OneDriveとは別の場所。`my.microsoftpersonalcontent.com`等）を、Authorization・Cookie・Refererを付けずに読む
+  2. そのファイルの`downloadUrl`を取り直して読む
+  3. Graphの`/v1.0/me/drive/items/{id}/content`を、Authorizationを付けて読む。302で同じ場所へ移る（Microsoftの資料は「ブラウザでは使えない」としているが、今のChromium系は移り先でAuthorizationを外して読める。偽のMicrosoftで確認済み）
+  - 3つとも失敗したら、止まったダウンロード先の場所を表示する。Braveでは「このサイトのShieldsをオフにして試す」案内、それ以外では「拡張機能・セキュリティソフトを確かめる」案内を出す
+  - 注意：本物では、③も①②と同じダウンロード先へ移る。Braveがその場所自体を止めている場合は、③でも読めない（Shieldsをオフにするしかない）
 - 書く：`PUT /v1.0/me/drive/special/approot:/{名前}:/content`（同じ名前なら上書き。1回で250MBまで）
 - 消す：`DELETE /v1.0/me/drive/special/approot:/{名前}`
 - 中身の変わっていないファイルを書き直さない判定には、`eTag`を使う

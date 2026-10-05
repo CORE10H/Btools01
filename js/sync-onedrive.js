@@ -192,6 +192,18 @@
     await forgetStored();
   }
 
+  function hostOf(url) {
+    try { return new URL(url).host; } catch (err) { return '?'; }
+  }
+  // 読めなかったときの案内。Braveは navigator.brave を持つので、Shields の案内を出す
+  function downloadFailMessage(url) {
+    const where = url ? `（ダウンロード先：${hostOf(url)}）` : '';
+    const hint = navigator.brave
+      ? 'Braveをお使いの場合は、このサイトのShields（アドレスバーのライオンのアイコン）をオフにしてから、もう一度試してください'
+      : 'ブラウザの拡張機能（広告ブロック等）やセキュリティソフトが通信を止めていないか確かめてください';
+    return `OneDriveのファイルを読めませんでした${where}。${hint}`;
+  }
+
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function api(method, url, { body, headers, allow404 } = {}) {
     let refreshed = false;
@@ -236,24 +248,49 @@
       index = map;
       return Array.from(map.keys());
     }
+    // 読む：①一覧に付いてきたダウンロード用URL → ②取り直したダウンロード用URL → ③Graph の /content
+    // （③は302で同じ場所へ移る。新しいブラウザは別の場所へ移るときに Authorization を外す）。
+    // ダウンロード用URLは OneDrive とは別の場所（my.microsoftpersonalcontent.com 等）なので、
+    // ブラウザの保護機能に止められることがある。失敗したら、どこで止まったかを表示する
     async function read(name) {
       if (!index) await list();
       const e = index.get(name);
       if (!e) return null;
-      let url = e.url && Date.now() - e.urlAt < DOWNLOAD_URL_TTL_MS ? e.url : null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        if (!url) {
-          const res = await api('GET', `${itemUrl(name)}?$select=id,@microsoft.graph.downloadUrl`, { allow404: true });
-          if (res.status === 404) return null;
-          url = (await res.json())['@microsoft.graph.downloadUrl'];
-          if (!url) throw new OneDriveError('OneDriveのファイルを読めませんでした', 'http');
-        }
+      const tried = [];
+      const fromUrl = async (url, via) => {
         let res = null;
-        try { res = await fetch(url); } catch (err) { res = null; } // 事前認証済みのURL（Authorization は付けない）
-        if (res && res.ok) return new Uint8Array(await res.arrayBuffer());
-        url = null; // 期限切れなど → 取り直して、もう1回
+        try {
+          // 事前認証済みのURL：Authorization・Cookie・Referer を付けない
+          res = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' });
+        } catch (err) {
+          tried.push(`${via}:${hostOf(url)}:通信できない`);
+          return null;
+        }
+        if (res.ok) return new Uint8Array(await res.arrayBuffer());
+        tried.push(`${via}:${hostOf(url)}:${res.status}`);
+        return null;
+      };
+      let lastUrl = e.url;
+      if (e.url && Date.now() - e.urlAt < DOWNLOAD_URL_TTL_MS) {
+        const b = await fromUrl(e.url, '一覧のURL');
+        if (b) return b;
       }
-      throw new OneDriveError('OneDriveのファイルを読めませんでした', 'http');
+      const meta = await api('GET', `${itemUrl(name)}?$select=id,@microsoft.graph.downloadUrl`, { allow404: true });
+      if (meta.status === 404) return null;
+      const fresh = (await meta.json())['@microsoft.graph.downloadUrl'];
+      if (fresh) {
+        lastUrl = fresh;
+        const b = await fromUrl(fresh, '取り直したURL');
+        if (b) return b;
+      }
+      try {
+        const res = await api('GET', `${GRAPH}/v1.0/me/drive/items/${encodeURIComponent(e.id)}/content`);
+        return new Uint8Array(await res.arrayBuffer());
+      } catch (err) {
+        tried.push(`content:${err && err.message}`);
+      }
+      console.warn('OneDriveのファイルを読めませんでした', name, tried);
+      throw new OneDriveError(downloadFailMessage(lastUrl), 'download');
     }
     async function write(name, bytes) {
       if (!index) await list();
