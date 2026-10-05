@@ -12,6 +12,8 @@ sideops/
 │   │             # テーマ（基本色＋派生色・テーマブリッジ送信）・
 │   │             # スポイト・カバーフロー（アプリランチャー、
 │   │             # cards/apps分離のIndexedDB駆動）・アンビエントFX
+│   ├── sync-onedrive.js # 同期の保存先：OneDrive（ログイン＝認可コード＋PKCE・アプリフォルダの読み書き）。
+│   │                     # sync.jsより前に読み込む
 │   ├── sync-gdrive.js # 同期の保存先：Googleドライブ（ログイン・appDataFolderの読み書き）。
 │   │                   # sync.jsより前に読み込む
 │   └── sync.js  # 同期（複数端末）：暗号化・同期ファイル・3方向比較・同期モーダル・

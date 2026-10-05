@@ -216,5 +216,24 @@
     return { kind: 'gdrive', list, read, write, remove, ageMs, stamp };
   }
 
-  window.SideOpsSyncDrive = { configured, tokenValid, requestToken, signOut, createBackend, DriveError, isTest: !!testHook };
+  // 同期の保存先として登録する（sync.js は保存先をこの形でしか扱わない）
+  window.SideOpsSyncProviders = window.SideOpsSyncProviders || {};
+  window.SideOpsSyncProviders.gdrive = {
+    id: 'gdrive', label: 'Googleドライブ', order: 2,
+    note: 'Googleドライブの「このアプリ専用の見えない領域」に、暗号化して保存します（ドライブのほかのファイルには触れません）。ログインは約1時間で切れます。切れたら☁を押すと、ログインし直して同期します。',
+    configured,
+    // 使えるトークンを用意する。interactive のときだけログインのポップアップを開く（押した直後に呼ぶこと）
+    async ensureToken({ interactive } = {}) {
+      if (!configured()) throw new DriveError('Googleドライブの設定（クライアントID）がまだありません', 'config');
+      if (tokenValid()) return true;
+      if (!interactive) return false;
+      await requestToken();
+      return true;
+    },
+    async status() { return !configured() ? 'off' : (tokenValid() ? 'ready' : 'login'); },
+    async signOut() { signOut(); },
+    async persist() { return false; }, // トークンは保存しない
+    createBackend,
+    redirectResult: Promise.resolve(null),
+  };
 })();

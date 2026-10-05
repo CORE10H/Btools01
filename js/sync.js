@@ -661,11 +661,36 @@
     await addLog('info', '新しい同期を作りました');
     return manifest;
   }
-  // 「この端末を忘れる」：鍵と同期の状態を消す（アプリのデータは消さない）
+  // ---- 小さな秘密（クラウドの更新用トークン等）を、同期の鍵で暗号化して保存する ----
+  // 鍵がまだない端末では保存しない（呼び出し側はメモリだけで持つ）
+  async function saveSecret(name, value) {
+    const keys = await getKeys();
+    if (!keys) return false;
+    const data = await seal(keys.encKey, te.encode(String(value)), 'sideops-sync|secret|' + name);
+    await metaPut({ key: 'secret:' + name, data, savedAt: Date.now() });
+    return true;
+  }
+  async function loadSecret(name) {
+    const keys = await getKeys();
+    if (!keys) return null;
+    const rec = await metaGet('secret:' + name);
+    if (!rec || !(rec.data instanceof Uint8Array)) return null;
+    try { return td.decode(await unseal(keys.encKey, rec.data, 'sideops-sync|secret|' + name)); } catch (err) { return null; }
+  }
+  async function deleteSecret(name) {
+    const d = await syncDb();
+    const tx = d.transaction('meta', 'readwrite');
+    tx.objectStore('meta').delete('secret:' + name);
+    await txDone(tx);
+  }
+
+  // 「この端末を忘れる」：鍵と同期の状態を消す（アプリのデータは消さない）。クラウドへの接続と、
+  // 覚えているログイン（暗号化した更新用トークン）も消す
   async function forgetDevice() {
     const d = await syncDb();
+    const secretKeys = (await reqP(d.transaction('meta').objectStore('meta').getAllKeys())).filter((k) => typeof k === 'string' && k.startsWith('secret:'));
     const tx = d.transaction(['meta', 'records', 'conflicts'], 'readwrite');
-    ['keys', 'manifest', 'clock', 'dbs', 'status', 'device'].forEach((k) => tx.objectStore('meta').delete(k));
+    ['keys', 'manifest', 'clock', 'dbs', 'status', 'device', 'cloud', 'written', ...secretKeys].forEach((k) => tx.objectStore('meta').delete(k));
     tx.objectStore('records').clear();
     tx.objectStore('conflicts').clear();
     await txDone(tx);
@@ -1302,7 +1327,7 @@
     function setBusy(b) {
       overlay.querySelectorAll('[data-sync-action]').forEach((el) => { el.disabled = b; });
       overlay.classList.toggle('is-busy', b);
-      if (!b) { applyDriveAvailability(); refreshDrive(); }
+      if (!b) { applyCloudAvailability(); refreshCloud(); }
     }
     function showResult(lines, kind) {
       resultEl.textContent = '';
@@ -1353,26 +1378,26 @@
           label.append(cb, span);
           dbListEl.appendChild(label);
         }
-        await refreshDrive();
+        await refreshCloud();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
       }
     }
 
-    // ☁を押したとき：Googleドライブにつないでいれば、そのまま同期する（ログインが切れていればログインから）
-    async function open() {
+    // ☁を押したとき：クラウドにつないでいれば、そのまま同期する（ログインが切れていればログインから）
+    async function open(opts) {
       overlay.classList.add('is-open');
       refresh();
-      if (!driveReady() || overlay.classList.contains('is-busy')) return;
-      const g = await driveMeta();
-      if (g.connected) run(driveSyncFlow);
+      if ((opts && opts.autoSync === false) || overlay.classList.contains('is-busy')) return;
+      const c = await cloudMeta();
+      if (c.connected && providers[c.provider] && providers[c.provider].configured()) run(cloudSyncFlow);
     }
     function close() {
       if (overlay.classList.contains('is-busy')) return;
       overlay.classList.remove('is-open');
       if (needReload) location.reload(); // 取り込んだ変更を画面に反映する（古いデータのまま保存し直さないように）
     }
-    openBtn.addEventListener('click', open);
+    openBtn.addEventListener('click', () => open());
     $('syncCloseBtn').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('is-open') && !$('syncDialog').classList.contains('is-open')) close(); });
@@ -1474,20 +1499,44 @@
       }
     }
 
-    // ===================== Googleドライブ（段階2） =====================
-    const drive = window.SideOpsSyncDrive || null;
-    const driveBtn = $('syncDriveBtn');
-    const driveOffBtn = $('syncDriveOffBtn');
-    const driveAuto = $('syncDriveAuto');
-    const driveStatus = $('syncDriveStatus');
-    const driveReady = () => !!(drive && drive.configured());
-    async function driveMeta() {
-      const m = await metaGet('gdrive');
-      return { key: 'gdrive', connected: false, auto: true, ...(m || {}) };
+    // ===================== クラウド（OneDrive・Googleドライブ） =====================
+    // 保存先は js/sync-onedrive.js・js/sync-gdrive.js が window.SideOpsSyncProviders に登録する。
+    // 1台の端末が同期に使うクラウドは1つだけ（切り替えるときは、接続を解除してから選び直す）
+    const providers = window.SideOpsSyncProviders || {};
+    const providerList = Object.values(providers).sort((x, y) => (x.order || 9) - (y.order || 9));
+    const cloudSel = $('syncCloudProvider');
+    const cloudBtn = $('syncCloudBtn');
+    const cloudOffBtn = $('syncCloudOffBtn');
+    const cloudAuto = $('syncCloudAuto');
+    const cloudStatus = $('syncCloudStatus');
+    const cloudNote = $('syncCloudNote');
+    const anyCloudReady = () => providerList.some((p) => p.configured());
+    async function cloudMeta() {
+      const m = await metaGet('cloud');
+      return { key: 'cloud', provider: '', connected: false, auto: true, ...(m || {}) };
     }
-    function applyDriveAvailability() {
-      if (driveReady()) return;
-      [driveBtn, driveOffBtn, driveAuto].forEach((el) => { if (el) el.disabled = true; });
+    function buildProviderOptions() {
+      if (!cloudSel || cloudSel.options.length) return;
+      for (const p of providerList) {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.label + (p.configured() ? '' : '（準備中）');
+        o.disabled = !p.configured();
+        cloudSel.appendChild(o);
+      }
+      const first = providerList.find((p) => p.configured());
+      if (first) cloudSel.value = first.id;
+    }
+    // この端末で使う保存先：つないでいればそれ。なければ選択欄で選んでいるもの
+    async function currentProvider() {
+      const c = await cloudMeta();
+      if (c.connected && providers[c.provider]) return providers[c.provider];
+      buildProviderOptions();
+      return (cloudSel && providers[cloudSel.value]) || providerList.find((p) => p.configured()) || null;
+    }
+    function applyCloudAvailability() {
+      if (!cloudSel || anyCloudReady()) return;
+      [cloudSel, cloudBtn, cloudOffBtn, cloudAuto].forEach((el) => { if (el) el.disabled = true; });
     }
 
     // ☁ボタンの印：同期済み（cyan）／ログインが必要・しばらく同期していない（amber）／失敗（magenta）／同期中
@@ -1496,95 +1545,115 @@
       try {
         if (state === 'error') indicatorError = true;
         if (state === 'ok') indicatorError = false;
-        const g = await driveMeta();
+        const c = await cloudMeta();
+        const p = c.connected ? providers[c.provider] : null;
+        const login = p && p.configured() ? await p.status() : 'off';
         const status = await metaGet('status');
         openBtn.classList.remove('sync-ok', 'sync-warn', 'sync-error', 'sync-busy');
         let cls = '';
         let title = '同期（複数の端末でデータを使う）';
+        const last = status && status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('ja-JP') : 'なし';
         const stale = status && status.lastSyncAt && Date.now() - status.lastSyncAt > STALE_SYNC_MS;
         if (state === 'busy') { cls = 'sync-busy'; title = '同期しています…'; }
         else if (indicatorError) { cls = 'sync-error'; title = '前回の同期に失敗しました（押して確認）'; }
-        else if (g.connected && driveReady() && !drive.tokenValid()) { cls = 'sync-warn'; title = 'Googleドライブのログインが必要です（押すと同期します）'; }
-        else if (stale) { cls = 'sync-warn'; title = 'しばらく同期していません（最後の同期：' + new Date(status.lastSyncAt).toLocaleString('ja-JP') + '）'; }
-        else if (g.connected) { cls = 'sync-ok'; title = 'Googleドライブと同期しています（最後の同期：' + (status && status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('ja-JP') : 'なし') + '）'; }
+        else if (p && login === 'login') { cls = 'sync-warn'; title = `${p.label}のログインが必要です（押すと同期します）`; }
+        else if (stale) { cls = 'sync-warn'; title = `しばらく同期していません（最後の同期：${last}）`; }
+        else if (p) { cls = 'sync-ok'; title = `${p.label}と同期しています（最後の同期：${last}）`; }
         if (cls) openBtn.classList.add(cls);
         openBtn.title = title;
       } catch (err) { /* 印が出せなくても同期には影響しない */ }
     }
 
-    async function refreshDrive() {
-      if (!driveStatus) return;
-      const g = await driveMeta();
-      driveAuto.checked = g.auto;
-      if (!driveReady()) {
-        driveStatus.textContent = '準備中です（Google Cloudの登録待ち）';
-        applyDriveAvailability();
+    async function refreshCloud() {
+      if (!cloudStatus) return;
+      buildProviderOptions();
+      const c = await cloudMeta();
+      cloudAuto.checked = c.auto;
+      if (!anyCloudReady()) {
+        cloudStatus.textContent = '準備中です（OneDriveのアプリ登録待ち）';
+        applyCloudAvailability();
         return;
       }
-      driveStatus.textContent = g.connected
-        ? (drive.tokenValid() ? '接続中（ログイン済み）' : '接続中（ログインが切れています。「Googleドライブで同期」を押すとログインし直します）')
-        : 'まだ接続していません';
-      driveOffBtn.disabled = !g.connected;
+      if (c.connected && providers[c.provider]) cloudSel.value = c.provider;
+      const p = await currentProvider();
+      cloudNote.textContent = p ? p.note : '';
+      cloudSel.disabled = c.connected || overlay.classList.contains('is-busy'); // つないでいる間は選び直せない（2つのクラウドへ同時に同期しないため）
+      cloudOffBtn.disabled = !c.connected || overlay.classList.contains('is-busy');
+      if (!c.connected || !providers[c.provider]) { cloudStatus.textContent = 'まだ接続していません'; return; }
+      const login = await providers[c.provider].status();
+      cloudStatus.textContent = `${providers[c.provider].label}に接続中` + (login === 'ready' ? '（ログイン済み）' : '（ログインが切れています。「同期する」を押すとログインし直します）');
     }
+    if (cloudSel) cloudSel.addEventListener('change', () => { refreshCloud(); });
 
-    // Googleドライブで同期する（手動）。ログインのポップアップを開くため、押した直後にトークンを取りに行く
-    async function driveSyncFlow() {
-      if (!driveReady()) throw new SyncError('Googleドライブの設定（クライアントID）がまだありません');
-      if (!drive.tokenValid()) {
-        showResult(['Googleにログインしています…'], '');
-        await drive.requestToken();
+    // クラウドで同期する（手動）
+    async function cloudSyncFlow() {
+      const p = await currentProvider();
+      if (!p || !p.configured()) throw new SyncError('クラウドの設定（アプリの登録）がまだありません');
+      if (p.loginLeavesPage) {
+        // ログインでページを離れる方式（OneDrive）：離れる前に、アプリやほかのタブを閉じているか確かめる
+        await precheck();
+        showResult([`${p.label}を確認しています…`], '');
+        if (!(await p.ensureToken({ interactive: false }))) {
+          showResult([`${p.label}のログイン画面へ移ります。ログインすると、戻ってきて同期の続きをします…`], '');
+          await p.ensureToken({ interactive: true }); // ページを離れる
+          return;
+        }
+      } else if (!(await p.ensureToken({ interactive: false }))) {
+        // ポップアップでログインする方式（Googleドライブ）：押した直後に開く必要があるので、先にログインする
+        showResult([`${p.label}にログインしています…`], '');
+        await p.ensureToken({ interactive: true });
       }
       await withLock(async () => {
         await precheck();
-        showResult(['Googleドライブを確認しています…'], '');
-        const backend = drive.createBackend();
+        showResult([`${p.label}を確認しています…`], '');
+        const backend = p.createBackend();
         let info = await inspect(backend);
         if (info.state === 'empty') {
-          // ドライブにまだ同期がない：この端末の同期（同期ファイルで使っていたもの）を置くか、新しく作る
+          // クラウドにまだ同期がない：この端末の同期（同期ファイルなどで使っていたもの）を置くか、新しく作る
           let manifest;
           if (await getKeys()) {
             const m = await metaGet('manifest');
             manifest = m && m.value;
             if (!manifest) throw new SyncError('同期の設定が見つかりません。「この端末を忘れる」を実行してからやり直してください');
-            const ok = await dialog({ message: 'Googleドライブにはまだ同期がありません。この端末で使っている同期（今のパスフレーズ）を、Googleドライブに置きます。\nほかの端末は、同じパスフレーズのまま、Googleドライブで同期できます。', okLabel: '置く' });
+            const ok = await dialog({ message: `${p.label}にはまだ同期がありません。この端末で使っている同期（今のパスフレーズ）を、${p.label}に置きます。\nほかの端末は、同じパスフレーズのまま${p.label}で同期できます。`, okLabel: '置く' });
             if (!ok) { showResult(['やめました'], ''); return; }
             if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
           } else {
-            const p = await dialog({
-              message: `同期用のパスフレーズを決めてください（${PASSPHRASE_MIN}文字以上）。\n忘れるとGoogleドライブのデータは誰にも開けません。ほかの端末で同期を始めるときに入力します。`,
+            const pass = await dialog({
+              message: `同期用のパスフレーズを決めてください（${PASSPHRASE_MIN}文字以上）。\n忘れると${p.label}のデータは誰にも開けません。ほかの端末で同期を始めるときに入力します。`,
               pass: 2, okLabel: '決定', validate: checkPassphraseRule,
             });
-            if (p === null) { showResult(['やめました'], ''); return; }
+            if (pass === null) { showResult(['やめました'], ''); return; }
             if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
             showResult(['鍵を作っています…'], '');
-            manifest = await createSpace(p);
+            manifest = await createSpace(pass);
           }
           await backend.write(MANIFEST_NAME, te.encode(JSON.stringify(manifest)));
           info = await inspect(backend);
         }
         if (info.state === 'otherSpace') {
-          const ok = await dialog({ message: 'この端末は、別のパスフレーズで作った同期を使っています。Googleドライブの同期に切り替えますか？\n（この端末のデータは消えません。切り替えた後は、この端末のデータとGoogleドライブのデータを合流させます）', okLabel: '切り替える', danger: true });
+          const ok = await dialog({ message: `この端末は、別のパスフレーズで作った同期を使っています。${p.label}の同期に切り替えますか？\n（この端末のデータは消えません。切り替えた後は、この端末のデータと${p.label}のデータを合流させます）`, okLabel: '切り替える', danger: true });
           if (!ok) { showResult(['やめました'], ''); return; }
           await forgetDevice();
           info = await inspect(backend);
         }
         if (info.state === 'needsPassphrase') {
-          const p = await dialog({
+          const pass = await dialog({
             message: '同期のパスフレーズを入力してください（最初の端末で決めたもの）',
             pass: 1, okLabel: '開く',
             validate: async (pp) => {
               try { dlgErr.textContent = '確認しています…'; await unlock(info.manifest, pp); return ''; } catch (err) { return userFacing(err) ? err.message : '確認に失敗しました'; }
             },
           });
-          if (p === null) { showResult(['やめました'], ''); return; }
+          if (pass === null) { showResult(['やめました'], ''); return; }
         }
         if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
         showResult(['同期しています…'], '');
         const report = await syncWith(backend, { confirmSensitive });
-        const g = await driveMeta();
-        await metaPut({ ...g, connected: true });
+        await metaPut({ ...(await cloudMeta()), provider: p.id, connected: true });
+        await p.persist(); // 鍵ができた後に、更新用トークンを暗号化して保存する（OneDrive）
         lastAuto = Date.now();
-        const lines = ['Googleドライブと同期しました。', ...reportLines(report)];
+        const lines = [`${p.label}と同期しました。`, ...reportLines(report)];
         if (report.conflicts) lines.push(`両方の端末で変えていたデータが${report.conflicts}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました`);
         if (report.applied) { needReload = true; lines.push('取り込んだ変更を画面に反映するため、閉じると再読み込みします'); }
         showResult(lines, 'ok');
@@ -1593,19 +1662,21 @@
         await refresh();
       });
     }
-    if (driveBtn) driveBtn.addEventListener('click', () => run(driveSyncFlow));
-    if (driveOffBtn) driveOffBtn.addEventListener('click', () => run(async () => {
-      const ok = await dialog({ message: 'Googleドライブとの接続を解除します。この端末では自動の同期もしなくなります。\nGoogleドライブ上のデータと、この端末のデータは消えません。', okLabel: '解除する', danger: true });
+    if (cloudBtn) cloudBtn.addEventListener('click', () => run(cloudSyncFlow));
+    if (cloudOffBtn) cloudOffBtn.addEventListener('click', () => run(async () => {
+      const c = await cloudMeta();
+      const p = providers[c.provider];
+      const label = p ? p.label : 'クラウド';
+      const ok = await dialog({ message: `${label}との接続を解除します。この端末では自動の同期もしなくなり、覚えているログインも消します。\n${label}上のデータと、この端末のデータは消えません。`, okLabel: '解除する', danger: true });
       if (!ok) { showResult(['やめました'], ''); return; }
-      drive.signOut();
-      const g = await driveMeta();
-      await metaPut({ ...g, connected: false });
-      showResult(['Googleドライブとの接続を解除しました'], 'ok');
+      if (p) await p.signOut();
+      await metaPut({ ...c, connected: false });
+      showResult([`${label}との接続を解除しました`], 'ok');
       await refresh();
     }));
-    if (driveAuto) driveAuto.addEventListener('change', async () => {
-      const g = await driveMeta();
-      await metaPut({ ...g, auto: driveAuto.checked });
+    if (cloudAuto) cloudAuto.addEventListener('change', async () => {
+      const c = await cloudMeta();
+      await metaPut({ ...c, auto: cloudAuto.checked });
     });
 
     // ---- 自動の同期：ログイン中だけ。確認が必要な場面（パスフレーズ・顧客データ）では何もしない ----
@@ -1626,20 +1697,23 @@
       setTimeout(tryReload, 2500);
     }
     async function autoSync() {
-      if (autoRunning || !driveReady() || !drive.tokenValid() || reloadPending) return;
-      const g = await driveMeta();
-      if (!g.connected || !g.auto) return;
+      if (autoRunning || reloadPending) return;
+      const c = await cloudMeta();
+      const p = c.connected ? providers[c.provider] : null;
+      if (!p || !p.configured() || !c.auto) return;
       if (stageBusy() || otherModalOpen()) return; // アプリや設定を開いている間は後回し
       autoRunning = true;
       try {
+        if (!(await p.ensureToken({ interactive: false }))) { updateIndicator(); return; } // 自動ではログインし直さない
         if (await otherTabsOpen()) return;
         updateIndicator('busy');
         const report = await withLock(async () => {
-          const backend = drive.createBackend();
+          const backend = p.createBackend();
           const info = await inspect(backend);
-          if (info.state !== 'ready') throw new SyncError('Googleドライブの同期を確認してください（☁から同期してください）');
+          if (info.state !== 'ready') throw new SyncError(`${p.label}の同期を確認してください（☁から同期してください）`);
           return syncWith(backend, {});
         });
+        await p.persist();
         lastAuto = Date.now();
         updateIndicator('ok');
         if (report.applied) scheduleReload();
@@ -1681,7 +1755,23 @@
       clearTimeout(showToast._t);
       showToast._t = setTimeout(() => el.classList.remove('show'), 4000);
     }
-    applyDriveAvailability();
+
+    // ログイン（ページを離れる方式）から戻ったとき：結果を表示し、同期の続きをする
+    (async () => {
+      for (const p of providerList) {
+        let r = null;
+        try { r = await p.redirectResult; } catch (err) { r = { error: 'ログインに失敗しました' }; }
+        if (!r) continue;
+        const resume = p.resumeKey && sessionStorage.getItem(p.resumeKey) === p.id;
+        if (p.resumeKey) sessionStorage.removeItem(p.resumeKey);
+        buildProviderOptions();
+        if (cloudSel && !(await cloudMeta()).connected) cloudSel.value = p.id;
+        await open({ autoSync: false });
+        if (r.error) { showResult([r.error], 'error'); continue; }
+        if (resume) run(cloudSyncFlow);
+      }
+    })();
+    applyCloudAvailability();
     updateIndicator();
 
     // 「同期ファイルを作る」：この端末のデータから同期ファイルを作る（初回はパスフレーズを決める）
@@ -1789,8 +1879,9 @@
       showResult([`競合の控え${n}件を書き出しました（暗号化されていません）`], 'ok');
     }));
     $('syncForgetBtn').addEventListener('click', () => run(() => withLock(async () => {
-      const ok = await dialog({ message: 'この端末の同期を解除します。覚えている鍵と同期の状態を消します（アプリのデータは消えません）。\nもう一度同期するときは、パスフレーズの入力が必要です。', okLabel: '解除する', danger: true });
+      const ok = await dialog({ message: 'この端末の同期を解除します。覚えている鍵と同期の状態、クラウドへの接続とログインを消します（アプリのデータは消えません）。\nもう一度同期するときは、パスフレーズの入力が必要です。', okLabel: '解除する', danger: true });
       if (!ok) { showResult(['やめました'], ''); return; }
+      for (const p of providerList) { try { await p.signOut(); } catch (err) { /* メモリのトークンは次の読み込みで消える */ } }
       await forgetDevice();
       showResult(['この端末の同期を解除しました'], 'ok');
       await refresh();
@@ -1799,7 +1890,7 @@
 
   // 動作確認・開発用（同じオリジンのスクリプトは元々すべてのDBを読めるので、新たな危険は増えない）
   window.SideOpsSync = {
-    SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME, SyncError,
+    SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME, SyncError, saveSecret, loadSecret, deleteSecret,
     createMemoryBackend, backendFromPackage, packageBlob, inspect, unlock, createSpace, syncWith,
     forgetDevice, buildBackup, restoreBackup, countConflicts, getDevice, localDbVersions,
   };

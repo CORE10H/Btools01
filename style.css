@@ -1015,7 +1015,8 @@
   .sync-db-item:has(input:disabled) { opacity: .5; cursor: not-allowed; }
   .sync-auto { margin-top: 10px; align-items: flex-start; line-height: 1.6; }
   .sync-auto input { margin-top: 2px; }
-  #syncDriveStatus { margin-top: 6px; }
+  #syncCloudStatus { margin-top: 6px; }
+  .sync-cloud-provider { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
   /* ☁ボタンの印（js/sync.js の updateIndicator） */
   #cloudSyncBtn { position: relative; }
   #cloudSyncBtn::after {
