@@ -9,7 +9,7 @@
 | 1 | 暗号化・形式・3方向比較。同期ファイルを手で運ぶ手動同期 | **実装済み（2026-10-05）**。詳細は末尾の「段階1の実装」 |
 | 2 | Googleドライブ（ログイン・自動同期） | **実装済み（2026-10-05）。Google Cloudの登録（クライアントID）待ち・本物のGoogleでは未確認**。詳細は末尾の「段階2の実装」 |
 | 3 | 状態の表示と設定画面の仕上げ（競合の控えの確認・復元、パスフレーズの変更、データ鍵の作り直し、開いているアプリへの通知） | 未着手 |
-| 4 | OneDrive | **段階3より先に実装済み（2026-10-05、ユーザーの希望で順番を入れ替え）。Microsoft Entraの登録（クライアントID）待ち・本物のMicrosoftでは未確認**。詳細は末尾の「OneDriveの実装」 |
+| 4 | OneDrive | **段階3より先に実装済み（2026-10-05、ユーザーの希望で順番を入れ替え）。クライアントIDも設定済み（2026-10-05）。本物のMicrosoftでの実機確認待ち**。詳細は末尾の「OneDriveの実装」 |
 
 ## 目的と前提
 
@@ -498,7 +498,7 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 ### ファイル
 
 - `js/sync-onedrive.js`：OneDriveとのやり取り（ログイン・list/read/write/remove）。`sync.js`より前に読み込む
-- クライアントIDは`js/sync-onedrive.js`の`CLIENT_ID`に書く（秘密ではない）。空の間は「準備中」と表示し、選べない
+- クライアントIDは`js/sync-onedrive.js`の`CLIENT_ID`に書く（秘密ではない）。空の間は「準備中」と表示し、選べない。2026-10-05、ユーザーが登録したアプリのIDを設定した
 - 保存先（OneDrive・Googleドライブ）は、どちらも`window.SideOpsSyncProviders`に同じ形で登録し、`sync.js`はその形でしか扱わない
   - 登録する形：`configured / ensureToken / status / signOut / createBackend / persist / redirectResult`
 - 同期モーダルの「クラウドで同期」で保存先を選ぶ。1台の端末が使うのは1つだけで、つないでいる間は選び直せない

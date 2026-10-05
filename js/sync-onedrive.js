@@ -23,7 +23,7 @@
   'use strict';
 
   // Microsoft Entra で登録したアプリの「アプリケーション（クライアント）ID」（秘密ではないので、ここに書いてよい）
-  const CLIENT_ID = '';
+  const CLIENT_ID = '2614141e-d905-4b0d-8a43-748e14b1fd27';
   const SCOPE = 'https://graph.microsoft.com/Files.ReadWrite.AppFolder offline_access';
   const MAX_UPLOAD = 250 * 1024 * 1024;   // 1回の送信で送れる上限（Graph の仕様）
   const RETRY_MAX = 4;
