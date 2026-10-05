@@ -804,7 +804,10 @@
     const d = await syncDb();
 
     for (const rule of DB_RULES) {
-      const res = { db: rule.name, label: rule.label, pulled: 0, removed: 0, pushed: 0, conflicts: 0, note: '' };
+      const res = {
+        db: rule.name, label: rule.label, pulled: 0, removed: 0, pushed: 0, conflicts: 0, note: '',
+        inAdd: 0, inChange: 0, inDel: 0, outAdd: 0, outChange: 0, outDel: 0,
+      };
       report.results.push(res);
       const keepPrev = () => { if (ownPrev && ownPrev.dbs[rule.name]) ownDbs[rule.name] = ownPrev.dbs[rule.name]; };
       if (prefs.disabled[rule.name]) { res.note = '同期しない設定'; continue; }
@@ -878,25 +881,26 @@
 
         // ---- 前回同期した時点との比較で、この端末の変更を見つける ----
         let scan = await scanDb(rule, db, hash);
-        const changed = new Set();
+        const changed = new Map(); // この端末の変更：id → { kind: 'add'|'change'|'del', ver（この端末で付けた版） }
         for (const [id, c] of scan.recs) {
           const s = st.get(id);
           if (!s) {
             const ver = firstTime ? initialVer(c.raw, dev.id, best.has(id)) : clock.next();
             if (ver.slice(19) !== LOWEST_DEVICE) clock.observe(ver);
             st.set(id, { id, db: rule.name, store: c.store, key: c.key, ver, fp: c.fp, deleted: false, dirty: true, baseVer: null });
-            changed.add(id);
+            changed.set(id, { kind: 'add', ver });
           } else if (s.deleted || s.fp !== c.fp) {
+            const kind = s.deleted ? 'add' : 'change';
             if (!s.dirty) { s.baseVer = s.ver; s.dirty = true; }
             s.ver = clock.next(); s.fp = c.fp; s.deleted = false;
-            changed.add(id);
+            changed.set(id, { kind, ver: s.ver });
           }
         }
         for (const [id, s] of st) {
           if (s.deleted || scan.recs.has(id)) continue;
           if (!s.dirty) { s.baseVer = s.ver; s.dirty = true; }
           s.ver = clock.next(); s.deleted = true; s.fp = null;
-          changed.add(id);
+          changed.set(id, { kind: 'del', ver: s.ver });
         }
         // 初めての合流で、同じ内容のデータが別々のIDで両方にあれば知らせる
         // （両方の端末で別々に登録した同じデータは、IDが違うので両方残る）
@@ -911,6 +915,13 @@
         for (const [id, r] of best) {
           const s = st.get(id);
           if (s && r.ver === s.ver) continue;
+          // 中身がまったく同じなら、書き直さずに版だけ揃える（受け取り・送り出しにも数えない）。
+          // 両方の端末で別々に同期を始めた後の合流などで、同じデータを受け取り直さないため
+          if (s && ((s.deleted && r.deleted) || (!s.deleted && !r.deleted && await fingerprint(r.value) === s.fp))) {
+            Object.assign(s, { ver: r.ver, dirty: false, baseVer: null });
+            changed.delete(id);
+            continue;
+          }
           if (!s) {
             st.set(id, { id, db: rule.name, store: r.store, key: r.key, ver: r.ver, fp: null, deleted: r.deleted, dirty: false, baseVer: null });
             if (!r.deleted) plan.push({ op: 'put', id, store: r.store, key: r.key, value: r.value });
@@ -998,8 +1009,12 @@
             throw err;
           }
           await done;
-          res.pulled = plan.filter((p) => p.op === 'put').length;
-          res.removed = plan.filter((p) => p.op === 'del').length;
+          // 受け取った変更の内訳（scan はまだ反映前の中身）
+          for (const p of plan) {
+            if (p.op === 'del') res.inDel++;
+            else if (scan.recs.has(p.id)) res.inChange++;
+            else res.inAdd++;
+          }
           report.applied = true;
           // 反映後の中身で指紋を取り直す（次回、反映した分を「この端末の変更」と誤認しないように）
           scan = await scanDb(rule, db, hash);
@@ -1042,7 +1057,18 @@
         });
         listed.add(dbFile);
         ownDbs[rule.name] = { file: dbFile, dbVersion: db.version, count: scan.recs.size };
-        res.pushed = changed.size;
+        // 送り出した変更の内訳。相手の新しい版に負けた変更は送っていない（競合として数える）
+        for (const [id, ch] of changed) {
+          const s = st.get(id);
+          if (!s || s.ver !== ch.ver) continue;
+          if (ch.kind === 'add') res.outAdd++;
+          else if (ch.kind === 'change') res.outChange++;
+          else res.outDel++;
+        }
+        res.pulled = res.inAdd + res.inChange;
+        res.removed = res.inDel;
+        res.pushed = res.outAdd + res.outChange + res.outDel;
+        if (firstTime) report.firstTime = true;
         if (scan.skipped) res.note = (res.note ? res.note + ' / ' : '') + `同期できない形のレコード${scan.skipped}件を飛ばしました`;
 
         // ---- 状態を保存：送り終えたので、すべて「送信済み」にする ----
@@ -1089,10 +1115,26 @@
     await metaPut(dbsMeta);
     await metaPut({ key: 'status', lastSyncAt: Date.now(), lastSyncKind: backend.kind });
     await purgeConflicts();
-    const summary = report.results.filter((r) => r.pulled || r.removed || r.pushed || r.conflicts || r.note)
-      .map((r) => `${r.label}：取込${r.pulled}・削除${r.removed}・送出${r.pushed}${r.conflicts ? '・競合' + r.conflicts : ''}${r.note ? '（' + r.note + '）' : ''}`).join(' / ');
-    await addLog('sync', summary || '変更なし');
+    await addLog('sync', summarizeReport(report).join(' / ') || '変更なし');
     return report;
+  }
+
+  // ---- 結果の表示：アプリごとに「受け取り」「送り出し」を、追加・変更・削除の内訳つきで ----
+  function countParts(add, change, del) {
+    return [add && `追加${add}`, change && `変更${change}`, del && `削除${del}`].filter(Boolean).join('・');
+  }
+  function resultLine(r) {
+    const inN = r.inAdd + r.inChange + r.inDel;
+    const outN = r.outAdd + r.outChange + r.outDel;
+    const segs = [];
+    if (inN) segs.push(`受け取り${inN}件（${countParts(r.inAdd, r.inChange, r.inDel)}）`);
+    if (outN) segs.push(`送り出し${outN}件（${countParts(r.outAdd, r.outChange, r.outDel)}）`);
+    if (r.conflicts) segs.push(`競合${r.conflicts}件`);
+    if (!segs.length && !r.note) return '';
+    return `${r.label}：${segs.length ? segs.join('／') : '変更なし'}${r.note ? `（${r.note}）` : ''}`;
+  }
+  function summarizeReport(report) {
+    return report.results.map(resultLine).filter(Boolean);
   }
 
   // 重複の候補：IDと日時を除いた中身が同じで、IDが違うレコード（ストアごと）
@@ -1410,17 +1452,25 @@
     const dlgErr = $('syncDialogErr');
     const dlgOk = $('syncDialogOk');
     const dlgCancel = $('syncDialogCancel');
+    // 確認・パスフレーズ入力のダイアログ。フールプルーフ：
+    //   ・確かめている間（パスフレーズの照合は1秒ほどかかる）は OK・やめる を押せなくする（二度押し防止）
+    //   ・古いダイアログの後始末が、次に開いたダイアログを閉じてしまわないよう、開くたびに番号を振る
+    let dialogSeq = 0;
     function dialog({ message, pass = 0, okLabel = 'OK', danger = false, validate }) {
       return new Promise((resolve) => {
+        const my = ++dialogSeq;
+        let validating = false;
         dlgMsg.textContent = message;
         dlgErr.textContent = '';
         dlgPass.value = ''; dlgPass2.value = '';
         dlgPass.hidden = pass < 1; dlgPass2.hidden = pass < 2;
         dlgOk.textContent = okLabel;
         dlgOk.className = 'btn ' + (danger ? 'danger' : 'primary');
+        dlgOk.disabled = false; dlgCancel.disabled = false;
         dlg.classList.add('is-open');
         if (pass) setTimeout(() => dlgPass.focus(), 30);
         const finish = (v) => {
+          if (my !== dialogSeq) return; // すでに次のダイアログが開いている
           dlg.classList.remove('is-open');
           dlgOk.onclick = dlgCancel.onclick = null;
           dlgPass.onkeydown = dlgPass2.onkeydown = null;
@@ -1428,10 +1478,19 @@
           resolve(v);
         };
         dlgOk.onclick = async () => {
+          if (validating) return;
           if (!pass) { finish(true); return; }
           const p = dlgPass.value;
           if (pass >= 2 && p !== dlgPass2.value) { dlgErr.textContent = '2回の入力が一致しません'; return; }
-          const msg = validate ? await validate(p) : '';
+          let msg = '';
+          if (validate) {
+            validating = true;
+            dlgOk.disabled = true; dlgCancel.disabled = true;
+            try { msg = await validate(p); } finally {
+              validating = false;
+              dlgOk.disabled = false; dlgCancel.disabled = false;
+            }
+          }
           if (msg) { dlgErr.textContent = msg; return; }
           finish(p);
         };
@@ -1458,27 +1517,30 @@
     }
 
     function reportLines(report) {
-      const lines = [];
-      for (const r of report.results) {
-        if (!(r.pulled || r.removed || r.pushed || r.conflicts || r.note)) continue;
-        lines.push(`${r.label}：取り込み${r.pulled}件・削除${r.removed}件・送り出し${r.pushed}件${r.conflicts ? `・競合${r.conflicts}件` : ''}${r.note ? `（${r.note}）` : ''}`);
+      const lines = summarizeReport(report);
+      if (!lines.length) return ['変更はありませんでした（ほかの端末と同じ内容です）'];
+      if (report.results.some((r) => r.pulled || r.removed || r.pushed)) {
+        lines.push('※受け取り＝ほかの端末の変更を、この端末に反映した件数／送り出し＝この端末の変更を送った件数（中身がまったく同じデータは数えません）');
       }
-      if (!lines.length) lines.push('変更はありませんでした');
+      if (report.firstTime) lines.push('※初めて同期したアプリは、この端末にしかなかったデータを「送り出し（追加）」として数えています');
       return lines;
     }
+    const CONFLICT_LINE = (n) => `両方の端末で変えていたデータが${n}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました（「競合の控えを書き出す」で確かめられます）`;
+    const RELOAD_LINE = '受け取ったデータは、この端末に保存済みです。画面の表示を最新にするため、閉じると再読み込みします';
+    const RELOAD_BUTTON = '今すぐ画面を最新にする';
 
     async function finishSync(backend, manifest, report) {
       lastPackage = { blob: packageBlob(backend, manifest.spaceId), name: `sideops-sync-${stamp()}.json` };
       downloadBlob(lastPackage.blob, lastPackage.name);
       const lines = ['同期しました。新しい同期ファイルを保存しました（' + lastPackage.name + '）。', ...reportLines(report)];
-      if (report.conflicts) lines.push(`両方の端末で変えていたデータが${report.conflicts}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました`);
+      if (report.conflicts) lines.push(CONFLICT_LINE(report.conflicts));
       if (report.applied) {
         needReload = true;
-        lines.push('取り込んだ変更を画面に反映するため、閉じると再読み込みします');
+        lines.push(RELOAD_LINE);
       }
       showResult(lines, 'ok');
       appendButton('同期ファイルをもう一度保存', () => downloadBlob(lastPackage.blob, lastPackage.name));
-      if (report.applied) appendButton('再読み込みして反映する', () => location.reload(), 'primary');
+      if (report.applied) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
       await refresh();
     }
 
@@ -1654,10 +1716,10 @@
         await p.persist(); // 鍵ができた後に、更新用トークンを暗号化して保存する（OneDrive）
         lastAuto = Date.now();
         const lines = [`${p.label}と同期しました。`, ...reportLines(report)];
-        if (report.conflicts) lines.push(`両方の端末で変えていたデータが${report.conflicts}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました`);
-        if (report.applied) { needReload = true; lines.push('取り込んだ変更を画面に反映するため、閉じると再読み込みします'); }
+        if (report.conflicts) lines.push(CONFLICT_LINE(report.conflicts));
+        if (report.applied) { needReload = true; lines.push(RELOAD_LINE); }
         showResult(lines, 'ok');
-        if (report.applied) appendButton('再読み込みして反映する', () => location.reload(), 'primary');
+        if (report.applied) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
         updateIndicator('ok');
         await refresh();
       });
@@ -1689,7 +1751,7 @@
     function scheduleReload() {
       if (reloadPending) return;
       reloadPending = true;
-      showToast('ほかの端末の変更を取り込みました。画面に反映するため、再読み込みします');
+      showToast('ほかの端末の変更を受け取りました（保存済み）。画面の表示を最新にするため、再読み込みします');
       const tryReload = () => {
         if (!stageBusy() && !otherModalOpen()) location.reload();
         else setTimeout(tryReload, 2000);
@@ -1868,8 +1930,8 @@
         if (!ok) { showResult(['やめました'], ''); return; }
         const done = await restoreBackup(obj);
         needReload = true;
-        showResult(['復元しました。閉じると再読み込みします', ...done], 'ok');
-        appendButton('再読み込みして反映する', () => location.reload(), 'primary');
+        showResult(['復元しました（この端末に保存済み）。画面の表示を最新にするため、閉じると再読み込みします', ...done], 'ok');
+        appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
       }));
     });
     $('syncConflictsBtn').addEventListener('click', () => run(async () => {
