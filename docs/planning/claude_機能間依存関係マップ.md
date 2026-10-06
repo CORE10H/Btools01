@@ -92,6 +92,8 @@ note連携で設計したINTELパネルの内部データ（readers/works/transa
 - 新しいアプリ・DBを足す → `DB_RULES`に足す
 - 本体の設定（`sideops_settings`の`main`）は項目ごとに分けて同期する（テーマは同期、壁紙・透過率は端末ごと）。設定に項目を足したら、どちらにするか決める
 - Stageでアプリを開いているかどうかを、`#stageEl`の`is-open`と、`#stageBody`内のiframe（閉じた直後の保存の猶予中）で判定している。Stageの作りを変えるときは、この判定も合わせる
+- （2026-10-06〜）`main.js`の`openStage`は、同期の`window.SideOpsSyncGate`を呼ぶ（開いた直後の同期の間は、アプリを開くのを預ける）
+- （2026-10-06〜）テーマブリッジ（`apps/sideops-theme-bridge.js`）は、アプリのIndexedDBへの書き込みに「変えたよ」の印（`localStorage`の`sideops_sync_dirty:<DB名>|<ストア名>`）を付ける。同期はこの印で、見直すDBを決める。テーマブリッジを読み込まないアプリは、☁を押したとき（または1日1回の見直し）まで同期されない
 
 ## 改修時の確認ルート（例）
 

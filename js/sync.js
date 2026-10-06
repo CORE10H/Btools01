@@ -46,7 +46,7 @@
   const SYNC_APP_BUILD = 2026100501;
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
-  const SYNC_DB_VERSION = 1;
+  const SYNC_DB_VERSION = 2; // 2：同期の記録（journal）を追加
   const KDF_ITERATIONS = 600000;        // OWASPの推奨値（PBKDF2-HMAC-SHA256）
   const KDF_ITERATIONS_MIN = 100000;    // 読み込んだmanifestの値の妥当範囲（細工されたファイルで固まらないように）
   const KDF_ITERATIONS_MAX = 10000000;
@@ -57,8 +57,6 @@
   const CONFLICT_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
   const BLOB_GRACE_MS = 30 * 24 * 60 * 60 * 1000; // クラウドで、参照されなくなった画像を消すまでの猶予
   const STALE_SYNC_MS = 3 * 24 * 60 * 60 * 1000;  // 最後の同期からこれ以上たったら☁に印を付ける
-  const AUTO_INTERVAL_MS = 5 * 60 * 1000;         // ログイン中の自動の同期の間隔
-  const AUTO_MIN_GAP_MS = 60 * 1000;              // 画面に戻ったとき、前回の自動の同期からこれ以上たっていれば取り込む
   const STAGE_RETIRE_WAIT_MS = 2500;    // Stageを閉じたあと、アプリが未保存の入力を書き終えるまでの猶予（main.jsは1.5秒）
   const MANIFEST_NAME = 'sideops-sync-manifest.json';
   const PACKAGE_FORMAT = 'sideops-sync-package';
@@ -94,6 +92,75 @@
   const RULE_BY_NAME = new Map(DB_RULES.map((r) => [r.name, r]));
 
   class SyncError extends Error {}
+  let lastReport = null; // 直近の同期の結果（動作確認用）
+
+  // ===================== 「変えたよ」の印（本体ページの分） =====================
+  // 各アプリの分は apps/sideops-theme-bridge.js が付ける。本体（ランチャー・設定）が IndexedDB に
+  // 書き込んだときも、同じ形で localStorage に印を残す。同期が自分で書き込む分は、印を付けない
+  // 元の関数（RAW）を使う
+  const DIRTY_PREFIX = 'sideops_sync_dirty:';
+  const RAW = {
+    put: IDBObjectStore.prototype.put,
+    add: IDBObjectStore.prototype.add,
+    delete: IDBObjectStore.prototype.delete,
+    clear: IDBObjectStore.prototype.clear,
+  };
+  let onLocalChange = null; // 画面（未送信の表示）へ知らせる
+  (function hookDirtyMarks() {
+    try {
+      if (window.__sideopsDirtyHooked) return;
+      window.__sideopsDirtyHooked = true;
+      const last = {};
+      const timers = {};
+      const stamp = (key) => {
+        last[key] = Date.now();
+        try { localStorage.setItem(DIRTY_PREFIX + key, String(last[key])); } catch (err) { /* 保存できない環境は無視 */ }
+        if (onLocalChange) { try { onLocalChange(key); } catch (err) { /* 表示の失敗は無視 */ } }
+      };
+      const mark = (os) => {
+        const name = os && os.transaction && os.transaction.db && os.transaction.db.name;
+        if (!name || name.indexOf('sideops_') !== 0 || name === 'sideops_sync') return;
+        const key = name + '|' + os.name;
+        if (!last[key] || Date.now() - last[key] > 500) { stamp(key); return; }
+        if (!timers[key]) timers[key] = setTimeout(() => { timers[key] = 0; stamp(key); }, 600);
+      };
+      ['put', 'add', 'delete', 'clear'].forEach((m) => {
+        const orig = IDBObjectStore.prototype[m];
+        IDBObjectStore.prototype[m] = function (...args) {
+          const r = orig.apply(this, args);
+          try { mark(this); } catch (err) { /* 印が付けられなくても続ける */ }
+          return r;
+        };
+      });
+    } catch (err) { /* 何もしない */ }
+  })();
+  // 「変えたよ」の印を読む → { DB名: そのDBの同期するストアへの最後の書き込み時刻 }
+  function readDirtyMarks() {
+    const out = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(DIRTY_PREFIX)) continue;
+        const v = Number(localStorage.getItem(k));
+        if (!Number.isFinite(v)) continue;
+        const rest = k.slice(DIRTY_PREFIX.length);
+        const bar = rest.indexOf('|');
+        const dbName = bar < 0 ? rest : rest.slice(0, bar);
+        const store = bar < 0 ? null : rest.slice(bar + 1);
+        const rule = RULE_BY_NAME.get(dbName);
+        if (!rule) continue;
+        // 同期しないストアへの書き込みは数えない
+        if (store !== null) {
+          if (rule.only && !Object.prototype.hasOwnProperty.call(rule.only, store)) continue;
+          if ((rule.excludeStores || []).includes(store)) continue;
+        }
+        out[dbName] = Math.max(out[dbName] || 0, v);
+      }
+    } catch (err) { /* 読めなければ空（☁を押したときは全部見直すので取りこぼさない） */ }
+    return out;
+  }
+  // 重い処理の途中で、画面の処理に順番を譲る
+  const yieldUi = () => new Promise((r) => setTimeout(r, 0));
 
   // ===================== 小道具 =====================
   const te = new TextEncoder();
@@ -264,6 +331,7 @@
           if (!d.objectStoreNames.contains('records')) d.createObjectStore('records', { keyPath: 'id' }).createIndex('db', 'db', { unique: false });
           if (!d.objectStoreNames.contains('conflicts')) d.createObjectStore('conflicts', { keyPath: 'id' }).createIndex('at', 'at', { unique: false });
           if (!d.objectStoreNames.contains('log')) d.createObjectStore('log', { keyPath: 'id', autoIncrement: true });
+          if (!d.objectStoreNames.contains('journal')) d.createObjectStore('journal', { keyPath: 'id', autoIncrement: true }).createIndex('at', 'at', { unique: false });
         };
         req.onsuccess = () => {
           const d = req.result;
@@ -574,6 +642,7 @@
         [keys, values] = await Promise.all([reqP(os.getAllKeys()), reqP(os.getAll())]);
       }
       for (let i = 0; i < keys.length; i++) {
+        if (i % 25 === 24) await yieldUi(); // 件数の多いDBでも画面が固まらないように
         const key = keys[i];
         if (!validKey(key)) { skipped++; continue; }
         const raw = project(rule, storeName, key, values[i], os.keyPath);
@@ -689,8 +758,9 @@
   async function forgetDevice() {
     const d = await syncDb();
     const secretKeys = (await reqP(d.transaction('meta').objectStore('meta').getAllKeys())).filter((k) => typeof k === 'string' && k.startsWith('secret:'));
-    const tx = d.transaction(['meta', 'records', 'conflicts'], 'readwrite');
-    ['keys', 'manifest', 'clock', 'dbs', 'status', 'device', 'cloud', 'written', ...secretKeys].forEach((k) => tx.objectStore('meta').delete(k));
+    const tx = d.transaction(['meta', 'records', 'conflicts', 'journal'], 'readwrite');
+    ['keys', 'manifest', 'clock', 'dbs', 'status', 'device', 'cloud', 'written', 'seen', 'own', 'scanned', ...secretKeys].forEach((k) => tx.objectStore('meta').delete(k));
+    tx.objectStore('journal').clear();
     tx.objectStore('records').clear();
     tx.objectStore('conflicts').clear();
     await txDone(tx);
@@ -724,28 +794,39 @@
       && (e.deleted === true ? true : e.value !== undefined);
   }
 
-  // hooks.confirmSensitive(rule) → Promise<boolean>（顧客データを初めて送る前の確認）
-  // 戻り値：{ results: [{ db, label, pulled, removed, pushed, conflicts, note }], applied, conflicts }
+  // hooks：
+  //   confirmSensitive(rule) → Promise<boolean>：顧客データを初めて同期する前の確認（ないときは、そのDBを今回は飛ばす）
+  //   scanAll：印に関係なく、すべてのDBを見直す（☁を押したとき・1日1回）
+  //   pushOnly：送るだけ（ほかの端末の変更は読まず、この端末のデータ帳も書き換えない。アプリを開いている間に使う）
+  //   onProgress(text)：進み具合の表示
+  // 戻り値：{ results: [...], applied, appliedDbs, conflicts, firstTime, pushOnly, stats }
   async function syncWith(backend, hooks = {}) {
+    const progress = (t) => { try { if (hooks.onProgress) hooks.onProgress(t); } catch (err) { /* 表示に失敗しても続ける */ } };
     const keys = await getKeys();
     if (!keys) throw new SyncError('この端末はまだ同期の鍵を持っていません');
+    progress('クラウドを確認しています');
     const manifest = await readManifest(backend);
     if (!manifest) throw new SyncError('同期ファイルに設定（manifest）がありません');
     if (manifest.spaceId !== keys.spaceId || manifest.keyId !== keys.keyId) throw new SyncError('この端末は別の同期を使っています');
     const spaceId = manifest.spaceId;
+    const pushOnly = !!hooks.pushOnly;
+    const scanAll = !!hooks.scanAll && !pushOnly;
     const dev = await getDevice();
     const prefs = await getPrefs();
     const clock = createClock(await metaGet('clock'), dev.id);
     const dbsMeta = (await metaGet('dbs')) || { key: 'dbs', synced: {} };
     const names = fileNames(keys);
     const hash = (bytes) => hmacHex(keys.nameKey, bytes);
-    const report = { results: [], applied: false, conflicts: 0 };
+    const report = { results: [], applied: false, appliedDbs: [], conflicts: 0, firstTime: false, pushOnly, stats: { scanned: 0, skipped: 0, downloaded: 0 } };
+    const journalItems = []; // 受け取りで書き換える前の中身（同期の記録。取り消しに使う）
 
     // クラウドでは、中身が前回書いたときと同じファイルは書き直さない（通信を減らす）。
-    // 前回書いた時点の「中身の要約」と「保存先での更新時刻・大きさ」の両方が一致するときだけ省く。
+    // 前回書いた時点の「中身の要約」と「保存先での版の印（eTag）」の両方が一致するときだけ省く。
     // 同期ファイル（手で運ぶ形）は、古いファイルを読み込み直した場合に備えて、毎回すべて書く
+    const cacheable = backend.kind !== 'file' && typeof backend.stamp === 'function';
+    const stampOf = (n) => (cacheable ? backend.stamp(n) || '' : '');
     let written = null;
-    if (backend.kind !== 'file' && typeof backend.stamp === 'function') {
+    if (cacheable) {
       const w = await metaGet('written');
       written = w && w.spaceId === spaceId && w.kind === backend.kind && isPlainObject(w.files) ? w : { key: 'written', spaceId, kind: backend.kind, files: {} };
     }
@@ -754,19 +835,40 @@
       delete rest.writtenAt;
       const digest = written ? await sha256Hex(te.encode(canonical(rest))) : '';
       const prev = written && written.files[name];
-      if (prev && prev.digest === digest && prev.stamp === backend.stamp(name)) return false;
+      if (prev && prev.digest === digest && prev.stamp === stampOf(name)) return false;
       await writeJsonFile(backend, keys, spaceId, name, obj);
-      if (written) written.files[name] = { digest, stamp: backend.stamp(name) };
+      if (written) written.files[name] = { digest, stamp: stampOf(name) };
       return true;
     }
+    // ほかの端末のファイルで、前回取り込んだ時から版の印が変わっていないものは、ダウンロードしない
+    let seen = { files: {} };
+    if (cacheable) {
+      const s = await metaGet('seen');
+      if (s && s.spaceId === spaceId && s.kind === backend.kind && isPlainObject(s.files)) seen = s;
+    }
+    const seenNext = { key: 'seen', spaceId, kind: backend.kind, files: {} };
+    const unchanged = (n) => cacheable && !!seen.files[n] && !!seen.files[n].stamp && seen.files[n].stamp === stampOf(n);
+    // 自分が前回書いた内容（DBのファイルの一覧と、参照している画像）
+    const ownRec = await metaGet('own');
+    const ownMeta = ownRec && ownRec.spaceId === spaceId && ownRec.kind === backend.kind && isPlainObject(ownRec.dbs) ? ownRec : null;
+    const scannedRec = (await metaGet('scanned')) || { key: 'scanned', dbs: {} };
+    const dirtyAt = readDirtyMarks();
 
-    // ---- 他の端末のファイルを読む（検査を通るまで、何も書き換えない） ----
+    // ---- ほかの端末の目次を読む（検査を通るまで、何も書き換えない） ----
     const listed = new Set(await backend.list());
     const remoteDevices = [];
     let ownPrev = null;
+    const devName = await names.device(dev.id);
     for (const name of listed) {
       if (!name.startsWith('d_')) continue;
-      const info = await readJsonFile(backend, keys, spaceId, name);
+      if (pushOnly && name !== devName) continue;
+      let info;
+      if (unchanged(name) && isPlainObject(seen.files[name].info)) {
+        info = seen.files[name].info;
+      } else {
+        info = await readJsonFile(backend, keys, spaceId, name);
+        report.stats.downloaded++;
+      }
       if (!isPlainObject(info) || info.format !== 'sideops-sync-device' || !DEVICE_ID_RE.test(info.device) || !isPlainObject(info.dbs)) {
         throw new SyncError('同期ファイルの中身が壊れています（端末の情報）');
       }
@@ -775,32 +877,53 @@
         || (typeof info.appBuild === 'number' && info.appBuild > SYNC_APP_BUILD)) {
         throw new SyncError(`「${String(info.deviceName || '別の端末').slice(0, 40)}」が新しい版のSIDE-OPSで書いたデータがあります。SIDE-OPSを再読み込みして更新してから、もう一度同期してください`);
       }
+      seenNext.files[name] = { stamp: stampOf(name), info };
       if (info.device === dev.id) { ownPrev = info; continue; }
       remoteDevices.push(info);
     }
+    const prevOwnDbs = (ownMeta && ownMeta.dbs) || (ownPrev && ownPrev.dbs) || {};
+    const prevOwnBlobs = (ownMeta && isPlainObject(ownMeta.blobs) && ownMeta.blobs) || {};
+    report.devices = remoteDevices.map((i) => ({ name: String(i.deviceName || '別の端末').slice(0, 40), at: i.lastWriteAt || i.writtenAt || '' }));
 
-    // 他の端末のDBのファイルを先にすべて読む（この端末で同期しないDBの分も読む：
-    // それらが参照している画像を、片付けの対象から外すため）
+    // ---- ほかの端末のDBのファイル：版の印が変わったものだけダウンロードする ----
     const referenced = new Set();
-    const remoteFiles = new Map(); // DB名 → [{ info, file }]
+    const remoteFiles = new Map(); // DB名 → [{ info, name, changed, file, dbVersion, blobs }]
+    async function loadEntry(e) {
+      const f = await readJsonFile(backend, keys, spaceId, e.name);
+      report.stats.downloaded++;
+      if (!f) return false; // 目次だけ残ってファイルがない（書き込み途中で止まった等）→ 無視
+      if (!isPlainObject(f) || f.format !== 'sideops-sync-db' || f.db !== e.db || f.device !== e.info.device
+        || !Number.isInteger(f.dbVersion) || !validSchema(f.schema) || !isPlainObject(f.stores)) {
+        throw new SyncError('同期ファイルの中身が壊れています（' + ruleLabel(e.db) + '）');
+      }
+      e.file = f;
+      e.dbVersion = f.dbVersion;
+      e.blobs = Array.isArray(f.blobs) ? f.blobs.filter((h) => typeof h === 'string') : [];
+      return true;
+    }
     for (const info of remoteDevices) {
       for (const [dbName, ref] of Object.entries(info.dbs)) {
         const expected = await names.db(info.device, dbName);
         if (!isPlainObject(ref) || ref.file !== expected) throw new SyncError('同期ファイルの中身が壊れています（DBのファイル名が合いません）');
-        const f = await readJsonFile(backend, keys, spaceId, expected);
-        if (!f) continue; // 端末の情報だけ残ってファイルがない（書き込み途中で止まった等）→ その端末のこのDBは無視
-        if (!isPlainObject(f) || f.format !== 'sideops-sync-db' || f.db !== dbName || f.device !== info.device
-          || !Number.isInteger(f.dbVersion) || !validSchema(f.schema) || !isPlainObject(f.stores)) {
-          throw new SyncError('同期ファイルの中身が壊れています（' + ruleLabel(dbName) + '）');
+        if (!listed.has(expected)) continue;
+        const e = { info, db: dbName, name: expected, changed: !unchanged(expected), file: null, dbVersion: null, blobs: null };
+        if (e.changed) {
+          if (!(await loadEntry(e))) continue;
+        } else {
+          e.dbVersion = seen.files[expected].dbVersion;
+          e.blobs = Array.isArray(seen.files[expected].blobs) ? seen.files[expected].blobs : [];
         }
-        if (Array.isArray(f.blobs)) f.blobs.forEach((h) => { if (typeof h === 'string') referenced.add(h); });
+        e.blobs.forEach((h) => referenced.add(h));
         if (!remoteFiles.has(dbName)) remoteFiles.set(dbName, []);
-        remoteFiles.get(dbName).push({ info, file: f });
+        remoteFiles.get(dbName).push(e);
       }
     }
 
     const localVersions = await localDbVersions();
     const ownDbs = {};
+    const ownBlobs = {};
+    let gcSafe = true;
+    let wroteAny = false; // 今回、DBのファイルを実際に送ったか（端末の目次の「最後に送った時刻」に使う）
     const d = await syncDb();
 
     for (const rule of DB_RULES) {
@@ -809,32 +932,60 @@
         inAdd: 0, inChange: 0, inDel: 0, outAdd: 0, outChange: 0, outDel: 0,
       };
       report.results.push(res);
-      const keepPrev = () => { if (ownPrev && ownPrev.dbs[rule.name]) ownDbs[rule.name] = ownPrev.dbs[rule.name]; };
-      if (prefs.disabled[rule.name]) { res.note = '同期しない設定'; continue; }
       const remotes = remoteFiles.get(rule.name) || [];
+      const keepPrev = () => {
+        if (prevOwnDbs[rule.name]) {
+          ownDbs[rule.name] = prevOwnDbs[rule.name];
+          if (Array.isArray(prevOwnBlobs[rule.name])) ownBlobs[rule.name] = prevOwnBlobs[rule.name];
+          else gcSafe = false; // 自分の前回のファイルが参照している画像が分からない → 今回は片付けない
+        }
+      };
+      // 取り込まなかったファイルは「取り込み済み」にしない（次回また読む）。変わっていないものは前回の印を引き継ぐ
+      const carrySeen = (merged) => {
+        for (const e of remotes) {
+          if (merged && merged.includes(e)) seenNext.files[e.name] = { stamp: stampOf(e.name), dbVersion: e.dbVersion, blobs: e.blobs };
+          else if (!e.changed && seen.files[e.name]) seenNext.files[e.name] = seen.files[e.name];
+        }
+      };
+      if (prefs.disabled[rule.name]) { res.note = '同期しない設定'; carrySeen(); continue; }
 
       let localVersion = localVersions.get(rule.name);
       if (localVersion !== undefined && localVersion > rule.version) {
         res.note = 'この版のSIDE-OPSが知らないDBの版です（同期の設定の更新漏れ）。同期しません';
-        keepPrev();
+        keepPrev(); carrySeen();
         continue;
       }
+      const firstTime = !dbsMeta.synced[rule.name];
+      // 送るだけのときは、まだ一度もほかの端末と合流していないDBには触らない（初めての合流は通常の同期で行う）
+      if (pushOnly && (firstTime || localVersion === undefined)) { keepPrev(); continue; }
+      const lastScan = scannedRec.dbs[rule.name] || 0;
+      const locallyDirty = firstTime || scanAll || !lastScan || (dirtyAt[rule.name] || 0) >= lastScan;
+      const remoteChanged = !pushOnly && remotes.some((e) => e.changed);
+      // 変わっていないDBは開きもしない（これが一番の軽量化）
+      if (localVersion !== undefined && !locallyDirty && !remoteChanged) {
+        keepPrev(); carrySeen();
+        report.stats.skipped++;
+        continue;
+      }
+
       // DBの版が違う端末のデータは合流しない（移行前の形のデータで上書きしないため）
+      const needAll = firstTime || localVersion === undefined;
       const usable = [];
-      for (const r of remotes) {
-        if (localVersion === undefined ? r.file.dbVersion === rule.version : r.file.dbVersion === localVersion) usable.push(r);
-        else {
-          res.note = `「${String(r.info.deviceName || '別の端末').slice(0, 40)}」とDBの版が違うため、その端末の分は取り込みませんでした（古い方の端末で${rule.label}を一度開いてから同期してください）`;
+      if (!pushOnly) {
+        for (const e of remotes) {
+          if (!needAll && !e.changed) continue; // 前回取り込み済みで、その後変わっていない
+          if (!e.file && !(await loadEntry(e))) continue;
+          if (localVersion === undefined ? e.dbVersion === rule.version : e.dbVersion === localVersion) usable.push(e);
+          else res.note = `「${String(e.info.deviceName || '別の端末').slice(0, 40)}」とDBの版が違うため、その端末の分は取り込みませんでした（古い方の端末で${rule.label}を一度開いてから同期してください）`;
         }
       }
-      if (localVersion === undefined && !usable.length) { keepPrev(); continue; } // この端末にもなく、取り込めるデータもない
+      if (localVersion === undefined && !usable.length) { keepPrev(); carrySeen(); continue; } // この端末にもなく、取り込めるデータもない
 
       // 顧客データ（RECON）は、初めて同期する前に1回確認する（送る側でも受け取る側でも）
       if (rule.sensitive && !prefs.sensitiveOk[rule.name]) {
         if (!hooks.confirmSensitive) {
-          // 自動の同期では確認を出せないので、今回は飛ばす（同期しない設定にはしない）
           res.note = '確認待ち（☁から同期すると確認が出ます）';
-          keepPrev();
+          keepPrev(); carrySeen();
           continue;
         }
         const ok = await hooks.confirmSensitive(rule);
@@ -842,12 +993,15 @@
           prefs.disabled[rule.name] = true;
           await metaPut(prefs);
           res.note = '送らないことを選んだため、同期しない設定にしました';
+          carrySeen();
           continue;
         }
         prefs.sensitiveOk[rule.name] = true;
         await metaPut(prefs);
       }
 
+      progress(`${rule.label}を確認しています`);
+      report.stats.scanned++;
       // ---- 端末にDBがなければ、同期ファイルに記録された形で作る ----
       let db;
       if (localVersion === undefined) {
@@ -858,11 +1012,10 @@
       }
       try {
         // ---- 前回同期した時点との比較（3方向比較） ----
-        const firstTime = !dbsMeta.synced[rule.name];
         const stList = await reqP(d.transaction('records').objectStore('records').index('db').getAll(rule.name));
         const st = new Map(stList.map((s) => [s.id, s]));
         stList.forEach((s) => { if (typeof s.ver === 'string' && VER_RE.test(s.ver)) clock.observe(s.ver); });
-        // ---- 他の端末の最新の版を集める ----
+        // ---- ほかの端末の最新の版を集める ----
         const best = new Map();
         const allowedStores = new Set(syncedStores(rule, db));
         for (const r of usable) {
@@ -880,6 +1033,7 @@
         }
 
         // ---- 前回同期した時点との比較で、この端末の変更を見つける ----
+        const scanStart = Date.now();
         let scan = await scanDb(rule, db, hash);
         const changed = new Map(); // この端末の変更：id → { kind: 'add'|'change'|'del', ver（この端末で付けた版） }
         for (const [id, c] of scan.recs) {
@@ -912,11 +1066,12 @@
         // ---- 合流：レコードごとに版の大きい方を採用。両方で変えていたら負けた方を控える ----
         const plan = [];         // { op: 'put'|'del', id, store, key, value(符号化済み) }
         const losers = [];       // { side, id, store, key, loserVer, winnerVer, raw | encoded }
+        let n = 0;
         for (const [id, r] of best) {
+          if (++n % 50 === 0) await yieldUi();
           const s = st.get(id);
           if (s && r.ver === s.ver) continue;
-          // 中身がまったく同じなら、書き直さずに版だけ揃える（受け取り・送り出しにも数えない）。
-          // 両方の端末で別々に同期を始めた後の合流などで、同じデータを受け取り直さないため
+          // 中身がまったく同じなら、書き直さずに版だけ揃える（受け取り・送り出しにも数えない）
           if (s && ((s.deleted && r.deleted) || (!s.deleted && !r.deleted && await fingerprint(r.value) === s.fp))) {
             Object.assign(s, { ver: r.ver, dirty: false, baseVer: null });
             changed.delete(id);
@@ -947,6 +1102,7 @@
         plan.forEach((p) => { if (p.op === 'put') blobRefs(p.value, need); });
         losers.forEach((l) => { if (l.encoded) blobRefs(l.encoded, need); });
         const fetched = new Map();
+        if (need.size) progress(`${rule.label}の画像を受け取っています`);
         for (const h of need) {
           if (!HASH_RE.test(h)) throw new SyncError('同期ファイルの中身が壊れています（画像の参照）');
           if (scan.blobs.has(h)) { fetched.set(h, scan.blobs.get(h)); continue; }
@@ -963,16 +1119,24 @@
           return b;
         };
 
+        // ---- 同期の途中でアプリが開かれていたら、そのDBへの受け取りは次回に回す ----
+        // （開いているアプリの足元のデータを書き換えないため。何も保存せずに、このDBを飛ばす）
+        if (plan.length && hooks.canApply && !hooks.canApply(rule.name)) {
+          res.note = 'アプリを開いていたため、受け取りは次の同期に回しました';
+          keepPrev(); carrySeen();
+          report.deferred = true;
+          continue;
+        }
+
         // ---- 反映（1トランザクション。失敗したら何も変わらない） ----
         if (plan.length) {
+          progress(`${rule.label}を受け取っています`);
           const storeNames = [...new Set(plan.map((p) => p.store))];
           const keyPaths = readSchema(db, storeNames);
-          // only 指定のレコードは、端末ごとの項目を残したまま同期する項目だけを書き換える
+          // 書き換える前の中身（同期の記録に残す。only 指定のレコードは、端末ごとの項目を残すのにも使う）
           const existing = new Map();
-          if (rule.only) {
-            const rtx = db.transaction(storeNames);
-            for (const p of plan) existing.set(p.id, await reqP(rtx.objectStore(p.store).get(p.key)));
-          }
+          const rtx = db.transaction(storeNames);
+          for (const p of plan) existing.set(p.id, await reqP(rtx.objectStore(p.store).get(p.key)));
           const prepared = [];
           for (const p of plan) {
             const kp = keyPaths[p.store].keyPath;
@@ -990,6 +1154,7 @@
             }
             prepared.push({ ...p, kp, value });
           }
+          // 同期が自分で書き込む分は「変えたよ」の印を付けない（元の関数を使う）
           const wtx = db.transaction(storeNames, 'readwrite');
           const done = txDone(wtx);
           try {
@@ -999,10 +1164,10 @@
                 if (rule.only) {
                   const fields = rule.only[p.store][p.key];
                   const cur = existing.get(p.id);
-                  if (isPlainObject(cur)) { const v = { ...cur }; fields.forEach((f) => delete v[f]); os.put(v); }
-                } else os.delete(p.key);
-              } else if (p.kp === null) os.put(p.value, p.key);
-              else os.put(p.value);
+                  if (isPlainObject(cur)) { const v = { ...cur }; fields.forEach((f) => delete v[f]); RAW.put.call(os, v); }
+                } else RAW.delete.call(os, p.key);
+              } else if (p.kp === null) RAW.put.call(os, p.value, p.key);
+              else RAW.put.call(os, p.value);
             }
           } catch (err) {
             try { wtx.abort(); } catch (e) { /* すでに終了 */ }
@@ -1016,20 +1181,21 @@
             else res.inAdd++;
           }
           report.applied = true;
+          report.appliedDbs.push(rule.name);
           // 反映後の中身で指紋を取り直す（次回、反映した分を「この端末の変更」と誤認しないように）
           scan = await scanDb(rule, db, hash);
           for (const p of plan) {
             const s = st.get(p.id);
             const c = scan.recs.get(p.id);
             if (s && c) s.fp = c.fp;
+            journalItems.push({ db: rule.name, store: p.store, key: p.key, kp: keyPaths[p.store].keyPath, before: existing.get(p.id), op: p.op, afterFp: c ? c.fp : null });
           }
         }
 
         // ---- 自分のファイルを書く：画像 → DBのファイル（端末の情報は最後にまとめて） ----
-        // 並び順はキーの順に固定する（中身が同じなら、ファイルも同じになるように。
-        // 並びが毎回変わると、変わっていないファイルを書き直してしまう）
+        // 並び順はキーの順に固定する（中身が同じなら、ファイルも同じになるように）
         const outStores = {};
-        scan.stores.forEach((n) => { outStores[n] = []; });
+        scan.stores.forEach((nm) => { outStores[nm] = []; });
         const usedBlobs = new Set();
         const ordered = Array.from(st.values()).sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
         for (const s of ordered) {
@@ -1040,6 +1206,7 @@
           blobRefs(c.encoded, usedBlobs);
           outStores[s.store].push({ key: s.key, ver: s.ver, value: c.encoded });
         }
+        if (changed.size) progress(`${rule.label}を送っています`);
         for (const h of usedBlobs) {
           referenced.add(h);
           const name = names.blob(h);
@@ -1050,13 +1217,14 @@
           listed.add(name);
         }
         const dbFile = await names.db(dev.id, rule.name);
-        await writeIfChanged(dbFile, {
+        if (await writeIfChanged(dbFile, {
           format: 'sideops-sync-db', formatVersion: FORMAT_VERSION, db: rule.name, dbVersion: db.version,
           schema: scan.schema, appBuild: SYNC_APP_BUILD, device: dev.id, writtenAt: new Date().toISOString(),
           blobs: Array.from(usedBlobs).sort(), stores: outStores,
-        });
+        })) wroteAny = true;
         listed.add(dbFile);
         ownDbs[rule.name] = { file: dbFile, dbVersion: db.version, count: scan.recs.size };
+        ownBlobs[rule.name] = Array.from(usedBlobs).sort();
         // 送り出した変更の内訳。相手の新しい版に負けた変更は送っていない（競合として数える）
         for (const [id, ch] of changed) {
           const s = st.get(id);
@@ -1071,11 +1239,16 @@
         if (firstTime) report.firstTime = true;
         if (scan.skipped) res.note = (res.note ? res.note + ' / ' : '') + `同期できない形のレコード${scan.skipped}件を飛ばしました`;
 
-        // ---- 状態を保存：送り終えたので、すべて「送信済み」にする ----
+        // ---- 状態を保存 ----
+        // 送るだけのときは「送信済み」にしない：ほかの端末の変更と見比べていないので、
+        // 次の同期で競合を見分けられるように、変更前の版（baseVer）を残しておく
         const now = Date.now();
         const wtx2 = d.transaction(['records', 'conflicts'], 'readwrite');
         const recOs = wtx2.objectStore('records');
-        for (const s of st.values()) { s.dirty = false; s.baseVer = null; recOs.put(s); }
+        for (const s of st.values()) {
+          if (!pushOnly) { s.dirty = false; s.baseVer = null; }
+          recOs.put(s);
+        }
         for (const l of losers) {
           let value = l.raw;
           if (l.encoded) value = decodeValue(l.encoded, bytesOf);
@@ -1085,37 +1258,56 @@
         res.conflicts = losers.length;
         report.conflicts += losers.length;
         dbsMeta.synced[rule.name] = true;
+        scannedRec.dbs[rule.name] = scanStart;
+        carrySeen(usable);
       } finally {
         db.close();
       }
     }
 
     // ---- 端末の情報（どのDBのファイルを持っているか）を最後に書く ----
-    const devFile = await names.device(dev.id);
-    await writeIfChanged(devFile, {
+    progress('仕上げています');
+    // lastWriteAt：この端末が最後に実際にデータを送った時刻（ほかの端末に「最終送信」として見せる）
+    const lastWriteAt = wroteAny ? new Date().toISOString() : ((ownMeta && ownMeta.lastWriteAt) || (ownPrev && ownPrev.lastWriteAt) || null);
+    await writeIfChanged(devName, {
       format: 'sideops-sync-device', formatVersion: FORMAT_VERSION, device: dev.id, deviceName: dev.name,
-      appBuild: SYNC_APP_BUILD, writtenAt: new Date().toISOString(), dbs: ownDbs,
+      appBuild: SYNC_APP_BUILD, writtenAt: new Date().toISOString(), lastWriteAt, dbs: ownDbs,
     });
+    listed.add(devName);
     // 使わなくなった自分のDBファイル（同期しない設定にしたDB等）を消す
-    if (ownPrev) {
-      for (const [n, ref] of Object.entries(ownPrev.dbs)) {
-        if (!ownDbs[n] && ref && typeof ref.file === 'string' && listed.has(ref.file)) await backend.remove(ref.file);
-      }
+    for (const [nm, ref] of Object.entries(prevOwnDbs)) {
+      if (!ownDbs[nm] && ref && typeof ref.file === 'string' && listed.has(ref.file)) { await backend.remove(ref.file); listed.delete(ref.file); }
     }
     // どこからも参照されない画像を片付ける。同期ファイル（手で運ぶ形）ではその場で消す。
-    // クラウドでは、ほかの端末が書き込みの途中（画像を置いた後、DBのファイルを書く前）の
-    // 可能性があるため、最後に書き換えられてから一定期間たったものだけを消す
-    for (const n of await backend.list()) {
-      if (!n.startsWith('x_') || referenced.has(n.slice(2, -4))) continue;
-      if (backend.kind === 'file' || (typeof backend.ageMs === 'function' && backend.ageMs(n) > BLOB_GRACE_MS)) await backend.remove(n);
+    // クラウドでは、ほかの端末が書き込みの途中の可能性があるため、最後に書き換えられてから
+    // 一定期間たったものだけを消す。送るだけのときと、参照が分からないときは片付けない
+    if (!pushOnly && gcSafe) {
+      Object.values(ownBlobs).forEach((arr) => arr.forEach((h) => referenced.add(h)));
+      for (const nm of Array.from(listed)) {
+        if (!nm.startsWith('x_') || referenced.has(nm.slice(2, -4))) continue;
+        if (backend.kind === 'file' || (typeof backend.ageMs === 'function' && backend.ageMs(nm) > BLOB_GRACE_MS)) { await backend.remove(nm); listed.delete(nm); }
+      }
     }
     if (written) await metaPut(written);
-
+    if (cacheable && !pushOnly) await metaPut(seenNext);
+    await metaPut({ key: 'own', spaceId, kind: backend.kind, dbs: ownDbs, blobs: ownBlobs, lastWriteAt });
+    await metaPut(scannedRec);
     await metaPut(clock.save());
     await metaPut(dbsMeta);
-    await metaPut({ key: 'status', lastSyncAt: Date.now(), lastSyncKind: backend.kind });
+    const prevStatus = (await metaGet('status')) || {};
+    const nowTs = Date.now();
+    await metaPut({
+      ...prevStatus, key: 'status', lastSyncKind: backend.kind,
+      lastPushAt: nowTs,
+      lastSyncAt: pushOnly ? (prevStatus.lastSyncAt || nowTs) : nowTs,
+      lastFullScanAt: scanAll ? nowTs : (prevStatus.lastFullScanAt || 0),
+      devices: pushOnly ? (prevStatus.devices || []) : report.devices,
+      lastSummary: pushOnly ? (prevStatus.lastSummary || '') : summaryCounts(report),
+    });
+    if (journalItems.length) await addJournal(journalItems, backend.kind);
     await purgeConflicts();
-    await addLog('sync', summarizeReport(report).join(' / ') || '変更なし');
+    await addLog(pushOnly ? 'push' : 'sync', summarizeReport(report).join(' / ') || '変更なし');
+    lastReport = report;
     return report;
   }
 
@@ -1135,6 +1327,155 @@
   }
   function summarizeReport(report) {
     return report.results.map(resultLine).filter(Boolean);
+  }
+  // ☁の画面の「最後の同期」に添える短い要約
+  function summaryCounts(report) {
+    let inN = 0, outN = 0;
+    report.results.forEach((r) => { inN += r.inAdd + r.inChange + r.inDel; outN += r.outAdd + r.outChange + r.outDel; });
+    return inN || outN || report.conflicts ? `受け取り${inN}・送り出し${outN}${report.conflicts ? `・競合${report.conflicts}` : ''}` : '変更なし';
+  }
+
+  // ===================== 同期の記録（受け取りで書き換える前の中身）と取り消し =====================
+  // 同期でこの端末のデータを書き換えたとき（受け取り・削除）、書き換える前の中身を残す。
+  // 30日、または合計がおよそ50MBを超えたら古いものから消す（画像の多いアプリは記録が大きくなるため）
+  const JOURNAL_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+  const JOURNAL_MAX_BYTES = 50 * 1024 * 1024;
+  const JOURNAL_MAX_ENTRIES = 100;
+  function estimateSize(v, depth = 0) {
+    if (v == null || depth > MAX_DEPTH) return 8;
+    if (typeof v === 'string') return v.length * 2;
+    if (typeof v !== 'object') return 8;
+    if (v instanceof Blob) return v.size;
+    if (v instanceof ArrayBuffer) return v.byteLength;
+    if (ArrayBuffer.isView(v)) return v.byteLength;
+    let n = 16;
+    for (const k of Object.keys(v)) n += k.length * 2 + estimateSize(v[k], depth + 1);
+    return n;
+  }
+  async function addJournal(items, kind) {
+    try {
+      let size = 0;
+      items.forEach((it) => { size += estimateSize(it.before); });
+      const counts = {};
+      items.forEach((it) => { counts[it.db] = (counts[it.db] || 0) + 1; });
+      const d = await syncDb();
+      const tx = d.transaction('journal', 'readwrite');
+      tx.objectStore('journal').add({ at: Date.now(), kind, items, counts, size, undone: false });
+      await txDone(tx);
+      await pruneJournal();
+    } catch (err) {
+      console.warn('同期の記録を残せませんでした', err); // 記録の失敗で同期そのものを失敗にはしない
+    }
+  }
+  async function pruneJournal() {
+    const d = await syncDb();
+    const list = await reqP(d.transaction('journal').objectStore('journal').getAll());
+    list.sort((a, b) => b.at - a.at); // 新しい順
+    const del = [];
+    let total = 0;
+    list.forEach((e, i) => {
+      total += e.size || 0;
+      if (Date.now() - e.at > JOURNAL_KEEP_MS || i >= JOURNAL_MAX_ENTRIES || (i > 0 && total > JOURNAL_MAX_BYTES)) del.push(e.id);
+    });
+    if (!del.length) return;
+    const tx = d.transaction('journal', 'readwrite');
+    del.forEach((id) => tx.objectStore('journal').delete(id));
+    await txDone(tx);
+  }
+  async function listJournal(limit = 10) {
+    const d = await syncDb();
+    const list = await reqP(d.transaction('journal').objectStore('journal').getAll());
+    return list.sort((a, b) => b.at - a.at).slice(0, limit)
+      .map((e) => ({ id: e.id, at: e.at, kind: e.kind, counts: e.counts || {}, undone: !!e.undone, size: e.size || 0 }));
+  }
+  // 記録した同期で受け取った分を、書き換える前の中身に戻す。
+  //   dbs：戻すアプリ（省略ですべて）
+  //   mode：'check'（数えるだけ）/ 'unchangedOnly'（その後に変えていないものだけ戻す）/ 'all'（変えていても戻す）
+  // 戻したこと自体が「この端末の変更」になり、次の同期でほかの端末にも届く
+  async function undoJournal(id, { dbs, mode = 'check' } = {}) {
+    const d = await syncDb();
+    const entry = await reqP(d.transaction('journal').objectStore('journal').get(id));
+    if (!entry) throw new SyncError('同期の記録が見つかりません（古い記録は自動で消えます）');
+    if (entry.undone) throw new SyncError('この同期は、すでに取り消してあります');
+    const targets = entry.items.filter((it) => !dbs || dbs.includes(it.db));
+    const byDb = new Map();
+    targets.forEach((it) => { if (!byDb.has(it.db)) byDb.set(it.db, []); byDb.get(it.db).push(it); });
+    const versions = await localDbVersions();
+    // 指紋は同期の時と同じ作り方にする（画像の名前は同期の鍵で作る）
+    const keys = await getKeys();
+    const hash = keys ? (b) => hmacHex(keys.nameKey, b) : sha256Hex;
+    const out = { restored: 0, modified: 0, skipped: 0, dbs: [] };
+    for (const [dbName, items] of byDb) {
+      const rule = RULE_BY_NAME.get(dbName);
+      if (!rule || !versions.has(dbName)) { out.skipped += items.length; continue; }
+      const db = await openExistingDb(dbName);
+      try {
+        // その後に変えたかどうか：同期の直後の指紋と、今の指紋を比べる
+        const storeNames = [...new Set(items.map((it) => it.store))].filter((n) => db.objectStoreNames.contains(n));
+        if (!storeNames.length) { out.skipped += items.length; continue; }
+        const rtx = db.transaction(storeNames);
+        const current = [];
+        for (const it of items) {
+          if (!storeNames.includes(it.store)) { current.push(null); continue; }
+          current.push(await reqP(rtx.objectStore(it.store).get(it.key)));
+        }
+        const plan = [];
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          if (!storeNames.includes(it.store)) { out.skipped++; continue; }
+          const cur = current[i];
+          let fpNow = null;
+          if (cur !== undefined) {
+            try { fpNow = await fingerprint(await encodeValue(project(rule, it.store, it.key, cur, it.kp), { hash, blobs: new Map() })); } catch (err) { fpNow = '?'; }
+          }
+          // 同期の後に変えたか：削除を受け取ったもの → 今もないか／それ以外 → 同期の直後と同じ中身か
+          const modified = it.afterFp === null ? cur !== undefined : (cur === undefined || fpNow !== it.afterFp);
+          if (modified) out.modified++;
+          if (modified && mode !== 'all') continue;
+          plan.push({ it, cur });
+        }
+        if (mode === 'check') { out.restored += plan.length; continue; }
+        if (!plan.length) continue;
+        const wtx = db.transaction(storeNames, 'readwrite');
+        const done = txDone(wtx);
+        for (const { it, cur } of plan) {
+          const os = wtx.objectStore(it.store);
+          if (rule.only) {
+            // 端末ごとの項目（壁紙など）は今のまま残し、同期する項目だけを戻す
+            const fields = rule.only[it.store] && rule.only[it.store][it.key];
+            if (!fields) continue;
+            const v = isPlainObject(cur) ? { ...cur } : (typeof it.kp === 'string' ? { [it.kp]: it.key } : {});
+            fields.forEach((f) => { if (isPlainObject(it.before) && it.before[f] !== undefined) v[f] = it.before[f]; else delete v[f]; });
+            os.put(v); // 「変えたよ」の印を付ける（次の同期で送る）
+          } else if (it.before === undefined) {
+            os.delete(it.key);
+          } else if (it.kp === null) {
+            os.put(it.before, it.key);
+          } else {
+            os.put(it.before);
+          }
+        }
+        await done;
+        out.restored += plan.length;
+        out.dbs.push(dbName);
+      } finally {
+        db.close();
+      }
+    }
+    if (mode !== 'check') {
+      if (!dbs || dbs.length >= Object.keys(entry.counts || {}).length) {
+        entry.undone = true;
+        entry.undoneAt = Date.now();
+      } else {
+        entry.items = entry.items.filter((it) => !dbs.includes(it.db));
+        Object.keys(entry.counts || {}).forEach((k) => { if (dbs.includes(k)) delete entry.counts[k]; });
+      }
+      const tx = d.transaction('journal', 'readwrite');
+      tx.objectStore('journal').put(entry);
+      await txDone(tx);
+      await addLog('info', `同期の記録から戻しました：${out.restored}件（${out.dbs.map(ruleLabel).join('・')}）`);
+    }
+    return out;
   }
 
   // 重複の候補：IDと日時を除いた中身が同じで、IDが違うレコード（ストアごと）
@@ -1274,6 +1615,62 @@
     return new Blob([JSON.stringify(out)], { type: 'application/json' });
   }
 
+  // ===================== 未送信の判定・ほかの端末の新しいデータの確認 =====================
+  // 未送信のDB：「変えたよ」の印が、前回見直した時刻より新しいDB。
+  // 本体の設定は、端末ごとの項目（壁紙・透過率）だけを変えたときにも印が付くので、同期する項目が
+  // 本当に変わったかを確かめる（1件だけ読むので軽い）
+  async function unsentDbs() {
+    const keys = await getKeys();
+    if (!keys) return [];
+    const scannedRec = (await metaGet('scanned')) || { dbs: {} };
+    const prefs = await getPrefs();
+    const marks = readDirtyMarks();
+    const out = [];
+    for (const rule of DB_RULES) {
+      if (prefs.disabled[rule.name]) continue;
+      const m = marks[rule.name];
+      if (!m || m < (scannedRec.dbs[rule.name] || 0)) continue;
+      if (rule.only && !(await onlyFieldsChanged(rule, keys))) continue;
+      out.push(rule);
+    }
+    return out;
+  }
+  async function onlyFieldsChanged(rule, keys) {
+    try {
+      if (!(await localDbVersions()).has(rule.name)) return false;
+      const db = await openExistingDb(rule.name);
+      try {
+        const scan = await scanDb(rule, db, (b) => hmacHex(keys.nameKey, b));
+        const d = await syncDb();
+        const st = await reqP(d.transaction('records').objectStore('records').index('db').getAll(rule.name));
+        const stMap = new Map(st.map((s) => [s.id, s]));
+        for (const [id, c] of scan.recs) { const s = stMap.get(id); if (!s || s.deleted || s.fp !== c.fp) return true; }
+        return st.some((s) => !s.deleted && !scan.recs.has(s.id));
+      } finally { db.close(); }
+    } catch (err) { return true; } // 分からなければ「未送信あり」として扱う（取りこぼさない側に倒す）
+  }
+  // ほかの端末が、前回この端末が取り込んだ後に新しいデータを送ったか（端末の目次の版の印だけを見る。軽い）
+  async function checkRemote(backend) {
+    const keys = await getKeys();
+    const manifest = await readManifest(backend);
+    if (!keys || !manifest || manifest.spaceId !== keys.spaceId || manifest.keyId !== keys.keyId) return { state: 'needSync', newer: [] };
+    const dev = await getDevice();
+    const names = fileNames(keys);
+    const own = await names.device(dev.id);
+    const seen = await metaGet('seen');
+    const sf = seen && seen.spaceId === manifest.spaceId && seen.kind === backend.kind && isPlainObject(seen.files) ? seen.files : {};
+    const newer = [];
+    for (const n of await backend.list()) {
+      if (!n.startsWith('d_') || n === own) continue;
+      const st = typeof backend.stamp === 'function' ? backend.stamp(n) : '';
+      if (st && sf[n] && sf[n].stamp === st) continue;
+      const info = await readJsonFile(backend, keys, manifest.spaceId, n);
+      if (!isPlainObject(info)) continue;
+      newer.push({ name: String(info.deviceName || '別の端末').slice(0, 40), at: info.lastWriteAt || info.writtenAt || '' });
+    }
+    return { state: 'ready', newer };
+  }
+
   // ===================== 同期してよい状態かの確認 =====================
   function stageBusy() {
     const stage = document.getElementById('stageEl');
@@ -1357,20 +1754,57 @@
     const statusEl = $('syncStatus');
     const resultEl = $('syncResult');
     const dbListEl = $('syncDbList');
+    const journalEl = $('syncJournal');
     const deviceNameInput = $('syncDeviceName');
     const pkgInput = $('syncPackageInput');
     const backupInput = $('syncBackupInput');
+    const MAIN_DBS = ['sideops_launcher', 'sideops_settings']; // 本体が画面に持っているDB（受け取ったら再読み込みが要る）
+    const INTENT_KEY = 'sideops_sync_intent'; // ログインに出る前の目的（'check'：確認だけ／'sync'：同期）
+    const DISMISS_KEY = 'sideops_sync_unsent_dismissed';
+    const hook = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && window.__SIDEOPS_SYNC_TEST__ ? window.__SIDEOPS_SYNC_TEST__ : {};
+    const AWAY_MS = hook.awayMs || 10 * 60 * 1000;        // これ以上離れてから戻ったら、開いたときと同じ扱い
+    const PUSH_EVERY_MS = hook.pushEveryMs || 30 * 60 * 1000; // アプリを開いたままの作業で「送るだけ」をする間隔
+    const FULL_SCAN_MS = 24 * 60 * 60 * 1000;            // 1日1回は、印に関係なくすべてを見直す
     let needReload = false;
     let lastPackage = null;
 
     openBtn.disabled = false;
     openBtn.title = '同期（複数の端末でデータを使う）';
+    const fmt = (t) => (t ? new Date(t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'なし');
 
     function setBusy(b) {
       overlay.querySelectorAll('[data-sync-action]').forEach((el) => { el.disabled = b; });
       overlay.classList.toggle('is-busy', b);
       if (!b) { applyCloudAvailability(); refreshCloud(); }
     }
+
+    // ===================== 同期の状態を見せるモーダル（同期中・結果・ログイン切れの確認） =====================
+    // ☁の画面の一番下ではなく、画面の中央に重ねて出す（見落とさないように）
+    const prog = $('syncProgress');
+    const progTitle = $('syncProgressTitle');
+    const progStepEl = $('syncProgressStep');
+    const progActs = $('syncProgressActions');
+    function progOpen(title) {
+      progTitle.textContent = title;
+      progStepEl.textContent = '';
+      resultEl.textContent = '';
+      resultEl.className = 'sync-result';
+      progActs.textContent = '';
+      prog.classList.add('is-open');
+    }
+    function progStep(text) { progStepEl.textContent = text ? text + '…' : ''; }
+    function progActions(buttons) {
+      progActs.textContent = '';
+      for (const b of buttons) {
+        const el = document.createElement('button');
+        el.className = 'btn' + (b.cls ? ' ' + b.cls : '');
+        el.textContent = b.label;
+        if (b.id) el.id = b.id;
+        el.addEventListener('click', b.onClick);
+        progActs.appendChild(el);
+      }
+    }
+    function progClose() { prog.classList.remove('is-open'); }
     function showResult(lines, kind) {
       resultEl.textContent = '';
       resultEl.className = 'sync-result' + (kind ? ' is-' + kind : '');
@@ -1388,17 +1822,59 @@
       resultEl.appendChild(b);
     }
 
+    // ===================== ヘッダーの下の帯（裏で同期しているとき・未送信・失敗） =====================
+    const banner = (() => {
+      const el = $('syncBanner');
+      const text = $('syncBannerText');
+      const acts = $('syncBannerActions');
+      let timer = 0;
+      let kindNow = '';
+      function place() {
+        const h = document.querySelector('header.top');
+        el.style.top = Math.max(6, (h ? h.getBoundingClientRect().bottom : 0) + 6) + 'px';
+      }
+      return {
+        show({ text: t, kind = 'busy', actions = [], hideMs = 0 }) {
+          clearTimeout(timer);
+          kindNow = kind;
+          place();
+          text.textContent = t;
+          acts.textContent = '';
+          for (const a of actions) {
+            const b = document.createElement('button');
+            b.className = 'btn' + (a.cls ? ' ' + a.cls : '');
+            b.textContent = a.label;
+            b.addEventListener('click', a.onClick);
+            acts.appendChild(b);
+          }
+          el.className = 'sync-banner is-open is-' + kind;
+          if (hideMs) timer = setTimeout(() => this.hide(kind), hideMs);
+        },
+        hide(kind) {
+          if (kind && kind !== kindNow) return;
+          clearTimeout(timer);
+          kindNow = '';
+          el.className = 'sync-banner';
+        },
+        get kind() { return kindNow; },
+      };
+    })();
+
+    // ===================== ☁の画面の状態の欄 =====================
     async function refresh() {
       try {
         const dev = await getDevice();
         const keys = await getKeys();
-        const status = await metaGet('status');
+        const status = (await metaGet('status')) || {};
         const prefs = await getPrefs();
         const conflicts = await countConflicts();
+        const unsent = await unsentDbs();
         deviceNameInput.value = dev.name;
         const lines = [];
         lines.push(keys ? `同期の鍵：あり（ID ${keys.keyId.slice(0, 8)}）` : '同期の鍵：なし（まだ同期していません）');
-        lines.push('最後の同期：' + (status && status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('ja-JP') : 'なし'));
+        lines.push('最後の同期：' + fmt(status.lastSyncAt) + (status.lastSummary ? `（${status.lastSummary}）` : ''));
+        (status.devices || []).forEach((d) => lines.push(`ほかの端末：${d.name}（最終送信 ${fmt(d.at)}）`));
+        if (keys) lines.push('この端末の未送信：' + (unsent.length ? `あり（${unsent.map((r) => r.label).join('・')}）` : 'なし'));
         if (conflicts) lines.push(`競合の控え：${conflicts}件（30日で自動的に消えます）`);
         statusEl.textContent = lines.join('\n');
         dbListEl.textContent = '';
@@ -1420,6 +1896,7 @@
           label.append(cb, span);
           dbListEl.appendChild(label);
         }
+        await refreshJournal();
         await refreshCloud();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
@@ -1432,17 +1909,22 @@
       refresh();
       if ((opts && opts.autoSync === false) || overlay.classList.contains('is-busy')) return;
       const c = await cloudMeta();
-      if (c.connected && providers[c.provider] && providers[c.provider].configured()) run(cloudSyncFlow);
+      if (c.connected && providers[c.provider] && providers[c.provider].configured()) run(cloudSyncFlow, { fromOpen: true, title: `${providers[c.provider].label}と同期しています` });
     }
     function close() {
       if (overlay.classList.contains('is-busy')) return;
       overlay.classList.remove('is-open');
-      if (needReload) location.reload(); // 取り込んだ変更を画面に反映する（古いデータのまま保存し直さないように）
+      progClose();
+      if (needReload) location.reload(); // ランチャー・本体の設定を受け取ったら、画面の表示を最新にする
     }
     openBtn.addEventListener('click', () => open());
     $('syncCloseBtn').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('is-open') && !$('syncDialog').classList.contains('is-open')) close(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || $('syncDialog').classList.contains('is-open')) return;
+      if (prog.classList.contains('is-open')) { if (!overlay.classList.contains('is-busy') && progActs.querySelector('#syncProgressOk')) progActs.querySelector('#syncProgressOk').click(); return; }
+      if (overlay.classList.contains('is-open')) close();
+    });
 
     // ---- ダイアログ（確認・パスフレーズ入力） ----
     const dlg = $('syncDialog');
@@ -1456,7 +1938,7 @@
     //   ・確かめている間（パスフレーズの照合は1秒ほどかかる）は OK・やめる を押せなくする（二度押し防止）
     //   ・古いダイアログの後始末が、次に開いたダイアログを閉じてしまわないよう、開くたびに番号を振る
     let dialogSeq = 0;
-    function dialog({ message, pass = 0, okLabel = 'OK', danger = false, validate }) {
+    function dialog({ message, pass = 0, okLabel = 'OK', cancelLabel = 'やめる', danger = false, validate }) {
       return new Promise((resolve) => {
         const my = ++dialogSeq;
         let validating = false;
@@ -1465,6 +1947,7 @@
         dlgPass.value = ''; dlgPass2.value = '';
         dlgPass.hidden = pass < 1; dlgPass2.hidden = pass < 2;
         dlgOk.textContent = okLabel;
+        dlgCancel.textContent = cancelLabel;
         dlgOk.className = 'btn ' + (danger ? 'danger' : 'primary');
         dlgOk.disabled = false; dlgCancel.disabled = false;
         dlg.classList.add('is-open');
@@ -1526,28 +2009,52 @@
       return lines;
     }
     const CONFLICT_LINE = (n) => `両方の端末で変えていたデータが${n}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました（「競合の控えを書き出す」で確かめられます）`;
-    const RELOAD_LINE = '受け取ったデータは、この端末に保存済みです。画面の表示を最新にするため、閉じると再読み込みします';
+    const RELOAD_LINE = '受け取ったデータは、この端末に保存済みです。ランチャー・本体の設定の表示を最新にするため、閉じると再読み込みします';
+    const SAVED_LINE = '受け取ったデータは、この端末に保存済みです（アプリを開くと反映されています）';
     const RELOAD_BUTTON = '今すぐ画面を最新にする';
+    const touchesMain = (dbs) => (dbs || []).some((n) => MAIN_DBS.includes(n));
+    // 結果の行を作る（手動・自動で共通）
+    function resultLinesFor(report, head) {
+      const lines = [head, ...reportLines(report)];
+      if (report.conflicts) lines.push(CONFLICT_LINE(report.conflicts));
+      if (report.applied) lines.push(touchesMain(report.appliedDbs) ? RELOAD_LINE : SAVED_LINE);
+      return lines;
+    }
 
     async function finishSync(backend, manifest, report) {
       lastPackage = { blob: packageBlob(backend, manifest.spaceId), name: `sideops-sync-${stamp()}.json` };
       downloadBlob(lastPackage.blob, lastPackage.name);
-      const lines = ['同期しました。新しい同期ファイルを保存しました（' + lastPackage.name + '）。', ...reportLines(report)];
-      if (report.conflicts) lines.push(CONFLICT_LINE(report.conflicts));
-      if (report.applied) {
-        needReload = true;
-        lines.push(RELOAD_LINE);
-      }
-      showResult(lines, 'ok');
+      if (touchesMain(report.appliedDbs)) needReload = true;
+      showResult(resultLinesFor(report, '同期しました。新しい同期ファイルを保存しました（' + lastPackage.name + '）。'), 'ok');
       appendButton('同期ファイルをもう一度保存', () => downloadBlob(lastPackage.blob, lastPackage.name));
-      if (report.applied) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
+      if (needReload) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
       await refresh();
     }
 
+    // ---- 手動の操作：中央のモーダルで、終わるまで待ってもらう ----
+    // 1分以上かかったら「待つ／裏で続ける」を出す。裏で続けたら、結果は上の帯で知らせる
     const userFacing = (err) => err instanceof SyncError || !!(err && err.userFacing);
-    async function run(task) {
+    let runCtx = null;
+    async function run(task, { fromOpen = false, title = '処理しています' } = {}) {
+      if (overlay.classList.contains('is-busy')) return;
       setBusy(true);
-      showResult(['処理中です…'], '');
+      const ctx = { fromOpen, background: false };
+      runCtx = ctx;
+      progOpen(title);
+      progStep('準備しています');
+      // 自動の同期の途中なら、終わるのを待ってから始める（同時に2つ走らせない）
+      if (autoPromise) {
+        progStep('自動の同期が終わるのを待っています');
+        try { await autoPromise; } catch (err) { /* 自動の側で表示済み */ }
+      }
+      const slow = setTimeout(() => {
+        if (ctx.background) return;
+        progStep('時間がかかっています');
+        progActions([
+          { label: '待つ', onClick: () => progActions([]) },
+          { label: '裏で続ける', onClick: () => { ctx.background = true; progClose(); banner.show({ text: '☁ 同期を裏で続けています…', kind: 'busy' }); } },
+        ]);
+      }, 60 * 1000);
       try {
         await task();
       } catch (err) {
@@ -1556,9 +2063,20 @@
         showResult([userFacing(err) ? err.message : '同期に失敗しました：' + (err && err.message)], 'error');
         if (!userFacing(err)) addLog('error', err && err.stack ? err.stack : String(err));
       } finally {
+        clearTimeout(slow);
         setBusy(false);
-        updateIndicator();
+        await updateUnsent(); // 未送信と☁の印を、すぐに最新にする（遅らせると、同期の後も「未送信」の印が残って見える）
       }
+      progStep('');
+      const kind = resultEl.classList.contains('is-error') ? 'error' : resultEl.classList.contains('is-ok') ? 'ok' : '';
+      progTitle.textContent = kind === 'error' ? 'うまくいきませんでした' : kind === 'ok' ? '完了しました' : progTitle.textContent;
+      if (ctx.background) {
+        const first = resultEl.firstChild ? resultEl.firstChild.textContent : '';
+        banner.show({ text: (kind === 'error' ? '☁ ' : '☁ ') + first, kind: kind === 'error' ? 'error' : 'ok', hideMs: kind === 'error' ? 0 : 5000, actions: kind === 'error' ? [{ label: '閉じる', onClick: () => banner.hide() }] : [] });
+        if (needReload && !stageBusy()) location.reload();
+        return;
+      }
+      progActions([{ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: () => { progClose(); if (ctx.fromOpen) close(); } }]);
     }
 
     // ===================== クラウド（OneDrive・Googleドライブ） =====================
@@ -1576,6 +2094,11 @@
     async function cloudMeta() {
       const m = await metaGet('cloud');
       return { key: 'cloud', provider: '', connected: false, auto: true, ...(m || {}) };
+    }
+    async function connectedProvider() {
+      const c = await cloudMeta();
+      const p = c.connected ? providers[c.provider] : null;
+      return p && p.configured() ? { p, c } : null;
     }
     function buildProviderOptions() {
       if (!cloudSel || cloudSel.options.length) return;
@@ -1601,8 +2124,9 @@
       [cloudSel, cloudBtn, cloudOffBtn, cloudAuto].forEach((el) => { if (el) el.disabled = true; });
     }
 
-    // ☁ボタンの印：同期済み（cyan）／ログインが必要・しばらく同期していない（amber）／失敗（magenta）／同期中
+    // ☁ボタンの印：同期済み（cyan）／ログインが必要・しばらく同期していない・未送信（amber）／失敗（magenta）／同期中
     let indicatorError = false;
+    let unsentNow = [];
     async function updateIndicator(state) {
       try {
         if (state === 'error') indicatorError = true;
@@ -1614,11 +2138,12 @@
         openBtn.classList.remove('sync-ok', 'sync-warn', 'sync-error', 'sync-busy');
         let cls = '';
         let title = '同期（複数の端末でデータを使う）';
-        const last = status && status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('ja-JP') : 'なし';
+        const last = fmt(status && status.lastSyncAt);
         const stale = status && status.lastSyncAt && Date.now() - status.lastSyncAt > STALE_SYNC_MS;
         if (state === 'busy') { cls = 'sync-busy'; title = '同期しています…'; }
         else if (indicatorError) { cls = 'sync-error'; title = '前回の同期に失敗しました（押して確認）'; }
         else if (p && login === 'login') { cls = 'sync-warn'; title = `${p.label}のログインが必要です（押すと同期します）`; }
+        else if (p && unsentNow.length) { cls = 'sync-warn'; title = `未送信の変更があります（${unsentNow.map((r) => r.label).join('・')}）`; }
         else if (stale) { cls = 'sync-warn'; title = `しばらく同期していません（最後の同期：${last}）`; }
         else if (p) { cls = 'sync-ok'; title = `${p.label}と同期しています（最後の同期：${last}）`; }
         if (cls) openBtn.classList.add(cls);
@@ -1654,20 +2179,21 @@
       if (p.loginLeavesPage) {
         // ログインでページを離れる方式（OneDrive）：離れる前に、アプリやほかのタブを閉じているか確かめる
         await precheck();
-        showResult([`${p.label}を確認しています…`], '');
+        progStep(`${p.label}を確認しています`);
         if (!(await p.ensureToken({ interactive: false }))) {
-          showResult([`${p.label}のログイン画面へ移ります。ログインすると、戻ってきて同期の続きをします…`], '');
+          progStep(`${p.label}のログイン画面へ移ります。ログインすると、戻ってきて同期の続きをします`);
+          sessionStorage.setItem(INTENT_KEY, 'sync');
           await p.ensureToken({ interactive: true }); // ページを離れる
           return;
         }
       } else if (!(await p.ensureToken({ interactive: false }))) {
         // ポップアップでログインする方式（Googleドライブ）：押した直後に開く必要があるので、先にログインする
-        showResult([`${p.label}にログインしています…`], '');
+        progStep(`${p.label}にログインしています`);
         await p.ensureToken({ interactive: true });
       }
       await withLock(async () => {
         await precheck();
-        showResult([`${p.label}を確認しています…`], '');
+        progStep(`${p.label}を確認しています`);
         const backend = p.createBackend();
         let info = await inspect(backend);
         if (info.state === 'empty') {
@@ -1687,7 +2213,7 @@
             });
             if (pass === null) { showResult(['やめました'], ''); return; }
             if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
-            showResult(['鍵を作っています…'], '');
+            progStep('鍵を作っています');
             manifest = await createSpace(pass);
           }
           await backend.write(MANIFEST_NAME, te.encode(JSON.stringify(manifest)));
@@ -1710,21 +2236,17 @@
           if (pass === null) { showResult(['やめました'], ''); return; }
         }
         if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
-        showResult(['同期しています…'], '');
-        const report = await syncWith(backend, { confirmSensitive });
+        const report = await syncWith(backend, { confirmSensitive, scanAll: true, onProgress: progStep, canApply: () => !stageBusy() });
         await metaPut({ ...(await cloudMeta()), provider: p.id, connected: true });
         await p.persist(); // 鍵ができた後に、更新用トークンを暗号化して保存する（OneDrive）
-        lastAuto = Date.now();
-        const lines = [`${p.label}と同期しました。`, ...reportLines(report)];
-        if (report.conflicts) lines.push(CONFLICT_LINE(report.conflicts));
-        if (report.applied) { needReload = true; lines.push(RELOAD_LINE); }
-        showResult(lines, 'ok');
-        if (report.applied) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
+        if (touchesMain(report.appliedDbs)) needReload = true;
+        showResult(resultLinesFor(report, `${p.label}と同期しました。`), 'ok');
+        if (needReload) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
         updateIndicator('ok');
         await refresh();
       });
     }
-    if (cloudBtn) cloudBtn.addEventListener('click', () => run(cloudSyncFlow));
+    if (cloudBtn) cloudBtn.addEventListener('click', () => run(cloudSyncFlow, { title: '同期しています' }));
     if (cloudOffBtn) cloudOffBtn.addEventListener('click', () => run(async () => {
       const c = await cloudMeta();
       const p = providers[c.provider];
@@ -1735,108 +2257,352 @@
       await metaPut({ ...c, connected: false });
       showResult([`${label}との接続を解除しました`], 'ok');
       await refresh();
-    }));
+    }, { title: '接続を解除' }));
     if (cloudAuto) cloudAuto.addEventListener('change', async () => {
       const c = await cloudMeta();
       await metaPut({ ...c, auto: cloudAuto.checked });
     });
 
-    // ---- 自動の同期：ログイン中だけ。確認が必要な場面（パスフレーズ・顧客データ）では何もしない ----
-    let lastAuto = 0;
+    // ===================== 自動の同期（ログイン中だけ。確認が必要な場面では何もしない） =====================
+    // いつ：開いたとき／しばらく離れて戻ったとき（受け取り）・アプリを閉じたとき／画面を離れるとき（未送信があれば送る）・
+    //       アプリを開いたまま30分（未送信があれば「送るだけ」）
     let autoRunning = false;
     let reloadPending = false;
+    let hiddenAt = 0;
     function otherModalOpen() {
       return !!document.querySelector('.settings-overlay.is-open, .launcher-modal-overlay.is-open, .launcher-confirm-overlay.is-open');
     }
-    function scheduleReload() {
+    function reloadSoon() {
       if (reloadPending) return;
       reloadPending = true;
-      showToast('ほかの端末の変更を受け取りました（保存済み）。画面の表示を最新にするため、再読み込みします');
+      banner.show({ text: '☁ ランチャー・本体の設定の変更を受け取りました（保存済み）。画面の表示を最新にします', kind: 'ok' });
       const tryReload = () => {
         if (!stageBusy() && !otherModalOpen()) location.reload();
         else setTimeout(tryReload, 2000);
       };
-      setTimeout(tryReload, 2500);
+      setTimeout(tryReload, 2000);
     }
-    async function autoSync() {
-      if (autoRunning || reloadPending) return;
-      const c = await cloudMeta();
-      const p = c.connected ? providers[c.provider] : null;
-      if (!p || !p.configured() || !c.auto) return;
-      if (stageBusy() || otherModalOpen()) return; // アプリや設定を開いている間は後回し
+    async function fullScanDue() {
+      const s = (await metaGet('status')) || {};
+      return !s.lastFullScanAt || Date.now() - s.lastFullScanAt > FULL_SCAN_MS;
+    }
+    // 自動の同期の本体。showBanner のときは、上の帯で進み具合と結果を知らせる
+    let autoPromise = null;
+    function autoRun(cp, hooks = {}) {
+      if (autoRunning || reloadPending || overlay.classList.contains('is-busy')) return Promise.resolve(null);
+      autoPromise = autoRunInner(cp, hooks).finally(() => { autoPromise = null; });
+      return autoPromise;
+    }
+    async function autoRunInner(cp, hooks) {
+      const { p } = cp;
       autoRunning = true;
+      const say = (text, kind = 'busy', extra = {}) => { if (hooks.showBanner) banner.show({ text, kind, ...extra }); };
       try {
-        if (!(await p.ensureToken({ interactive: false }))) { updateIndicator(); return; } // 自動ではログインし直さない
-        if (await otherTabsOpen()) return;
+        if (!(await p.ensureToken({ interactive: false }))) { updateIndicator(); return null; } // 自動ではログインし直さない
+        if (await otherTabsOpen()) return null;
         updateIndicator('busy');
+        say(hooks.pushOnly ? `☁ ${p.label}へ送っています（アプリは開いたまま）…` : `☁ ${p.label}と同期しています…`);
         const report = await withLock(async () => {
           const backend = p.createBackend();
           const info = await inspect(backend);
           if (info.state !== 'ready') throw new SyncError(`${p.label}の同期を確認してください（☁から同期してください）`);
-          return syncWith(backend, {});
+          return syncWith(backend, {
+            ...hooks,
+            onProgress: (t) => say(`☁ ${t}…`),
+            canApply: () => !stageBusy(),
+          });
         });
         await p.persist();
-        lastAuto = Date.now();
         updateIndicator('ok');
-        if (report.applied) scheduleReload();
+        const inN = report.results.reduce((a, r) => a + r.inAdd + r.inChange + r.inDel, 0);
+        const outN = report.results.reduce((a, r) => a + r.outAdd + r.outChange + r.outDel, 0);
+        const msg = hooks.pushOnly ? `☁ 送りました（${outN}件）` : (inN || outN ? `☁ 同期しました（受け取り${inN}件・送り出し${outN}件）` : '☁ 最新です');
+        say(msg, 'ok', { hideMs: 4000 });
+        if (touchesMain(report.appliedDbs)) reloadSoon();
+        return report;
       } catch (err) {
         if (userFacing(err)) console.warn('自動の同期を中止しました：' + err.message);
         else { console.error(err); addLog('error', err && err.stack ? err.stack : String(err)); }
         const loginLost = err && err.code === 'login';
         updateIndicator(loginLost ? undefined : 'error');
+        if (hooks.showBanner) {
+          banner.show({ text: '☁ 同期できませんでした：' + (err && err.message), kind: 'error', actions: [
+            { label: 'もう一度', onClick: () => { banner.hide(); open(); } },
+            { label: '閉じる', onClick: () => banner.hide() },
+          ] });
+        }
+        return null;
       } finally {
         autoRunning = false;
+        await updateUnsent();
       }
     }
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') autoSync();                 // 画面を離れるとき：送り出す
-      else if (Date.now() - lastAuto > AUTO_MIN_GAP_MS) autoSync();          // 戻ったとき：取り込む
-      else updateIndicator();
+
+    // ---- 開いた直後の同期の間は、アプリを開くのを待ってもらう（main.js の openStage から呼ばれる） ----
+    let gate = null;
+    window.SideOpsSyncGate = (openLater) => {
+      if (!gate) return false;
+      gate.pending = openLater;
+      banner.show({ text: '☁ ほかの端末の変更を受け取っています。終わったらアプリを開きます', kind: 'busy', actions: [{ label: '待たずに開く', onClick: () => releaseGate(true) }] });
+      return true;
+    };
+    function releaseGate(openNow) {
+      const g = gate;
+      gate = null;
+      if (g && g.pending && openNow && !reloadPending) g.pending();
+    }
+
+    // 開いたとき（しばらく離れて戻ったときも）：ログイン中なら裏で受け取る。ログインが切れていたら、まず確かめる
+    async function startupSync() {
+      const cp = await connectedProvider();
+      if (!cp || !cp.c.auto || stageBusy() || overlay.classList.contains('is-busy')) return;
+      // 覚えているログインが本当に使えるかは、取り直してみるまで分からない。だめなら、ここで止めて確かめる
+      let usable = (await cp.p.status()) === 'ready';
+      if (usable) { try { usable = await cp.p.ensureToken({ interactive: false }); } catch (err) { usable = false; } }
+      if (!usable) { await showLoginGate(cp.p); return; }
+      gate = { pending: null };
+      try {
+        await autoRun(cp, { showBanner: true, scanAll: await fullScanDue() });
+      } finally {
+        releaseGate(true);
+      }
+    }
+
+    // ログインが切れていたとき：いったん止めて、同期してから作業するか、そのまま作業するかを選んでもらう
+    async function showLoginGate(p) {
+      const status = (await metaGet('status')) || {};
+      const unsent = await unsentDbs();
+      progOpen(`${p.label}のログインが切れています`);
+      showResult([
+        `前回の同期：${fmt(status.lastSyncAt)}`,
+        `この端末の未送信：${unsent.length ? 'あり（' + unsent.map((r) => r.label).join('・') + '）' : 'なし'}`,
+        'ほかの端末に新しいデータがあるかは、ログインすると確認できます（たいていパスワードの入力なしで戻ってきます）。',
+      ], '');
+      progActions([
+        { id: 'syncGateLogin', label: 'ログインして確認', cls: 'primary', onClick: () => loginAndCheck(p) },
+        { id: 'syncGateSkip', label: '同期せずに作業する', onClick: () => { progClose(); updateIndicator(); scheduleUnsent(); } },
+      ]);
+    }
+    async function loginAndCheck(p) {
+      progActions([]);
+      progStep('ログインしています');
+      try {
+        if (p.loginLeavesPage) await precheck();
+        sessionStorage.setItem(INTENT_KEY, 'check');
+        if (await p.ensureToken({ interactive: true })) await afterLoginCheck(p); // ポップアップ型はここへ戻る。ページを離れる型は戻ってから続ける
+      } catch (err) {
+        progStep('');
+        showResult([userFacing(err) ? err.message : 'ログインに失敗しました'], 'error');
+        progActions([{ id: 'syncProgressOk', label: '閉じる', onClick: progClose }]);
+      }
+    }
+    // ログインしてから：ほかの端末が新しいデータを送っていれば知らせて選んでもらう。なければそのまま閉じる
+    async function afterLoginCheck(p) {
+      sessionStorage.removeItem(INTENT_KEY);
+      progOpen('ほかの端末の変更を確かめています');
+      progStep('確認しています');
+      let r;
+      try {
+        r = await checkRemote(p.createBackend());
+      } catch (err) {
+        progStep('');
+        showResult([userFacing(err) ? err.message : '確認に失敗しました'], 'error');
+        progActions([{ id: 'syncProgressOk', label: '閉じる', onClick: progClose }]);
+        return;
+      }
+      progStep('');
+      updateIndicator();
+      if (r.state !== 'ready' || r.newer.length) {
+        progTitle.textContent = 'ほかの端末に新しいデータがあります';
+        showResult(r.state !== 'ready' ? ['同期の状態を確かめる必要があります。同期すると確かめられます。']
+          : r.newer.map((d) => `${d.name}：${fmt(d.at)} に送ったデータがあります（クラウドの方が新しい）`), '');
+        progActions([
+          { id: 'syncGateSync', label: '同期する（おすすめ）', cls: 'primary', onClick: () => { progClose(); open(); } },
+          { id: 'syncGateSkip', label: '同期せずに作業する', onClick: () => { progClose(); scheduleUnsent(); } },
+        ]);
+        return;
+      }
+      progTitle.textContent = '最新です';
+      showResult(['ほかの端末に新しいデータはありません'], 'ok');
+      progActions([{ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: progClose }]);
+      setTimeout(() => { if (progTitle.textContent === '最新です') progClose(); }, 1500);
+      // この端末に未送信があれば、裏で送っておく
+      const cp = await connectedProvider();
+      if (cp && (await unsentDbs()).length) autoRun(cp, { showBanner: true });
+    }
+
+    // ---- 未送信の表示：☁に印。ログインが切れているなど自動で送れないときは、帯で知らせる ----
+    let unsentTimer = 0;
+    function scheduleUnsent() { clearTimeout(unsentTimer); unsentTimer = setTimeout(updateUnsent, 800); }
+    async function updateUnsent() {
+      try {
+        const cp = await connectedProvider();
+        unsentNow = cp ? await unsentDbs() : [];
+        updateIndicator();
+        if (!unsentNow.length) { banner.hide('unsent'); return; }
+        if (cp.c.auto && (await cp.p.status()) === 'ready') return; // 自動で送れるときは帯を出さない
+        if (stageBusy()) return; // 作業中は帯で邪魔しない（☁の印だけ）
+        const marks = readDirtyMarks();
+        const newest = Math.max(...unsentNow.map((rl) => marks[rl.name] || 0));
+        const dismissed = Number(localStorage.getItem(DISMISS_KEY) || 0);
+        if (dismissed >= newest) return; // 「あとで」を押した後、新しい変更がなければ出さない
+        if (banner.kind === 'busy' || banner.kind === 'error') return;
+        banner.show({
+          kind: 'unsent',
+          text: `☁ 未送信の変更があります（${unsentNow.map((rl) => rl.label).join('・')}）`,
+          actions: [
+            { label: '今すぐ同期', cls: 'primary', onClick: () => { banner.hide(); open(); } },
+            { label: 'あとで', onClick: () => { try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch (err) { /* 無視 */ } banner.hide(); } },
+          ],
+        });
+      } catch (err) { /* 表示できなくても作業には影響しない */ }
+    }
+    onLocalChange = () => scheduleUnsent();
+    window.addEventListener('storage', (e) => { if (e.key && e.key.startsWith(DIRTY_PREFIX)) scheduleUnsent(); });
+
+    // ---- 自動の同期のきっかけ ----
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        // 画面を離れるとき：未送信があれば送る（スマホでは途中で止められることがある。その分は次回送る）
+        const cp = await connectedProvider();
+        if (cp && cp.c.auto && !stageBusy() && (await unsentDbs()).length) autoRun(cp, {});
+        return;
+      }
+      // しばらく離れて戻ったとき：開いたときと同じ扱い（ほかの端末で作業していたかもしれない）
+      if (hiddenAt && Date.now() - hiddenAt >= AWAY_MS) startupSync();
+      else scheduleUnsent();
+      hiddenAt = 0;
     });
     const stageEl = document.getElementById('stageEl');
     if (stageEl) {
       let wasOpen = stageEl.classList.contains('is-open');
       new MutationObserver(() => {
         const nowOpen = stageEl.classList.contains('is-open');
-        if (wasOpen && !nowOpen) setTimeout(autoSync, STAGE_RETIRE_WAIT_MS + 500); // アプリを閉じたら、保存し終えるのを待って送る
+        if (wasOpen && !nowOpen) {
+          // アプリを閉じたとき：保存し終えるのを待って、未送信があれば送る
+          setTimeout(async () => {
+            const cp = await connectedProvider();
+            if (cp && cp.c.auto && !stageBusy() && (await unsentDbs()).length) autoRun(cp, { showBanner: true });
+            else scheduleUnsent();
+          }, STAGE_RETIRE_WAIT_MS + 500);
+        }
         wasOpen = nowOpen;
       }).observe(stageEl, { attributes: true, attributeFilter: ['class'] });
     }
-    setInterval(() => { if (document.visibilityState === 'visible') autoSync(); else updateIndicator(); }, AUTO_INTERVAL_MS);
+    // アプリを開いたまま長く作業しているとき：30分ごとに「送るだけ」（受け取りはアプリを閉じた後）
+    setInterval(async () => {
+      if (document.visibilityState !== 'visible' || stageBusy() !== 'open') return;
+      const cp = await connectedProvider();
+      if (!cp || !cp.c.auto) return;
+      const s = (await metaGet('status')) || {};
+      if (Date.now() - (s.lastPushAt || 0) < PUSH_EVERY_MS) return;
+      if (!(await unsentDbs()).length) return;
+      autoRun(cp, { pushOnly: true, showBanner: true });
+    }, hook.pushCheckMs || 60 * 1000);
 
-    function showToast(text) {
-      let el = document.getElementById('syncToast');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'syncToast';
-        el.className = 'sync-toast';
-        document.body.appendChild(el);
+    // ===================== 同期の記録（受け取った変更を戻す） =====================
+    async function refreshJournal() {
+      if (!journalEl) return;
+      const list = await listJournal(8);
+      journalEl.textContent = '';
+      if (!list.length) { journalEl.textContent = 'まだ記録はありません（ほかの端末の変更を受け取ると、受け取る前の中身が残ります）'; return; }
+      for (const e of list) {
+        const row = document.createElement('div');
+        row.className = 'sync-journal-row' + (e.undone ? ' is-undone' : '');
+        const head = document.createElement('div');
+        head.className = 'sync-journal-head';
+        const apps = Object.entries(e.counts).map(([db, n]) => `${ruleLabel(db)}${n}件`).join('・');
+        head.textContent = `${fmt(e.at)}　${apps || '（なし）'}${e.undone ? '　（取り消し済み）' : ''}`;
+        row.appendChild(head);
+        if (!e.undone && Object.keys(e.counts).length) {
+          const acts = document.createElement('div');
+          acts.className = 'sync-journal-actions';
+          const all = document.createElement('button');
+          all.className = 'btn';
+          all.dataset.syncAction = 'undo';
+          all.textContent = 'すべて戻す';
+          all.addEventListener('click', () => undoFlow(e, null));
+          acts.appendChild(all);
+          if (Object.keys(e.counts).length > 1) {
+            for (const db of Object.keys(e.counts)) {
+              const b = document.createElement('button');
+              b.className = 'btn';
+              b.dataset.syncAction = 'undo';
+              b.textContent = `${ruleLabel(db)}だけ戻す`;
+              b.addEventListener('click', () => undoFlow(e, [db]));
+              acts.appendChild(b);
+            }
+          }
+          row.appendChild(acts);
+        }
+        journalEl.appendChild(row);
       }
-      el.textContent = text;
-      el.classList.add('show');
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(() => el.classList.remove('show'), 4000);
+    }
+    function undoFlow(entry, dbs) {
+      run(() => withLock(async () => {
+        await precheck();
+        const target = dbs ? dbs.map(ruleLabel).join('・') : Object.keys(entry.counts).map(ruleLabel).join('・');
+        const ok = await dialog({ message: `${fmt(entry.at)}の同期で受け取った変更（${target}）を、受け取る前の中身に戻します。\n戻したことは、次の同期でほかの端末にも届きます。`, okLabel: '戻す', danger: true });
+        if (!ok) { showResult(['やめました'], ''); return; }
+        const check = await undoJournal(entry.id, { dbs, mode: 'check' });
+        let mode = 'unchangedOnly';
+        if (check.modified) {
+          const all = await dialog({
+            message: `そのうち${check.modified}件は、同期の後にこの端末で変更しています。\n変更した分も、受け取る前の中身に戻しますか？`,
+            okLabel: '変更した分も戻す', cancelLabel: '変更していないものだけ戻す', danger: true,
+          });
+          mode = all ? 'all' : 'unchangedOnly';
+        }
+        const out = await undoJournal(entry.id, { dbs, mode });
+        if (touchesMain(out.dbs)) needReload = true;
+        const lines = [`戻しました：${out.restored}件（${out.dbs.map(ruleLabel).join('・') || 'なし'}）`];
+        if (mode === 'unchangedOnly' && check.modified) lines.push(`同期の後に変更していた${check.modified}件は、そのままにしました`);
+        lines.push('戻したことは、次の同期でほかの端末にも届きます');
+        if (needReload) lines.push('ランチャー・本体の設定の表示を最新にするため、閉じると再読み込みします');
+        showResult(lines, 'ok');
+        await refresh();
+      }), { title: '受け取った変更を戻しています' });
     }
 
-    // ログイン（ページを離れる方式）から戻ったとき：結果を表示し、同期の続きをする
+    // ===================== ページを開いたとき =====================
+    // ログイン（ページを離れる方式）から戻ったときは、その目的（確認だけ／同期）の続きをする。
+    // それ以外は、開いたときの同期をする
     (async () => {
+      let resumed = false;
       for (const p of providerList) {
         let r = null;
         try { r = await p.redirectResult; } catch (err) { r = { error: 'ログインに失敗しました' }; }
         if (!r) continue;
+        resumed = true;
         const resume = p.resumeKey && sessionStorage.getItem(p.resumeKey) === p.id;
         if (p.resumeKey) sessionStorage.removeItem(p.resumeKey);
+        const intent = sessionStorage.getItem(INTENT_KEY) || 'sync';
         buildProviderOptions();
         if (cloudSel && !(await cloudMeta()).connected) cloudSel.value = p.id;
-        await open({ autoSync: false });
-        if (r.error) { showResult([r.error], 'error'); continue; }
-        if (resume) run(cloudSyncFlow);
+        if (r.error) {
+          sessionStorage.removeItem(INTENT_KEY);
+          await open({ autoSync: false });
+          progOpen('ログインできませんでした');
+          showResult([r.error], 'error');
+          progActions([{ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: progClose }]);
+          continue;
+        }
+        if (intent === 'check' && (await cloudMeta()).connected) { await afterLoginCheck(p); continue; }
+        sessionStorage.removeItem(INTENT_KEY);
+        if (resume) {
+          await open({ autoSync: false });
+          run(cloudSyncFlow, { fromOpen: true, title: `${p.label}と同期しています` });
+        }
       }
+      applyCloudAvailability();
+      updateIndicator();
+      if (!resumed) await startupSync();
+      scheduleUnsent();
     })();
-    applyCloudAvailability();
-    updateIndicator();
 
-    // 「同期ファイルを作る」：この端末のデータから同期ファイルを作る（初回はパスフレーズを決める）
+    // ===================== 同期ファイル（手動・クラウドを使わないとき） =====================
+    // 「新しく作る」：この端末のデータから同期ファイルを作る（初回はパスフレーズを決める）
     $('syncCreateBtn').addEventListener('click', () => run(() => withLock(async () => {
       await precheck();
       let keys = await getKeys();
@@ -1848,7 +2614,7 @@
         });
         if (p === null) { showResult(['やめました'], ''); return; }
         if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
-        showResult(['鍵を作っています…'], '');
+        progStep('鍵を作っています');
         manifest = await createSpace(p);
         keys = await getKeys();
       } else {
@@ -1865,9 +2631,9 @@
       }
       const backend = createMemoryBackend();
       await backend.write(MANIFEST_NAME, te.encode(JSON.stringify(manifest)));
-      const report = await syncWith(backend, { confirmSensitive });
+      const report = await syncWith(backend, { confirmSensitive, scanAll: true, onProgress: progStep });
       await finishSync(backend, manifest, report);
-    })));
+    }), { title: '同期ファイルを作っています' }));
 
     // 「同期ファイルを読み込む」：別の端末で作った同期ファイルを取り込み、この端末の分を書き足す
     $('syncImportBtn').addEventListener('click', () => { pkgInput.value = ''; pkgInput.click(); });
@@ -1896,9 +2662,9 @@
           if (p === null) { showResult(['やめました'], ''); return; }
         }
         if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
-        const report = await syncWith(backend, { confirmSensitive });
+        const report = await syncWith(backend, { confirmSensitive, scanAll: true, onProgress: progStep });
         await finishSync(backend, info.manifest, report);
-      }));
+      }), { title: '同期ファイルを読み込んでいます' });
     });
 
     deviceNameInput.addEventListener('change', async () => {
@@ -1912,7 +2678,7 @@
     $('syncBackupBtn').addEventListener('click', () => run(async () => {
       downloadBlob(await buildBackup(), `sideops-backup-${stamp()}.json`);
       showResult(['全データのバックアップを保存しました。暗号化されていないので、安全な場所に保管してください'], 'ok');
-    }));
+    }, { title: 'バックアップを作っています' }));
     $('syncRestoreBtn').addEventListener('click', () => { backupInput.value = ''; backupInput.click(); });
     backupInput.addEventListener('change', () => {
       const file = backupInput.files && backupInput.files[0];
@@ -1932,22 +2698,22 @@
         needReload = true;
         showResult(['復元しました（この端末に保存済み）。画面の表示を最新にするため、閉じると再読み込みします', ...done], 'ok');
         appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
-      }));
+      }), { title: 'バックアップから復元しています' });
     });
     $('syncConflictsBtn').addEventListener('click', () => run(async () => {
       const n = await countConflicts();
       if (!n) { showResult(['競合の控えはありません'], ''); return; }
       downloadBlob(await exportConflicts(), `sideops-conflicts-${stamp()}.json`);
       showResult([`競合の控え${n}件を書き出しました（暗号化されていません）`], 'ok');
-    }));
+    }, { title: '競合の控えを書き出しています' }));
     $('syncForgetBtn').addEventListener('click', () => run(() => withLock(async () => {
-      const ok = await dialog({ message: 'この端末の同期を解除します。覚えている鍵と同期の状態、クラウドへの接続とログインを消します（アプリのデータは消えません）。\nもう一度同期するときは、パスフレーズの入力が必要です。', okLabel: '解除する', danger: true });
+      const ok = await dialog({ message: 'この端末の同期を解除します。覚えている鍵と同期の状態、クラウドへの接続とログイン、同期の記録を消します（アプリのデータは消えません）。\nもう一度同期するときは、パスフレーズの入力が必要です。', okLabel: '解除する', danger: true });
       if (!ok) { showResult(['やめました'], ''); return; }
       for (const p of providerList) { try { await p.signOut(); } catch (err) { /* メモリのトークンは次の読み込みで消える */ } }
       await forgetDevice();
       showResult(['この端末の同期を解除しました'], 'ok');
       await refresh();
-    })));
+    }), { title: 'この端末を忘れる' }));
   }
 
   // 動作確認・開発用（同じオリジンのスクリプトは元々すべてのDBを読めるので、新たな危険は増えない）
@@ -1955,6 +2721,8 @@
     SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME, SyncError, saveSecret, loadSecret, deleteSecret,
     createMemoryBackend, backendFromPackage, packageBlob, inspect, unlock, createSpace, syncWith,
     forgetDevice, buildBackup, restoreBackup, countConflicts, getDevice, localDbVersions,
+    unsentDbs, readDirtyMarks, listJournal, undoJournal, checkRemote,
+    get lastReport() { return lastReport; },
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initUi);

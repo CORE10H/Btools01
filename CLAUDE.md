@@ -24,4 +24,5 @@ GitHub Pages で公開：https://core10h.github.io/Btools01/
 - 実装したら必ず push まで行う（未 push のままセッションが終わってコードが消えた前例あり）
 - 動作確認は `file://` で直接開かない（IndexedDB が動かない）。ローカルサーバーか GitHub Pages で確認する
 - コミットメッセージは `feat:` / `fix:` / `docs:` / `add:` などの接頭辞と日本語で書く
+- 新しいアプリ（`apps/*.html`）は、必ず `<head>` の早い位置で `sideops-theme-bridge.js` を読み込む（テーマのためと、同期の「変えたよ」の印のため。読み込まないと、そのアプリの変更は☁を押すまで同期されない）
 - 同期の決まり：アプリの `DB_VERSION` を上げたら `js/sync.js` の `DB_RULES` の `version` と `SYNC_APP_BUILD` も上げる。レコードの項目を変えたら `SYNC_APP_BUILD` を上げる。新しいアプリ（DB）を足したら `DB_RULES` に足す。同期まわりを変えたら `D:\dev\sideops_sync_verify\` の `sync_e2e.dart`（同期ファイル）・`onedrive_e2e.dart`（OneDrive。偽のMicrosoftを使う）・`drive_e2e.dart`（Googleドライブ。偽のドライブを使う）で確認する

@@ -999,11 +999,47 @@
   .sync-db-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
   .sync-db-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); cursor: pointer; min-width: 0; }
   .sync-db-item input { accent-color: var(--cyan); flex-shrink: 0; }
-  .sync-result { font-size: 11px; color: var(--text-dim); line-height: 1.7; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+  /* 状態を見せるモーダル（同期中・結果・ログイン切れの確認）：☁の画面の上、確認ダイアログの下 */
+  .sync-progress { z-index: 265; }
+  .sync-progress .launcher-confirm-box { border-color: var(--cyan-dim); max-width: 420px; max-height: 80vh; overflow-y: auto; }
+  .sync-progress-title { font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: .04em; color: var(--text); margin-bottom: 8px; }
+  .sync-progress-step { font-size: 11.5px; color: var(--cyan); line-height: 1.7; min-height: 0; }
+  .sync-progress-step:not(:empty)::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--cyan); animation: pulse 1s ease-in-out infinite; vertical-align: middle; }
+  .sync-result { font-size: 11.5px; color: var(--text-dim); line-height: 1.7; margin: 8px 0 12px; white-space: pre-line; }
   .sync-result:empty { display: none; }
-  .sync-result.is-ok { color: var(--cyan); }
+  .sync-result.is-ok { color: var(--text); }
+  .sync-result.is-ok > div:first-child { color: var(--cyan); font-weight: 600; }
   .sync-result.is-error { color: var(--magenta); }
   .sync-result .btn { margin: 8px 8px 0 0; }
+  .sync-progress .launcher-confirm-actions:empty { display: none; }
+  .sync-progress .launcher-confirm-actions { flex-wrap: wrap; }
+  /* ヘッダーの下の帯（裏で同期しているとき・未送信・失敗）。top は js/sync.js がヘッダーの下に合わせる */
+  .sync-banner {
+    position: fixed; left: 50%; top: 56px; transform: translateX(-50%); z-index: 190;
+    width: max-content; max-width: calc(100vw - 24px); box-sizing: border-box;
+    display: none; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+    padding: 8px 14px; font-size: 12px; line-height: 1.6; color: var(--text);
+    background: rgba(var(--panel-rgb), .97); border: 1px solid var(--cyan-dim);
+    box-shadow: 0 6px 24px rgba(var(--scrim-rgb), .35);
+  }
+  .sync-banner.is-open { display: flex; }
+  .sync-banner.is-busy .sync-banner-text::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--cyan); animation: pulse 1s ease-in-out infinite; vertical-align: middle; }
+  .sync-banner.is-unsent { border-color: var(--amber); }
+  .sync-banner.is-error { border-color: var(--magenta); color: var(--magenta); }
+  .sync-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sync-banner-actions:empty { display: none; }
+  .sync-banner .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 4px 10px; cursor: pointer;
+  }
+  .sync-banner .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  /* 同期の記録 */
+  .sync-journal { display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: var(--text-dim); }
+  .sync-journal-row { border: 1px solid var(--line); padding: 6px 8px; }
+  .sync-journal-row.is-undone { opacity: .55; }
+  .sync-journal-head { line-height: 1.6; }
+  .sync-journal-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .sync-journal-actions .btn { padding: 4px 10px; }
   .settings-overlay.is-busy .settings-close-btn { opacity: .35; cursor: wait; }
   .sync-dialog { z-index: 270; }
   .sync-dialog .launcher-confirm-box { border-color: var(--cyan-dim); max-width: 360px; }

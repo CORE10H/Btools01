@@ -17,6 +17,56 @@
    - 反映後に document へ 'sideops:themechange' イベントを発火する。
      canvas描画など、CSS変数だけでは追従できない処理はこれを拾って再描画できる。
 ===================================================================== */
+/* ---- 同期のための「変えたよ」の印（2026-10-06） ----
+   このアプリが IndexedDB に書き込んだら、localStorage に「どのDBのどのストアを、いつ変えたか」を残す
+   （キー：sideops_sync_dirty:<DB名>|<ストア名>、値：時刻）。本体の同期（js/sync.js）は、この印が
+   前回見直した時刻より新しいDBだけを見直す（毎回すべてのデータを読み直さずに済む）。
+   - 単体で開いた場合も残す（同じサイトの localStorage なので本体から見える）
+   - 大量に書き込むとき（取込など）は、0.5秒に1回にまとめ、最後の書き込みの後にも1回残す
+   - 印が付けられなくても、アプリの動作には影響させない（すべて try で囲む）
+   - 印の付け忘れに備えて、本体は☁を押したときと1日1回は、印に関係なくすべてを見直す */
+(function () {
+  'use strict';
+  try {
+    if (!window.IDBObjectStore || window.__sideopsDirtyHooked) return;
+    window.__sideopsDirtyHooked = true;
+    var PREFIX = 'sideops_sync_dirty:';
+    var last = {};
+    var timers = {};
+    // 印はストア単位（キー：sideops_sync_dirty:<DB名>|<ストア名>）。同期しないストア
+    // （MINDFRAMEの表示位置など）への書き込みを、本体が「未送信」と取り違えないように
+    var stamp = function (key) {
+      last[key] = Date.now();
+      try { localStorage.setItem(PREFIX + key, String(last[key])); } catch (e) { /* 保存できない環境は無視 */ }
+    };
+    var mark = function (os) {
+      var db = os && os.transaction && os.transaction.db;
+      var name = db && db.name;
+      if (!name || name.indexOf('sideops_') !== 0 || name === 'sideops_sync') return;
+      var key = name + '|' + os.name;
+      if (!last[key] || Date.now() - last[key] > 500) { stamp(key); return; }
+      if (!timers[key]) timers[key] = setTimeout(function () { timers[key] = 0; stamp(key); }, 600);
+    };
+    var wrap = function (proto, method, storeOf) {
+      var orig = proto[method];
+      if (typeof orig !== 'function') return;
+      proto[method] = function () {
+        var r = orig.apply(this, arguments);
+        try { mark(storeOf(this)); } catch (e) { /* 印が付けられなくても続ける */ }
+        return r;
+      };
+    };
+    ['put', 'add', 'delete', 'clear'].forEach(function (m) {
+      wrap(IDBObjectStore.prototype, m, function (os) { return os; });
+    });
+    if (window.IDBCursor) {
+      ['update', 'delete'].forEach(function (m) {
+        wrap(IDBCursor.prototype, m, function (c) { var s = c.source; return s.objectStore || s; });
+      });
+    }
+  } catch (e) { /* 何もしない */ }
+})();
+
 (function () {
   'use strict';
 

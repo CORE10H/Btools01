@@ -1802,6 +1802,9 @@
     // ✕で閉じた直後、履歴の後片付け（数十ms程度）が終わるまでは開かない。
     // 後片付けの「戻る」が新しく開いたStageを閉じてしまう食い違いを防ぐ
     if (stageHistorySelfBack) return;
+    // 開いた直後の同期（js/sync.js）が終わるまでは、アプリを開くのを待たせる
+    // （古いデータのまま編集を始めないように）。待たせたときは、同期の後にこの関数を呼び直す
+    if (typeof window.SideOpsSyncGate === 'function' && window.SideOpsSyncGate(() => openStage(ev, project, cardId))) return;
     currentStageCardId = cardId || null;
     const card = cardId ? cards.find(c => c.id === cardId) : null;
     const mode = (card && card.sizeMode) || 'normal';
