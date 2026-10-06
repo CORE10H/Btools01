@@ -241,6 +241,7 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 | `sideops_log` | 同期しない（案） | 両方の端末で取得すると、取得先へのアクセスが倍になる。通知は取得先から取り直せる |
 | `sideops_mindframe` | `views`以外を同期する（案） | `views`は表示位置・ズーム。画面の大きさが違うので端末ごとに持つ |
 | `sideops_recon` | 同期する（2026-10-05決定） | 下の「RECONを同期するときの扱い」を参照 |
+| `sideops_librarium` | 同期する（2026-10-07） | LIBRARIUM。本（`books`）と読んだ位置（`progress`）。読んだ位置を本と分けたのは、位置が変わるたびに長い本文まで送り直さないため（`apps/claude_アプリ_LIBRARIUM_仕様書.md`） |
 | その他のアプリ | 同期する | |
 
 ### 本体の設定の分け方（2026-10-05決定）
@@ -400,6 +401,7 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 
 - アプリの`DB_VERSION`を上げたら、`js/sync.js`の`DB_RULES`の`version`も同じ値にし、`SYNC_APP_BUILD`（`yyyymmddnn`の数値）を上げる
 - アプリのレコードの項目（データの形）を変えたら、`SYNC_APP_BUILD`を上げる
+  - 上げた記録：`2026100601`（PROMPTGALLERYの`thumb`）、`2026100701`（MANUSCRIPTの画像・SCAFFOLDの下書き・Discoticaのアーティストとアルバム・ランチャーのカードに見え方の項目を追加、LIBRARIUMを追加）
 - 新しいアプリ（新しいDB）を足したら、`DB_RULES`に足す。足さないと同期されない
 - 本体の設定（`main`）に項目を足し、それを同期したいときは、`DB_RULES`の`only`に書き足す。書き足さない項目は端末ごとになる
 

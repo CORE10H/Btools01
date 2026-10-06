@@ -122,6 +122,18 @@
 
   let pendingArtistImageBlob = null;
   let pendingAlbumImageBlob = null;
+  // 画像の見え方（2026-10-07。apps/sideops-frame.js）。アーティスト・アルバムの記録に coverThumb を持ち、
+  // 16:9 の枠（アーティストのカード・概要の画像・アルバムのカード）にその見え方で出す。ないときは中央で切り抜く
+  let pendingArtistThumb = null;
+  let pendingAlbumThumb = null;
+  const IMG_ASPECT = 16 / 9;
+  function frameBg(thumb) {
+    return window.SideOpsFrame ? window.SideOpsFrame.bgStyle(thumb, IMG_ASPECT) : { size: 'cover', position: 'center' };
+  }
+  async function pickFraming(blob, label) {
+    if (!window.SideOpsFrame) return null;
+    return window.SideOpsFrame.edit({ src: blob, aspect: IMG_ASPECT, label });
+  }
 
   // 再生状態：どのオーディオ要素が今鳴っているか、対応する楽曲id
   const audioEl = new Audio();
@@ -369,6 +381,9 @@
         el.innerHTML = `<div class="artist-name-plate">${escapeHtml(a.name)}</div>`;
         if (a.coverImg) {
           el.style.backgroundImage = `linear-gradient(0deg, rgba(var(--bg-rgb),.85), rgba(var(--bg-rgb),0) 55%), url('${artistListUrls.make(a.coverImg)}')`;
+          const fb = frameBg(a.coverThumb);
+          el.style.backgroundSize = `auto, ${fb.size}`;
+          el.style.backgroundPosition = `center, ${fb.position}`;
         }
       }
       el.addEventListener('click', () => {
@@ -577,6 +592,7 @@
   bindImageDropClick(albumImageDrop, albumImageInput);
 
   function resetArtistModal() {
+    pendingArtistThumb = null;
     pendingArtistImageBlob = null;
     artistNameInput.value = '';
     artistBioModalInput.value = '';
@@ -593,10 +609,13 @@
       showToast('画像ファイルを選択してください');
       return;
     }
+    pendingArtistThumb = null;
     pendingArtistImageBlob = file;
     const url = modalPreviewUrls.make(file);
     artistImageDrop.classList.add('has-image');
     artistImageDrop.innerHTML = `<img src="${url}" alt="">`;
+    // 続けて見え方を決めてもらう（キャンセルなら中央で切り抜き）
+    pickFraming(file, 'アーティスト画像・あとで概要の画像から変えられます').then((t) => { if (pendingArtistImageBlob === file) pendingArtistThumb = t; });
   }
   document.getElementById('artistImageInput').addEventListener('change', handleArtistImageChange);
 
@@ -622,6 +641,7 @@
       name,
       bio: artistBioModalInput.value.trim(),
       coverImg: pendingArtistImageBlob || null,
+      ...(pendingArtistImageBlob && pendingArtistThumb ? { coverThumb: pendingArtistThumb } : {}),
       createdAt: Date.now(),
     };
     try {
@@ -643,6 +663,11 @@
     artistBioInput.value = artist.bio || '';
     artistBioCover.style.backgroundImage = artist.coverImg
       ? `url('${artistBioUrls.make(artist.coverImg)}')` : 'none';
+    const bioFb = frameBg(artist.coverThumb);
+    artistBioCover.style.backgroundSize = bioFb.size;
+    artistBioCover.style.backgroundPosition = bioFb.position;
+    artistBioCover.classList.toggle('can-frame', !!(artist.coverImg && window.SideOpsFrame));
+    artistBioCover.title = artist.coverImg ? 'クリックで見え方を調整' : '';
     await loadAlbumsForArtist(artist.id);
     artistViewOverlay.classList.add('is-open');
   }
@@ -654,6 +679,25 @@
     currentAlbums = [];
   }
   artistViewCloseBtn.addEventListener('click', closeArtistView);
+
+  // 概要の画像のクリックで、アーティスト画像の見え方を調整する（2026-10-07）
+  artistBioCover.addEventListener('click', async () => {
+    const artist = currentArtist;
+    if (!artist || !artist.coverImg || !window.SideOpsFrame) return;
+    const t = await window.SideOpsFrame.edit({ src: artist.coverImg, aspect: IMG_ASPECT, initial: artist.coverThumb, label: 'アーティスト画像' });
+    if (!t || currentArtist !== artist) return;
+    artist.coverThumb = t;
+    try {
+      await dbPut(STORE_ARTISTS, artist);
+      const fb = frameBg(t);
+      artistBioCover.style.backgroundSize = fb.size;
+      artistBioCover.style.backgroundPosition = fb.position;
+      await loadArtists(); // トップ画面のカードにも反映
+    } catch (err) {
+      console.error(err);
+      showToast('保存に失敗しました');
+    }
+  });
 
   artistBioSaveBtn.addEventListener('click', async () => {
     if (!currentArtist) return;
@@ -715,6 +759,9 @@
       el.className = 'album-card';
       if (al.coverImg) {
         el.style.backgroundImage = `url('${discographyUrls.make(al.coverImg)}')`;
+        const fb = frameBg(al.coverThumb);
+        el.style.backgroundSize = fb.size;
+        el.style.backgroundPosition = fb.position;
       }
       const tracks = await dbGetAllByIndex(STORE_TRACKS, 'albumId', al.id);
       tracks.sort((a, b) => a.order - b.order);
@@ -765,6 +812,7 @@
   /* ===================== アルバム：追加モーダル ===================== */
   function resetAlbumModal() {
     editingAlbumId = null;
+    pendingAlbumThumb = null;
     pendingAlbumImageBlob = null;
     albumModalTitle.textContent = 'アルバムを追加';
     albumTitleInput.value = '';
@@ -780,10 +828,12 @@
       showToast('画像ファイルを選択してください');
       return;
     }
+    pendingAlbumThumb = null;
     pendingAlbumImageBlob = file;
     const url = modalPreviewUrls.make(file);
     albumImageDrop.classList.add('has-image');
     albumImageDrop.innerHTML = `<img src="${url}" alt="">`;
+    pickFraming(file, 'アルバム画像').then((t) => { if (pendingAlbumImageBlob === file) pendingAlbumThumb = t; });
   }
   document.getElementById('albumImageInput').addEventListener('change', handleAlbumImageChange);
 
@@ -813,6 +863,12 @@
       artistId: currentArtist.id,
       title,
       coverImg: pendingAlbumImageBlob || (editingAlbumId ? currentAlbums.find(a => a.id === editingAlbumId)?.coverImg : null) || null,
+      // 見え方：新しい画像なら決めたもの、画像そのままの編集なら前のもの
+      ...((() => {
+        const t = pendingAlbumImageBlob ? pendingAlbumThumb
+          : (editingAlbumId ? currentAlbums.find(a => a.id === editingAlbumId)?.coverThumb : null);
+        return t ? { coverThumb: t } : {};
+      })()),
       createdAt: editingAlbumId ? (currentAlbums.find(a => a.id === editingAlbumId)?.createdAt || Date.now()) : Date.now(),
     };
     try {

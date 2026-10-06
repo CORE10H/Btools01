@@ -50,8 +50,8 @@
 | 本体 → アプリ | `{ type: 'sideops:back' }` | 戻る操作。いちばん手前のモーダルを1つ閉じる |
 | アプリ → 本体 | `{ type: 'sideops:picker' }` | 画像などを選ぶ画面を開いた（`input[type=file]`のクリック）。全画面表示の扱いに使う（`claude_ヘッダーと設定モーダル_仕様書.md`「全画面表示と「戻る」」） |
 
-- モーダルの見つけ方：`.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, .view-overlay.is-open, .thumb-lightbox.is-open, dialog[open]`のうち、見えているもの。`MutationObserver`で`class`・`open`の変化と要素の出入りを見て、1回の操作の変化をまとめて1回だけ数える（`style`の変化は見ない。MINDFRAMEのドラッグ等で多いため）
-- 閉じ方：いちばん手前（z-indexが大きいもの、同じなら文書の後ろ側）を、①背景のクリック ②Esc ③✕ボタン（`[data-sideops-back-close]`・`.modal-close`・`.thumb-lightbox-close`）の順に試す
+- モーダルの見つけ方：`.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, .view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open（2026-10-07〜。画像の見え方の調整）, dialog[open]`のうち、見えているもの。`MutationObserver`で`class`・`open`の変化と要素の出入りを見て、1回の操作の変化をまとめて1回だけ数える（`style`の変化は見ない。MINDFRAMEのドラッグ等で多いため）
+- 閉じ方：いちばん手前（z-indexが大きいもの、同じなら文書の後ろ側）を、①背景のクリック ②Esc ③✕ボタン（`[data-sideops-back-close]`・`.modal-close`・`.thumb-lightbox-close`）の順に試す。どれかで開いているモーダルの並びが変わったら（閉じた・確認が開いた）、そこで止める（2026-10-07〜）
 - 変えたいアプリは、`window.SideOpsBackLayers`（見つけ方。CSSセレクタの文字列）・`window.SideOpsBack`（閉じ方。閉じたら`true`を返す関数）を用意する
 - 本体からの`sideops:back`は、親ウィンドウ（`window.parent`）から来たものだけ受け取る
 

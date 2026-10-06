@@ -43,7 +43,7 @@
   // SIDE-OPSの版（yyyymmddnn の数値）。どれかのアプリでデータの形（レコードの
   // 項目・DBの版）を変えたら必ず上げる。自分より新しい版の端末が書いたファイルを
   // 見つけたら同期を止める（古い版が新しい項目を知らずに上書きして消すのを防ぐ）
-  const SYNC_APP_BUILD = 2026100601;
+  const SYNC_APP_BUILD = 2026100701;
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
   const SYNC_DB_VERSION = 2; // 2：同期の記録（journal）を追加
@@ -88,6 +88,7 @@
     { name: 'sideops_manuscript', label: 'MANUSCRIPT', version: 3 },
     { name: 'sideops_mindframe', label: 'MINDFRAME', version: 1, excludeStores: ['views'] }, // 表示位置・ズームは端末ごと
     { name: 'sideops_recon', label: 'RECON', version: 1, sensitive: true },
+    { name: 'sideops_librarium', label: 'LIBRARIUM', version: 1 },
   ];
   const RULE_BY_NAME = new Map(DB_RULES.map((r) => [r.name, r]));
 

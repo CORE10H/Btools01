@@ -4,7 +4,7 @@
   "short_name": "SIDE-OPS",
   "description": "副業統合管理端末",
   "lang": "ja",
-  "start_url": "./",
+  "start_url": "./?app=1",
   "scope": "./",
   "display": "fullscreen",
   "background_color": "#05070a",

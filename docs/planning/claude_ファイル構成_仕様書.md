@@ -37,10 +37,13 @@ sideops/
     │   ├── scribit.jpg
     │   ├── scaffold.jpg
     │   ├── mindframe.jpg
-    │   └── recon.jpg
+    │   ├── recon.jpg
+    │   └── librarium.jpg
     ├── sideops-theme-bridge.js  # テーマブリッジの受信側共通スクリプト。各アプリが
     │                            # <head>で1行読み込むopt-in方式
     │                            # （同期の「変えたよ」の印・戻る操作との連携も受け持つ）
+    ├── sideops-frame.js         # 画像の「見え方」（枠合わせ）の共通部品（2026-10-07〜）。
+    │                            # MANUSCRIPT・SCAFFOLD・Discotica・LIBRARIUM・本体（ランチャーのカバー）が読み込む
     ├── prompt-gallery.html      # 画像生成プロンプト見本一覧（本実装済み）
     ├── prompt-gallery-red.html  # PROMPTGALLERYの微調整版（本実装済み。機能は本家と同一、
     │                            # 強調色のみアプリ固有の赤に固定・データも独立）
@@ -55,6 +58,7 @@ sideops/
     ├── mindframe-io.js      #   テキストの読み書き（箇条書き・Mermaid）と自動整列。DOMに触れない純粋な関数だけ
     ├── recon.html           # 販売データの取込・分析（段階1・3a・3b実装済み）。画面の骨組みとCSS、CSP
     ├── recon.js             #   本体（CSV取込・検算・照合・重複防止・取消・取引履歴・月別・作品別・顧客管理・バックアップ）
+    ├── librarium.html       # AIのべりすとの .novel から本文を取り込んで並べる本棚（2026-10-07〜）
     ├── vendor/              # 同梱の外部ライブラリ（CDNは使わない）
     │   ├── papaparse.min.js      # Papa Parse 5.7.0（CSV解析、MIT）。RECONが使用
     │   └── papaparse.LICENSE.txt # 上記のライセンス全文

@@ -135,7 +135,7 @@
   /* ===================== 作品一覧 ===================== */
   .work-row { display: flex; align-items: center; gap: 14px; padding: 10px 12px; width: 100%; text-align: left; background: var(--bg-alt); border: 1px solid var(--line-soft); margin-bottom: 8px; cursor: pointer; }
   .work-row:hover { background: var(--panel-hi); border-color: var(--cyan-dim); }
-  .wr-thumb { width: 112px; aspect-ratio: 16 / 9; flex-shrink: 0; background: var(--panel); border: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 10px; color: var(--text-faint); }
+  .wr-thumb { position: relative; width: 112px; aspect-ratio: 16 / 9; flex-shrink: 0; background: var(--panel); border: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 10px; color: var(--text-faint); }
   .wr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .wr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .wr-title { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -221,7 +221,7 @@
   .lore-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
   .lore-card { background: var(--bg); border: 1px solid var(--line-soft); cursor: pointer; text-align: left; display: flex; flex-direction: column; overflow: hidden; }
   .lore-card:hover { border-color: var(--cyan-dim); }
-  .lore-thumb { aspect-ratio: 1 / 1; background: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-faint); overflow: hidden; }
+  .lore-thumb { position: relative; aspect-ratio: 1 / 1; background: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-faint); overflow: hidden; }
   .lore-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .lore-info { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 2px; }
   .lore-kind { font-size: 9.5px; color: var(--cyan); }
@@ -356,6 +356,7 @@
   }
 </style>
 <script src="sideops-theme-bridge.js"></script>
+<script src="sideops-frame.js"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -490,11 +491,11 @@
               <div class="slot-row">
                 <div class="img-slot" data-slot="kv">
                   <div class="img-drop r34" tabindex="0" role="button" aria-label="表紙画像を登録"></div>
-                  <div class="slot-foot"><span class="slot-label">表紙（縦3:4）・本棚に使います</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
+                  <div class="slot-foot"><span class="slot-label">表紙（縦3:4）・本棚に使います</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small" data-img-act="frame">見え方</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
                 </div>
                 <div class="img-slot" data-slot="cover">
                   <div class="img-drop r169" tabindex="0" role="button" aria-label="カバー画像を登録"></div>
-                  <div class="slot-foot"><span class="slot-label">カバー（横16:9）・PVや動画用</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
+                  <div class="slot-foot"><span class="slot-label">カバー（横16:9）・PVや動画用</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small" data-img-act="frame">見え方</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
                 </div>
               </div>
               <div class="field-hint">画像は PNG / JPEG / WebP / GIF、1枚5MBまで。ドラッグ＆ドロップ、または枠を選んで Ctrl+V でも登録できます。</div>
@@ -673,7 +674,7 @@
       <div class="prompt-wrap" id="out_loreimg_wrap"><textarea class="field-textarea" id="out_loreimg" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="loreimg">コピー</button></div>
       <div class="img-slot" data-slot="loreimg">
         <div class="img-drop r11" tabindex="0" role="button" aria-label="設定画像を登録"></div>
-        <div class="slot-foot"><span class="slot-label">設定画像（比率自由）</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
+        <div class="slot-foot"><span class="slot-label">設定画像（比率自由）</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small" data-img-act="frame">見え方</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -693,7 +694,7 @@
       <textarea class="field-textarea" id="genreNote" rows="3" placeholder="メモ（任意）"></textarea>
       <div class="img-slot" data-slot="genrecover">
         <div class="img-drop r169" tabindex="0" role="button" aria-label="ジャンルの表紙を登録"></div>
-        <div class="slot-foot"><span class="slot-label">ジャンルの表紙（横16:9）</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
+        <div class="slot-foot"><span class="slot-label">ジャンルの表紙（横16:9）</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small" data-img-act="frame">見え方</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
       </div>
       <div class="field-hint" id="genreUsage"></div>
     </div>
@@ -1208,6 +1209,32 @@
   function dropAllUrls() { Array.from(urlCache.keys()).forEach(dropUrl); }
   const workThumbUrl = (w) => imageUrl(imgId(w.id, 'cover')) || imageUrl(imgId(w.id, 'kv'));
   const workBookCoverUrl = (w) => imageUrl(imgId(w.id, 'kv')) || imageUrl(imgId(w.id, 'cover'));
+  // 作品の一覧（16:9）・本棚（3:4）に出す画像の記録のID。どちらもなければ null
+  const workThumbId = (w) => [imgId(w.id, 'cover'), imgId(w.id, 'kv')].find((id) => imageUrl(id)) || null;
+  const workBookCoverId = (w) => [imgId(w.id, 'kv'), imgId(w.id, 'cover')].find((id) => imageUrl(id)) || null;
+
+  /* ---- 画像の見え方（2026-10-07。apps/sideops-frame.js） ----
+     画像の記録に thumb（見え方 { ar, z, cx, cy }）を持ち、一覧・本棚・設定集・ジャンルの枠にその見え方で出す。
+     決めるときの枠の比率は、そのスロットの比率（表紙3:4・カバー16:9・ジャンルの表紙16:9・設定画像は一覧の正方形）。
+     違う比率の枠に出すとき（表紙がなくカバーを本棚に出す等）も、中心の位置と拡大率を保って出す。
+     thumb がない画像は、以前どおり中央で切り抜く */
+  const FRAME_ASPECT = { kv: 3 / 4, cover: 16 / 9, genrecover: 16 / 9, loreimg: 1 };
+  function framedImg(id, aspect) {
+    const url = id ? imageUrl(id) : null;
+    return url ? `<img src="${url}" alt="" data-fr-id="${escapeHtml(id)}" data-fr-a="${aspect}">` : '';
+  }
+  function applyFrames(root) {
+    if (!window.SideOpsFrame || !root) return;
+    root.querySelectorAll('img[data-fr-id]').forEach((img) => {
+      const rec = images.get(img.dataset.frId);
+      window.SideOpsFrame.applyImg(img, rec && rec.thumb, Number(img.dataset.frA));
+    });
+  }
+  // 書き出し・取り込みのときの見え方（壊れた値は持ち込まない）
+  function cleanThumb(t) {
+    const n = window.SideOpsFrame ? window.SideOpsFrame.normalize(t) : null;
+    return n ? window.SideOpsFrame.round(n) : undefined;
+  }
 
   // ---- 自動保存：デバウンス＋Promiseチェーンで直列化 ----
   function createSaver(saveFn, onState) {
@@ -1501,14 +1528,15 @@
     if (netaGenreView === null) {
       const uncat = genreNetaCount('');
       netaListEl.innerHTML = '<div class="genre-grid">' + sortedGenres().map((g) => {
-        const url = imageUrl(imgId(g.id, 'cover'));
+        const img = framedImg(imgId(g.id, 'cover'), 16 / 9);
         return `<button type="button" class="genre-card" data-gid="${escapeHtml(g.id)}">
-          <span class="gc-cover">${url ? `<img src="${url}" alt="">` : `<span class="gc-type">${escapeHtml(genreLabel(g))}</span>`}</span>
+          <span class="gc-cover">${img || `<span class="gc-type">${escapeHtml(genreLabel(g))}</span>`}</span>
           <span class="gc-info"><span class="gc-name">${escapeHtml(genreLabel(g))}</span><span class="gc-count">${genreNetaCount(g.id)}</span></span>
         </button>`;
       }).join('') +
       (uncat ? `<button type="button" class="genre-card is-uncat" data-gid="${UNCAT}"><span class="gc-cover"><span class="gc-type">ジャンルなし</span></span><span class="gc-info"><span class="gc-name">未分類</span><span class="gc-count">${uncat}</span></span></button>` : '') +
       '<button type="button" class="genre-card is-add" data-add-genre="1">＋ ジャンルを追加</button></div>';
+      applyFrames(netaListEl);
       return;
     }
     const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
@@ -1851,12 +1879,12 @@
     }
     if (list.length === 0) { worksListEl.innerHTML = `<div class="empty-state"><div class="big">条件に一致する作品はありません</div></div>`; return; }
     worksListEl.innerHTML = list.map((w) => {
-      const url = workThumbUrl(w);
+      const thumbImg = framedImg(workThumbId(w), 16 / 9);
       const st = stageOf(w);
       const untitled = !w.title.trim();
       const chs = chaptersOf(w.id);
       return `<button type="button" class="work-row" data-id="${escapeHtml(w.id)}">
-        <span class="wr-thumb">${url ? `<img src="${url}" alt="">` : '画像なし'}</span>
+        <span class="wr-thumb">${thumbImg || '画像なし'}</span>
         <span class="wr-main">
           <span class="wr-title${untitled ? ' is-untitled' : ''}">${escapeHtml(workDisplayTitle(w))}</span>
           <span class="wr-meta">${w.penName ? `<span>${escapeHtml(w.penName)}</span>` : ''}${w.series ? `<span>${escapeHtml(w.series)}</span>` : ''}<span>${chs.length}章</span><span class="wr-id">${escapeHtml(w.id)}</span><span>更新 ${escapeHtml(formatDateTime(w.updatedAt))}</span></span>
@@ -1864,6 +1892,7 @@
         <span class="stage-badge" data-stage="${st}">${STAGE_LABEL[st]}</span>
       </button>`;
     }).join('');
+    applyFrames(worksListEl);
   }
   worksSearch.addEventListener('input', renderWorks);
   worksPen.addEventListener('change', renderWorks);
@@ -1911,17 +1940,18 @@
     }
     if (list.length === 0) { shelfListEl.innerHTML = `<div class="empty-state"><div class="big">条件に一致する本はありません</div></div>`; return; }
     shelfListEl.innerHTML = '<div class="shelf-grid">' + list.map((w) => {
-      const url = workBookCoverUrl(w);
+      const coverImg = framedImg(workBookCoverId(w), 3 / 4);
       const title = workDisplayTitle(w);
       const pub = bookPublishedAt(w);
       const n = chaptersOf(w.id).filter((c) => c.final.trim()).length;
       return `<button type="button" class="book" data-id="${escapeHtml(w.id)}">
-        <span class="book-cover">${url ? `<img src="${url}" alt="">` : `<span class="bc-type">${escapeHtml(title.slice(0, 40))}</span>`}</span>
+        <span class="book-cover">${coverImg ? coverImg : `<span class="bc-type">${escapeHtml(title.slice(0, 40))}</span>`}</span>
         <span class="book-title">${escapeHtml(title)}</span>
         ${w.penName ? `<span class="book-pen">${escapeHtml(w.penName)}</span>` : ''}
         <span class="book-meta">${pub ? escapeHtml(formatDay(pub)) + ' 公開' : '公開日未設定'}／${n > 1 ? n + '章／' : ''}${bookChars(w).toLocaleString()}字</span>
       </button>`;
     }).join('') + '</div>';
+    applyFrames(shelfListEl);
   }
   shelfSearch.addEventListener('input', renderShelf);
   shelfPen.addEventListener('change', renderShelf);
@@ -2132,12 +2162,13 @@
     const w = getWork(currentWorkId);
     if (!w) return;
     loreListEl.innerHTML = loreOf(w.id).map((l) => {
-      const url = imageUrl(imgId(l.id, 'img'));
+      const thumbImg = framedImg(imgId(l.id, 'img'), 1);
       return `<button type="button" class="lore-card" data-id="${escapeHtml(l.id)}">
-        <span class="lore-thumb">${url ? `<img src="${url}" alt="">` : '画像なし'}</span>
+        <span class="lore-thumb">${thumbImg || '画像なし'}</span>
         <span class="lore-info"><span class="lore-kind">${LORE_KINDS[l.kind]}</span><span class="lore-name">${escapeHtml(l.name || '（名前なし）')}</span></span>
       </button>`;
     }).join('') + '<button type="button" class="lore-card lore-add" data-add="1">＋ 設定を追加</button>';
+    applyFrames(loreListEl);
   }
   loreListEl.addEventListener('click', (e) => {
     const card = e.target.closest('.lore-card');
@@ -2413,6 +2444,27 @@
     if (url) { const img = document.createElement('img'); img.src = url; img.alt = r.def.label; drop.appendChild(img); }
     else drop.innerHTML = 'ここに画像をドロップ<br>または選んで Ctrl+V';
     el.querySelector('[data-img-act="remove"]').disabled = !url;
+    const frameBtn = el.querySelector('[data-img-act="frame"]');
+    if (frameBtn) frameBtn.disabled = !url || !window.SideOpsFrame;
+  }
+
+  // 見え方の調整（2026-10-07）。afterSet＝画像を登録した直後に開いたとき（キャンセル＝中央のまま）
+  async function adjustSlotFrame(slotKey, afterSet) {
+    const r = resolveSlot(slotKey);
+    const aspect = FRAME_ASPECT[slotKey];
+    if (!r || !aspect || !window.SideOpsFrame) return;
+    const id = imgId(r.ownerId, r.def.name);
+    const rec = images.get(id);
+    if (!rec || !rec.blob) return;
+    const label = afterSet ? `${r.def.label}・あとで「見え方」から変えられます` : r.def.label;
+    const t = await window.SideOpsFrame.edit({ src: rec.blob, aspect, initial: rec.thumb, label });
+    if (!t || images.get(id) !== rec) return; // キャンセル、または調整中に差し替え・削除された
+    const next = { ...rec, thumb: t, updatedAt: Date.now() };
+    try {
+      await put(S.images, next);
+      images.set(id, next);
+    } catch (e) { console.error(e); showToast('見え方を保存できませんでした', true); return; }
+    afterImageChange(slotKey);
   }
   function renderAllSlots() { document.querySelectorAll('#workView .img-slot').forEach(renderSlot); }
 
@@ -2456,8 +2508,10 @@
     const ratio = dims.w / dims.h;
     if (r.def.ratio && Math.abs(ratio - r.def.ratio) / r.def.ratio > 0.1) {
       const want = r.def.ratio > 1 ? '横16:9' : '縦3:4';
-      showToast(`${r.def.label}を登録しました。ただし比率が${want}と違います（${dims.w}×${dims.h}）。表示で端が切れることがあります`, 'warn');
+      showToast(`${r.def.label}を登録しました。ただし比率が${want}と違います（${dims.w}×${dims.h}）。「見え方」で表示する範囲を決められます`, 'warn');
     } else showToast(`${r.def.label}を登録しました`);
+    // 一覧・本棚で枠に入れて出す画像は、続けて見え方を決めてもらう（キャンセルなら中央で切り抜き）
+    if (FRAME_ASPECT[slotKey]) adjustSlotFrame(slotKey, true);
   }
   function afterImageChange(slotKey) {
     if (slotKey === 'genrecover') { renderSlot(genreModal.querySelector('.img-slot')); genreSaver.schedule(); genreSaver.flush().then(() => { updateGenreUsage(); renderNeta(); }); return; }
@@ -2484,6 +2538,7 @@
     if (act) {
       if (act.dataset.imgAct === 'pick') { pendingSlot = key; imgFile.click(); }
       else if (act.dataset.imgAct === 'remove') removeSlotImage(key);
+      else if (act.dataset.imgAct === 'frame') adjustSlotFrame(key, false);
     } else if (drop) {
       const r = resolveSlot(key);
       if (r && !images.has(imgId(r.ownerId, r.def.name))) { pendingSlot = key; imgFile.click(); }
@@ -2800,7 +2855,7 @@
     const outImages = [];
     for (const rec of images.values()) {
       if (!ids.has(rec.workId) && !(rec.genreId && genreSet.has(rec.genreId))) continue;
-      try { outImages.push({ id: rec.id, ownerId: rec.ownerId, workId: rec.workId || '', genreId: rec.genreId || '', slot: rec.slot, type: rec.type, name: rec.name, w: rec.w, h: rec.h, updatedAt: rec.updatedAt, data: await blobToBase64(rec.blob) }); }
+      try { outImages.push({ id: rec.id, ownerId: rec.ownerId, workId: rec.workId || '', genreId: rec.genreId || '', slot: rec.slot, type: rec.type, name: rec.name, w: rec.w, h: rec.h, updatedAt: rec.updatedAt, thumb: cleanThumb(rec.thumb), data: await blobToBase64(rec.blob) }); }
       catch (err) { console.error('画像の書き出しに失敗しました', err); }
     }
     return {
@@ -2933,7 +2988,7 @@
       try {
         const blob = base64ToBlob(im.data, im.type);
         if (blob.size === 0 || blob.size > IMAGE_MAX_BYTES) continue;
-        await put(S.images, { id: imgId(gid, 'cover'), ownerId: gid, workId: '', genreId: gid, slot: 'cover', blob, type: im.type, name: im.name, w: im.w, h: im.h, updatedAt: im.updatedAt });
+        await put(S.images, { id: imgId(gid, 'cover'), ownerId: gid, workId: '', genreId: gid, slot: 'cover', blob, type: im.type, name: im.name, w: im.w, h: im.h, updatedAt: im.updatedAt, ...(cleanThumb(im.thumb) ? { thumb: cleanThumb(im.thumb) } : {}) });
       } catch (err) { console.error('ジャンル画像の取り込みに失敗しました', err); res.failed++; }
     }
     const importedGenreIds = new Set(p.genres.map((g) => g.id));
@@ -2982,7 +3037,7 @@
           try {
             const blob = base64ToBlob(im.data, im.type);
             if (blob.size === 0 || blob.size > IMAGE_MAX_BYTES) continue;
-            await put(S.images, { id: imgId(ownerId, im.slot), ownerId, workId: w.id, slot: im.slot, blob, type: im.type, name: im.name, w: im.w, h: im.h, updatedAt: im.updatedAt });
+            await put(S.images, { id: imgId(ownerId, im.slot), ownerId, workId: w.id, slot: im.slot, blob, type: im.type, name: im.name, w: im.w, h: im.h, updatedAt: im.updatedAt, ...(cleanThumb(im.thumb) ? { thumb: cleanThumb(im.thumb) } : {}) });
           } catch (err) { console.error('画像の取り込みに失敗しました', err); res.failed++; }
         }
         tally(d);

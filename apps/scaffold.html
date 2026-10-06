@@ -6,6 +6,7 @@
 <title>SCAFFOLD</title>
 <!-- テーマブリッジ（本体テーマの追従。opt-in方式、apps/配下に実ファイルが揃った時点で機能する） -->
 <script src="sideops-theme-bridge.js" defer></script>
+<script src="sideops-frame.js" defer></script>
 <style>
   /* ============================================================
      デザイントークン（SIDE-OPS本体の基本色・派生色の許可リストに準拠）
@@ -172,6 +173,14 @@
     line-height: 16px; text-align: center; display: none;
   }
   .cover-upload.has-image .clear-cover { display: block; }
+  /* 見え方の調整（2026-10-07。apps/sideops-frame.js）。カバーの左下の小さなボタン */
+  .cover-upload .adjust-cover {
+    position: absolute; bottom: -2px; left: -2px; z-index: 2;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--panel); border: 1px solid var(--cyan); color: var(--cyan); font-size: 11px;
+    line-height: 16px; text-align: center; display: none; cursor: pointer;
+  }
+  .cover-upload.has-image .adjust-cover { display: block; }
 
   .phase-track {
     display: flex; padding: 14px 20px 0; gap: 6px;
@@ -393,6 +402,7 @@
       <span id="coverPlaceholder">🖼</span>
       <input type="file" id="coverFileInput" accept="image/*">
       <span class="clear-cover" id="btnClearCover" title="カバー画像を削除">✕</span>
+      <span class="adjust-cover" id="btnAdjustCover" title="見え方を調整（どこを見せるか・拡大縮小）">⤢</span>
     </div>
     <input type="text" id="draftTitleInput" placeholder="（無題の下書き）">
     <button class="icon-btn" id="btnDeleteDraft" title="この下書きを削除">🗑</button>
@@ -659,7 +669,7 @@ const els = {};
  'templateSelect','btnSynthesize','promptOutput','btnCopyPrompt','pasteInput','btnParse',
  'parseResultArea','deleteModal','btnCancelDelete','btnConfirmDelete',
  'stepTab1','stepTab2','stepTab3','stepTab4',
- 'coverUpload','coverPlaceholder','coverFileInput','btnClearCover',
+ 'coverUpload','coverPlaceholder','coverFileInput','btnClearCover','btnAdjustCover',
  'finalTextInput','saveIndicator4','finalTextCount',
  'btnMarkComplete','btnUnmarkComplete','completeBadgeNote',
  'btnManageTemplates',
@@ -699,6 +709,7 @@ function renderList(filter) {
     thumb.className = 'thumb';
     if (d.coverImage) {
       thumb.style.backgroundImage = `url("${d.coverImage}")`;
+      applyCoverBg(thumb, d.coverThumb);
     } else {
       thumb.textContent = '📄'; // カバー画像未設定時のプレースホルダー
     }
@@ -778,7 +789,7 @@ function openEditor(id) {
 
   els.draftTitleInput.value = d.title || '';
   els.skeletonInput.value = d.skeleton || '';
-  updateCoverDisplay(d.coverImage);
+  updateCoverDisplay(d.coverImage, d.coverThumb);
   els.finalTextInput.value = d.finalText || '';
   updateFinalTextCount();
   updateCompleteUI(d.isComplete);
@@ -1213,9 +1224,19 @@ function buildBanwordsCard(text) {
 // ---------------------------------------------------------------
 const COVER_MAX_BYTES = 5 * 1024 * 1024; // 5MB上限
 
-function updateCoverDisplay(dataUrl) {
+// カバーの見え方（2026-10-07。apps/sideops-frame.js）：下書きに coverThumb（{ ar, z, cx, cy }）を持ち、
+// 一覧のサムネイル・編集画面のカバー（どちらも16:9）にその見え方で出す。ないときは以前どおり中央で切り抜く
+const COVER_ASPECT = 16 / 9;
+function applyCoverBg(el, thumb) {
+  const s = window.SideOpsFrame ? window.SideOpsFrame.bgStyle(thumb, COVER_ASPECT) : { size: 'cover', position: 'center' };
+  el.style.backgroundSize = s.size;
+  el.style.backgroundPosition = s.position;
+}
+
+function updateCoverDisplay(dataUrl, thumb) {
   if (dataUrl) {
     els.coverUpload.style.backgroundImage = `url("${dataUrl}")`;
+    applyCoverBg(els.coverUpload, thumb);
     els.coverUpload.classList.add('has-image');
     els.coverPlaceholder.style.display = 'none';
   } else {
@@ -1223,6 +1244,23 @@ function updateCoverDisplay(dataUrl) {
     els.coverUpload.classList.remove('has-image');
     els.coverPlaceholder.style.display = '';
   }
+}
+
+// 見え方を調整する。afterSet＝画像を選んだ直後（キャンセルなら中央で切り抜きのまま）
+async function adjustCover(afterSet) {
+  const d = getCurrentDraft();
+  if (!d || !d.coverImage || !window.SideOpsFrame) return;
+  const src = d.coverImage;
+  const t = await window.SideOpsFrame.edit({
+    src, aspect: COVER_ASPECT, initial: d.coverThumb,
+    label: afterSet ? 'カバー・あとで⤢から変えられます' : 'カバー',
+  });
+  const cur = getCurrentDraft();
+  if (!t || !cur || cur.id !== d.id || cur.coverImage !== src) return; // キャンセル、または調整中に別の下書き・画像になった
+  cur.coverThumb = t;
+  cur.updatedAt = Date.now();
+  updateCoverDisplay(cur.coverImage, cur.coverThumb);
+  await persistDraft(cur);
 }
 
 els.coverFileInput.addEventListener('change', (ev) => {
@@ -1245,9 +1283,11 @@ els.coverFileInput.addEventListener('change', (ev) => {
     const d = getCurrentDraft();
     if (!d) return;
     d.coverImage = reader.result;
+    delete d.coverThumb; // 新しい画像は中央から
     d.updatedAt = Date.now();
     updateCoverDisplay(d.coverImage);
     await persistDraft(d);
+    adjustCover(true);
   };
   reader.onerror = () => {
     alert('画像の読み込みに失敗しました。');
@@ -1261,9 +1301,17 @@ els.btnClearCover.addEventListener('click', async (ev) => {
   const d = getCurrentDraft();
   if (!d) return;
   d.coverImage = null;
+  delete d.coverThumb;
   d.updatedAt = Date.now();
   updateCoverDisplay(null);
   await persistDraft(d);
+});
+
+els.btnAdjustCover.addEventListener('click', (ev) => {
+  // クリックがファイル選択のinputまで貫通しないように
+  ev.stopPropagation();
+  ev.preventDefault();
+  adjustCover(false);
 });
 
 // ---------------------------------------------------------------

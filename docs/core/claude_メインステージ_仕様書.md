@@ -45,10 +45,11 @@ Stageを閉じたとき・別のアプリに切り替えたとき、古いiframe
 
 アプリ側（`apps/sideops-theme-bridge.js`）の動き：
 
-- 開いているモーダルを`.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, .view-overlay.is-open, .thumb-lightbox.is-open, dialog[open]`（見えているものだけ）で数え、変わったら本体へ知らせる（`MutationObserver`で`class`・`open`の変化を見て、1回の操作の変化をまとめて1回数える）
-- `sideops:back`が来たら、いちばん手前（z-indexが大きいもの、同じなら文書の後ろ側）のモーダルを閉じる。閉じ方は ①背景のクリック ②Esc ③✕ボタン（`.modal-close`等）の順に試す。多くのモーダルは「背景のクリックで閉じる」「Escで閉じる」を持っているので、アプリ側の作業は要らない
-- 見つけ方を変えたいアプリは`window.SideOpsBackLayers`（CSSセレクタの文字列）を、閉じ方を変えたいアプリは`window.SideOpsBack`（閉じたら`true`を返す関数）を用意する（2026-10-06時点で使っているアプリはない）
-- 2026-10-06に、先天的アプリ10本の全モーダル（54個）が戻る操作で閉じることを確認した（`D:\dev\sideops_sync_verify\backsweep.dart`）。SCAFFOLDだけ背景のクリック・Escで閉じる作りがなかったので足した
+- 開いているモーダルを`.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, .view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open]`（見えているものだけ）で数え、変わったら本体へ知らせる（`MutationObserver`で`class`・`open`の変化を見て、1回の操作の変化をまとめて1回数える）
+- `sideops:back`が来たら、いちばん手前（z-indexが大きいもの、同じなら文書の後ろ側）のモーダルを閉じる。閉じ方は ①背景のクリック ②Esc ③✕ボタン（`.modal-close`等）の順に試し、開いているモーダルの並びが変わったら（閉じた・「入力を捨てますか？」のような確認が開いた）そこで止める（2026-10-07〜。続けてEscを送ると、開いたばかりの確認まで閉じてしまうため）。多くのモーダルは「背景のクリックで閉じる」「Escで閉じる」を持っているので、アプリ側の作業は要らない
+- 見つけ方を変えたいアプリは`window.SideOpsBackLayers`（CSSセレクタの文字列）を、閉じ方を変えたいアプリは`window.SideOpsBack`（閉じたら`true`を返す関数）を用意する（2026-10-07からLIBRARIUMが使う：読む画面も1段として数え、戻るで本棚に戻す）
+- 2026-10-06に、先天的アプリ10本の全モーダル（54個）が戻る操作で閉じることを確認した（`D:\dev\sideops_sync_verify\backsweep.dart`）。SCAFFOLDだけ背景のクリック・Escで閉じる作りがなかったので足した。2026-10-07にLIBRARIUMを足して再確認
+- 画像の「見え方の調整」（`apps/sideops-frame.js`の`.sideops-frame-overlay`）もモーダルとして数える。本体の画面（ランチャーのカバー）で開いたときは、調整の画面が自分で層を積む
 
 ### 歯止め
 

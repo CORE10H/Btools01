@@ -177,7 +177,23 @@
   let fsPickerAt = 0;    // 画像などを選ぶ画面を開いた時刻
   let fsHiddenAt = 0;    // 画面が隠れた時刻
   const isTouchUi = () => window.matchMedia('(pointer: coarse)').matches;
-  if (window.matchMedia('(display-mode: fullscreen)').matches && !document.fullscreenElement && isTouchUi()) {
+  // ホーム画面から開いたか：manifest.webmanifest の start_url に付けた「?app=1」で見分け、そのウィンドウの
+  // sessionStorage に覚えておく（OneDriveのログインで一度ページを離れても分かるように）。URLからは消しておく。
+  // display-mode だけで見分けないのは、ブラウザで全画面のまま再読み込みしたときにも fullscreen と出ることがあり、
+  // ⛶ボタンを誤って隠してしまうため（2026-10-07）
+  const LAUNCHED_AS_APP_KEY = 'sideops_launched_as_app';
+  let launchedAsApp = false;
+  try {
+    const u = new URL(location.href);
+    if (u.searchParams.get('app') === '1') {
+      sessionStorage.setItem(LAUNCHED_AS_APP_KEY, '1');
+      u.searchParams.delete('app');
+      history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    }
+    launchedAsApp = sessionStorage.getItem(LAUNCHED_AS_APP_KEY) === '1';
+  } catch (err) { /* 使えない環境では、ブラウザで開いたものとして扱う */ }
+  // 全画面のアプリとして開いたときだけ⛶を隠す（ブラウザが全画面に対応せず standalone で開いたときは、⛶で全画面にできる）
+  if (launchedAsApp && window.matchMedia('(display-mode: fullscreen)').matches && !document.fullscreenElement) {
     fullscreenBtn.style.display = 'none';
   }
 
@@ -186,7 +202,9 @@
     if (!fsRestoreEl) {
       fsRestoreEl = document.createElement('div');
       fsRestoreEl.className = 'fs-restore';
-      fsRestoreEl.innerHTML = '<div class="fs-restore-pill"><span>画面をタップすると全画面に戻ります</span>'
+      // ブラウザのままでは「戻る」で全画面が解けるのは止められない。ホーム画面に追加したSIDE-OPSなら解けないことを添える
+      fsRestoreEl.innerHTML = '<div class="fs-restore-pill"><div class="fs-restore-text"><span>画面をタップすると全画面に戻ります</span>'
+        + '<small>ホーム画面に追加したSIDE-OPSなら、戻るで全画面は解けません</small></div>'
         + '<button type="button" class="fs-restore-off">全画面をやめる</button></div>';
       fsRestoreEl.addEventListener('click', (e) => {
         hideFullscreenRestore();
@@ -1116,6 +1134,8 @@
     { name: 'MINDFRAME', src: 'apps/mindframe.html', coverImg: 'apps/img/mindframe.jpg' },
     // RECON：販売データの取込・分析
     { name: 'RECON', src: 'apps/recon.html', coverImg: 'apps/img/recon.jpg' },
+    // LIBRARIUM：AIのべりすとの .novel から本文を取り込んで並べる本棚（2026-10-07）
+    { name: 'LIBRARIUM', src: 'apps/librarium.html', coverImg: 'apps/img/librarium.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 
@@ -1188,8 +1208,10 @@
           const url = URL.createObjectURL(card.coverImage);
           cardImageUrls.set(card.id, url);
           el.style.backgroundImage = `linear-gradient(180deg, rgba(5,7,10,0) 40%, rgba(5,7,10,.9) 100%), url('${url}')`;
-          el.style.backgroundSize = 'cover';
-          el.style.backgroundPosition = 'center';
+          // 見え方（2026-10-07）：手前のグラデーションは枠いっぱい、奥の画像は保存した見え方で
+          const fb = window.SideOpsFrame ? window.SideOpsFrame.bgStyle(card.coverThumb, 16 / 9) : { size: 'cover', position: 'center' };
+          el.style.backgroundSize = `cover, ${fb.size}`;
+          el.style.backgroundPosition = `center, ${fb.position}`;
         }
 
         el.querySelector('.cf-item-delete-btn').addEventListener('click', (ev) => {
@@ -1253,6 +1275,7 @@
   let selectedBuiltinIndex = null;   // プルダウンでbuiltinを選んだ場合のインデックス
   let isImportMode = false;          // プルダウンで「インポート」を選んだかどうか
   let pendingCoverFile = null;
+  let pendingCoverThumb = null;     // カバーの見え方（2026-10-07。apps/sideops-frame.js）。手動で選んだ画像だけ
   let coverIsUserSelected = false;   // ユーザーが手動でカバー画像を選択したか
                                       // （true の間は、builtin選び直しによる自動画像で上書きしない）
   let overlayIsUserEdited = false;   // ユーザーが「アプリの名称」欄を手動編集したか
@@ -1325,9 +1348,11 @@
   let coverLoadSeq = 0;
   function clearCoverDrop() {
     pendingCoverFile = null;
+    pendingCoverThumb = null;
     launcherCoverDrop.classList.remove('has-image');
     launcherCoverDrop.innerHTML = '<span>クリックして画像を選択</span>';
     bindCoverDropClick();
+    refreshCoverFrameUi();
   }
   async function loadBuiltinCoverImage(choice) {
     const seq = ++coverLoadSeq;
@@ -1338,11 +1363,13 @@
       const blob = await res.blob();
       // 届くまでの間に選び直された・手動で画像が選ばれた・モーダルが開き直された場合は捨てる
       if (seq !== coverLoadSeq || coverIsUserSelected) return;
+      pendingCoverThumb = null;
       pendingCoverFile = blob;
       const url = URL.createObjectURL(blob);
       launcherCoverDrop.classList.add('has-image');
       launcherCoverDrop.innerHTML = `<img src="${url}" alt="preview">`;
       bindCoverDropClick();
+      refreshCoverFrameUi();
     } catch (err) {
       // 自動読み込みに失敗しても致命的ではない（ユーザーが手動で選べば良いため）、
       // トーストは出さず静かに諦める。ただし直前のアプリの画像が残らないよう空に戻す
@@ -1403,6 +1430,27 @@
     };
   }
 
+  // カバーの見え方（2026-10-07。apps/sideops-frame.js）：プレビューに反映し、「見え方を調整」を出し入れする
+  const launcherCoverFrameBtn = document.getElementById('launcherCoverFrameBtn');
+  function refreshCoverFrameUi() {
+    launcherCoverFrameBtn.hidden = !(pendingCoverFile && window.SideOpsFrame);
+    const img = launcherCoverDrop.querySelector('img');
+    if (img && window.SideOpsFrame) window.SideOpsFrame.applyImg(img, pendingCoverThumb, 16 / 9);
+  }
+  // afterSet＝画像を選んだ直後に開いたとき（キャンセルなら中央で切り抜きのまま）
+  async function adjustLauncherCover(afterSet) {
+    const file = pendingCoverFile;
+    if (!file || !window.SideOpsFrame) return;
+    const t = await window.SideOpsFrame.edit({
+      src: file, aspect: 16 / 9, initial: pendingCoverThumb,
+      label: afterSet ? 'カバー画像・下の「見え方を調整」から変えられます' : 'カバー画像',
+    });
+    if (!t || pendingCoverFile !== file) return; // キャンセル、または調整中に画像が変わった
+    pendingCoverThumb = t;
+    refreshCoverFrameUi();
+  }
+  launcherCoverFrameBtn.addEventListener('click', () => adjustLauncherCover(false));
+
   function handleCoverSelect(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -1411,12 +1459,15 @@
       showLauncherToast('画像ファイルを選択してください');
       return;
     }
+    pendingCoverThumb = null;
     pendingCoverFile = file;
     coverIsUserSelected = true; // 以降、builtin選び直しによる自動上書きを止める
     const url = URL.createObjectURL(file);
     launcherCoverDrop.classList.add('has-image');
     launcherCoverDrop.innerHTML = `<img src="${url}" alt="preview">`;
     bindCoverDropClick();
+    refreshCoverFrameUi();
+    adjustLauncherCover(true); // 続けて見え方を決めてもらう（キャンセルなら中央で切り抜き）
   }
 
   function resetLauncherAddModal() {
@@ -1502,6 +1553,7 @@
         cat: launcherCatInput.value.trim(),
         overlayText: launcherOverlayInput.value.trim(),
         coverImage: pendingCoverFile || null,
+        ...(pendingCoverFile && pendingCoverThumb ? { coverThumb: pendingCoverThumb } : {}),
         order: maxOrder + 1,
         createdAt: now,
         updatedAt: now,

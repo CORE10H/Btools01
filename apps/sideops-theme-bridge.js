@@ -192,7 +192,8 @@
      ・開いているモーダルの数を本体に知らせる（'sideops:back-layers'）。本体はその数だけ
        履歴を積み、スマホの戻るボタン等で、まずアプリのモーダルを閉じ、次にStageを閉じる
      ・本体から「戻る」（'sideops:back'）が来たら、いちばん手前のモーダルを1つ閉じる。
-       閉じ方：背景のクリック（多くのモーダルは「背景をクリックで閉じる」）→ だめなら Esc → だめなら ✕ボタン
+       閉じ方：背景のクリック（多くのモーダルは「背景をクリックで閉じる」）→ だめなら Esc → だめなら ✕ボタン。
+       どれかでモーダルの並びが変わったら（閉じた・確認が開いた）、そこで止める
      ・画像などを選ぶ画面を開いたら本体に知らせる（'sideops:picker'）。全画面表示の扱いに使う
    アプリ側の作業は要らない（よくある作りのモーダルは自動で見つける）。
    見つけ方を変えたいアプリは window.SideOpsBackLayers（CSSセレクタの文字列）を、
@@ -205,7 +206,7 @@
   if (window.parent === window) return;
 
   var DEFAULT_LAYERS = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
-    + '.view-overlay.is-open, .thumb-lightbox.is-open, dialog[open]';
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open]';
 
   function selector() {
     return (typeof window.SideOpsBackLayers === 'string' && window.SideOpsBackLayers) || DEFAULT_LAYERS;
@@ -257,8 +258,9 @@
     });
     return best;
   }
-  function stillOpen(el) {
-    try { return el.matches(selector()) && isShown(el); } catch (e) { return false; }
+  // 開いているモーダルの並び（何か変わったら「手応えあり」とみなして、次の閉じ方を試さない）
+  function layerSignature() {
+    return openLayers().map(function (x) { return x.id || x.className; }).join('|');
   }
   function closeTop() {
     if (typeof window.SideOpsBack === 'function') {
@@ -267,14 +269,15 @@
     var el = topLayer();
     if (!el) return;
     if (el.tagName === 'DIALOG') { try { el.close(); } catch (e) { /* 何もしない */ } return; }
+    // 1つ試すたびに、開いているモーダルの並びが変わったかを見る。変わったら止める
+    // （閉じた、または「入力を捨てますか？」のような確認が開いた。続けて Esc を送ると、その確認まで閉じてしまう）
+    var before = layerSignature();
     el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    if (stillOpen(el)) {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    }
-    if (stillOpen(el)) {
-      var btn = el.querySelector('[data-sideops-back-close], .modal-close, .thumb-lightbox-close');
-      if (btn) btn.click();
-    }
+    if (layerSignature() !== before) return;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    if (layerSignature() !== before) return;
+    var btn = el.querySelector('[data-sideops-back-close], .modal-close, .thumb-lightbox-close');
+    if (btn) btn.click();
   }
 
   window.addEventListener('message', function (e) {

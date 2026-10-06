@@ -232,43 +232,11 @@
     font-size: 9px; padding: 2px 6px; background: rgba(var(--cyan-rgb),.12); border: 1px solid var(--cyan-dim);
     color: var(--cyan); white-space: nowrap;
   }
-  /* ---- hover menu（2026-09-26：スマホ実機でカード縦幅が足りず5ボタンが
-     上下に切れる不具合を受け、グリッド配置に変更。
-     1行目「拡大｜編集」の2列、2〜4行目は1ボタンずつ（プロンプト/
-     ネガティブは📋アイコンで一目でコピー操作と分かるようにする）、
-     最終行は削除🗑のみを右詰め。スクロールバーでの逃げは使わない方針
-     （見た目がダサいと不評だったため、高さそのものを削る方向で対応） ---- */
-  .prompt-pop {
-    position: absolute; inset: 0; background: rgba(var(--bg-rgb),.82);
-    display: grid; grid-template-columns: 1fr 1fr; align-content: center;
-    padding: 10px; gap: 6px;
-    opacity: 0; pointer-events: none; transition: opacity .15s ease;
-  }
-  /* 2026-10-06：カードの上のメニューは、マウスで乗せたとき（PC）だけ出す。
-     スマホではタップが「乗せた」扱いになりメニューが出てしまうため、タップは拡大表示に回し、
-     メニューは拡大した画像をタップして出す（.lb-menu） */
+  /* カードの上のメニュー（.prompt-pop）は2026-10-07に廃止。PCもスマホも「クリック（タップ）で拡大 →
+     拡大した画像のクリックでメニュー（.lb-menu）」に揃えた。PCではマウスを乗せると枠だけ光らせる */
   @media (hover: hover) and (pointer: fine) {
-    .card:hover .prompt-pop { opacity: 1; pointer-events: auto; }
+    .card:not(.select-target):hover { border-color: var(--cyan-dim); }
   }
-  .card.select-target:hover .prompt-pop { opacity: 0; pointer-events: none; }
-  .prompt-pop .pp-menu-btn {
-    font-size: 11px; padding: 7px 10px; background: transparent; border: 1px solid var(--line);
-    color: var(--text-dim); cursor: pointer; text-align: center;
-  }
-  .prompt-pop .pp-menu-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .prompt-pop .pp-menu-btn.copied { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
-  /* コピーする本文が無い（未入力）登録では押せない。ボタン自体は残し、
-     何がコピーできて何ができないかが一覧性として分かるようにする */
-  .prompt-pop .pp-menu-btn:disabled { color: var(--text-faint); border-color: var(--line-soft); cursor: default; opacity: .5; }
-  /* 1行目：拡大・編集（2列） */
-  .prompt-pop .pp-zoom, .prompt-pop .pp-edit { grid-column: span 1; }
-  /* 2〜4行目：コピー系とサムネイル拡大以外は2列ぶち抜き */
-  .prompt-pop .pp-copy { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 6px; }
-  /* 最終行：削除のみ右詰め。左側の1マスは空けておく */
-  .prompt-pop .pp-delete {
-    grid-column: 2 / 3; justify-self: end; width: auto; min-width: 44px;
-  }
-  .prompt-pop .pp-delete:hover { border-color: var(--magenta-dim); color: var(--magenta); }
 
   /* ---- サムネイル拡大ライトボックス（2026-09-25） ----
      画面に収まる範囲でなるべく大きく、原寸は超えない(object-fit: contain
@@ -554,6 +522,17 @@
   </div>
 </div>
 
+<!-- 入力を捨てて閉じるかの確認（2026-10-07）。登録・編集の画面を、保存せずに閉じようとしたとき -->
+<div class="confirm-overlay" id="discardOverlay">
+  <div class="confirm-box">
+    <div class="cf-msg">入力した内容を捨てて閉じますか？（保存していない変更は消えます）</div>
+    <div class="cf-actions">
+      <button class="btn" id="discardKeepBtn" type="button">編集を続ける</button>
+      <button class="btn danger" id="discardOkBtn" type="button">捨てて閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- サムネイル拡大ライトボックス（2026-09-25）。拡大した画像をタップでメニュー（2026-10-06） -->
 <div class="thumb-lightbox" id="thumbLightbox">
   <button class="thumb-lightbox-close" id="thumbLightboxCloseBtn" type="button">✕</button>
@@ -711,6 +690,9 @@
   const tagMoreList = document.getElementById('tagMoreList');
   const tagColorList = document.getElementById('tagColorList');
 
+  const discardOverlay = document.getElementById('discardOverlay');
+  const discardKeepBtn = document.getElementById('discardKeepBtn');
+  const discardOkBtn = document.getElementById('discardOkBtn');
   const confirmOverlay = document.getElementById('confirmOverlay');
   const confirmMsg = document.getElementById('confirmMsg');
   const confirmCancelBtn = document.getElementById('confirmCancelBtn');
@@ -1025,13 +1007,6 @@
         ${imgUrl ? `<img src="${imgUrl}" alt="${escapeHtml(entry.title || '')}">` : ''}
         <div class="card-title">${escapeHtml(entry.title || '(無題)')}</div>
         <div class="card-tags">${tagsHtml}</div>
-        <div class="prompt-pop">
-          <button class="pp-menu-btn pp-zoom" type="button">拡大</button>
-          <button class="pp-menu-btn pp-edit" type="button">編集</button>
-          <button class="pp-menu-btn pp-copy" type="button" data-kind="prompt" ${entry.prompt ? '' : 'disabled'}>プロンプト📋</button>
-          <button class="pp-menu-btn pp-copy" type="button" data-kind="negative" ${entry.negative ? '' : 'disabled'}>ネガティブ📋</button>
-          <button class="pp-menu-btn pp-delete" type="button" title="削除" aria-label="削除">🗑</button>
-        </div>
         <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">消去</span></div>
       `;
       const thumb = normalizeThumb(entry.thumb);
@@ -1042,25 +1017,9 @@
         card.classList.add('select-target');
         card.addEventListener('click', () => toggleSelectForDelete(entry.id));
       } else {
-        // カードをタップ（クリック）→ 拡大表示。メニューは拡大した画像をタップして出す（2026-10-06）。
-        // PCでマウスを乗せたときのメニュー（.prompt-pop）のボタン以外の所をクリックしても、ここに来る
+        // カードをクリック（タップ）→ 拡大表示。メニューは拡大した画像をクリックして出す。
+        // PC・スマホ共通（2026-10-07。それまでPCはマウスを乗せるとカードの上にメニューが出ていた）
         card.addEventListener('click', () => openThumbLightbox(entry, imgUrl));
-        const zoomBtn = card.querySelector('.pp-zoom');
-        if (imgUrl) {
-          zoomBtn.addEventListener('click', (e) => { e.stopPropagation(); openThumbLightbox(entry, imgUrl); });
-        } else {
-          zoomBtn.disabled = true; // 画像未登録の登録はそもそも拡大するものがない
-        }
-        card.querySelector('.pp-edit').addEventListener('click', (e) => { e.stopPropagation(); openEditModal(entry); });
-        card.querySelector('.pp-delete').addEventListener('click', (e) => { e.stopPropagation(); openConfirmDelete(entry.id); });
-
-        card.querySelectorAll('.pp-copy').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const kind = btn.dataset.kind;
-            copyWithFeedback(btn, kind === 'prompt' ? (entry.prompt || '') : (entry.negative || ''));
-          });
-        });
       }
 
       grid.appendChild(card);
@@ -1118,6 +1077,7 @@
      ドラッグ（1本指）で位置、ピンチ（2本指）・ホイール・スライダーで拡大縮小。
      画像の縦横比が分かる（読み込みが終わる）までは frameState = null で、操作も保存もしない */
   let frameState = null;      // { ar, z, cx, cy }
+  let frameBaseline = null;   // 画像を読み込んだ時点の frameState（入力を捨てる確認で、見え方を変えたかを調べる）
   let frameObjectUrl = null;  // 枠に表示中の画像のURL（閉じるときに解放する）
   let frameLoadSeq = 0;       // 画像を続けて差し替えたとき、古い読み込みの結果を使わないため
   const framePointers = new Map();
@@ -1126,6 +1086,7 @@
   function hideFrameEditor() {
     frameLoadSeq++;
     frameState = null;
+    frameBaseline = null;
     framePointers.clear();
     framePinch = null;
     frameEditor.classList.remove('is-open');
@@ -1148,6 +1109,7 @@
       // 保存済みの見え方は、同じ画像（縦横比がほぼ同じ）のときだけ引き継ぐ
       const keep = initialThumb && Math.abs(initialThumb.ar - ar) / ar < 0.02;
       frameState = settleThumb(keep ? { ...initialThumb, ar } : { ar, z: 1, cx: 0.5, cy: 0.5 });
+      frameBaseline = { ...frameState }; // 開いた時点の見え方（変えたかどうかの判定用）
       frameZoom.min = String(thumbZMin(ar));
       frameZoom.max = String(THUMB_Z_MAX);
       renderFrame();
@@ -1247,6 +1209,7 @@
     resetModalFields();
     modalTitle.textContent = '新規登録';
     modalOverlay.classList.add('is-open');
+    modalSnapshot = formSnapshot();
     titleInput.focus();
   }
 
@@ -1316,19 +1279,47 @@
     renderFreqTagPicker();
     if (entry.image) showFrameEditor(entry.image, normalizeThumb(entry.thumb));
     modalOverlay.classList.add('is-open');
+    modalSnapshot = formSnapshot();
   }
+
+  /* ---- 入力を捨てて閉じるかの確認（2026-10-07） ----
+     保存せずに閉じようとしたとき（✕・キャンセル・背景のクリック・Esc・スマホの戻るボタン）、
+     開いた時点から何か変えていたら「入力した内容を捨てて閉じますか？」と聞く。
+     変えたかどうか：題名・プロンプト・ネガティブ・タグ（入力途中の文字も含む）・新しい画像・見え方（枠合わせ） */
+  let modalSnapshot = null;
+  function formSnapshot() {
+    return JSON.stringify([titleInput.value, promptInput.value, negativeInput.value, editTags]);
+  }
+  function frameChanged() {
+    if (!frameState || !frameBaseline) return false;
+    return ['z', 'cx', 'cy'].some((k) => Math.abs(frameState[k] - frameBaseline[k]) > 0.0005);
+  }
+  function isModalDirty() {
+    if (!modalSnapshot) return false;
+    return formSnapshot() !== modalSnapshot || !!pendingImageFile || tagInput.value.trim() !== '' || frameChanged();
+  }
+  function requestCloseModal() {
+    if (!modalOverlay.classList.contains('is-open')) return;
+    if (isModalDirty()) discardOverlay.classList.add('is-open');
+    else closeModal();
+  }
+  discardKeepBtn.addEventListener('click', () => discardOverlay.classList.remove('is-open'));
+  discardOkBtn.addEventListener('click', closeModal);
+  discardOverlay.addEventListener('click', (e) => { if (e.target === discardOverlay) discardOverlay.classList.remove('is-open'); });
 
   function closeModal() {
     modalOverlay.classList.remove('is-open');
+    discardOverlay.classList.remove('is-open');
+    modalSnapshot = null;
     editingId = null;
     pendingImageFile = null;
     hideFrameEditor();
   }
 
   addBtn.addEventListener('click', openAddModal);
-  modalCloseBtn.addEventListener('click', closeModal);
-  cancelBtn.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+  modalCloseBtn.addEventListener('click', requestCloseModal);
+  cancelBtn.addEventListener('click', requestCloseModal);
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) requestCloseModal(); });
 
   saveBtn.addEventListener('click', async () => {
     const title = titleInput.value.trim();
@@ -1421,8 +1412,9 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (thumbLightbox.classList.contains('is-open')) closeThumbLightbox();
+      else if (discardOverlay.classList.contains('is-open')) discardOverlay.classList.remove('is-open'); // 編集を続ける
       else if (confirmOverlay.classList.contains('is-open')) closeConfirmDelete();
-      else if (modalOverlay.classList.contains('is-open')) closeModal();
+      else if (modalOverlay.classList.contains('is-open')) requestCloseModal();
       else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
       else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
       else if (tagMoreModalOverlay.classList.contains('is-open')) closeTagMoreModal();

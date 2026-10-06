@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIBRARIUM</title>
+<!-- テーマ・同期の「変えたよ」の印・戻るボタンとの連携（docs/core/claude_テーマブリッジ_仕様書.md）。できるだけ早く読み込む -->
+<script src="sideops-theme-bridge.js"></script>
+<!-- カバー画像の見え方（枠合わせ）の共通部品 -->
+<script src="sideops-frame.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Shippori+Mincho:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+    --font-book: 'Shippori Mincho', 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
+    --reader-size: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  button, input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
+  :focus-visible { outline: 1px solid var(--cyan); outline-offset: 1px; }
+  [hidden] { display: none !important; }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .bar-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .bar-filter { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .search-box {
+    display: flex; align-items: center; gap: 6px; min-width: 0;
+    background: var(--bg-alt); border: 1px solid var(--line); padding: 5px 10px;
+  }
+  .search-box span { color: var(--text-faint); font-size: 11px; }
+  .search-box input { background: transparent; border: none; outline: none; font-size: 12px; width: 180px; min-width: 0; }
+  .search-box input::placeholder { color: var(--text-faint); }
+  .sort-select { background: var(--bg-alt); border: 1px solid var(--line); font-size: 11px; padding: 5px 6px; color: var(--text-dim); }
+  /* 狭い画面（スマホの縦向きなど）では2段：1段目＝タイトル・取り込む・☰、2段目＝検索と並べ方 */
+  @media (max-width: 640px) {
+    .app-bar { flex-wrap: wrap; row-gap: 8px; column-gap: 8px; padding: 8px 12px; }
+    .app-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .bar-right { display: contents; }
+    .bar-filter { order: 1; flex: 1 1 100%; }
+    .search-box { flex: 1 1 0; }
+    .search-box input { flex: 1 1 0; width: 0; }
+  }
+
+  .btn { font-size: 11px; color: var(--text-dim); background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn:disabled { opacity: .45; cursor: default; border-color: var(--line); color: var(--text-faint); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn.small { padding: 4px 9px; font-size: 10.5px; }
+
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 200px;
+    background: var(--panel); border: 1px solid var(--line); display: none; flex-direction: column; padding: 4px;
+    box-shadow: 0 8px 24px rgba(var(--shadow-rgb), .5);
+  }
+  .menu-panel.is-open { display: flex; }
+  .menu-panel button { background: transparent; border: none; text-align: left; font-size: 12px; color: var(--text-dim); padding: 8px 10px; cursor: pointer; }
+  .menu-panel button:hover { background: var(--bg-alt); color: var(--cyan); }
+
+  /* ---- views ---- */
+  .app-body { flex: 1; min-height: 0; position: relative; }
+  .view { display: none; height: 100%; flex-direction: column; }
+  .view.is-active { display: flex; }
+  .scroll-area { flex: 1; min-height: 0; overflow-y: auto; }
+  #shelfView .scroll-area { padding: 18px 18px 40px; }
+  .shelf-count { font-size: 10.5px; color: var(--text-faint); margin-bottom: 12px; }
+  .app-body.is-dragover::after {
+    content: 'ここに .novel / ZIP / .txt を落とすと取り込みます'; position: absolute; inset: 10px; z-index: 30;
+    border: 2px dashed var(--cyan); background: rgba(var(--bg-rgb), .85); color: var(--cyan);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; pointer-events: none;
+  }
+
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--text-faint); display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .empty-state .big { font-family: var(--font-book); font-size: 16px; color: var(--text-dim); }
+  .empty-state .small { font-size: 11.5px; line-height: 1.9; max-width: 420px; }
+
+  /* ---- 本棚 ---- */
+  .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 24px 16px; }
+  @media (max-width: 480px) { .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 12px; } }
+  .book { background: transparent; border: none; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .book-cover {
+    position: relative; aspect-ratio: 3 / 4; width: 100%; overflow: hidden; background: var(--panel);
+    border: 1px solid var(--line); box-shadow: 6px 6px 0 rgba(var(--shadow-rgb), .45);
+    transition: transform .18s ease, border-color .18s ease;
+  }
+  .book:hover .book-cover, .book:focus-visible .book-cover { transform: translateY(-3px); border-color: var(--cyan-dim); }
+  .book-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .book-cover::before { content: ''; position: absolute; top: 0; bottom: 0; left: 7px; width: 1px; background: rgba(var(--text-rgb), .18); z-index: 2; }
+  .bc-type {
+    position: absolute; inset: 0; display: flex; justify-content: center; padding: 16px 12px;
+    writing-mode: vertical-rl; font-family: var(--font-book); font-size: 17px; line-height: 1.5; color: var(--text);
+    letter-spacing: .12em; overflow: hidden;
+  }
+  .bc-type::after { content: ''; position: absolute; left: 18px; top: 16px; bottom: 16px; width: 1px; background: var(--cyan-dim); }
+  @media (max-width: 480px) { .bc-type { font-size: 14px; padding: 12px 8px; } }
+  .book-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--cyan); z-index: 3; }
+  .book-title { font-family: var(--font-book); font-size: 13.5px; font-weight: 600; line-height: 1.5; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all; }
+  .book-pen { font-size: 10.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .book-meta { font-size: 10.5px; color: var(--text-faint); }
+
+  /* ---- 読む画面 ---- */
+  .reader-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; flex-shrink: 0; }
+  .reader-bar .spacer { flex: 1; }
+  .reader-bar-title { font-family: var(--font-book); font-size: 12.5px; color: var(--text-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40vw; }
+  .reader-progress { height: 2px; background: var(--line-soft); flex-shrink: 0; }
+  .reader-progress div { height: 100%; width: 0; background: var(--cyan); }
+  .reader-inner { max-width: 760px; margin: 0 auto; padding: 28px 24px 60px; }
+  .reader-title { font-family: var(--font-book); font-size: 26px; font-weight: 600; line-height: 1.45; letter-spacing: .04em; text-align: center; word-break: break-word; }
+  .reader-meta { font-size: 11px; color: var(--text-faint); text-align: center; margin: 10px 0 28px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .reader-text {
+    font-family: var(--font-book); font-size: var(--reader-size); line-height: 2.05; letter-spacing: .03em; color: var(--text);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .reader-text.is-vertical {
+    writing-mode: vertical-rl; width: 100%; height: min(72vh, 760px); overflow-x: auto; overflow-y: hidden;
+    line-height: 1.9; padding: 4px 0 10px;
+  }
+  .reader-inner.is-vertical-mode { max-width: none; }
+  @media (max-width: 640px) {
+    .reader-inner { padding: 20px 16px 48px; }
+    .reader-title { font-size: 21px; }
+    .reader-bar { padding: 8px 10px; gap: 6px; }
+    .reader-bar-title { display: none; }
+  }
+
+  /* ---- モーダル ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal {
+    width: 100%; max-width: 560px; max-height: 92vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line);
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line-soft); }
+  .modal-title { font-family: var(--font-display); font-size: 13px; letter-spacing: .04em; }
+  .modal-close { width: 24px; height: 24px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 12px; cursor: pointer; flex-shrink: 0; }
+  .modal-close:hover { border-color: var(--magenta); color: var(--magenta); }
+  .modal-body { padding: 14px 18px; overflow-y: auto; min-height: 0; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px 14px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .modal-foot .left { margin-right: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 10px; color: var(--text-faint); letter-spacing: .04em; margin-bottom: 5px; }
+  .field input[type="text"], .field textarea {
+    width: 100%; background: var(--bg-alt); border: 1px solid var(--line); padding: 8px 9px; font-size: 12.5px; outline: none;
+  }
+  .field input[type="text"]:focus, .field textarea:focus { border-color: var(--cyan-dim); }
+  .field textarea { min-height: 70px; resize: vertical; line-height: 1.6; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 480px) { .field-row { grid-template-columns: 1fr; } }
+  .field-hint { font-size: 10px; color: var(--text-faint); line-height: 1.6; margin-top: 4px; }
+
+  .info-top { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
+  .info-cover { width: 120px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+  .info-cover .book-cover { box-shadow: none; }
+  .info-cover-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+  .info-fields { flex: 1; min-width: 0; }
+  @media (max-width: 480px) { .info-top { flex-direction: column; } .info-cover { width: 110px; } }
+  .source-table { width: 100%; border-collapse: collapse; font-size: 11px; color: var(--text-dim); }
+  .source-table th { text-align: left; font-weight: 400; color: var(--text-faint); padding: 3px 10px 3px 0; white-space: nowrap; vertical-align: top; width: 1%; }
+  .source-table td { padding: 3px 0; word-break: break-all; }
+
+  /* 取り込みの確認 */
+  .imp-row { border: 1px solid var(--line-soft); padding: 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .imp-row.is-skip { opacity: .55; }
+  .imp-head { display: flex; gap: 8px; align-items: center; }
+  .imp-head input[type="text"] { flex: 1; min-width: 0; background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px; font-size: 12.5px; font-family: var(--font-book); outline: none; }
+  .imp-head select { background: var(--bg-alt); border: 1px solid var(--line); font-size: 11px; padding: 5px; color: var(--text-dim); max-width: 46%; }
+  .imp-meta { font-size: 10.5px; color: var(--text-faint); display: flex; gap: 10px; flex-wrap: wrap; }
+  .imp-meta .warn { color: var(--amber); }
+  .imp-preview { font-family: var(--font-book); font-size: 11.5px; color: var(--text-dim); line-height: 1.7; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; }
+  .imp-errors { border: 1px solid var(--magenta-dim); padding: 8px 10px; font-size: 11px; color: var(--magenta); line-height: 1.7; margin-bottom: 10px; word-break: break-all; }
+  .imp-summary { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+
+  .help-body { font-size: 12px; line-height: 1.9; color: var(--text-dim); }
+  .help-body h3 { font-size: 12.5px; color: var(--text); margin: 12px 0 4px; font-weight: 600; }
+  .help-body h3:first-child { margin-top: 0; }
+  .help-body ul { padding-left: 1.2em; }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box { width: 100%; max-width: 320px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px; }
+  .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 14px; white-space: pre-wrap; }
+  .confirm-box .cf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 90; max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-bar">
+    <span class="app-title">// LIBRARIUM</span>
+    <div class="bar-right">
+      <div class="bar-filter">
+        <div class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input type="search" id="searchInput" placeholder="題名・名義・シリーズ・タグ・本文">
+        </div>
+        <select class="sort-select" id="sortSelect" aria-label="並べ方">
+          <option value="imported">取り込んだ順</option>
+          <option value="read">最近読んだ順</option>
+          <option value="title">題名順</option>
+          <option value="chars">文字数順</option>
+        </select>
+      </div>
+      <button type="button" class="btn primary" id="importBtn">＋ 取り込む</button>
+      <div class="menu-wrap">
+        <button type="button" class="hamburger-btn" id="menuBtn" title="メニュー" aria-label="メニュー">☰</button>
+        <div class="menu-panel" id="menuPanel">
+          <button type="button" id="menuHelp">取り込み方</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-body" id="appBody">
+    <section class="view is-active" id="shelfView">
+      <div class="scroll-area">
+        <div class="shelf-count" id="shelfCount"></div>
+        <div id="shelfList"></div>
+      </div>
+    </section>
+
+    <section class="view" id="readerView">
+      <div class="reader-bar">
+        <button type="button" class="btn" id="readerBackBtn">← 本棚</button>
+        <span class="reader-bar-title" id="readerBarTitle"></span>
+        <span class="spacer"></span>
+        <button type="button" class="btn small" id="fontDownBtn" title="文字を小さく" aria-label="文字を小さく">A−</button>
+        <button type="button" class="btn small" id="fontUpBtn" title="文字を大きく" aria-label="文字を大きく">A＋</button>
+        <button type="button" class="btn small" id="readerModeBtn">縦書き</button>
+        <button type="button" class="btn small" id="readerCopyBtn">コピー</button>
+        <button type="button" class="btn small primary" id="readerInfoBtn">情報</button>
+      </div>
+      <div class="reader-progress"><div id="readerProgressBar"></div></div>
+      <div class="scroll-area" id="readerScroll">
+        <article class="reader-inner" id="readerInner">
+          <h1 class="reader-title" id="readerTitle"></h1>
+          <div class="reader-meta" id="readerMeta"></div>
+          <div class="reader-text" id="readerText"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<input type="file" id="importFile" accept=".novel,.zip,.txt,text/plain,application/zip" multiple hidden>
+<input type="file" id="coverFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+<!-- 取り込みの確認 -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">取り込みの確認</span>
+      <button type="button" class="modal-close" id="importCloseBtn" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="imp-errors" id="importErrors" hidden></div>
+      <div class="imp-summary" id="importSummary"></div>
+      <div id="importList"></div>
+      <div class="field-hint">本文だけを取り込みます（メモリ・脚注・キャラクターブックなどは取り込みません）。AIが書いた部分の色分けも外します。題名はここで直せます。</div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" id="importCancelBtn">キャンセル</button>
+      <button type="button" class="btn primary" id="importOkBtn">取り込む</button>
+    </div>
+  </div>
+</div>
+
+<!-- 本の情報 -->
+<div class="modal-overlay" id="infoModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">本の情報</span>
+      <button type="button" class="modal-close" id="infoCloseBtn" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-top">
+        <div class="info-cover">
+          <span class="book-cover" id="infoCover"></span>
+          <div class="info-cover-btns">
+            <button type="button" class="btn small" id="coverPickBtn">表紙を選ぶ</button>
+            <button type="button" class="btn small" id="coverFrameBtn">見え方</button>
+            <button type="button" class="btn small danger" id="coverRemoveBtn">外す</button>
+          </div>
+        </div>
+        <div class="info-fields">
+          <div class="field">
+            <label for="infoTitle">題名</label>
+            <input type="text" id="infoTitle" maxlength="200">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="infoAuthor">名義</label>
+              <input type="text" id="infoAuthor" maxlength="100">
+            </div>
+            <div class="field">
+              <label for="infoSeries">シリーズ</label>
+              <input type="text" id="infoSeries" maxlength="100">
+            </div>
+          </div>
+          <div class="field">
+            <label for="infoTags">タグ（「、」か「,」で区切る）</label>
+            <input type="text" id="infoTags" maxlength="300">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="infoMemo">メモ</label>
+        <textarea id="infoMemo" maxlength="5000"></textarea>
+      </div>
+      <table class="source-table" id="infoSource"></table>
+    </div>
+    <div class="modal-foot">
+      <div class="left">
+        <button type="button" class="btn small" id="infoExportBtn">本文を書き出す（.txt）</button>
+        <button type="button" class="btn small danger" id="infoDeleteBtn">削除</button>
+      </div>
+      <button type="button" class="btn" id="infoCancelBtn">キャンセル</button>
+      <button type="button" class="btn primary" id="infoSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 取り込み方 -->
+<div class="modal-overlay" id="helpModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">取り込み方</span>
+      <button type="button" class="modal-close" id="helpCloseBtn" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body help-body">
+      <h3>取り込めるファイル</h3>
+      <ul>
+        <li><b>.novel</b>：AIのべりすとで作品をファイルに保存（エクスポート）したもの。いくつでもまとめて選べます</li>
+        <li><b>ZIP</b>：AIのべりすとの作品リストの「ZIPですべてエクスポート」で書き出したもの。中の .novel をすべて読みます</li>
+        <li><b>.txt</b>：ふつうのテキスト（UTF-8 か Shift_JIS）。そのまま1冊の本にします</li>
+      </ul>
+      <h3>取り込むもの</h3>
+      <ul>
+        <li>本文と題名だけ。メモリ・脚注・キャラクターブック・スクリプトなどは取り込みません</li>
+        <li>AIが書いた部分の色分けなどの飾りは外します</li>
+        <li>同じ作品（AIのべりすとの作品IDが同じ）を取り込み直すと、「本文を更新」を選べます。表紙・名義・メモはそのまま残ります</li>
+      </ul>
+      <h3>そのほか</h3>
+      <ul>
+        <li>本棚にファイルを落としても取り込めます（PC）</li>
+        <li>本をタップすると読む画面に。続きの位置は覚えています（ほかの端末とも同期します）</li>
+        <li>読む画面の「情報」で、題名・名義・表紙などを直せます</li>
+      </ul>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn primary" id="helpOkBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認 -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions">
+      <button type="button" class="btn" id="confirmCancelBtn">キャンセル</button>
+      <button type="button" class="btn danger" id="confirmOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     LIBRARIUM（2026-10-07）
+     AIのべりすとで書き出した作品（.novel）から本文だけを取り込み、本棚に並べて読むアプリ。
+     仕様：docs/apps/claude_アプリ_LIBRARIUM_仕様書.md
+
+     IndexedDB（sideops_librarium・版1）
+       books    … 1冊 = { id, title, author, series, tags[], memo, body, chars,
+                          coverImage(Blob|null), coverThumb?(見え方),
+                          source: { kind: 'novel'|'txt', fileName, title, workId, savedAt, hash },
+                          createdAt, updatedAt, importedAt }
+       progress … 読んだ位置 = { id(本のid), ratio(0〜1), vertical, updatedAt }
+                  本文を何度も送り直さないよう、本とは別のストアにしている（同期は記録ごと）
+     ===================================================================== */
+  const DB_NAME = 'sideops_librarium';
+  const DB_VERSION = 1;
+  const S = { books: 'books', progress: 'progress' };
+
+  const NOVEL_SEP = '<|endofsection|>';
+  const FILE_MAX_BYTES = 30 * 1024 * 1024;     // 1ファイル（.novel / .txt）
+  const ZIP_MAX_BYTES = 300 * 1024 * 1024;     // ZIP そのもの
+  const ZIP_MAX_ENTRIES = 2000;
+  const BODY_MAX_CHARS = 5 * 1000 * 1000;      // 1冊の本文（これより長いものは取り込まない）
+  const COVER_MAX_BYTES = 5 * 1024 * 1024;
+  const COVER_ASPECT = 3 / 4;
+  const PREFS_KEY = 'sideops_librarium_prefs';  // 端末ごとの見え方（並べ方・文字の大きさ・縦書き）
+
+  const $ = (id) => document.getElementById(id);
+  const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const genId = () => 'lb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const pad = (n) => String(n).padStart(2, '0');
+  function formatDateTime(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const countChars = (s) => Array.from(String(s || '').replace(/\s/g, '')).length;
+
+  /* ===================== 端末ごとの設定（localStorage） ===================== */
+  let prefs = { sort: 'imported', fontSize: 16, vertical: false };
+  try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) { /* 使えなければ既定値 */ }
+  prefs.fontSize = Math.min(28, Math.max(12, Number(prefs.fontSize) || 16));
+  function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* 保存できなくても動く */ } }
+
+  /* ===================== IndexedDB ===================== */
+  let db = null;
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const d = req.result;
+        if (!d.objectStoreNames.contains(S.books)) d.createObjectStore(S.books, { keyPath: 'id' });
+        if (!d.objectStoreNames.contains(S.progress)) d.createObjectStore(S.progress, { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function reqP(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
+  const getAll = (store) => reqP(db.transaction(store).objectStore(store).getAll());
+  const put = (store, v) => reqP(db.transaction(store, 'readwrite').objectStore(store).put(v));
+  // 本と読んだ位置をまとめて消す（片方だけ残らないように1トランザクション）
+  function deleteBook(id) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([S.books, S.progress], 'readwrite');
+      tx.objectStore(S.books).delete(id);
+      tx.objectStore(S.progress).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('中断されました'));
+    });
+  }
+  // 取り込み：まとめて1トランザクションで書く（途中で失敗したら何も書かない）
+  function putBooks(list) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(S.books, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('中断されました'));
+      try { const st = tx.objectStore(S.books); list.forEach((b) => st.put(b)); }
+      catch (err) { try { tx.abort(); } catch (e) { /* すでに終了 */ } }
+    });
+  }
+
+  /* ===================== 状態 ===================== */
+  let books = [];
+  const progress = new Map(); // 本のid → { ratio, vertical, updatedAt }
+  let dbReady = false;
+  let currentView = 'shelf';
+  let readerBookId = null;
+
+  /* ===================== 表示の小道具 ===================== */
+  const toastEl = $('toast');
+  let toastTimer = null;
+  function showToast(msg, isError) {
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('is-error', !!isError);
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), isError ? 4200 : 2400);
+  }
+
+  // 確認（OK で true）
+  let confirmResolve = null;
+  function ask(msg, okLabel, danger) {
+    if (confirmResolve) confirmResolve(false);
+    $('confirmMsg').textContent = msg;
+    $('confirmOkBtn').textContent = okLabel || 'OK';
+    $('confirmOkBtn').className = 'btn ' + (danger ? 'danger' : 'primary');
+    $('confirmOverlay').classList.add('is-open');
+    return new Promise((resolve) => { confirmResolve = resolve; });
+  }
+  function closeConfirm(v) {
+    $('confirmOverlay').classList.remove('is-open');
+    const r = confirmResolve; confirmResolve = null;
+    if (r) r(v);
+  }
+  $('confirmOkBtn').addEventListener('click', () => closeConfirm(true));
+  $('confirmCancelBtn').addEventListener('click', () => closeConfirm(false));
+  $('confirmOverlay').addEventListener('click', (e) => { if (e.target === $('confirmOverlay')) closeConfirm(false); });
+
+  // 表紙の Blob URL：本ごとに1本だけ持ち、差し替え・削除で古い方を解放する
+  const coverUrls = new Map(); // id → { blob, url }
+  function coverUrl(book) {
+    if (!book || !(book.coverImage instanceof Blob)) { dropCoverUrl(book && book.id); return null; }
+    const c = coverUrls.get(book.id);
+    if (c && c.blob === book.coverImage) return c.url;
+    if (c) URL.revokeObjectURL(c.url);
+    const url = URL.createObjectURL(book.coverImage);
+    coverUrls.set(book.id, { blob: book.coverImage, url });
+    return url;
+  }
+  function dropCoverUrl(id) { const c = id && coverUrls.get(id); if (c) { URL.revokeObjectURL(c.url); coverUrls.delete(id); } }
+
+  function coverHtml(book) {
+    const url = coverUrl(book);
+    if (url) return `<img src="${url}" alt="" data-book="${escapeHtml(book.id)}">`;
+    return `<span class="bc-type">${escapeHtml(String(book.title || '無題').slice(0, 40))}</span>`;
+  }
+  function applyCoverFrames(root) {
+    if (!window.SideOpsFrame) return;
+    root.querySelectorAll('img[data-book]').forEach((img) => {
+      const b = books.find((x) => x.id === img.dataset.book);
+      window.SideOpsFrame.applyImg(img, b && b.coverThumb, COVER_ASPECT);
+    });
+  }
+
+  /* =====================================================================
+     .novel の読み方
+     AIのべりすとの .novel は UTF-8 のテキストで、「<|endofsection|>」で区切った欄が並ぶ
+     （0：本文、1：メモリ、2：脚注、3：パラメータ、4：キャラクターブック、5：禁止ワード、6：タイトル、
+      7：作品ID、……、最後の方に保存した時刻（UNIX時間））。本文は改行が <br> になっていて、
+     AIが書いた部分は <span id="ai_output" ...> で囲まれている。
+     参考：AIのべりすと非公式Wiki「novelファイルフォーマット」（2023-06時点の情報）。
+     形式が変わっても困らないように：本文＝先頭の欄、題名＝7番目の欄（なければファイル名）、
+     作品ID＝8番目の欄が数字のときだけ、保存時刻＝後ろから探した10〜13桁の数字、とゆるく読む
+     ===================================================================== */
+  function decodeText(buf) {
+    // UTF-8 として正しく読めなければ Shift_JIS で読む（古いテキストファイル向け）
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''); }
+    catch (e) {
+      try { return new TextDecoder('shift_jis').decode(buf); } catch (e2) { return new TextDecoder('utf-8').decode(buf).replace(/^﻿/, ''); }
+    }
+  }
+  // 本文の HTML（<br>・<span> 等）をふつうの文字にする。DOMParser はスクリプトを動かさない
+  function htmlToText(html) {
+    let s = String(html || '').replace(/\r\n?/g, '\n');
+    s = s.replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '');
+    s = s.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div)\s*>/gi, '\n');
+    const doc = new DOMParser().parseFromString('<!DOCTYPE html><html><body>' + s + '</body></html>', 'text/html');
+    let text = (doc.body && doc.body.textContent) || '';
+    text = text.replace(/ /g, ' ');
+    // 先頭・末尾の空行と、行末の空白を整える（行頭の字下げはそのまま）
+    text = text.split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n');
+    return text.replace(/^\n+/, '').replace(/\n+$/, '');
+  }
+  function oneLine(s, max) {
+    return htmlToText(s).replace(/\s+/g, ' ').trim().slice(0, max || 200);
+  }
+  function baseName(name) {
+    return String(name || '').split(/[\\/]/).pop().replace(/\.(novel|txt)$/i, '').trim();
+  }
+  function parseNovel(text, fileName) {
+    const parts = String(text).split(NOVEL_SEP);
+    if (parts.length < 2) throw new Error('AIのべりすとの .novel の形ではありません（区切りが見つかりません）');
+    const body = htmlToText(parts[0]);
+    let title = parts.length > 6 ? oneLine(parts[6], 200) : '';
+    if (!title) title = baseName(fileName);
+    const idRaw = parts.length > 7 ? parts[7].trim() : '';
+    const workId = /^\d{1,20}$/.test(idRaw) ? idRaw : '';
+    let savedAt = null;
+    for (let i = parts.length - 1; i >= 8 && savedAt === null; i--) {
+      const v = parts[i].trim();
+      if (/^\d{10}$/.test(v)) savedAt = Number(v) * 1000;
+      else if (/^\d{13}$/.test(v)) savedAt = Number(v);
+    }
+    return { kind: 'novel', title, body, workId, savedAt };
+  }
+  function parseTxt(text, fileName) {
+    const body = String(text).replace(/\r\n?/g, '\n').replace(/^\n+/, '').replace(/\s+$/, '');
+    return { kind: 'txt', title: baseName(fileName) || '無題', body, workId: '', savedAt: null };
+  }
+
+  /* ---- ZIP（「ZIPですべてエクスポート」）を読む。ライブラリを使わず、ブラウザの展開機能で読む ----
+     読むのは .novel だけ。暗号化・ZIP64・分割は扱わない。展開後の大きさにも上限を設ける（ZIP爆弾対策） */
+  async function inflateRaw(bytes, limit) {
+    if (typeof DecompressionStream !== 'function') throw new Error('このブラウザはZIPの展開に対応していません。ZIPを展開して、中の .novel を選んでください');
+    const ds = new DecompressionStream('deflate-raw');
+    const reader = new Blob([bytes]).stream().pipeThrough(ds).getReader();
+    const chunks = []; let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > limit) { try { reader.cancel(); } catch (e) { /* 何もしない */ } throw new Error('展開すると大きすぎます'); }
+      chunks.push(value);
+    }
+    const out = new Uint8Array(total);
+    let p = 0;
+    chunks.forEach((c) => { out.set(c, p); p += c.length; });
+    return out;
+  }
+  function decodeZipName(bytes, utf8) {
+    if (utf8) return new TextDecoder('utf-8').decode(bytes);
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch (e) { try { return new TextDecoder('shift_jis').decode(bytes); } catch (e2) { return new TextDecoder('utf-8').decode(bytes); } }
+  }
+  async function readZip(file, errors) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('ZIPとして読めません');
+    const count = dv.getUint16(eocd + 10, true);
+    const cdOffset = dv.getUint32(eocd + 16, true);
+    if (count === 0xffff || cdOffset === 0xffffffff) throw new Error('大きすぎるZIP（ZIP64）には対応していません');
+    if (count > ZIP_MAX_ENTRIES) throw new Error(`ファイルが多すぎます（${count}件。${ZIP_MAX_ENTRIES}件まで）`);
+    const out = [];
+    let p = cdOffset;
+    for (let n = 0; n < count; n++) {
+      if (p + 46 > buf.length || dv.getUint32(p, true) !== 0x02014b50) throw new Error('ZIPの目次が壊れています');
+      const flags = dv.getUint16(p + 8, true);
+      const method = dv.getUint16(p + 10, true);
+      const compSize = dv.getUint32(p + 20, true);
+      const size = dv.getUint32(p + 24, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const commentLen = dv.getUint16(p + 32, true);
+      const localOff = dv.getUint32(p + 42, true);
+      const name = decodeZipName(buf.subarray(p + 46, p + 46 + nameLen), (flags & 0x0800) !== 0);
+      p += 46 + nameLen + extraLen + commentLen;
+      if (!/\.novel$/i.test(name)) continue;
+      const label = name.split('/').pop();
+      try {
+        if (flags & 0x0001) throw new Error('暗号化されています');
+        if (size > FILE_MAX_BYTES) throw new Error('大きすぎます');
+        if (localOff + 30 > buf.length || dv.getUint32(localOff, true) !== 0x04034b50) throw new Error('壊れています');
+        const start = localOff + 30 + dv.getUint16(localOff + 26, true) + dv.getUint16(localOff + 28, true);
+        const raw = buf.subarray(start, start + compSize);
+        let data;
+        if (method === 0) data = raw;
+        else if (method === 8) data = await inflateRaw(raw, FILE_MAX_BYTES);
+        else throw new Error(`対応していない圧縮方式です（${method}）`);
+        out.push({ fileName: label, data });
+      } catch (err) {
+        errors.push(`${file.name} の中の ${label}：${err.message}`);
+      }
+    }
+    if (!out.length && !errors.length) errors.push(`${file.name}：中に .novel が見つかりませんでした`);
+    return out;
+  }
+
+  async function sha256Hex(text) {
+    try {
+      const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) { return ''; }
+  }
+
+  /* =====================================================================
+     取り込み
+     選んだファイルを読み → 確認の画面（題名を直せる・同じ作品があれば「本文を更新」を選べる）→ まとめて保存
+     ===================================================================== */
+  let importItems = []; // { fileName, parsed, hash, chars, title, action: 'new'|'update'|'skip', targetId, dupOf }
+  async function readFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length || !dbReady) return;
+    const errors = [];
+    const raws = []; // { fileName, kind, text }
+    for (const f of files) {
+      const name = f.name || '';
+      try {
+        if (/\.zip$/i.test(name) || f.type === 'application/zip' || f.type === 'application/x-zip-compressed') {
+          if (f.size > ZIP_MAX_BYTES) throw new Error(`大きすぎます（${(f.size / 1048576).toFixed(0)}MB。${ZIP_MAX_BYTES / 1048576}MBまで）`);
+          const entries = await readZip(f, errors);
+          entries.forEach((e) => raws.push({ fileName: e.fileName, kind: 'novel', text: decodeText(e.data) }));
+        } else if (/\.novel$/i.test(name) || /\.txt$/i.test(name) || f.type === 'text/plain') {
+          if (f.size > FILE_MAX_BYTES) throw new Error(`大きすぎます（${(f.size / 1048576).toFixed(1)}MB。${FILE_MAX_BYTES / 1048576}MBまで）`);
+          const text = decodeText(new Uint8Array(await f.arrayBuffer()));
+          // 拡張子が .txt でも中身が .novel の形なら .novel として読む
+          raws.push({ fileName: name, kind: /\.novel$/i.test(name) || text.includes(NOVEL_SEP) ? 'novel' : 'txt', text });
+        } else {
+          throw new Error('.novel・.zip・.txt 以外は取り込めません');
+        }
+      } catch (err) {
+        errors.push(`${name}：${err.message}`);
+      }
+    }
+    const items = [];
+    for (const r of raws) {
+      try {
+        const parsed = r.kind === 'novel' ? parseNovel(r.text, r.fileName) : parseTxt(r.text, r.fileName);
+        if (!parsed.body.trim()) throw new Error('本文が空です');
+        if (parsed.body.length > BODY_MAX_CHARS) throw new Error('本文が長すぎます');
+        const hash = await sha256Hex(parsed.body);
+        items.push({ fileName: r.fileName, parsed, hash, chars: countChars(parsed.body), title: parsed.title || '無題' });
+      } catch (err) {
+        errors.push(`${r.fileName}：${err.message}`);
+      }
+    }
+    decideActions(items);
+    importItems = items;
+    openImportModal(errors);
+  }
+
+  // 同じ作品・同じ本文の見分け：本文が同じ → 取り込まない（既定）、作品IDが同じ → 本文を更新（既定）
+  function decideActions(items) {
+    const seenHash = new Set();
+    items.forEach((it) => {
+      const sameBody = it.hash && books.find((b) => b.source && b.source.hash === it.hash);
+      const sameWork = it.parsed.workId && books.find((b) => b.source && b.source.workId === it.parsed.workId);
+      it.targetId = null; it.dupOf = null;
+      if (sameBody || (it.hash && seenHash.has(it.hash))) {
+        it.action = 'skip';
+        it.dupOf = sameBody ? sameBody.title : '（この取り込みの中の別のファイル）';
+      } else if (sameWork) {
+        it.action = 'update';
+        it.targetId = sameWork.id;
+        it.dupOf = sameWork.title;
+      } else {
+        it.action = 'new';
+      }
+      if (it.hash) seenHash.add(it.hash);
+    });
+  }
+
+  function openImportModal(errors) {
+    const errEl = $('importErrors');
+    errEl.hidden = !errors.length;
+    errEl.innerHTML = errors.length ? '読めなかったファイル：<br>' + errors.map(escapeHtml).join('<br>') : '';
+    const list = $('importList');
+    if (!importItems.length) {
+      list.innerHTML = '';
+      $('importSummary').textContent = '取り込める本はありませんでした。';
+    } else {
+      list.innerHTML = importItems.map((it, i) => {
+        const opts = [`<option value="new"${it.action === 'new' ? ' selected' : ''}>新しく追加</option>`];
+        if (it.targetId) opts.push(`<option value="update"${it.action === 'update' ? ' selected' : ''}>本文を更新</option>`);
+        opts.push(`<option value="skip"${it.action === 'skip' ? ' selected' : ''}>取り込まない</option>`);
+        const note = it.action === 'skip' && it.dupOf ? `<span class="warn">同じ本文があります：${escapeHtml(it.dupOf)}</span>`
+          : it.targetId ? `<span class="warn">同じ作品があります：${escapeHtml(it.dupOf)}</span>` : '';
+        return `<div class="imp-row${it.action === 'skip' ? ' is-skip' : ''}" data-i="${i}">
+          <div class="imp-head">
+            <input type="text" value="${escapeHtml(it.title)}" maxlength="200" aria-label="題名" data-role="title">
+            <select data-role="action" aria-label="取り込み方">${opts.join('')}</select>
+          </div>
+          <div class="imp-meta"><span>${it.chars.toLocaleString()}字</span>${it.parsed.savedAt ? `<span>保存 ${escapeHtml(formatDateTime(it.parsed.savedAt))}</span>` : ''}<span>${escapeHtml(it.fileName)}</span>${note}</div>
+          <div class="imp-preview"></div>
+        </div>`;
+      }).join('');
+      list.querySelectorAll('.imp-row').forEach((row) => {
+        const it = importItems[Number(row.dataset.i)];
+        row.querySelector('.imp-preview').textContent = it.parsed.body.slice(0, 160);
+      });
+      updateImportSummary();
+    }
+    $('importOkBtn').disabled = !importItems.some((it) => it.action !== 'skip');
+    $('importModal').classList.add('is-open');
+  }
+  function updateImportSummary() {
+    const n = { new: 0, update: 0, skip: 0 };
+    importItems.forEach((it) => { n[it.action]++; });
+    $('importSummary').textContent = `${importItems.length}冊を読みました：新しく追加 ${n.new}・本文を更新 ${n.update}・取り込まない ${n.skip}`;
+    $('importOkBtn').disabled = !(n.new + n.update);
+  }
+  $('importList').addEventListener('change', (e) => {
+    const row = e.target.closest('.imp-row');
+    if (!row) return;
+    const it = importItems[Number(row.dataset.i)];
+    if (e.target.dataset.role === 'action') {
+      it.action = e.target.value;
+      row.classList.toggle('is-skip', it.action === 'skip');
+      updateImportSummary();
+    }
+  });
+  $('importList').addEventListener('input', (e) => {
+    if (e.target.dataset.role !== 'title') return;
+    const it = importItems[Number(e.target.closest('.imp-row').dataset.i)];
+    it.title = e.target.value;
+  });
+  function closeImportModal() {
+    $('importModal').classList.remove('is-open');
+    importItems = [];
+    $('importList').innerHTML = '';
+  }
+  $('importCloseBtn').addEventListener('click', closeImportModal);
+  $('importCancelBtn').addEventListener('click', closeImportModal);
+  $('importModal').addEventListener('click', (e) => { if (e.target === $('importModal')) closeImportModal(); });
+
+  $('importOkBtn').addEventListener('click', async () => {
+    const now = Date.now();
+    const out = [];
+    let added = 0, updated = 0;
+    importItems.forEach((it, i) => {
+      if (it.action === 'skip') return;
+      const title = (it.title || '').replace(/\s+/g, ' ').trim().slice(0, 200) || it.parsed.title || '無題';
+      const source = { kind: it.parsed.kind, fileName: String(it.fileName).slice(0, 300), title: it.parsed.title, workId: it.parsed.workId, savedAt: it.parsed.savedAt, hash: it.hash };
+      const target = it.action === 'update' && it.targetId ? books.find((b) => b.id === it.targetId) : null;
+      if (target) {
+        // 本文だけ入れ替える。表紙・名義・メモ・タグはそのまま。題名は、取り込んだときのままなら新しい題名に
+        const keepTitle = target.source && target.title !== target.source.title;
+        out.push({ ...target, title: keepTitle ? target.title : title, body: it.parsed.body, chars: it.chars, source, updatedAt: now, importedAt: now });
+        updated++;
+      } else {
+        out.push({
+          id: genId(), title, author: '', series: '', tags: [], memo: '',
+          body: it.parsed.body, chars: it.chars, coverImage: null, source,
+          createdAt: now + i, updatedAt: now + i, importedAt: now + i,
+        });
+        added++;
+      }
+    });
+    if (!out.length) return;
+    $('importOkBtn').disabled = true;
+    try {
+      await putBooks(out);
+    } catch (err) {
+      console.error(err);
+      showToast('取り込めませんでした。容量が足りない可能性があります（何も保存していません）', true);
+      $('importOkBtn').disabled = false;
+      return;
+    }
+    closeImportModal();
+    await loadAll();
+    renderShelf();
+    showToast(`取り込みました（追加 ${added}・更新 ${updated}）`);
+  });
+
+  $('importBtn').addEventListener('click', () => { if (dbReady) $('importFile').click(); });
+  $('importFile').addEventListener('change', () => {
+    const files = $('importFile').files;
+    readFiles(files).finally(() => { $('importFile').value = ''; });
+  });
+  // 本棚にファイルを落として取り込む（PC）
+  const appBody = $('appBody');
+  appBody.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    e.preventDefault();
+    appBody.classList.add('is-dragover');
+  });
+  appBody.addEventListener('dragleave', (e) => { if (e.target === appBody || !appBody.contains(e.relatedTarget)) appBody.classList.remove('is-dragover'); });
+  appBody.addEventListener('drop', (e) => {
+    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    appBody.classList.remove('is-dragover');
+    readFiles(e.dataTransfer.files);
+  });
+
+  /* =====================================================================
+     本棚
+     ===================================================================== */
+  const searchInput = $('searchInput');
+  const sortSelect = $('sortSelect');
+  sortSelect.value = ['imported', 'read', 'title', 'chars'].includes(prefs.sort) ? prefs.sort : 'imported';
+
+  function readRatio(id) { const p = progress.get(id); return p ? Math.min(1, Math.max(0, Number(p.ratio) || 0)) : 0; }
+  function sortedBooks() {
+    const list = books.slice();
+    const key = sortSelect.value;
+    if (key === 'title') list.sort((a, b) => String(a.title).localeCompare(String(b.title), 'ja'));
+    else if (key === 'chars') list.sort((a, b) => (b.chars || 0) - (a.chars || 0));
+    else if (key === 'read') list.sort((a, b) => ((progress.get(b.id) || {}).updatedAt || 0) - ((progress.get(a.id) || {}).updatedAt || 0) || b.importedAt - a.importedAt);
+    else list.sort((a, b) => (b.importedAt || 0) - (a.importedAt || 0));
+    return list;
+  }
+  function matches(b, q) {
+    if (!q) return true;
+    const hay = [b.title, b.author, b.series, (b.tags || []).join(' ')].join('\n').toLowerCase();
+    if (hay.includes(q)) return true;
+    return q.length >= 2 && String(b.body || '').toLowerCase().includes(q);
+  }
+  function renderShelf() {
+    const q = searchInput.value.trim().toLowerCase();
+    const list = sortedBooks().filter((b) => matches(b, q));
+    const listEl = $('shelfList');
+    if (!books.length) {
+      $('shelfCount').textContent = '';
+      listEl.innerHTML = `<div class="empty-state"><div class="big">本棚はまだ空です</div>
+        <div class="small">AIのべりすとで作品をファイルに保存した <b>.novel</b> を、右上の「＋ 取り込む」から選んでください。作品リストの「ZIPですべてエクスポート」のZIPも、そのまま取り込めます。</div></div>`;
+      return;
+    }
+    $('shelfCount').textContent = q ? `${list.length}冊（全${books.length}冊）` : `${books.length}冊`;
+    if (!list.length) { listEl.innerHTML = '<div class="empty-state"><div class="big">見つかりませんでした</div></div>'; return; }
+    listEl.innerHTML = '<div class="shelf-grid">' + list.map((b) => {
+      const r = readRatio(b.id);
+      const meta = `${(b.chars || 0).toLocaleString()}字` + (r > 0 ? `・${r >= 0.995 ? '読了' : Math.floor(r * 100) + '%'}` : '');
+      return `<button type="button" class="book" data-id="${escapeHtml(b.id)}">
+        <span class="book-cover">${coverHtml(b)}${r > 0 ? `<span class="book-progress" style="width:${(r * 100).toFixed(1)}%"></span>` : ''}</span>
+        <span class="book-title">${escapeHtml(b.title || '無題')}</span>
+        ${b.author ? `<span class="book-pen">${escapeHtml(b.author)}</span>` : ''}
+        <span class="book-meta">${escapeHtml(meta)}</span>
+      </button>`;
+    }).join('') + '</div>';
+    applyCoverFrames(listEl);
+  }
+  searchInput.addEventListener('input', renderShelf);
+  sortSelect.addEventListener('change', () => { prefs.sort = sortSelect.value; savePrefs(); renderShelf(); });
+  $('shelfList').addEventListener('click', (e) => {
+    const b = e.target.closest('.book');
+    if (b) openReader(b.dataset.id);
+  });
+
+  /* =====================================================================
+     読む画面
+     ===================================================================== */
+  const readerScroll = $('readerScroll');
+  const readerText = $('readerText');
+  function showView(name) {
+    currentView = name;
+    $('shelfView').classList.toggle('is-active', name === 'shelf');
+    $('readerView').classList.toggle('is-active', name === 'reader');
+  }
+  function applyFontSize() { document.documentElement.style.setProperty('--reader-size', prefs.fontSize + 'px'); }
+  applyFontSize();
+
+  // 読んだ割合：横書きは縦のスクロール、縦書きは横のスクロール（右端が冒頭。scrollLeft は 0 から負の方向へ進む）
+  function currentRatio() {
+    if (prefs.vertical) {
+      const max = readerText.scrollWidth - readerText.clientWidth;
+      return max > 0 ? Math.min(1, Math.max(0, Math.abs(readerText.scrollLeft) / max)) : 1;
+    }
+    const max = readerScroll.scrollHeight - readerScroll.clientHeight;
+    return max > 0 ? Math.min(1, Math.max(0, readerScroll.scrollTop / max)) : 1;
+  }
+  function scrollToRatio(r) {
+    if (prefs.vertical) {
+      const max = readerText.scrollWidth - readerText.clientWidth;
+      readerText.scrollLeft = -max * r;
+      readerScroll.scrollTop = 0;
+    } else {
+      readerScroll.scrollTop = (readerScroll.scrollHeight - readerScroll.clientHeight) * r;
+    }
+  }
+  function updateProgressBar() { $('readerProgressBar').style.width = (currentRatio() * 100).toFixed(1) + '%'; }
+
+  // 読んだ位置の保存：スクロールが止まって1.5秒後と、本棚へ戻るとき・画面を離れるとき
+  let progressTimer = null;
+  let restoring = false;
+  async function saveProgress() {
+    clearTimeout(progressTimer); progressTimer = null;
+    const id = readerBookId;
+    if (!id || restoring || !dbReady) return;
+    const ratio = Math.round(currentRatio() * 10000) / 10000;
+    const prev = progress.get(id);
+    if (prev && Math.abs((prev.ratio || 0) - ratio) < 0.001) return; // ほとんど動いていなければ書かない（同期の送り直しを減らす）
+    const rec = { id, ratio, vertical: !!prefs.vertical, updatedAt: Date.now() };
+    progress.set(id, rec);
+    try { await put(S.progress, rec); } catch (err) { console.error('読んだ位置を保存できませんでした', err); }
+  }
+  function scheduleProgress() {
+    updateProgressBar();
+    if (restoring) return;
+    clearTimeout(progressTimer);
+    progressTimer = setTimeout(saveProgress, 1500);
+  }
+  readerScroll.addEventListener('scroll', () => { if (!prefs.vertical) scheduleProgress(); }, { passive: true });
+  readerText.addEventListener('scroll', () => { if (prefs.vertical) scheduleProgress(); }, { passive: true });
+  readerText.addEventListener('wheel', (e) => {
+    if (!prefs.vertical) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); readerText.scrollLeft -= e.deltaY; }
+  }, { passive: false });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && currentView === 'reader') saveProgress(); });
+  window.addEventListener('message', (e) => {
+    // SIDE-OPS本体がStageを閉じるときの合図：読んだ位置をすぐ書く
+    if (e.source === window.parent && e.data && e.data.type === 'sideops:stage-closing' && currentView === 'reader') saveProgress();
+  });
+
+  function openReader(id) {
+    const b = books.find((x) => x.id === id);
+    if (!b) return;
+    readerBookId = id;
+    $('readerBarTitle').textContent = b.title || '無題';
+    $('readerTitle').textContent = b.title || '無題';
+    const meta = [];
+    if (b.author) meta.push(b.author);
+    if (b.series) meta.push(b.series);
+    meta.push(`${(b.chars || 0).toLocaleString()}字`);
+    $('readerMeta').innerHTML = meta.map((m) => `<span>${escapeHtml(m)}</span>`).join('');
+    readerText.textContent = b.body || '';
+    showView('reader');
+    applyReaderMode(null);
+    const r = readRatio(id);
+    restoring = true;
+    requestAnimationFrame(() => {
+      if (r > 0.002 && r < 0.995) {
+        scrollToRatio(r);
+        showToast(`前回の続きから（${Math.floor(r * 100)}%）`);
+      } else scrollToRatio(0);
+      updateProgressBar();
+      setTimeout(() => { restoring = false; }, 200);
+    });
+  }
+  async function closeReader() {
+    await saveProgress();
+    readerBookId = null;
+    readerText.textContent = '';
+    showView('shelf');
+    renderShelf();
+  }
+  // keepRatio：切り替える前に測った読んだ割合（切り替えた後に測ると、前の書き方の大きさで測れない）
+  function applyReaderMode(keepRatio) {
+    const r = typeof keepRatio === 'number' ? keepRatio : null;
+    readerText.classList.toggle('is-vertical', !!prefs.vertical);
+    $('readerInner').classList.toggle('is-vertical-mode', !!prefs.vertical);
+    $('readerModeBtn').textContent = prefs.vertical ? '横書き' : '縦書き';
+    if (r !== null) {
+      restoring = true;
+      requestAnimationFrame(() => { scrollToRatio(r); updateProgressBar(); setTimeout(() => { restoring = false; }, 200); });
+    }
+  }
+  $('readerModeBtn').addEventListener('click', () => {
+    const r = currentRatio();
+    prefs.vertical = !prefs.vertical;
+    savePrefs();
+    applyReaderMode(r);
+  });
+  function changeFont(delta) {
+    const r = currentRatio();
+    prefs.fontSize = Math.min(28, Math.max(12, prefs.fontSize + delta));
+    savePrefs();
+    applyFontSize();
+    restoring = true;
+    requestAnimationFrame(() => { scrollToRatio(r); setTimeout(() => { restoring = false; }, 200); });
+  }
+  $('fontDownBtn').addEventListener('click', () => changeFont(-1));
+  $('fontUpBtn').addEventListener('click', () => changeFont(1));
+  $('readerBackBtn').addEventListener('click', closeReader);
+  $('readerCopyBtn').addEventListener('click', async () => {
+    const b = books.find((x) => x.id === readerBookId);
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.body || ''); showToast('本文をコピーしました'); }
+    catch (err) { showToast('コピーできませんでした（ブラウザの設定を確認してください）', true); }
+  });
+  $('readerInfoBtn').addEventListener('click', () => { if (readerBookId) openInfo(readerBookId); });
+
+  /* =====================================================================
+     本の情報（題名・名義・シリーズ・タグ・メモ・表紙）
+     ===================================================================== */
+  let infoBookId = null;
+  let infoDraft = null;    // 編集中の表紙 { coverImage, coverThumb }
+  let infoSnapshot = '';
+  function infoFormState() {
+    return JSON.stringify([$('infoTitle').value, $('infoAuthor').value, $('infoSeries').value, $('infoTags').value, $('infoMemo').value,
+      infoDraft && infoDraft.coverImage ? 'img' : '', infoDraft && infoDraft.coverThumb ? JSON.stringify(infoDraft.coverThumb) : '', infoDraft && infoDraft.changed ? 'c' : '']);
+  }
+  function renderInfoCover() {
+    const fake = { id: '__info', title: $('infoTitle').value || '無題', coverImage: infoDraft.coverImage };
+    const el = $('infoCover');
+    el.innerHTML = coverHtml(fake);
+    const img = el.querySelector('img');
+    if (img && window.SideOpsFrame) window.SideOpsFrame.applyImg(img, infoDraft.coverThumb, COVER_ASPECT);
+    $('coverFrameBtn').disabled = !infoDraft.coverImage || !window.SideOpsFrame;
+    $('coverRemoveBtn').disabled = !infoDraft.coverImage;
+  }
+  function openInfo(id) {
+    const b = books.find((x) => x.id === id);
+    if (!b) return;
+    infoBookId = id;
+    infoDraft = { coverImage: b.coverImage || null, coverThumb: b.coverThumb || null, changed: false };
+    $('infoTitle').value = b.title || '';
+    $('infoAuthor').value = b.author || '';
+    $('infoSeries').value = b.series || '';
+    $('infoTags').value = (b.tags || []).join('、');
+    $('infoMemo').value = b.memo || '';
+    const src = b.source || {};
+    const rows = [
+      ['取り込んだファイル', src.fileName || ''],
+      ['形式', src.kind === 'txt' ? 'テキスト' : 'AIのべりすと（.novel）'],
+      ['元の題名', src.title || ''],
+      ['作品ID', src.workId || ''],
+      ['保存した日時', src.savedAt ? formatDateTime(src.savedAt) : ''],
+      ['取り込んだ日時', formatDateTime(b.importedAt)],
+      ['文字数', `${(b.chars || 0).toLocaleString()}字（空白・改行を除く）`],
+    ].filter((r) => r[1]);
+    $('infoSource').innerHTML = rows.map((r) => `<tr><th>${escapeHtml(r[0])}</th><td>${escapeHtml(r[1])}</td></tr>`).join('');
+    renderInfoCover();
+    infoSnapshot = infoFormState();
+    $('infoModal').classList.add('is-open');
+  }
+  function closeInfo() {
+    $('infoModal').classList.remove('is-open');
+    dropCoverUrl('__info');
+    infoBookId = null; infoDraft = null;
+  }
+  async function requestCloseInfo() {
+    if (!infoBookId || !infoDraft) { closeInfo(); return; } // 本が決まっていない（念のため）：そのまま閉じる
+    if (infoFormState() !== infoSnapshot && !(await ask('変更を保存せずに閉じますか？', '保存せずに閉じる', true))) return;
+    closeInfo();
+  }
+  $('infoCloseBtn').addEventListener('click', requestCloseInfo);
+  $('infoCancelBtn').addEventListener('click', requestCloseInfo);
+  $('infoModal').addEventListener('click', (e) => { if (e.target === $('infoModal')) requestCloseInfo(); });
+  $('infoTitle').addEventListener('input', () => { if (!infoDraft.coverImage) renderInfoCover(); });
+
+  $('coverPickBtn').addEventListener('click', () => $('coverFile').click());
+  $('coverFile').addEventListener('change', async () => {
+    const f = $('coverFile').files && $('coverFile').files[0];
+    $('coverFile').value = '';
+    if (!f || !infoDraft) return;
+    if (!/^image\//.test(f.type)) { showToast('画像を選んでください', true); return; }
+    if (f.size > COVER_MAX_BYTES) { showToast(`画像が大きすぎます（${(f.size / 1048576).toFixed(1)}MB。5MBまで）`, true); return; }
+    infoDraft.coverImage = f;
+    infoDraft.coverThumb = null;
+    infoDraft.changed = true;
+    renderInfoCover();
+    // 続けて見え方を決めてもらう（キャンセルなら中央で切り抜き）
+    if (window.SideOpsFrame) {
+      const t = await window.SideOpsFrame.edit({ src: f, aspect: COVER_ASPECT, label: '表紙・あとで「見え方」から変えられます' });
+      if (t && infoDraft && infoDraft.coverImage === f) { infoDraft.coverThumb = t; renderInfoCover(); }
+    }
+  });
+  $('coverFrameBtn').addEventListener('click', async () => {
+    if (!infoDraft || !infoDraft.coverImage || !window.SideOpsFrame) return;
+    const img = infoDraft.coverImage;
+    const t = await window.SideOpsFrame.edit({ src: img, aspect: COVER_ASPECT, initial: infoDraft.coverThumb, label: '表紙' });
+    if (t && infoDraft && infoDraft.coverImage === img) { infoDraft.coverThumb = t; renderInfoCover(); }
+  });
+  $('coverRemoveBtn').addEventListener('click', () => {
+    if (!infoDraft) return;
+    infoDraft.coverImage = null; infoDraft.coverThumb = null; infoDraft.changed = true;
+    renderInfoCover();
+  });
+
+  $('infoSaveBtn').addEventListener('click', async () => {
+    const b = books.find((x) => x.id === infoBookId);
+    if (!b) return;
+    const title = $('infoTitle').value.replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!title) { showToast('題名を入れてください', true); return; }
+    const tags = Array.from(new Set($('infoTags').value.split(/[、,，]/).map((t) => t.trim()).filter(Boolean))).slice(0, 30);
+    const next = {
+      ...b, title,
+      author: $('infoAuthor').value.trim().slice(0, 100),
+      series: $('infoSeries').value.trim().slice(0, 100),
+      tags, memo: $('infoMemo').value.slice(0, 5000),
+      coverImage: infoDraft.coverImage || null,
+      updatedAt: Date.now(),
+    };
+    if (infoDraft.coverImage && infoDraft.coverThumb) next.coverThumb = infoDraft.coverThumb; else delete next.coverThumb;
+    try { await put(S.books, next); } catch (err) { console.error(err); showToast('保存できませんでした。容量が足りない可能性があります', true); return; }
+    closeInfo();
+    await loadAll();
+    if (currentView === 'reader' && readerBookId === next.id) {
+      $('readerBarTitle').textContent = next.title;
+      $('readerTitle').textContent = next.title;
+    } else renderShelf();
+    showToast('保存しました');
+  });
+
+  $('infoExportBtn').addEventListener('click', () => {
+    const b = books.find((x) => x.id === infoBookId);
+    if (!b) return;
+    const name = (b.title || '本文').replace(/[\\/:*?"<>|\r\n]+/g, '_').slice(0, 80) + '.txt';
+    const url = URL.createObjectURL(new Blob([b.body || ''], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+
+  $('infoDeleteBtn').addEventListener('click', async () => {
+    const b = books.find((x) => x.id === infoBookId);
+    if (!b) return;
+    if (!(await ask(`「${b.title || '無題'}」を本棚から削除します。本文・表紙・読んだ位置も消え、元に戻せません。\n（AIのべりすとの作品やファイルは消えません）`, '削除する', true))) return;
+    try { await deleteBook(b.id); } catch (err) { console.error(err); showToast('削除できませんでした', true); return; }
+    dropCoverUrl(b.id);
+    closeInfo();
+    if (currentView === 'reader' && readerBookId === b.id) { readerBookId = null; showView('shelf'); }
+    await loadAll();
+    renderShelf();
+    showToast('削除しました');
+  });
+
+  /* ===================== メニュー・取り込み方 ===================== */
+  const menuBtn = $('menuBtn'), menuPanel = $('menuPanel');
+  function closeMenu() { menuPanel.classList.remove('is-open'); menuBtn.classList.remove('is-active'); }
+  menuBtn.addEventListener('click', (e) => { e.stopPropagation(); const open = !menuPanel.classList.contains('is-open'); menuPanel.classList.toggle('is-open', open); menuBtn.classList.toggle('is-active', open); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.menu-wrap')) closeMenu(); });
+  $('menuHelp').addEventListener('click', () => { closeMenu(); $('helpModal').classList.add('is-open'); });
+  const closeHelp = () => $('helpModal').classList.remove('is-open');
+  $('helpCloseBtn').addEventListener('click', closeHelp);
+  $('helpOkBtn').addEventListener('click', closeHelp);
+  $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
+
+  /* ===================== Esc・スマホの戻るボタン ===================== */
+  const anyModalOpen = () => ['confirmOverlay', 'importModal', 'infoModal', 'helpModal'].some((id) => $(id).classList.contains('is-open'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if ($('confirmOverlay').classList.contains('is-open')) closeConfirm(false);
+    else if ($('importModal').classList.contains('is-open')) closeImportModal();
+    else if ($('infoModal').classList.contains('is-open')) requestCloseInfo();
+    else if ($('helpModal').classList.contains('is-open')) closeHelp();
+    else if (menuPanel.classList.contains('is-open')) closeMenu();
+    else if (currentView === 'reader') closeReader();
+  });
+  // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：読む画面も1段として数え、戻るで本棚に戻す。
+  // モーダルはいつもの閉じ方（背景のクリック等）に任せる
+  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .sideops-frame-overlay.is-open, #readerView.is-active';
+  window.SideOpsBack = () => {
+    if (anyModalOpen() || document.querySelector('.sideops-frame-overlay.is-open')) return false;
+    if (currentView === 'reader') { closeReader(); return true; }
+    return false;
+  };
+
+  /* ===================== 読み込み ===================== */
+  async function loadAll() {
+    const [bs, ps] = await Promise.all([getAll(S.books), getAll(S.progress)]);
+    books = bs.filter((b) => b && typeof b.id === 'string');
+    progress.clear();
+    ps.forEach((p) => { if (p && typeof p.id === 'string') progress.set(p.id, p); });
+    // 消えた本の表紙URLを片付ける
+    Array.from(coverUrls.keys()).forEach((id) => { if (id !== '__info' && !books.some((b) => b.id === id)) dropCoverUrl(id); });
+  }
+
+  openDb().then(async (d) => {
+    db = d;
+    db.onversionchange = () => { db.close(); showToast('データが別のタブで更新されました。開き直してください', true); };
+    dbReady = true;
+    await loadAll();
+    renderShelf();
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  }).catch((err) => {
+    console.error('LIBRARIUM用DBの初期化に失敗しました', err);
+    $('shelfList').innerHTML = `<div class="empty-state"><div class="big">保存機能を利用できません</div>
+      <div class="small">このブラウザ／開き方ではIndexedDBが使えないため、本を保存できません。ファイルを直接開いている場合は、GitHub Pages かローカルサーバー経由で開いてください。</div></div>`;
+    $('importBtn').disabled = true;
+  });
+})();
+</script>
+</body>
+</html>

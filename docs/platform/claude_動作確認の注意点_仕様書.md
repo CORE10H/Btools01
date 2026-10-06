@@ -35,6 +35,8 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 - **ログインが要る外部サービス（Googleドライブ）**：本物にはログインできないので、同じ形の要求・応答を返す偽のサーバー（Dartの`HttpServer`。CORSの応答も付ける）を別のポートで立て、ページの読み込み前に`Page.addScriptToEvaluateOnNewDocument`で差し替え用の変数を入れる。差し替えはlocalhostのときだけ効くようにしておく（公開サイトでは効かない）。画面を離れた・戻ったことは、`document.visibilityState`を上書きして`visibilitychange`を起こして再現する
 - **戻る操作**：`Page.getNavigationHistory`で履歴の位置を読み、`Page.navigateToHistoryEntry`で1つ前へ移ると、ブラウザの「戻る」と同じく`popstate`が起きる。全画面表示（`requestFullscreen`）はヘッドレスでも動くので、⛶ボタンを本物のクリックで押してから`document.exitFullscreen()`を呼ぶと「⛶ボタン以外で全画面が解けた」場面（Androidの戻るボタン相当）を作れる。タッチ操作の端末かどうか（`pointer: coarse`）は`Emulation.setTouchEmulationEnabled`で切り替わる
 - **ホーム画面に追加できるか**：`Page.getAppManifest`（manifestの読み込みエラー）と`Page.getInstallabilityErrors`（インストールできない理由）で確かめる（`pwa_check.dart`。2つ目の引数に公開サイトのURLを渡すとそちらを調べる）
+- **display-mode**：このEdgeでは`Emulation.setEmulatedMedia`で`display-mode`を真似できない（効かない）。ホーム画面から開いたときの動きは、`?app=1`の印の扱いだけを確かめている（2026-10-07）
+- **ファイル選択の画面**：`Page.setInterceptFileChooserDialog`を有効にしておくと、`input[type=file]`のクリックで選ぶ画面が開いて止まることがない。そのうえで`DOM.setFileInputFiles`でファイルを渡す
 - **ダウンロード先**：`Browser.setDownloadBehavior`の`downloadPath`は、Windowsの書き方（`C:\...`）で渡す。`C:/...`（スラッシュ）で渡したら何もダウンロードされなかった（2026-10-06）。`sync_e2e.dart`の2つ目の引数（作業フォルダ）も同じ
 - **再読み込みの直前の片付け**：`location.reload()`を呼ぶと、その呼び出しの中で`beforeunload`が起きる（2026-10-06に確認）。そのあとで`history.back()`等を呼ぶと再読み込みが打ち消される（`js/back-nav.js`はこれを避けている）
 
@@ -49,6 +51,9 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 | `pwa_check.dart` | manifestの読み込みと、ホーム画面に追加できるか |
 | `icons.dart` | ホーム画面用のアイコンを描いて書き出す（`icon_src/icon.html`） |
 | `mkred.pl` | PROMPTGALLERYからRED版を作る（Git Bashのperl） |
+| `frame_e2e.dart` | 画像の見え方（`apps/sideops-frame.js`）：SCAFFOLD・MANUSCRIPT・Discotica・ランチャーで、選ぶ → 調整 → 保存 → 一覧に反映、Esc・戻るボタンで調整だけ閉じる（2026-10-07） |
+| `librarium_e2e.dart` | LIBRARIUM：.novel・ZIP・.txt の取り込み、更新、読む画面と続きの位置、情報・表紙、削除、Stageの中の戻るボタン。テスト用の .novel と ZIP はこのテストが作る（2026-10-07） |
+| `cover_librarium.dart` | LIBRARIUMのカバー画像を描いて書き出す（`icon_src/librarium.html`） |
 
 
 Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。

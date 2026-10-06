@@ -93,7 +93,7 @@ openDb().then(async (_db) => {
 
 ## 現在稼働中のIndexedDB一覧
 
-`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）・`sideops_sync`（同期の管理用：端末ID・鍵・前回同期した時点の状態・競合の控え・同期の記録）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_prompt_gallery_red`・`sideops_scaffold`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`等）。
+`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）・`sideops_sync`（同期の管理用：端末ID・鍵・前回同期した時点の状態・競合の控え・同期の記録）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_prompt_gallery_red`・`sideops_scaffold`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`・`sideops_librarium`等）。
 
 **同期との関係（2026-10-05〜）**：同期（`js/sync.js`）は「DBを機能ごとに独立させる」原則の唯一の例外で、許可リスト（`DB_RULES`）にあるDBを直接読み書きする。新しいアプリを作ったら`DB_RULES`に足す。`DB_VERSION`やレコードの項目を変えたら、`DB_RULES`の`version`と`SYNC_APP_BUILD`を上げる（`planning/claude_クラウド同期_仕様書.md`の「開発時の決まり」）。同期は、端末にないDBを作るときに、同期ファイルに記録されたストア・キー・索引の形で作る。また2026-10-06から、アプリの書き込みには`apps/sideops-theme-bridge.js`が「変えたよ」の印を付ける（`IDBObjectStore`の書き込み用の関数を包む）。新しいアプリでもこのファイルを読み込むこと（`core/claude_テーマブリッジ_仕様書.md`）。そのため、アプリの`onupgradeneeded`で作るストアの形と、DBの版は対応させたままにする。
 

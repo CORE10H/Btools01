@@ -171,6 +171,7 @@
     width: 160px; aspect-ratio: 16/9; flex-shrink: 0; background: var(--panel); border: 1px solid var(--line);
     background-size: cover; background-position: center;
   }
+  .artist-bio-cover.can-frame { cursor: pointer; } /* クリックで見え方を調整（2026-10-07） */
   .artist-bio-text { flex: 1; min-width: 0; }
   .artist-bio-text textarea {
     width: 100%; min-height: 90px; background: var(--bg-alt); border: 1px solid var(--line);
@@ -516,6 +517,7 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="sideops-frame.js"></script>
 <script src="discotica.js"></script>
 </body>
 </html>

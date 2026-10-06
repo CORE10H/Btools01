@@ -88,6 +88,12 @@ note連携で設計したINTELパネルの内部データ（readers/works/transa
 ### タスクパネル（ダッシュボードパネル群） → DONE MORE
 タスクパネルは表示のみでデータを持たず、DONE MORE側のDB（`sideops_donemore`）と連携する設計だが未実装。連携するときは、RECON→INTELと同じ`sideops:panel-feed`（アプリが要約を送り、本体が検証して保存する方式）を使う。
 
+### 画像の見え方（apps/sideops-frame.js） → MANUSCRIPT・SCAFFOLD・Discotica・LIBRARIUM・アプリランチャー
+2026-10-07〜。カバー画像などを決まった比率の枠に出すときの「見え方」（`{ ar, z, cx, cy }`）の計算と、調整の画面をまとめた共通部品。各アプリは見え方を自分のレコードに保存し、表示のたびに`applyImg()`（`<img>`）か`bgStyle()`（背景画像）で枠に合わせる。保存する値の意味（`z`=1が枠いっぱい、`cx`・`cy`が枠の中心に来る位置）を変えると、全アプリの保存済みの見え方がずれるので変えない。調整の画面（`.sideops-frame-overlay`）はテーマブリッジがモーダルとして数える（戻るボタンで閉じる）。PROMPTGALLERYは同じ考え方の実装を自分の中に持っている（共通部品より前に作ったため。値の形は同じ）
+
+### LIBRARIUM → AIのべりすとの .novel の形式
+LIBRARIUMは`.novel`（`<|endofsection|>`区切り。先頭が本文、7番目が題名、8番目が作品ID）を読む。形式はAIのべりすと側で変わりうる（公式の仕様は公開されていない。非公式Wikiの2023-06時点の情報による）。読めなくなったら、取り込みの確認に理由が出る。読み方は`apps/claude_アプリ_LIBRARIUM_仕様書.md`「.novel の読み方」
+
 ### 同期（js/sync.js） → 各アプリのDB・本体の設定・メインステージ
 同期は、許可リスト（`DB_RULES`）にある各アプリのDBを直接読み書きする（DBを機能ごとに独立させる原則の唯一の例外）。そのため、アプリ側の次の変更は同期に影響する（`planning/claude_クラウド同期_仕様書.md`の「開発時の決まり」）。
 - `DB_VERSION`を上げる → `DB_RULES`の`version`と`SYNC_APP_BUILD`も上げる
