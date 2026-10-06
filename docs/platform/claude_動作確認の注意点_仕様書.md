@@ -33,6 +33,23 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 - **iframeの中（Stage）**：同じオリジンなので、親ページから`iframe.contentDocument`で中の要素の位置を取り、ページ全体の座標に足してクリックできる
 - **端末2台の受け渡し（同期）**：使い捨てプロファイルのEdgeを2つ（別々のポート・別々の`--user-data-dir`）立ち上げ、同じローカルサーバーを開くと、IndexedDBが別々の「端末A・B」になる。`Target.createTarget`で同じブラウザにタブを足せば「他のタブで開いている」状態も作れる。端末の時計のずれは`Page.addScriptToEvaluateOnNewDocument`で`Date.now`を置き換えて再現する。キットは`D:\dev\sideops_sync_verify\`（`planning/claude_クラウド同期_仕様書.md`の「動作確認」）
 - **ログインが要る外部サービス（Googleドライブ）**：本物にはログインできないので、同じ形の要求・応答を返す偽のサーバー（Dartの`HttpServer`。CORSの応答も付ける）を別のポートで立て、ページの読み込み前に`Page.addScriptToEvaluateOnNewDocument`で差し替え用の変数を入れる。差し替えはlocalhostのときだけ効くようにしておく（公開サイトでは効かない）。画面を離れた・戻ったことは、`document.visibilityState`を上書きして`visibilitychange`を起こして再現する
+- **戻る操作**：`Page.getNavigationHistory`で履歴の位置を読み、`Page.navigateToHistoryEntry`で1つ前へ移ると、ブラウザの「戻る」と同じく`popstate`が起きる。全画面表示（`requestFullscreen`）はヘッドレスでも動くので、⛶ボタンを本物のクリックで押してから`document.exitFullscreen()`を呼ぶと「⛶ボタン以外で全画面が解けた」場面（Androidの戻るボタン相当）を作れる。タッチ操作の端末かどうか（`pointer: coarse`）は`Emulation.setTouchEmulationEnabled`で切り替わる
+- **ホーム画面に追加できるか**：`Page.getAppManifest`（manifestの読み込みエラー）と`Page.getInstallabilityErrors`（インストールできない理由）で確かめる（`pwa_check.dart`。2つ目の引数に公開サイトのURLを渡すとそちらを調べる）
+- **ダウンロード先**：`Browser.setDownloadBehavior`の`downloadPath`は、Windowsの書き方（`C:\...`）で渡す。`C:/...`（スラッシュ）で渡したら何もダウンロードされなかった（2026-10-06）。`sync_e2e.dart`の2つ目の引数（作業フォルダ）も同じ
+- **再読み込みの直前の片付け**：`location.reload()`を呼ぶと、その呼び出しの中で`beforeunload`が起きる（2026-10-06に確認）。そのあとで`history.back()`等を呼ぶと再読み込みが打ち消される（`js/back-nav.js`はこれを避けている）
+
+2026-10-06に足した確認の道具（`D:\dev\sideops_sync_verify\`）：
+
+| ファイル | 確かめること |
+|---|---|
+| `appshots.dart` | 全アプリを指定の幅（例：320,360,375,768）で開いて撮影し、ヘッダーのはみ出し・ボタンの重なりを数える |
+| `gallery_e2e.dart` | PROMPTGALLERY・RED：タップ→拡大→画像タップでメニュー、枠合わせ（ドラッグ・ピンチ・全体を表示）、保存した見え方、PCのマウスのメニュー |
+| `backnav_e2e.dart` | 戻る操作：本体のモーダル・アプリのモーダル・Stageが1つずつ閉じる、✕で閉じたときの後片付け、全画面が解けたときの扱い |
+| `backsweep.dart` | 全アプリの全モーダルを1つずつ開き、戻る操作で閉じるか |
+| `pwa_check.dart` | manifestの読み込みと、ホーム画面に追加できるか |
+| `icons.dart` | ホーム画面用のアイコンを描いて書き出す（`icon_src/icon.html`） |
+| `mkred.pl` | PROMPTGALLERYからRED版を作る（Git Bashのperl） |
+
 
 Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。
 

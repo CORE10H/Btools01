@@ -24,3 +24,12 @@ DB名は`sideops_prompt_gallery_red`。本家（`sideops_prompt_gallery`）と�
 - ヘッダー表記：`// PROMPT GALLERY RED`
 - `<title>`：「画像生成プロンプト見本一覧 RED」
 - カバー画像：`apps/img/prompt-gallery-red.jpg`（本家の`prompt-gallery.jpg`とは別画像）
+
+## 作り方（2026-10-06〜）：本家から機械的に作る
+
+RED版は、本家（`apps/prompt-gallery.html`）に次の置き換えをしただけのものになっている（2026-10-06に確認：置き換えた結果がRED版と1バイトも違わない）。そのため、**機能の改修は本家だけに行い、RED版は本家から作り直す**。手で両方を直すと食い違いが出やすいため。
+
+- 置き換え：`<title>`と`// PROMPT GALLERY`に「RED」を付ける／`:root`の`--cyan-dim`の次に`--brand-accent`系の3つを足す／CSS・JSの`var(--cyan)`・`var(--cyan-dim)`・`rgba(var(--cyan-rgb)`を`--brand-accent`系に替える／DB名を`sideops_prompt_gallery_red`にする
+- 道具：`D:\dev\sideops_sync_verify\mkred.pl`（Git Bashのperl）。`perl mkred.pl < apps/prompt-gallery.html > apps/prompt-gallery-red.html`
+- 本家で新しく強調色を使うときも`var(--cyan)`等で書けば、RED版では自動で赤になる
+- 動作確認は`D:\dev\sideops_sync_verify\gallery_e2e.dart`が本家とRED版の両方を確かめる

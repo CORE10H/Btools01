@@ -1106,6 +1106,24 @@
   }
   .launcher-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* ---- 全画面に戻す案内（2026-10-06） ----
+     Androidで全画面中に「戻る」を押すと、ブラウザが全画面を解いてしまう。次のタップを受け止めて
+     全画面に戻す（js/main.js の showFullscreenRestore）。画面全体を覆う透明な層＋上の案内 */
+  .fs-restore { position: fixed; inset: 0; z-index: 400; display: none; background: transparent; }
+  .fs-restore.is-open { display: block; }
+  .fs-restore-pill {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px);
+    padding: 8px 8px 8px 14px; background: rgba(var(--panel-rgb), .96); border: 1px solid var(--cyan-dim);
+    color: var(--text); font-size: 12px; font-family: var(--font-body);
+    box-shadow: 0 6px 24px rgba(var(--shadow-rgb), .5);
+  }
+  .fs-restore-pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .fs-restore-off {
+    flex-shrink: 0; background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 11px; padding: 5px 9px; cursor: pointer; font-family: var(--font-body);
+  }
+
   /* =====================================================================
      スマホ版レイアウト（479px以下）— 2026-09-24 再構築
      ---------------------------------------------------------------------

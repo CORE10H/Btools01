@@ -68,6 +68,19 @@
   .tag-filter-chips {
     display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; max-width: 260px;
   }
+  .bar-filter { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* 狭い画面（スマホの縦向きなど）では1段に収まらず、検索欄が「＋」ボタンに重なっていた。
+     2段にする（2026-10-06）：1段目＝タイトル・追加ボタン・☰、2段目＝検索欄とタグ。
+     .bar-right を display: contents にして、中身を .app-bar の並びに直接参加させる */
+  @media (max-width: 640px) {
+    .app-bar { flex-wrap: wrap; row-gap: 8px; column-gap: 8px; padding: 8px 12px; }
+    .app-bar .app-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .bar-right { display: contents; }
+    .bar-filter { order: 1; flex: 1 1 100%; }
+    .search-box { flex: 1 1 120px; max-width: 240px; }
+    .search-box input { flex: 1 1 0; width: 0; min-width: 0; }
+    .tag-filter-chips { flex: 1 1 0; max-width: none; min-width: 0; }
+  }
   .chip {
     font-size: 10px; padding: 3px 8px; border: 1px solid var(--line); color: var(--text-dim);
     cursor: pointer; white-space: nowrap; background: transparent; flex-shrink: 0;
@@ -198,10 +211,12 @@
   .empty-state .small { font-size: 11px; max-width: 320px; line-height: 1.8; }
 
   .card {
-    position: relative; aspect-ratio: 1; overflow: hidden; cursor: default;
+    position: relative; aspect-ratio: 1; overflow: hidden; cursor: pointer;
     border: 1px solid var(--line); background: var(--panel);
   }
   .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* 登録時に「見え方」を決めた画像（entry.thumb）。大きさと位置は applyThumb() が％で指定する */
+  .card img.framed, .frame-box img { position: absolute; max-width: none; object-fit: fill; }
   .card-title {
     position: absolute; top: 0; left: 0; right: 0; padding: 7px 9px 14px;
     background: linear-gradient(180deg, rgba(var(--bg-rgb),.88), transparent);
@@ -229,7 +244,12 @@
     padding: 10px; gap: 6px;
     opacity: 0; pointer-events: none; transition: opacity .15s ease;
   }
-  .card:hover .prompt-pop { opacity: 1; pointer-events: auto; }
+  /* 2026-10-06：カードの上のメニューは、マウスで乗せたとき（PC）だけ出す。
+     スマホではタップが「乗せた」扱いになりメニューが出てしまうため、タップは拡大表示に回し、
+     メニューは拡大した画像をタップして出す（.lb-menu） */
+  @media (hover: hover) and (pointer: fine) {
+    .card:hover .prompt-pop { opacity: 1; pointer-events: auto; }
+  }
   .card.select-target:hover .prompt-pop { opacity: 0; pointer-events: none; }
   .prompt-pop .pp-menu-btn {
     font-size: 11px; padding: 7px 10px; background: transparent; border: 1px solid var(--line);
@@ -268,6 +288,35 @@
     font-size: 14px; cursor: pointer;
   }
   .thumb-lightbox-close:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .thumb-lightbox img { cursor: pointer; }
+  /* 拡大した画像をタップすると出るメニュー（2026-10-06）。もう一度タップで隠れる */
+  .lb-hint {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    font-size: 10.5px; color: var(--text-dim); background: rgba(var(--bg-rgb),.7);
+    border: 1px solid var(--line-soft); padding: 5px 12px; white-space: nowrap; pointer-events: none;
+  }
+  .lb-hint.is-hidden { display: none; }
+  .lb-menu {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    width: min(420px, calc(100% - 32px)); background: rgba(var(--bg-rgb),.94);
+    border: 1px solid var(--line); padding: 12px; display: none;
+    box-shadow: 0 0 30px rgba(var(--shadow-rgb),.6);
+  }
+  .lb-menu.is-open { display: block; }
+  .lb-menu-title {
+    font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .lb-menu-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lb-menu .pp-menu-btn {
+    font-size: 12px; padding: 10px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); cursor: pointer; text-align: center;
+  }
+  .lb-menu .pp-menu-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .lb-menu .pp-menu-btn.copied { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .lb-menu .pp-menu-btn:disabled { color: var(--text-faint); border-color: var(--line-soft); cursor: default; opacity: .5; }
+  .lb-menu .pp-copy { grid-column: 1 / -1; }
+  .lb-menu .pp-delete:hover { border-color: var(--magenta-dim); color: var(--magenta); }
 
   /* ---- modal (add/edit) ---- */
   .modal-overlay {
@@ -305,6 +354,22 @@
   .image-drop.has-image { padding: 0; }
   .image-drop img { width: 100%; max-height: 180px; object-fit: contain; display: block; }
   .image-drop input[type="file"] { display: none; }
+
+  /* ---- サムネイルの見え方（枠合わせ）（2026-10-06） ----
+     一覧のカードと同じ正方形の枠。ドラッグで位置、ピンチ・ホイール・スライダーで拡大縮小 */
+  .frame-editor { display: none; }
+  .frame-editor.is-open { display: block; }
+  .frame-box {
+    position: relative; width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto;
+    overflow: hidden; background: var(--bg-alt); border: 1px solid var(--line);
+    touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+  }
+  .frame-box:active { cursor: grabbing; }
+  .frame-box img { pointer-events: none; -webkit-user-drag: none; }
+  .frame-controls { display: flex; align-items: center; gap: 8px; max-width: 240px; margin: 8px auto 0; font-size: 12px; color: var(--text-faint); }
+  .frame-controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--cyan); }
+  .frame-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 8px; }
+  .frame-buttons .btn { padding: 5px 10px; font-size: 10.5px; }
 
   .tag-input-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px; }
   .tag-input-row .tag-pill-edit {
@@ -344,11 +409,13 @@
   <div class="app-bar">
     <span class="app-title">// PROMPT GALLERY</span>
     <div class="bar-right">
-      <div class="search-box">
-        <span style="color:var(--text-faint); font-size:11px;">⌕</span>
-        <input type="text" id="searchInput" placeholder="タイトル・タグで検索">
+      <div class="bar-filter">
+        <div class="search-box">
+          <span style="color:var(--text-faint); font-size:11px;">⌕</span>
+          <input type="text" id="searchInput" placeholder="タイトル・タグで検索">
+        </div>
+        <div class="tag-filter-chips" id="tagChips"></div>
       </div>
-      <div class="tag-filter-chips" id="tagChips"></div>
       <button class="btn primary" id="addBtn">＋ 新規登録</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
@@ -385,6 +452,20 @@
       <div class="image-drop" id="imageDrop">
         <span id="imageDropText">クリックして画像を選択</span>
         <input type="file" id="imageInput" accept="image/*">
+      </div>
+      <div class="frame-editor" id="frameEditor">
+        <div class="frame-box" id="frameBox"><img id="frameImg" alt="" draggable="false"></div>
+        <div class="frame-controls">
+          <span aria-hidden="true">－</span>
+          <input type="range" id="frameZoom" min="1" max="4" step="0.01" value="1" aria-label="サムネイルの拡大・縮小">
+          <span aria-hidden="true">＋</span>
+        </div>
+        <div class="frame-buttons">
+          <button type="button" class="btn" id="frameFitBtn">全体を表示</button>
+          <button type="button" class="btn" id="frameFillBtn">枠いっぱい</button>
+          <button type="button" class="btn" id="frameChangeBtn">画像を変更</button>
+        </div>
+        <div class="field-hint">一覧のサムネイルの見え方です。ドラッグで位置、ピンチ・ホイール・スライダーで拡大縮小できます。</div>
       </div>
       <div class="field-hint">端末内の画像をこのアプリ内にコピー保存します（IndexedDB／同一ブラウザ内のみ）。</div>
     </div>
@@ -473,10 +554,20 @@
   </div>
 </div>
 
-<!-- サムネイル拡大ライトボックス（2026-09-25） -->
+<!-- サムネイル拡大ライトボックス（2026-09-25）。拡大した画像をタップでメニュー（2026-10-06） -->
 <div class="thumb-lightbox" id="thumbLightbox">
   <button class="thumb-lightbox-close" id="thumbLightboxCloseBtn" type="button">✕</button>
   <img id="thumbLightboxImg" alt="">
+  <div class="lb-hint" id="lbHint">画像をタップでメニュー</div>
+  <div class="lb-menu" id="lbMenu">
+    <div class="lb-menu-title" id="lbMenuTitle"></div>
+    <div class="lb-menu-btns">
+      <button class="pp-menu-btn pp-copy" type="button" id="lbCopyPrompt">プロンプト📋</button>
+      <button class="pp-menu-btn pp-copy" type="button" id="lbCopyNegative">ネガティブ📋</button>
+      <button class="pp-menu-btn pp-edit" type="button" id="lbEdit">編集</button>
+      <button class="pp-menu-btn pp-delete" type="button" id="lbDelete">🗑 削除</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -488,7 +579,8 @@
   /* =====================================================================
      IndexedDB レイヤー
      画像はBlobのまま保存（Base64化によるサイズ膨張・容量圧迫を避けるため）。
-     1件 = { id, title, prompt, negative, tags: string[], image: Blob, createdAt }
+     1件 = { id, title, prompt, negative, tags: string[], image: Blob, createdAt, thumb? }
+     thumb（2026-10-06〜・任意）＝一覧のサムネイルの見え方 { ar, z, cx, cy }（下の「枠合わせ」参照）
   ===================================================================== */
   const DB_NAME = 'sideops_prompt_gallery';
   const DB_VERSION = 2;
@@ -627,6 +719,21 @@
   const thumbLightbox = document.getElementById('thumbLightbox');
   const thumbLightboxImg = document.getElementById('thumbLightboxImg');
   const thumbLightboxCloseBtn = document.getElementById('thumbLightboxCloseBtn');
+  const lbHint = document.getElementById('lbHint');
+  const lbMenu = document.getElementById('lbMenu');
+  const lbMenuTitle = document.getElementById('lbMenuTitle');
+  const lbCopyPrompt = document.getElementById('lbCopyPrompt');
+  const lbCopyNegative = document.getElementById('lbCopyNegative');
+  const lbEdit = document.getElementById('lbEdit');
+  const lbDelete = document.getElementById('lbDelete');
+
+  const frameEditor = document.getElementById('frameEditor');
+  const frameBox = document.getElementById('frameBox');
+  const frameImg = document.getElementById('frameImg');
+  const frameZoom = document.getElementById('frameZoom');
+  const frameFitBtn = document.getElementById('frameFitBtn');
+  const frameFillBtn = document.getElementById('frameFillBtn');
+  const frameChangeBtn = document.getElementById('frameChangeBtn');
 
   const toastEl = document.getElementById('toast');
   let toastTimer = null;
@@ -685,6 +792,68 @@
     const url = URL.createObjectURL(blob);
     activeObjectUrls.add(url);
     return url;
+  }
+
+  /* ===================== サムネイルの見え方（枠合わせ）（2026-10-06） =====================
+     一覧のカードは正方形。以前は常に「中央を正方形に切り抜く」（object-fit: cover）だったため、
+     縦長・横長の画像は上下や左右が見切れていた。登録・編集のときに拡大縮小と位置を決められるように
+     し、その結果を entry.thumb に保存する。
+       thumb = { ar, z, cx, cy }
+         ar … 画像の縦横比（幅÷高さ）。カードを描くたびに画像の大きさを調べずに配置を計算するため
+         z  … 拡大率。1 =「枠いっぱい」（短い辺が枠にぴったり＝以前の見え方）。
+               最小は「全体を表示」（長い辺が枠にぴったり。余白は背景色）、最大は THUMB_Z_MAX
+         cx, cy … 枠の中心に来る、画像の上の位置（0〜1）
+     thumb がない登録（以前に登録したもの・読めない値）は、以前どおり中央で切り抜く。
+     計算はすべて「枠の一辺 = 100」の％で行うので、カードの大きさが変わっても見え方は同じ */
+  const THUMB_Z_MAX = 4;
+  function clampNum(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function thumbZMin(ar) { return Math.min(ar, 1 / ar); }
+  function thumbLayout(t) {
+    const W = 100 * Math.max(t.ar, 1) * t.z;
+    const H = 100 * Math.max(1 / t.ar, 1) * t.z;
+    // 枠より大きい向きは、端が枠の内側に入り込まない範囲で動かす。枠より小さい向きは真ん中に置く
+    const left = W >= 100 ? clampNum(50 - t.cx * W, 100 - W, 0) : (100 - W) / 2;
+    const top = H >= 100 ? clampNum(50 - t.cy * H, 100 - H, 0) : (100 - H) / 2;
+    return { W, H, left, top };
+  }
+  // 拡大率を範囲内に収め、位置を「実際に見えている位置」に直す（動かしすぎても余白が出ない）
+  function settleThumb(t) {
+    const z = clampNum(t.z, thumbZMin(t.ar), THUMB_Z_MAX);
+    const L = thumbLayout({ ar: t.ar, z, cx: t.cx, cy: t.cy });
+    return { ar: t.ar, z, cx: (50 - L.left) / L.W, cy: (50 - L.top) / L.H };
+  }
+  // 保存されている値を確かめる（壊れた値・ほかの版の値は使わない）
+  function normalizeThumb(t) {
+    if (!t || typeof t !== 'object') return null;
+    const ar = Number(t.ar), z = Number(t.z), cx = Number(t.cx), cy = Number(t.cy);
+    if (![ar, z, cx, cy].every(Number.isFinite) || ar < 0.01 || ar > 100) return null;
+    return settleThumb({ ar, z, cx: clampNum(cx, 0, 1), cy: clampNum(cy, 0, 1) });
+  }
+  function roundThumb(t) {
+    const r = (v) => Math.round(v * 10000) / 10000;
+    return { ar: r(t.ar), z: r(t.z), cx: r(t.cx), cy: r(t.cy) };
+  }
+  function applyThumb(img, t) {
+    const L = thumbLayout(t);
+    img.classList.add('framed');
+    img.style.width = L.W + '%';
+    img.style.height = L.H + '%';
+    img.style.left = L.left + '%';
+    img.style.top = L.top + '%';
+  }
+
+  // クリップボードへコピー（カードのメニューと、拡大表示のメニューで共用）
+  async function copyWithFeedback(btn, text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+      btn.textContent = 'コピーしました';
+      btn.classList.add('copied');
+      clearTimeout(btn._copiedTimer);
+      btn._copiedTimer = setTimeout(() => { btn.textContent = btn.dataset.label; btn.classList.remove('copied'); }, 1200);
+    } catch (err) {
+      showToast('コピーに失敗しました（ブラウザ設定をご確認ください）');
+    }
   }
 
   /* ===================== データ読み込み・描画 ===================== */
@@ -782,6 +951,13 @@
     }
   }
 
+  // 画面の幅が変わったら（回転・Stageの大きさの変化など）、入るタグの数も変わるので並べ直す（2026-10-06）
+  let tagChipsResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(tagChipsResizeTimer);
+    tagChipsResizeTimer = setTimeout(renderTagChips, 150);
+  });
+
   function openTagMoreModal() {
     tagMoreList.innerHTML = '';
     getAllTagsByFrequency().forEach(tag => tagMoreList.appendChild(makeTagChip(tag)));
@@ -858,14 +1034,20 @@
         </div>
         <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">消去</span></div>
       `;
+      const thumb = normalizeThumb(entry.thumb);
+      const cardImg = card.querySelector('img');
+      if (cardImg && thumb) applyThumb(cardImg, thumb);
 
       if (selectMode) {
         card.classList.add('select-target');
         card.addEventListener('click', () => toggleSelectForDelete(entry.id));
       } else {
+        // カードをタップ（クリック）→ 拡大表示。メニューは拡大した画像をタップして出す（2026-10-06）。
+        // PCでマウスを乗せたときのメニュー（.prompt-pop）のボタン以外の所をクリックしても、ここに来る
+        card.addEventListener('click', () => openThumbLightbox(entry, imgUrl));
         const zoomBtn = card.querySelector('.pp-zoom');
         if (imgUrl) {
-          zoomBtn.addEventListener('click', (e) => { e.stopPropagation(); openThumbLightbox(imgUrl, entry.title); });
+          zoomBtn.addEventListener('click', (e) => { e.stopPropagation(); openThumbLightbox(entry, imgUrl); });
         } else {
           zoomBtn.disabled = true; // 画像未登録の登録はそもそも拡大するものがない
         }
@@ -873,19 +1055,10 @@
         card.querySelector('.pp-delete').addEventListener('click', (e) => { e.stopPropagation(); openConfirmDelete(entry.id); });
 
         card.querySelectorAll('.pp-copy').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
+          btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const kind = btn.dataset.kind;
-            const text = kind === 'prompt' ? (entry.prompt || '') : (entry.negative || '');
-            try {
-              await navigator.clipboard.writeText(text);
-              const original = btn.textContent;
-              btn.textContent = 'コピーしました';
-              btn.classList.add('copied');
-              setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1200);
-            } catch (err) {
-              showToast('コピーに失敗しました（ブラウザ設定をご確認ください）');
-            }
+            copyWithFeedback(btn, kind === 'prompt' ? (entry.prompt || '') : (entry.negative || ''));
           });
         });
       }
@@ -901,16 +1074,17 @@
   });
 
   /* ===================== モーダル：登録／編集 ===================== */
+  function pickImageFile() {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+    inp.addEventListener('change', handleImageSelect);
+    document.body.appendChild(inp);
+    inp.click();
+    // 選択ダイアログを閉じた後、要らなくなった一時input要素を掃除する
+    inp.addEventListener('change', () => setTimeout(() => inp.remove(), 0), { once: true });
+  }
   function bindImageDropClick() {
-    imageDrop.onclick = () => {
-      const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
-      inp.addEventListener('change', handleImageSelect);
-      document.body.appendChild(inp);
-      inp.click();
-      // 選択ダイアログを閉じた後、要らなくなった一時input要素を掃除する
-      inp.addEventListener('change', () => setTimeout(() => inp.remove(), 0), { once: true });
-    };
+    imageDrop.onclick = pickImageFile;
   }
 
   function resetModalFields() {
@@ -923,6 +1097,7 @@
     imageDrop.classList.remove('has-image');
     imageDrop.innerHTML = '<span>クリックして画像を選択</span>';
     bindImageDropClick();
+    hideFrameEditor();
     renderTagInputRow();
     renderFreqTagPicker();
   }
@@ -935,11 +1110,109 @@
       return;
     }
     pendingImageFile = file;
-    const url = URL.createObjectURL(file);
-    imageDrop.classList.add('has-image');
-    imageDrop.innerHTML = `<img src="${url}" alt="preview">`;
-    bindImageDropClick();
+    showFrameEditor(file, null); // 新しい画像は「枠いっぱい・中央」から始める
   }
+
+  /* ---- 枠合わせ（登録・編集モーダル）（2026-10-06） ----
+     画像があるときは、画像を選ぶ枠の代わりに、一覧のカードと同じ正方形の枠を出す。
+     ドラッグ（1本指）で位置、ピンチ（2本指）・ホイール・スライダーで拡大縮小。
+     画像の縦横比が分かる（読み込みが終わる）までは frameState = null で、操作も保存もしない */
+  let frameState = null;      // { ar, z, cx, cy }
+  let frameObjectUrl = null;  // 枠に表示中の画像のURL（閉じるときに解放する）
+  let frameLoadSeq = 0;       // 画像を続けて差し替えたとき、古い読み込みの結果を使わないため
+  const framePointers = new Map();
+  let framePinch = null;
+
+  function hideFrameEditor() {
+    frameLoadSeq++;
+    frameState = null;
+    framePointers.clear();
+    framePinch = null;
+    frameEditor.classList.remove('is-open');
+    imageDrop.style.display = '';
+    frameImg.removeAttribute('src');
+    frameImg.removeAttribute('style');
+    if (frameObjectUrl) { URL.revokeObjectURL(frameObjectUrl); frameObjectUrl = null; }
+  }
+
+  function showFrameEditor(blob, initialThumb) {
+    hideFrameEditor();
+    const seq = frameLoadSeq;
+    frameObjectUrl = URL.createObjectURL(blob);
+    imageDrop.style.display = 'none';
+    frameEditor.classList.add('is-open');
+    frameImg.onload = () => {
+      if (seq !== frameLoadSeq) return;
+      const ar = frameImg.naturalWidth / frameImg.naturalHeight;
+      if (!(ar > 0) || !Number.isFinite(ar)) return;
+      // 保存済みの見え方は、同じ画像（縦横比がほぼ同じ）のときだけ引き継ぐ
+      const keep = initialThumb && Math.abs(initialThumb.ar - ar) / ar < 0.02;
+      frameState = settleThumb(keep ? { ...initialThumb, ar } : { ar, z: 1, cx: 0.5, cy: 0.5 });
+      frameZoom.min = String(thumbZMin(ar));
+      frameZoom.max = String(THUMB_Z_MAX);
+      renderFrame();
+    };
+    frameImg.onerror = () => { if (seq === frameLoadSeq) showToast('画像を読み込めませんでした'); };
+    frameImg.src = frameObjectUrl;
+  }
+
+  function renderFrame() {
+    if (!frameState) return;
+    applyThumb(frameImg, frameState);
+    frameZoom.value = String(frameState.z);
+  }
+  function setFrame(next) {
+    if (!frameState) return;
+    frameState = settleThumb(next);
+    renderFrame();
+  }
+
+  frameBox.addEventListener('pointerdown', (e) => {
+    if (!frameState) return;
+    e.preventDefault();
+    try { frameBox.setPointerCapture(e.pointerId); } catch (err) { /* 取れなくても動かせる */ }
+    framePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (framePointers.size === 2) {
+      const [a, b] = [...framePointers.values()];
+      framePinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: frameState.z };
+    }
+  });
+  frameBox.addEventListener('pointermove', (e) => {
+    const p = framePointers.get(e.pointerId);
+    if (!p || !frameState) return;
+    const size = frameBox.clientWidth || 1;
+    if (framePointers.size === 1) {
+      const L = thumbLayout(frameState);
+      const dx = (e.clientX - p.x) / size * 100;
+      const dy = (e.clientY - p.y) / size * 100;
+      setFrame({ ...frameState, cx: frameState.cx - dx / L.W, cy: frameState.cy - dy / L.H });
+    }
+    p.x = e.clientX; p.y = e.clientY;
+    if (framePointers.size === 2 && framePinch) {
+      const [a, b] = [...framePointers.values()];
+      setFrame({ ...frameState, z: framePinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / framePinch.d) });
+    }
+  });
+  function endFramePointer(e) {
+    framePointers.delete(e.pointerId);
+    if (framePointers.size < 2) framePinch = null;
+  }
+  frameBox.addEventListener('pointerup', endFramePointer);
+  frameBox.addEventListener('pointercancel', endFramePointer);
+  frameBox.addEventListener('lostpointercapture', endFramePointer);
+  frameBox.addEventListener('wheel', (e) => {
+    if (!frameState) return;
+    e.preventDefault();
+    setFrame({ ...frameState, z: frameState.z * Math.exp(-e.deltaY * 0.0015) });
+  }, { passive: false });
+  frameZoom.addEventListener('input', () => setFrame({ ...frameState, z: Number(frameZoom.value) }));
+  frameFitBtn.addEventListener('click', () => {
+    if (frameState) setFrame({ ...frameState, z: thumbZMin(frameState.ar), cx: 0.5, cy: 0.5 });
+  });
+  frameFillBtn.addEventListener('click', () => {
+    if (frameState) setFrame({ ...frameState, z: 1, cx: 0.5, cy: 0.5 });
+  });
+  frameChangeBtn.addEventListener('click', pickImageFile);
 
   function renderTagInputRow() {
     tagInputRow.querySelectorAll('.tag-pill-edit').forEach(el => el.remove());
@@ -981,18 +1254,55 @@
      makeObjectUrl() で発行済みのURLをそのまま使う（新たに発行しない）。
      画面に収まる範囲でなるべく大きく、原寸は超えない
      （object-fit: containではなくmax-width/max-heightで実寸を尊重、
-     CSS側の .thumb-lightbox img 参照） */
-  function openThumbLightbox(imgUrl, title) {
-    thumbLightboxImg.src = imgUrl;
-    thumbLightboxImg.alt = title || '';
+     CSS側の .thumb-lightbox img 参照）。
+     2026-10-06：カードのタップでここを開き、拡大した画像のタップでメニュー（.lb-menu）を出し入れする。
+     画像のない登録は、最初からメニューを出す。画像の外（暗い所）のタップ・✕・Esc・戻るで閉じる */
+  let lightboxEntry = null;
+  function setLightboxMenu(open) {
+    lbMenu.classList.toggle('is-open', open);
+    lbHint.classList.toggle('is-hidden', open || !thumbLightboxImg.getAttribute('src'));
+  }
+  function openThumbLightbox(entry, imgUrl) {
+    lightboxEntry = entry;
+    if (imgUrl) {
+      thumbLightboxImg.src = imgUrl;
+      thumbLightboxImg.style.display = '';
+    } else {
+      thumbLightboxImg.removeAttribute('src');
+      thumbLightboxImg.style.display = 'none';
+    }
+    thumbLightboxImg.alt = entry.title || '';
+    lbMenuTitle.textContent = entry.title || '(無題)';
+    lbCopyPrompt.disabled = !entry.prompt;
+    lbCopyNegative.disabled = !entry.negative;
+    setLightboxMenu(!imgUrl);
     thumbLightbox.classList.add('is-open');
   }
   function closeThumbLightbox() {
     thumbLightbox.classList.remove('is-open');
-    thumbLightboxImg.src = '';
+    lbMenu.classList.remove('is-open');
+    thumbLightboxImg.removeAttribute('src');
+    lightboxEntry = null;
   }
   thumbLightboxCloseBtn.addEventListener('click', closeThumbLightbox);
   thumbLightbox.addEventListener('click', (e) => { if (e.target === thumbLightbox) closeThumbLightbox(); });
+  thumbLightboxImg.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setLightboxMenu(!lbMenu.classList.contains('is-open'));
+  });
+  lbMenu.addEventListener('click', (e) => e.stopPropagation());
+  lbCopyPrompt.addEventListener('click', () => { if (lightboxEntry) copyWithFeedback(lbCopyPrompt, lightboxEntry.prompt || ''); });
+  lbCopyNegative.addEventListener('click', () => { if (lightboxEntry) copyWithFeedback(lbCopyNegative, lightboxEntry.negative || ''); });
+  lbEdit.addEventListener('click', () => {
+    const entry = lightboxEntry;
+    closeThumbLightbox();
+    if (entry) openEditModal(entry);
+  });
+  lbDelete.addEventListener('click', () => {
+    const entry = lightboxEntry;
+    closeThumbLightbox();
+    if (entry) openConfirmDelete(entry.id);
+  });
 
   function openEditModal(entry) {
     editingId = entry.id;
@@ -1004,12 +1314,7 @@
     editTags = [...(entry.tags || [])];
     renderTagInputRow();
     renderFreqTagPicker();
-    if (entry.image) {
-      const url = makeObjectUrl(entry.image);
-      imageDrop.classList.add('has-image');
-      imageDrop.innerHTML = `<img src="${url}" alt="preview">`;
-      bindImageDropClick();
-    }
+    if (entry.image) showFrameEditor(entry.image, normalizeThumb(entry.thumb));
     modalOverlay.classList.add('is-open');
   }
 
@@ -1017,6 +1322,7 @@
     modalOverlay.classList.remove('is-open');
     editingId = null;
     pendingImageFile = null;
+    hideFrameEditor();
   }
 
   addBtn.addEventListener('click', openAddModal);
@@ -1031,12 +1337,12 @@
 
     // フールプルーフ：タイトル・画像いずれも未指定の状態での保存を防ぐ
     // （新規登録時は画像必須、編集時は既存画像があれば省略可）
+    const existing = editingId ? entries.find(e => e.id === editingId) : null;
     let imageBlob = null;
     if (pendingImageFile) {
       imageBlob = pendingImageFile;
-    } else if (editingId) {
-      const existing = entries.find(e => e.id === editingId);
-      imageBlob = existing ? existing.image : null;
+    } else if (existing) {
+      imageBlob = existing.image || null;
     }
 
     if (!imageBlob) {
@@ -1048,15 +1354,21 @@
       return;
     }
 
+    // 既存の登録は、この画面で扱わない項目（新しい版で増えた項目など）も消さずに引き継ぐ
     const entry = {
+      ...(existing || {}),
       id: editingId || ('e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
       title,
       prompt,
       negative,
       tags: [...editTags],
       image: imageBlob,
-      createdAt: editingId ? (entries.find(e => e.id === editingId)?.createdAt || Date.now()) : Date.now(),
+      createdAt: existing ? (existing.createdAt || Date.now()) : Date.now(),
     };
+    // サムネイルの見え方。画像の大きさが読めなかったときは、新しい画像なら見え方なし（中央で切り抜き）、
+    // 画像そのままの編集なら前の見え方を残す
+    if (frameState) entry.thumb = roundThumb(frameState);
+    else if (pendingImageFile) delete entry.thumb;
 
     try {
       await dbPut(entry);

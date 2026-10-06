@@ -71,12 +71,13 @@
   .view { display: none; }
   .view.is-active { display: block; }
 
+  /* 入力欄の min-width: 0 …… 狭い画面（320px）で「＋ 新規下書き」が右にはみ出していたため（2026-10-06） */
   .list-toolbar {
     display: flex; gap: 10px; padding: 16px 20px 0;
     align-items: center;
   }
   .list-toolbar input[type="text"] {
-    flex: 1; padding: 9px 12px; border-radius: 8px;
+    flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px;
     background: var(--bg); border: 1px solid var(--line);
     color: var(--text); font-size: 13px;
   }
@@ -1453,6 +1454,22 @@ els.btnDeleteTemplate.addEventListener('click', () => {
 els.btnCancelTplDelete.addEventListener('click', () => {
   els.tplDeleteModal.classList.remove('is-open');
   tplPendingDeleteId = null;
+});
+
+// 背景のクリック・Esc でも閉じる（2026-10-06）。確認の2つは「キャンセル」、テンプレート管理は ✕ と同じ。
+// SIDE-OPS本体の「戻る」（apps/sideops-theme-bridge.js）も、この閉じ方を使う
+function cancelScaffoldModal(modal) {
+  if (modal === els.tplDeleteModal) els.btnCancelTplDelete.click();
+  else if (modal === els.deleteModal) els.btnCancelDelete.click();
+  else if (modal === els.tplModal) closeTemplateModal();
+}
+[els.deleteModal, els.tplModal, els.tplDeleteModal].forEach((modal) => {
+  modal.addEventListener('click', (e) => { if (e.target === modal) cancelScaffoldModal(modal); });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const top = [els.tplDeleteModal, els.deleteModal, els.tplModal].find((m) => m.classList.contains('is-open'));
+  if (top) cancelScaffoldModal(top);
 });
 
 els.btnConfirmTplDelete.addEventListener('click', async () => {

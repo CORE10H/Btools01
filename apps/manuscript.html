@@ -362,13 +362,13 @@
   <header class="app-bar">
     <span class="app-title">// MANUSCRIPT</span>
     <nav class="tabs" id="tabs" aria-label="画面の切り替え">
-      <button type="button" class="tab-btn is-active" data-tab="neta">ネタ帳<span class="tab-count" id="countNeta">0</span></button>
-      <button type="button" class="tab-btn" data-tab="works">制作中<span class="tab-count" id="countWorks">0</span></button>
+      <button type="button" class="tab-btn" data-tab="neta">ネタ帳<span class="tab-count" id="countNeta">0</span></button>
+      <button type="button" class="tab-btn is-active" data-tab="works">制作中<span class="tab-count" id="countWorks">0</span></button>
       <button type="button" class="tab-btn" data-tab="shelf">本棚<span class="tab-count" id="countShelf">0</span></button>
       <button type="button" class="tab-btn" data-tab="templates">テンプレート</button>
     </nav>
     <div class="bar-right">
-      <button type="button" class="btn primary" id="primaryActionBtn">＋ 新規ネタ</button>
+      <button type="button" class="btn primary" id="primaryActionBtn">＋ 新規作品</button>
       <div class="menu-wrap">
         <button type="button" class="hamburger-btn" id="menuBtn" aria-label="メニュー" aria-expanded="false">☰</button>
         <div class="menu-panel" id="menuPanel">
@@ -382,7 +382,7 @@
   </header>
 
   <main class="app-body">
-    <section class="view is-active" id="netaView">
+    <section class="view" id="netaView">
       <div class="toolbar">
         <input type="search" class="search-input" id="netaSearch" placeholder="ネタを検索（全ジャンル・タイトル・本文・タグ）">
         <button type="button" class="btn" id="netaImportBtn">§ ネタを取り込む</button>
@@ -391,7 +391,7 @@
       <div class="scroll-area" id="netaList"></div>
     </section>
 
-    <section class="view" id="worksView">
+    <section class="view is-active" id="worksView">
       <div class="toolbar" id="worksToolbar">
         <input type="search" class="search-input" id="worksSearch" placeholder="作品を検索（タイトル・名義・シリーズ・ID）">
         <select class="filter-select" id="worksPen" aria-label="名義で絞り込み"></select>
@@ -1012,7 +1012,8 @@
   let meta = {};
   let dbReady = false;
 
-  let currentView = 'neta';
+  // 開いたときの画面は「制作中」（2026-10-06。それまではネタ帳。HTMLの is-active も合わせてある）
+  let currentView = 'works';
   let currentWorkId = null;
   let currentChapterId = null;
   let workReturnTab = 'works';
@@ -1341,7 +1342,8 @@
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   }).catch((err) => {
     console.error('MANUSCRIPT用DBの初期化に失敗しました', err);
-    netaListEl.innerHTML = `<div class="empty-state"><div class="big">保存機能を利用できません</div>
+    // 開いたときの画面（制作中）にも、ネタ帳にも同じ案内を出す
+    worksListEl.innerHTML = netaListEl.innerHTML = `<div class="empty-state"><div class="big">保存機能を利用できません</div>
       <div class="small">このブラウザ／開き方ではIndexedDBが使えないため、データを保存できません。ファイルを直接開いている場合は、GitHub Pages かローカルサーバー経由で開いてください。</div></div>`;
     primaryActionBtn.disabled = true;
     menuBtn.disabled = true;

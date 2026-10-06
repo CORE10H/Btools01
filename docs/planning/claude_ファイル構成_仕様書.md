@@ -7,7 +7,12 @@ sideops/
 ├── index.html   # HTML骨格。link/scriptタグで下記2ファイルを参照。
 │                 # カバーフロー用の新規作成モーダル・削除確認ダイアログも含む
 ├── style.css    # 全スタイル・CSS変数・テーマ定義・ランチャー機能拡張分
+├── manifest.webmanifest # ホーム画面に追加したとき、全画面のアプリとして開くための設定（2026-10-06〜）
+├── icons/       # ホーム画面・タブのアイコン（192px・512px・マスク用512px・iPhone用180px）。
+│                 # D:devsideops_sync_verifyicons.dart で描いて書き出したもの
 ├── js/
+│   ├── back-nav.js # 戻る操作で、開いているもの（本体のモーダル・アプリのモーダル・Stage）を
+│   │                # 1つずつ閉じる仕組み（window.SideOpsBackNav）。main.jsより前に読み込む
 │   ├── main.js  # 時計・ヘッダーアイコン・設定モーダル・透過率・壁紙・
 │   │             # テーマ（基本色＋派生色・テーマブリッジ送信）・
 │   │             # スポイト・カバーフロー（アプリランチャー、
@@ -35,6 +40,7 @@ sideops/
     │   └── recon.jpg
     ├── sideops-theme-bridge.js  # テーマブリッジの受信側共通スクリプト。各アプリが
     │                            # <head>で1行読み込むopt-in方式
+    │                            # （同期の「変えたよ」の印・戻る操作との連携も受け持つ）
     ├── prompt-gallery.html      # 画像生成プロンプト見本一覧（本実装済み）
     ├── prompt-gallery-red.html  # PROMPTGALLERYの微調整版（本実装済み。機能は本家と同一、
     │                            # 強調色のみアプリ固有の赤に固定・データも独立）

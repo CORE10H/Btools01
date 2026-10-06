@@ -155,14 +155,87 @@
       ? '全画面表示を解除（このボタン、またはEscキー）'
       : '全画面表示（このボタン推奨。F11で入った場合、解除はEscキーのみ対応）';
   }
+  /* ---- 全画面表示と「戻る」（2026-10-06） ----
+     Androidのブラウザでは、全画面表示の間に「戻る」を押すと、ブラウザがそれを全画面の解除に使ってしまい、
+     ページには戻る操作が届かない（ブラウザの決まりで、ページの側では止められない）。そこで、
+     タッチ操作の端末で、⛶ボタン以外の理由で全画面が解けたときは
+       (1) それを戻る操作とみなして、いちばん上に開いているもの（モーダル・Stage）を1つ閉じる
+       (2) 「画面をタップすると全画面に戻ります」を出し、次のタップで全画面に戻す
+           （タップなしでは全画面にできない、これもブラウザの決まり。そのタップは全画面に戻すだけに使う）
+     全画面をやめるのは⛶ボタン（または案内の「全画面をやめる」）だけ。
+     歯止め：
+       ・解ける前後に画面が隠れた（別のアプリへ切り替えた・画像を選ぶ画面が開いた等）ときは、戻る操作とみなさない
+       ・画像などを選ぶ画面を開いてから60秒の間は、戻る操作とみなさない（選ぶ画面で全画面が解ける端末があるため）
+       ・PC（マウス）で Esc などで解いたときは、やめたものとして扱う（戻す案内も出さない）
+       ・ホーム画面に追加したSIDE-OPS（manifest.webmanifest の display: fullscreen）は、もともと全画面で、
+         戻る操作も普通に届く。⛶ボタンは要らないので隠す
+     詳細は docs/core/claude_ヘッダーと設定モーダル_仕様書.md「全画面表示」 */
+  const FS_BACK_SETTLE_MS = 350;
+  const FS_PICKER_GRACE_MS = 60000;
+  const FS_HIDDEN_WINDOW_MS = 1000;
+  let fsWanted = false;  // ⛶ボタンで全画面にした（⛶ボタンでやめるまで true）
+  let fsPickerAt = 0;    // 画像などを選ぶ画面を開いた時刻
+  let fsHiddenAt = 0;    // 画面が隠れた時刻
+  const isTouchUi = () => window.matchMedia('(pointer: coarse)').matches;
+  if (window.matchMedia('(display-mode: fullscreen)').matches && !document.fullscreenElement && isTouchUi()) {
+    fullscreenBtn.style.display = 'none';
+  }
+
+  let fsRestoreEl = null;
+  function showFullscreenRestore() {
+    if (!fsRestoreEl) {
+      fsRestoreEl = document.createElement('div');
+      fsRestoreEl.className = 'fs-restore';
+      fsRestoreEl.innerHTML = '<div class="fs-restore-pill"><span>画面をタップすると全画面に戻ります</span>'
+        + '<button type="button" class="fs-restore-off">全画面をやめる</button></div>';
+      fsRestoreEl.addEventListener('click', (e) => {
+        hideFullscreenRestore();
+        if (e.target.closest('.fs-restore-off')) { fsWanted = false; return; }
+        document.documentElement.requestFullscreen().catch(() => { fsWanted = false; });
+      });
+      document.body.appendChild(fsRestoreEl);
+    }
+    fsRestoreEl.classList.add('is-open');
+  }
+  function hideFullscreenRestore() {
+    if (fsRestoreEl) fsRestoreEl.classList.remove('is-open');
+  }
+
   fullscreenBtn.addEventListener('click', () => {
+    hideFullscreenRestore();
     if (document.fullscreenElement) {
+      fsWanted = false;
       document.exitFullscreen();
     } else {
-      document.documentElement.requestFullscreen().catch(() => {});
+      fsWanted = true;
+      document.documentElement.requestFullscreen().catch(() => { fsWanted = false; });
     }
   });
-  document.addEventListener('fullscreenchange', updateFullscreenBtnState);
+  document.addEventListener('fullscreenchange', () => {
+    updateFullscreenBtnState();
+    if (document.fullscreenElement) { hideFullscreenRestore(); return; }
+    if (!fsWanted) return;
+    if (!isTouchUi()) { fsWanted = false; return; } // PC：Escなどで自分でやめた
+    const exitedAt = Date.now();
+    setTimeout(() => {
+      if (document.fullscreenElement || !fsWanted) return;
+      const hidden = document.visibilityState !== 'visible' || fsHiddenAt >= exitedAt - FS_HIDDEN_WINDOW_MS;
+      const picking = Date.now() - fsPickerAt < FS_PICKER_GRACE_MS;
+      if (!hidden && !picking && window.SideOpsBackNav) window.SideOpsBackNav.backOne();
+      showFullscreenRestore();
+    }, FS_BACK_SETTLE_MS);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') fsHiddenAt = Date.now();
+  });
+  // 画像などを選ぶ画面：本体の input[type=file] と、Stageの中のアプリからの知らせ（'sideops:picker'）
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.matches && e.target.matches('input[type="file"]')) fsPickerAt = Date.now();
+  }, true);
+  window.addEventListener('message', (e) => {
+    if (!stageFrame || e.source !== stageFrame.contentWindow) return;
+    if (e.data && e.data.type === 'sideops:picker') fsPickerAt = Date.now();
+  });
   updateFullscreenBtnState();
 
   // ☁ 同期：js/sync.js が読み込み後にボタンを有効にする（読み込めなければ無効のまま）。
@@ -1733,78 +1806,81 @@
     applyStageSizeMode(activeMode);
   });
 
-  /* ===================== 戻る操作でStageを閉じる（History API） =====================
-     スマホの戻るボタン／戻るジェスチャー、PCのブラウザの「戻る」（マウスの戻るボタン・Alt+←）で
-     Stageを閉じる。枯れた定番の方式（history.pushState + popstate）を使う。
-       ・Stageを開いたとき（クリック・タップ等のユーザー操作の中）に、履歴を1件だけ積む
-       ・戻る操作でその1件が戻されたら（popstate）、Stageを閉じる
-       ・✕で閉じたときは、積んだ1件を自分で戻して消費する。消費しないと、次の戻る操作が
-         「何も起きない空振り」になる
-     歯止め：
-       ・開いたまま別のアプリに切り替えても積み増さない（1回の展開につき1件だけ）
-       ・自分の1件が今の位置だと確認できたときだけ history.back() する。確認できないまま
-         戻すと、SIDE-OPSそのものから離れてしまう恐れがあるため
-       ・積んだ1件には毎回別の目印（token）を付け、リロード前などの古い1件と取り違えない
-       ・戻る操作を受けて積み直すことはしない。ユーザー操作なしで積んだ履歴は、Chromeの
-         「戻るボタン乗っ取り対策」で読み飛ばされることがあるため。積むのはユーザー操作の中だけ
-       ・iframe内のアプリは履歴に触らない前提（触ると本体の履歴と混ざる）。
-         詳細は docs/core/claude_メインステージ_仕様書.md「戻る操作」 */
-  const STAGE_HISTORY_KEY = 'sideopsStage';
-  const STAGE_HISTORY_SELF_BACK_TIMEOUT_MS = 1000;
-  let stageHistoryToken = null;     // 今積んでいる1件の目印（積んでいなければnull）
-  let stageHistorySelfBack = false; // ✕で閉じた後、自分で戻した結果（popstate）を待っている間true
-  let stageHistorySelfBackTimer = null;
-
-  function isCurrentStageHistoryEntry(state) {
-    return !!(stageHistoryToken && state && typeof state === 'object'
-      && state[STAGE_HISTORY_KEY] === stageHistoryToken);
-  }
+  /* ===================== 戻る操作で閉じる（History API） =====================
+     スマホの戻るボタン／戻るジェスチャー、PCのブラウザの「戻る」（マウスの戻るボタン・Alt+←）で、
+     いちばん上に開いているものを1つずつ閉じる：本体のモーダル → Stageの中のアプリのモーダル → Stage。
+     仕組みと歯止めは js/back-nav.js（SideOpsBackNav）にまとめてある（2026-10-06。それまでは
+     ここで Stage だけを扱っていた）。ここでは次の3つをつなぐ：
+       ・Stage：開いたときに1層（開いたまま別のアプリへ切り替えても積み増さない）
+       ・Stageの中のアプリのモーダル：アプリ側（apps/sideops-theme-bridge.js）が開いている数を
+         知らせてくるので、増えたら層を積み、減ったら消費する。戻る操作では、アプリに
+         「いちばん上を1つ閉じて」と頼む（'sideops:back'）
+       ・本体のモーダル：is-open の付け外しを見て層を積む・消費する（SideOpsBackNav.watchOverlay）
+     iframe内のアプリは履歴に触らない前提（触ると本体の履歴と混ざる）。
+     詳細は docs/core/claude_メインステージ_仕様書.md「戻る操作」 */
+  const BackNav = window.SideOpsBackNav || null; // 読み込めなかったときは、従来どおり✕で閉じるだけ
+  let stageBackLayer = null;   // Stageの層（積んでいなければnull）
+  let appBackLayers = [];      // 今のStageのアプリのモーダルの層（下から順）
 
   function pushStageHistory() {
-    if (stageHistoryToken) return; // 開いたまま別のアプリへ切り替えた場合：積み増さない
-    const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    try {
-      history.pushState({ [STAGE_HISTORY_KEY]: token }, '');
-      stageHistoryToken = token;
-    } catch (err) {
-      // 履歴を操作できない環境では何もしない（従来どおり✕で閉じるだけになる）
-      console.warn('戻る操作との連携を開始できませんでした', err);
-    }
+    if (!BackNav || stageBackLayer) return; // 開いたまま別のアプリへ切り替えた場合：積み増さない
+    // force：同期を待ってから開いた場合など、操作から時間が経っていても積む（2026-10-06より前と同じ動き）
+    stageBackLayer = BackNav.push('stage', () => {
+      stageBackLayer = null;
+      appBackLayers = [];
+      closeStageView();
+    }, { force: true });
   }
 
+  // ✕で閉じたとき：Stageの層と、その上のアプリのモーダルの層をまとめて消費する
   function consumeStageHistory() {
-    if (!stageHistoryToken) return;
-    const isCurrent = isCurrentStageHistoryEntry(history.state);
-    stageHistoryToken = null;
-    if (!isCurrent) return; // 自分の1件の位置にいると確認できなければ、履歴には触らない
-    stageHistorySelfBack = true;
-    clearTimeout(stageHistorySelfBackTimer);
-    // 万一 popstate が届かなくても、待ち状態のまま固まらないようにする
-    stageHistorySelfBackTimer = setTimeout(() => { stageHistorySelfBack = false; }, STAGE_HISTORY_SELF_BACK_TIMEOUT_MS);
-    history.back();
+    if (!BackNav) return;
+    const layers = [stageBackLayer].concat(appBackLayers);
+    stageBackLayer = null;
+    appBackLayers = [];
+    BackNav.release(layers);
   }
 
-  window.addEventListener('popstate', (ev) => {
-    if (stageHistorySelfBack) {
-      // ✕で閉じた後の後片付け（自分で戻した分）。Stageはもう閉じているので何もしない
-      stageHistorySelfBack = false;
-      clearTimeout(stageHistorySelfBackTimer);
-      return;
+  // アプリを切り替えたとき：前のアプリのモーダルの層だけを消費する（Stageの層は残す）
+  function releaseAppBackLayers() {
+    if (!BackNav || !appBackLayers.length) return;
+    const layers = appBackLayers;
+    appBackLayers = [];
+    BackNav.release(layers);
+  }
+
+  window.addEventListener('message', (e) => {
+    if (!BackNav || !stageFrame || e.source !== stageFrame.contentWindow) return;
+    const data = e.data;
+    if (!data || data.type !== 'sideops:back-layers') return;
+    const count = Math.max(0, Math.min(20, Math.floor(Number(data.count)) || 0));
+    if (count < appBackLayers.length) BackNav.release(appBackLayers.splice(count));
+    while (stageBackLayer && appBackLayers.length < count) {
+      const layer = BackNav.push('app', () => {
+        const i = appBackLayers.indexOf(layer);
+        if (i >= 0) appBackLayers.splice(i, 1);
+        try { if (stageFrame) stageFrame.contentWindow.postMessage({ type: 'sideops:back' }, '*'); } catch (err) { /* 送れなければ何もしない */ }
+      });
+      if (!layer) break; // 積めなかった（操作の外など）：戻る操作ではStageごと閉じることになる
+      appBackLayers.push(layer);
     }
-    if (isCurrentStageHistoryEntry(ev.state)) return; // 自分の1件の位置にいる：閉じる必要なし
-    if (!stageHistoryToken) return; // Stage用の1件を積んでいない間の戻る・進むには関与しない
-    // 自分の1件より手前へ戻った＝戻る操作でStageを閉じる
-    stageHistoryToken = null;
-    closeStageView();
   });
+
+  // 本体のモーダル（同期の進み具合・確認のダイアログは、答えを待つものなので戻る操作の対象にしない）
+  if (BackNav) {
+    ['settingsOverlay', 'customThemeOverlay', 'appManageOverlay', 'appDeleteConfirmOverlay',
+      'launcherAddOverlay', 'launcherDeleteOverlay', 'syncOverlay']
+      .forEach((id) => BackNav.watchOverlay(document.getElementById(id)));
+  }
 
   function openStage(ev, project, cardId) {
     // ✕で閉じた直後、履歴の後片付け（数十ms程度）が終わるまでは開かない。
     // 後片付けの「戻る」が新しく開いたStageを閉じてしまう食い違いを防ぐ
-    if (stageHistorySelfBack) return;
+    if (BackNav && BackNav.busy()) return;
     // 開いた直後の同期（js/sync.js）が終わるまでは、アプリを開くのを待たせる
     // （古いデータのまま編集を始めないように）。待たせたときは、同期の後にこの関数を呼び直す
     if (typeof window.SideOpsSyncGate === 'function' && window.SideOpsSyncGate(() => openStage(ev, project, cardId))) return;
+    releaseAppBackLayers(); // 開いたまま別のアプリへ切り替えるとき、前のアプリのモーダルの層を片付ける
     currentStageCardId = cardId || null;
     const card = cardId ? cards.find(c => c.id === cardId) : null;
     const mode = (card && card.sizeMode) || 'normal';

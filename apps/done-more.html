@@ -58,6 +58,17 @@
   }
   .view-toggle button:last-child { border-right: none; }
   .view-toggle button.active { color: var(--cyan); background: var(--cyan-dim); }
+  .bar-tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* 狭い画面（スマホの縦向きなど）では1段に収まらず、右にはみ出していた。
+     2段にする（2026-10-06）：1段目＝タイトルと☰、2段目＝一覧/ガントの切り替えと追加ボタン。
+     .bar-right を display: contents にして、中身を .app-bar の並びに直接参加させる */
+  @media (max-width: 560px) {
+    .app-bar { flex-wrap: wrap; row-gap: 8px; column-gap: 8px; padding: 8px 12px; }
+    .app-bar .app-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .bar-right { display: contents; }
+    .bar-tools { order: 1; flex: 1 1 100%; }
+    .bar-tools .view-toggle { margin-right: auto; }
+  }
 
   .btn {
     font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
@@ -294,12 +305,14 @@
   <div class="app-bar">
     <span class="app-title">// DONE MORE</span>
     <div class="bar-right">
-      <div class="view-toggle">
-        <button type="button" id="tabListBtn" class="active">一覧</button>
-        <button type="button" id="tabGanttBtn">ガント</button>
+      <div class="bar-tools">
+        <div class="view-toggle">
+          <button type="button" id="tabListBtn" class="active">一覧</button>
+          <button type="button" id="tabGanttBtn">ガント</button>
+        </div>
+        <button class="btn" id="addProjectBtn">＋ プロジェクト</button>
+        <button class="btn primary" id="addTaskBtn">＋ タスク</button>
       </div>
-      <button class="btn" id="addProjectBtn">＋ プロジェクト</button>
-      <button class="btn primary" id="addTaskBtn">＋ タスク</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">

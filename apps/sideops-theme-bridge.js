@@ -185,3 +185,106 @@
     window.parent.postMessage({ type: MSG_REQUEST }, '*');
   } catch (e) { /* 親へ送れない環境では無視 */ }
 })();
+
+/* ---------------------------------------------------------------------
+   戻る操作との連携（2026-10-06）
+   SIDE-OPS本体のStageの中で動いているとき：
+     ・開いているモーダルの数を本体に知らせる（'sideops:back-layers'）。本体はその数だけ
+       履歴を積み、スマホの戻るボタン等で、まずアプリのモーダルを閉じ、次にStageを閉じる
+     ・本体から「戻る」（'sideops:back'）が来たら、いちばん手前のモーダルを1つ閉じる。
+       閉じ方：背景のクリック（多くのモーダルは「背景をクリックで閉じる」）→ だめなら Esc → だめなら ✕ボタン
+     ・画像などを選ぶ画面を開いたら本体に知らせる（'sideops:picker'）。全画面表示の扱いに使う
+   アプリ側の作業は要らない（よくある作りのモーダルは自動で見つける）。
+   見つけ方を変えたいアプリは window.SideOpsBackLayers（CSSセレクタの文字列）を、
+   閉じ方を変えたいアプリは window.SideOpsBack（閉じたら true を返す関数）を用意する。
+   本体側は js/main.js・js/back-nav.js。単体表示では何もしない
+   --------------------------------------------------------------------- */
+(function () {
+  'use strict';
+
+  if (window.parent === window) return;
+
+  var DEFAULT_LAYERS = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, dialog[open]';
+
+  function selector() {
+    return (typeof window.SideOpsBackLayers === 'string' && window.SideOpsBackLayers) || DEFAULT_LAYERS;
+  }
+  function isShown(el) { return el.getClientRects().length > 0; } // display: none のものは数えない
+  function openLayers() {
+    try {
+      return Array.prototype.filter.call(document.querySelectorAll(selector()), isShown);
+    } catch (e) { return []; }
+  }
+  function post(msg) {
+    try { window.parent.postMessage(msg, '*'); } catch (e) { /* 親へ送れない環境では無視 */ }
+  }
+
+  var reported = 0;
+  var scheduled = false;
+  function report() {
+    scheduled = false;
+    var n = openLayers().length;
+    if (n === reported) return;
+    reported = n;
+    post({ type: 'sideops:back-layers', count: n });
+  }
+  // 1回の操作で何度も変わっても、まとめて1回だけ数える
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    Promise.resolve().then(report);
+  }
+  function start() {
+    try {
+      new MutationObserver(schedule).observe(document.documentElement, {
+        subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'open']
+      });
+    } catch (e) { return; }
+    report();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+
+  // いちばん手前のモーダル：z-index の大きいもの。同じなら文書の後ろの方にあるもの
+  function topLayer() {
+    var list = openLayers();
+    var best = null, bestZ = -Infinity;
+    list.forEach(function (el) {
+      var z = parseInt(getComputedStyle(el).zIndex, 10);
+      if (!isFinite(z)) z = 0;
+      if (z >= bestZ) { best = el; bestZ = z; }
+    });
+    return best;
+  }
+  function stillOpen(el) {
+    try { return el.matches(selector()) && isShown(el); } catch (e) { return false; }
+  }
+  function closeTop() {
+    if (typeof window.SideOpsBack === 'function') {
+      try { if (window.SideOpsBack()) return; } catch (e) { /* いつもの閉じ方に任せる */ }
+    }
+    var el = topLayer();
+    if (!el) return;
+    if (el.tagName === 'DIALOG') { try { el.close(); } catch (e) { /* 何もしない */ } return; }
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    if (stillOpen(el)) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    }
+    if (stillOpen(el)) {
+      var btn = el.querySelector('[data-sideops-back-close], .modal-close, .thumb-lightbox-close');
+      if (btn) btn.click();
+    }
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;
+    if (e.data && e.data.type === 'sideops:back') { closeTop(); schedule(); }
+  });
+
+  // 画像などを選ぶ画面を開いた（プログラムから .click() したものも、ここを通る）
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.tagName === 'INPUT' && t.type === 'file') post({ type: 'sideops:picker' });
+  }, true);
+})();

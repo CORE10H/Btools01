@@ -68,6 +68,19 @@
   .tag-filter-chips {
     display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; max-width: 260px;
   }
+  .bar-filter { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* 狭い画面（スマホの縦向きなど）では1段に収まらず、検索欄が「＋」ボタンに重なっていた。
+     2段にする（2026-10-06）：1段目＝タイトル・追加ボタン・☰、2段目＝検索欄とタグ。
+     .bar-right を display: contents にして、中身を .app-bar の並びに直接参加させる */
+  @media (max-width: 640px) {
+    .app-bar { flex-wrap: wrap; row-gap: 8px; column-gap: 8px; padding: 8px 12px; }
+    .app-bar .app-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .bar-right { display: contents; }
+    .bar-filter { order: 1; flex: 1 1 100%; }
+    .search-box { flex: 1 1 120px; max-width: 240px; }
+    .search-box input { flex: 1 1 0; width: 0; min-width: 0; }
+    .tag-filter-chips { flex: 1 1 0; max-width: none; min-width: 0; }
+  }
   .chip {
     font-size: 10px; padding: 3px 8px; border: 1px solid var(--line); color: var(--text-dim);
     cursor: pointer; white-space: nowrap; background: transparent; flex-shrink: 0;
@@ -343,11 +356,13 @@
   <div class="app-bar">
     <span class="app-title">// MEMO</span>
     <div class="bar-right">
-      <div class="search-box">
-        <span style="color:var(--text-faint); font-size:11px;">⌕</span>
-        <input type="text" id="searchInput" placeholder="タイトル・本文・タグで検索">
+      <div class="bar-filter">
+        <div class="search-box">
+          <span style="color:var(--text-faint); font-size:11px;">⌕</span>
+          <input type="text" id="searchInput" placeholder="タイトル・本文・タグで検索">
+        </div>
+        <div class="tag-filter-chips" id="tagChips"></div>
       </div>
-      <div class="tag-filter-chips" id="tagChips"></div>
       <button class="btn primary" id="addBtn">＋ 新規メモ</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
@@ -729,6 +744,13 @@
       tagChips.appendChild(moreBtn);
     }
   }
+
+  // 画面の幅が変わったら（回転・Stageの大きさの変化など）、入るタグの数も変わるので並べ直す（2026-10-06）
+  let tagChipsResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(tagChipsResizeTimer);
+    tagChipsResizeTimer = setTimeout(renderTagChips, 150);
+  });
 
   function openTagMoreModal() {
     tagMoreList.innerHTML = '';
