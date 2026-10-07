@@ -43,7 +43,7 @@
   // SIDE-OPSの版（yyyymmddnn の数値）。どれかのアプリでデータの形（レコードの
   // 項目・DBの版）を変えたら必ず上げる。自分より新しい版の端末が書いたファイルを
   // 見つけたら同期を止める（古い版が新しい項目を知らずに上書きして消すのを防ぐ）
-  const SYNC_APP_BUILD = 2026100701;
+  const SYNC_APP_BUILD = 2026100801;
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
   const SYNC_DB_VERSION = 2; // 2：同期の記録（journal）を追加
@@ -88,7 +88,10 @@
     { name: 'sideops_manuscript', label: 'MANUSCRIPT', version: 3 },
     { name: 'sideops_mindframe', label: 'MINDFRAME', version: 1, excludeStores: ['views'] }, // 表示位置・ズームは端末ごと
     { name: 'sideops_recon', label: 'RECON', version: 1, sensitive: true },
-    { name: 'sideops_librarium', label: 'LIBRARIUM', version: 1 },
+    // 読んだ位置は sideops_librarium_pos に分けた（2026-10-08）。本と同じDBだと、位置が変わるたびに全部の本文を送り直すため。
+    // 本のDBに残る progress ストアは2026-10-07の版の名残（移し替えた後は空。同期しない）
+    { name: 'sideops_librarium', label: 'LIBRARIUM', version: 1, excludeStores: ['progress'] },
+    { name: 'sideops_librarium_pos', label: 'LIBRARIUM（読んだ位置）', version: 1 },
   ];
   const RULE_BY_NAME = new Map(DB_RULES.map((r) => [r.name, r]));
 
@@ -430,6 +433,38 @@
     return makeVer(Math.min(Math.floor(t), now), 0, deviceId);
   }
 
+  // ===================== 画像の要約の控え（2026-10-08） =====================
+  // DBを見直すたびに、すべての画像を読み込んで要約（HMAC）を取り直していた。画像の多いアプリでは、
+  // これが同期の時間の大半になる（スマホでは数秒）。画像の大きさ・種類と、頭と尻の16KBずつの要約を
+  // 「控えの鍵」にして、前に取った要約を使い回す。控えはこの端末の同期の管理用DB（sideops_sync の meta）にだけ置く。
+  // 1日1回の全体の見直し（freshBlobs）では控えを使わずに取り直す（万一の取り違えも、そこで直る）
+  const BLOB_SAMPLE = 16 * 1024;
+  const BLOB_CACHE_MIN = 64 * 1024;          // これより小さい画像は全部読む（控えを使うほどでもない）
+  const BLOB_CACHE_MAX_ENTRIES = 20000;
+  async function loadBlobCache(spaceId) {
+    const c = await metaGet('blobcache');
+    const map = c && c.spaceId === spaceId && isPlainObject(c.map) ? new Map(Object.entries(c.map)) : new Map();
+    return { spaceId, map, changed: false };
+  }
+  async function saveBlobCache(cache) {
+    if (!cache || !cache.changed) return;
+    let entries = Array.from(cache.map.entries());
+    if (entries.length > BLOB_CACHE_MAX_ENTRIES) entries = entries.slice(entries.length - BLOB_CACHE_MAX_ENTRIES);
+    await metaPut({ key: 'blobcache', spaceId: cache.spaceId, map: Object.fromEntries(entries) });
+  }
+  async function blobQuickKey(blob) {
+    const head = new Uint8Array(await blob.slice(0, BLOB_SAMPLE).arrayBuffer());
+    const tail = new Uint8Array(await blob.slice(Math.max(BLOB_SAMPLE, blob.size - BLOB_SAMPLE)).arrayBuffer());
+    const buf = new Uint8Array(head.length + tail.length);
+    buf.set(head, 0);
+    buf.set(tail, head.length);
+    return blob.size + ':' + (blob.type || '') + ':' + await sha256Hex(buf);
+  }
+  // ctx.blobs には、読み込んだ中身（Uint8Array）か、まだ読んでいない Blob が入る。中身が要るときはこれで読む
+  async function blobBytes(v) {
+    return v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v;
+  }
+
   // ===================== レコードの符号化（Blob・data URLを参照に置き換える） =====================
   async function encodeValue(v, ctx, depth = 0) {
     if (depth > MAX_DEPTH) throw new SyncError('入れ子が深すぎるデータがあります');
@@ -442,10 +477,22 @@
     if (v === undefined) return undefined;
     if (typeof v !== 'object') throw new SyncError('対応していない種類のデータがあります（' + typeof v + '）');
     if (v instanceof Blob) {
-      const bytes = new Uint8Array(await v.arrayBuffer());
-      const h = await ctx.hash(bytes);
-      ctx.blobs.set(h, bytes);
-      const m = { $sideopsBlob: h, type: v.type || '', size: bytes.length };
+      // 画像の要約の控え（下の blobQuickKey）があれば、画像を全部読まずに済ませる。
+      // 送るときなど中身が要るときは、あとで読む（ctx.blobs には Blob のまま入れておく）
+      let h = null, bytes = null, qk = null;
+      const cache = ctx.blobCache;
+      if (cache && v.size >= BLOB_CACHE_MIN) {
+        qk = await blobQuickKey(v);
+        h = cache.map.get(qk) || null;
+        if (h && !HASH_RE.test(h)) h = null;
+      }
+      if (!h) {
+        bytes = new Uint8Array(await v.arrayBuffer());
+        h = await ctx.hash(bytes);
+        if (qk) { cache.map.set(qk, h); cache.changed = true; }
+      }
+      ctx.blobs.set(h, bytes || v);
+      const m = { $sideopsBlob: h, type: v.type || '', size: v.size };
       if (typeof File !== 'undefined' && v instanceof File) { m.fileName = v.name; m.lastModified = v.lastModified; }
       return m;
     }
@@ -624,7 +671,8 @@
   // 戻り値：{ schema, stores, recs: Map(rid → { store, key, raw, encoded, fp }) , blobs: Map(hash → bytes), skipped }
   //   schema は同期しないストアも含めた全ストアの形（ほかの端末でDBを作るときに、
   //   アプリが必要とするストアを欠かさないため）
-  async function scanDb(rule, db, hash) {
+  async function scanDb(rule, db, hash, blobCache, detail) {
+    const dt = detail || { read: 0, encode: 0, fp: 0, n: 0 }; // かかった時間の内訳（同期の記録用）
     const stores = syncedStores(rule, db);
     const schema = readSchema(db, Array.from(db.objectStoreNames));
     const recs = new Map();
@@ -640,22 +688,30 @@
         keys = wanted.filter((k, i) => values[i] !== undefined);
         values = values.filter((v) => v !== undefined);
       } else {
+        const tr = performance.now();
         [keys, values] = await Promise.all([reqP(os.getAllKeys()), reqP(os.getAll())]);
+        dt.read += performance.now() - tr;
       }
       for (let i = 0; i < keys.length; i++) {
         if (i % 25 === 24) await yieldUi(); // 件数の多いDBでも画面が固まらないように
         const key = keys[i];
         if (!validKey(key)) { skipped++; continue; }
         const raw = project(rule, storeName, key, values[i], os.keyPath);
-        const ctx = { hash, blobs: new Map() };
+        const ctx = { hash, blobs: new Map(), blobCache: blobCache || null };
         let encoded;
+        const te0 = performance.now();
         try { encoded = await encodeValue(raw, ctx); } catch (err) {
           skipped++;
           console.warn('同期できないレコードを飛ばしました', rule.name, storeName, key, err);
           continue;
         }
         ctx.blobs.forEach((b, h) => blobs.set(h, b));
-        recs.set(rid(rule.name, storeName, key), { store: storeName, key, raw, encoded, fp: await fingerprint(encoded) });
+        const tf = performance.now();
+        dt.encode += tf - te0;
+        const fp = await fingerprint(encoded);
+        dt.fp += performance.now() - tf;
+        dt.n++;
+        recs.set(rid(rule.name, storeName, key), { store: storeName, key, raw, encoded, fp });
       }
     }
     return { schema, stores, recs, blobs, skipped };
@@ -694,11 +750,25 @@
     return new Blob([JSON.stringify(obj)], { type: 'application/json' });
   }
   async function readManifest(backend) {
+    // クラウドでは、版の印（eTag）が前回読んだときと同じなら、控えを使ってダウンロードしない（2026-10-08。
+    // 毎回の同期で設定を1〜2回ダウンロードしていた）。設定は暗号化しない公開の形なので、控えを置いても漏れるものはない
+    const cacheable = backend.kind !== 'file' && typeof backend.stamp === 'function';
+    let st = '';
+    if (cacheable) {
+      await backend.list();
+      st = backend.stamp(MANIFEST_NAME) || '';
+      const c = st ? await metaGet('manifestCache') : null;
+      if (c && c.kind === backend.kind && c.stamp === st && isPlainObject(c.value)) {
+        try { return validateManifest(c.value); } catch (err) { /* 控えが古い形なら読み直す */ }
+      }
+    }
     const bytes = await backend.read(MANIFEST_NAME);
     if (!bytes) return null;
     let m;
     try { m = JSON.parse(td.decode(bytes)); } catch (err) { throw new SyncError('同期ファイルの設定（manifest）が壊れています'); }
-    return validateManifest(m);
+    const v = validateManifest(m);
+    if (cacheable && st) await metaPut({ key: 'manifestCache', kind: backend.kind, stamp: st, value: m });
+    return v;
   }
 
   // ===================== 鍵の状態 =====================
@@ -801,8 +871,19 @@
   //   pushOnly：送るだけ（ほかの端末の変更は読まず、この端末のデータ帳も書き換えない。アプリを開いている間に使う）
   //   onProgress(text)：進み具合の表示
   // 戻り値：{ results: [...], applied, appliedDbs, conflicts, firstTime, pushOnly, stats }
+  // 保存先の4操作の時間を測る（中身は変えない）
+  function timedBackend(backend, timing) {
+    const wrap = (fn) => (typeof fn !== 'function' ? fn : async (...a) => {
+      const t = performance.now();
+      try { return await fn(...a); } finally { timing.net += performance.now() - t; timing.netCount++; }
+    });
+    return { ...backend, list: wrap(backend.list), read: wrap(backend.read), write: wrap(backend.write), remove: wrap(backend.remove) };
+  }
   async function syncWith(backend, hooks = {}) {
     const progress = (t) => { try { if (hooks.onProgress) hooks.onProgress(t); } catch (err) { /* 表示に失敗しても続ける */ } };
+    // かかった時間の内訳（2026-10-08）：通信（保存先とのやり取り）とDBの見直しを分けて測り、同期の記録に残す
+    const timing = { start: performance.now(), net: 0, netCount: 0, scan: {}, scanDetail: {} };
+    backend = timedBackend(backend, timing);
     const keys = await getKeys();
     if (!keys) throw new SyncError('この端末はまだ同期の鍵を持っていません');
     progress('クラウドを確認しています');
@@ -820,6 +901,8 @@
     const hash = (bytes) => hmacHex(keys.nameKey, bytes);
     const report = { results: [], applied: false, appliedDbs: [], conflicts: 0, firstTime: false, pushOnly, stats: { scanned: 0, skipped: 0, downloaded: 0 } };
     const journalItems = []; // 受け取りで書き換える前の中身（同期の記録。取り消しに使う）
+    // 画像の要約の控え（1日1回の全体の見直しでは使わずに取り直す）
+    const blobCache = hooks.freshBlobs ? { spaceId, map: new Map(), changed: true } : await loadBlobCache(spaceId);
 
     // クラウドでは、中身が前回書いたときと同じファイルは書き直さない（通信を減らす）。
     // 前回書いた時点の「中身の要約」と「保存先での版の印（eTag）」の両方が一致するときだけ省く。
@@ -1035,7 +1118,11 @@
 
         // ---- 前回同期した時点との比較で、この端末の変更を見つける ----
         const scanStart = Date.now();
-        let scan = await scanDb(rule, db, hash);
+        const scanT0 = performance.now();
+        const sd = { read: 0, encode: 0, fp: 0, n: 0 };
+        let scan = await scanDb(rule, db, hash, blobCache, sd);
+        timing.scan[rule.name] = Math.round(performance.now() - scanT0);
+        timing.scanDetail[rule.name] = { n: sd.n, read: Math.round(sd.read), encode: Math.round(sd.encode), fp: Math.round(sd.fp) };
         const changed = new Map(); // この端末の変更：id → { kind: 'add'|'change'|'del', ver（この端末で付けた版） }
         for (const [id, c] of scan.recs) {
           const s = st.get(id);
@@ -1106,7 +1193,7 @@
         if (need.size) progress(`${rule.label}の画像を受け取っています`);
         for (const h of need) {
           if (!HASH_RE.test(h)) throw new SyncError('同期ファイルの中身が壊れています（画像の参照）');
-          if (scan.blobs.has(h)) { fetched.set(h, scan.blobs.get(h)); continue; }
+          if (scan.blobs.has(h)) { fetched.set(h, await blobBytes(scan.blobs.get(h))); continue; }
           const name = names.blob(h);
           const bytes = await backend.read(name);
           if (!bytes) throw new SyncError(rule.label + ' の画像が同期ファイルに見つかりません');
@@ -1184,7 +1271,7 @@
           report.applied = true;
           report.appliedDbs.push(rule.name);
           // 反映後の中身で指紋を取り直す（次回、反映した分を「この端末の変更」と誤認しないように）
-          scan = await scanDb(rule, db, hash);
+          scan = await scanDb(rule, db, hash, blobCache);
           for (const p of plan) {
             const s = st.get(p.id);
             const c = scan.recs.get(p.id);
@@ -1212,7 +1299,7 @@
           referenced.add(h);
           const name = names.blob(h);
           if (listed.has(name)) continue;
-          const bytes = scan.blobs.get(h);
+          const bytes = scan.blobs.has(h) ? await blobBytes(scan.blobs.get(h)) : null;
           if (!bytes) throw new SyncError(rule.label + ' の画像を読めませんでした');
           await backend.write(name, await seal(keys.encKey, bytes, 'sideops-sync|' + spaceId + '|' + name));
           listed.add(name);
@@ -1308,6 +1395,10 @@
     if (journalItems.length) await addJournal(journalItems, backend.kind);
     await purgeConflicts();
     await addLog(pushOnly ? 'push' : 'sync', summarizeReport(report).join(' / ') || '変更なし');
+    await saveBlobCache(blobCache);
+    report.timing = {
+      total: Math.round(performance.now() - timing.start), net: Math.round(timing.net), netCount: timing.netCount, scan: timing.scan, scanDetail: timing.scanDetail,
+    };
     lastReport = report;
     return report;
   }
@@ -1721,8 +1812,10 @@
     return result;
   }
   async function precheck() {
-    if (!(await waitStageIdle())) throw new SyncError('開いているアプリを閉じてから同期してください');
-    if (await otherTabsOpen()) throw new SyncError('SIDE-OPSを開いている他のタブ（ウィンドウ）を閉じてから同期してください');
+    // 2つの確認は並べて行う（ほかのタブの確認は返事を0.4秒待つので、順番に待つと遅くなる。2026-10-08）
+    const [idle, others] = await Promise.all([waitStageIdle(), otherTabsOpen()]);
+    if (!idle) throw new SyncError('開いているアプリを閉じてから同期してください');
+    if (others) throw new SyncError('SIDE-OPSを開いている他のタブ（ウィンドウ）を閉じてから同期してください');
   }
 
   // ===================== 画面 =====================
@@ -2019,7 +2112,14 @@
       const lines = [head, ...reportLines(report)];
       if (report.conflicts) lines.push(CONFLICT_LINE(report.conflicts));
       if (report.applied) lines.push(touchesMain(report.appliedDbs) ? RELOAD_LINE : SAVED_LINE);
+      if (report.timing) lines.push(timingLine(report.timing));
       return lines;
+    }
+    // かかった時間の内訳（2026-10-08。同期が遅いと感じたときに、通信と見直しのどちらに時間がかかったかを見る）
+    function timingLine(t) {
+      const s = (ms) => (Math.max(0, ms) / 1000).toFixed(1);
+      const scan = Object.values(t.scan || {}).reduce((a, b) => a + b, 0);
+      return `※かかった時間：${s(t.total)}秒（通信 ${s(t.net)}秒・${t.netCount}回／データの見直し ${s(scan)}秒）`;
     }
 
     async function finishSync(backend, manifest, report) {
@@ -2299,8 +2399,10 @@
       autoRunning = true;
       const say = (text, kind = 'busy', extra = {}) => { if (hooks.showBanner) banner.show({ text, kind, ...extra }); };
       try {
-        if (!(await p.ensureToken({ interactive: false }))) { updateIndicator(); return null; } // 自動ではログインし直さない
-        if (await otherTabsOpen()) return null;
+        // ログインの確認と、ほかのタブの確認（返事を0.4秒待つ）は並べて行う（2026-10-08）
+        const [token, others] = await Promise.all([p.ensureToken({ interactive: false }), otherTabsOpen()]);
+        if (!token) { updateIndicator(); return null; } // 自動ではログインし直さない
+        if (others) return null;
         updateIndicator('busy');
         say(hooks.pushOnly ? `☁ ${p.label}へ送っています（アプリは開いたまま）…` : `☁ ${p.label}と同期しています…`);
         const report = await withLock(async () => {
@@ -2363,7 +2465,8 @@
       if (!usable) { await showLoginGate(cp.p); return; }
       gate = { pending: null };
       try {
-        await autoRun(cp, { showBanner: true, scanAll: await fullScanDue() });
+        const due = await fullScanDue();
+        await autoRun(cp, { showBanner: true, scanAll: due, freshBlobs: due });
       } finally {
         releaseGate(true);
       }

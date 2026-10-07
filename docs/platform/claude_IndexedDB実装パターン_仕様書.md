@@ -93,11 +93,25 @@ openDb().then(async (_db) => {
 
 ## 現在稼働中のIndexedDB一覧
 
-`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）・`sideops_sync`（同期の管理用：端末ID・鍵・前回同期した時点の状態・競合の控え・同期の記録）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_prompt_gallery_red`・`sideops_scaffold`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`・`sideops_librarium`等）。
+`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）・`sideops_sync`（同期の管理用：端末ID・鍵・前回同期した時点の状態・競合の控え・同期の記録）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_prompt_gallery_red`・`sideops_scaffold`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`・`sideops_librarium`・`sideops_librarium_pos`等）。
 
 **同期との関係（2026-10-05〜）**：同期（`js/sync.js`）は「DBを機能ごとに独立させる」原則の唯一の例外で、許可リスト（`DB_RULES`）にあるDBを直接読み書きする。新しいアプリを作ったら`DB_RULES`に足す。`DB_VERSION`やレコードの項目を変えたら、`DB_RULES`の`version`と`SYNC_APP_BUILD`を上げる（`planning/claude_クラウド同期_仕様書.md`の「開発時の決まり」）。同期は、端末にないDBを作るときに、同期ファイルに記録されたストア・キー・索引の形で作る。また2026-10-06から、アプリの書き込みには`apps/sideops-theme-bridge.js`が「変えたよ」の印を付ける（`IDBObjectStore`の書き込み用の関数を包む）。新しいアプリでもこのファイルを読み込むこと（`core/claude_テーマブリッジ_仕様書.md`）。そのため、アプリの`onupgradeneeded`で作るストアの形と、DBの版は対応させたままにする。
 
 `sideops_mindframe`（MINDFRAME）は、このパターンに加えて**保存直前の衝突確認**を持つ：保存の前にDBの`updatedAt`を読み、自分が読み込んだ（または最後に保存した）時点より新しければ、別のタブが保存したとみなして黙って上書きしない（どちらを残すか確認する）。同じデータを複数のタブで開ける機能を作るときの参考にする。
+
+## よく変わる小さなデータは、別のDBにする（2026-10-08）
+
+同期（`js/sync.js`）は、DBごとに1つのファイルを丸ごと送る。大きなデータ（本文・長い文章）と、よく変わる小さなデータ（読んだ位置・表示の状態など）を同じDBに置くと、小さなデータが変わるたびに大きなデータまで送り直すことになる（同じDBの別のストアにしても同じ）。LIBRARIUMで実際に起きたので、読んだ位置を`sideops_librarium_pos`に分けた。端末ごとでよいもの（表示位置・ズーム等）は、`DB_RULES`の`excludeStores`で同期から外す（MINDFRAMEの`views`）
+
+## 同期で2つずつになったものをまとめる型（2026-10-08）
+
+別々の端末で同じものを作ってから同期すると、IDが違うので両方残る（ランチャーのカード、Discoticaのアーティスト）。アプリの側で、開いたときに「同じとみなすもの」を見つけて、まとめるかを聞く。
+
+- 「同じ」の決め方はアプリごと（名前・題名・参照先など。表記の揺れはNFKC・大文字小文字・空白で吸収）
+- 残すのは作った日時がいちばん古いもの（同じならIDの小さいもの）にする。どの端末でまとめても同じものが残り、2台が別々にまとめても食い違わない
+- 消す方にしかない情報は、残す方へ移す（子のデータは付け替え、画像は引き継ぎ、文章は両方つなぐ）
+- 1つのトランザクションで書く。消したものは同期でほかの端末からも消える
+- 黙ってまとめない（確認を出す）。「あとで」はそのタブでは聞き直さない
 
 ## 一括取込の型：1トランザクション＋`add`（RECONで採用）
 

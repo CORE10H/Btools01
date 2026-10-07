@@ -31,6 +31,8 @@
   const RESUME_KEY = 'sideops_sync_resume';        // sessionStorage：ログインから戻ったら同期を続ける印
   const SECRET_NAME = 'onedrive-refresh';
   const DOWNLOAD_URL_TTL_MS = 4 * 60 * 1000;
+  // 同じ同期の中で一覧を取り直さない時間（2026-10-08。確認→同期の続きで2回取っていた。書き込み・削除は一覧の控えにも反映するので食い違わない）
+  const LIST_REUSE_MS = 20 * 1000;
 
   // 動作確認用：localhost で開いたときだけ、偽のMicrosoftに差し替えられる（公開サイトでは効かない）
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -230,8 +232,10 @@
 
   function createBackend() {
     let index = null; // 名前 → { id, size, mtime, eTag, url, urlAt }
+    let listedAt = 0;
     const itemUrl = (name) => `${GRAPH}/v1.0/me/drive/special/approot:/${encodeURIComponent(name)}`;
     async function list() {
+      if (index && Date.now() - listedAt < LIST_REUSE_MS) return Array.from(index.keys());
       const map = new Map();
       let url = `${GRAPH}/v1.0/me/drive/special/approot/children?$select=id,name,size,lastModifiedDateTime,eTag,file,@microsoft.graph.downloadUrl&$top=200`;
       while (url) {
@@ -246,6 +250,7 @@
         url = j['@odata.nextLink'] || null;
       }
       index = map;
+      listedAt = Date.now();
       return Array.from(map.keys());
     }
     // 読む：①一覧に付いてきたダウンロード用URL → ②取り直したダウンロード用URL → ③Graph の /content

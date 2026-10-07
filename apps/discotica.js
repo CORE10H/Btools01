@@ -1027,6 +1027,7 @@
   /* ===================== ESC キーでの一括クローズ（フールプルーフ：閉じ忘れ防止） ===================== */
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (dupOverlay.classList.contains('is-open')) { closeDup(true); return; }
     if (confirmOverlay.classList.contains('is-open')) { closeConfirm(); return; }
     if (trackModalOverlay.classList.contains('is-open')) { closeTrackModal(); return; }
     if (albumModalOverlay.classList.contains('is-open')) { closeAlbumModal(); return; }
@@ -1035,10 +1036,153 @@
     if (artistViewOverlay.classList.contains('is-open')) { closeArtistView(); return; }
   });
 
+  /* ===================== 同じアーティストをまとめる（2026-10-08） =====================
+     PCとスマホで同じアーティストを別々に登録してから同期すると、IDが違うので両方残り、2人ずつになる
+     （同期は「IDが違えば別のもの」として合流する）。開いたときに見つけたら、まとめるかを聞く。
+     同じとみなすもの（大文字小文字・全角半角・空白の違いは無視）：
+       ・アーティスト：名前が同じ
+       ・アルバム：同じアーティスト（まとめた後）で、題名が同じ
+       ・楽曲：同じアルバム（まとめた後）で、題名と音源のURLが同じ
+     残すのは、作った日時がいちばん古いもの（同じならIDの小さいもの）。どの端末でまとめても同じものが残る。
+     消す方にしかない情報は残す方へ移す：アルバム・楽曲は付け替える、画像は残す方になければ引き継ぐ、
+     概要・歌詞・説明は、違えば両方をつなげて残す。全部を1つのトランザクションで書く（途中で失敗したら何も変えない） */
+  const DUP_LATER_KEY = 'sideops_discotica_dup_later';
+  const normName = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+  const byAge = (a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.id).localeCompare(String(b.id));
+  function mergeText(a, b) {
+    a = String(a || '').trim(); b = String(b || '').trim();
+    if (!b || a.includes(b)) return a;
+    if (!a || b.includes(a)) return b;
+    return a + '\n\n' + b;
+  }
+  function groupBy(list, keyFn) {
+    const m = new Map();
+    list.forEach((x) => { const k = keyFn(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+    return [...m.values()].filter((g) => g.length > 1).map((g) => g.sort(byAge));
+  }
+  async function planDedupe() {
+    const [arts, albs, trks] = await Promise.all([dbGetAll(STORE_ARTISTS), dbGetAll(STORE_ALBUMS), dbGetAll(STORE_TRACKS)]);
+    const put = { [STORE_ARTISTS]: new Map(), [STORE_ALBUMS]: new Map(), [STORE_TRACKS]: new Map() };
+    const del = { [STORE_ARTISTS]: [], [STORE_ALBUMS]: [], [STORE_TRACKS]: [] };
+    const names = [];
+    // ① アーティスト
+    const artistMap = new Map();
+    groupBy(arts.filter((a) => normName(a.name)), (a) => normName(a.name)).forEach((g) => {
+      const keep = { ...g[0] };
+      g.slice(1).forEach((x) => {
+        keep.bio = mergeText(keep.bio, x.bio);
+        if (!keep.coverImg && x.coverImg) { keep.coverImg = x.coverImg; if (x.coverThumb) keep.coverThumb = x.coverThumb; }
+        artistMap.set(x.id, keep.id);
+        del[STORE_ARTISTS].push(x.id);
+      });
+      put[STORE_ARTISTS].set(keep.id, keep);
+      names.push(`${keep.name}（${g.length}人）`);
+    });
+    // ② アルバム：まとめたアーティストへ付け替えてから、同じ題名をまとめる
+    const albums = albs.map((al) => {
+      if (!artistMap.has(al.artistId)) return al;
+      const moved = { ...al, artistId: artistMap.get(al.artistId) };
+      put[STORE_ALBUMS].set(moved.id, moved);
+      return moved;
+    });
+    const albumMap = new Map();
+    groupBy(albums.filter((al) => normName(al.title)), (al) => al.artistId + '|' + normName(al.title)).forEach((g) => {
+      const keep = { ...g[0] };
+      g.slice(1).forEach((x) => {
+        if (!keep.coverImg && x.coverImg) { keep.coverImg = x.coverImg; if (x.coverThumb) keep.coverThumb = x.coverThumb; }
+        albumMap.set(x.id, keep.id);
+        del[STORE_ALBUMS].push(x.id);
+        put[STORE_ALBUMS].delete(x.id);
+      });
+      put[STORE_ALBUMS].set(keep.id, keep);
+    });
+    // ③ 楽曲：まとめたアルバムへ付け替え、同じ題名・同じ音源をまとめてから、移した曲を残すアルバムの後ろへ並べる
+    const movedIds = new Set();
+    const tracks = trks.map((t) => {
+      if (!albumMap.has(t.albumId)) return t;
+      movedIds.add(t.id);
+      return { ...t, albumId: albumMap.get(t.albumId) };
+    });
+    const byId = new Map(tracks.map((t) => [t.id, t]));
+    const gone = new Set();
+    groupBy(tracks.filter((t) => normName(t.title)), (t) => t.albumId + '|' + normName(t.title) + '|' + String(t.audioUrl || '').trim()).forEach((g) => {
+      const keep = { ...g[0] };
+      g.slice(1).forEach((x) => {
+        keep.lyrics = mergeText(keep.lyrics, x.lyrics);
+        keep.description = mergeText(keep.description, x.description);
+        del[STORE_TRACKS].push(x.id);
+        gone.add(x.id);
+      });
+      byId.set(keep.id, keep);
+      put[STORE_TRACKS].set(keep.id, keep);
+    });
+    const nextOrder = new Map();
+    byId.forEach((t) => { if (!movedIds.has(t.id) && !gone.has(t.id)) nextOrder.set(t.albumId, Math.max(nextOrder.get(t.albumId) ?? -1, t.order ?? 0)); });
+    Array.from(byId.values()).filter((t) => movedIds.has(t.id) && !gone.has(t.id))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || byAge(a, b))
+      .forEach((t) => {
+        const order = (nextOrder.get(t.albumId) ?? -1) + 1;
+        nextOrder.set(t.albumId, order);
+        put[STORE_TRACKS].set(t.id, { ...(put[STORE_TRACKS].get(t.id) || t), order });
+      });
+    const count = del[STORE_ARTISTS].length + del[STORE_ALBUMS].length + del[STORE_TRACKS].length;
+    return { put, del, names, count, albums: del[STORE_ALBUMS].length, tracks: del[STORE_TRACKS].length };
+  }
+  function applyDedupe(plan) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORE_ARTISTS, STORE_ALBUMS, STORE_TRACKS], 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('中断されました'));
+      try {
+        Object.keys(plan.put).forEach((s) => plan.put[s].forEach((v) => tx.objectStore(s).put(v)));
+        Object.keys(plan.del).forEach((s) => plan.del[s].forEach((id) => tx.objectStore(s).delete(id)));
+      } catch (err) { try { tx.abort(); } catch (e) { /* すでに終了 */ } }
+    });
+  }
+  const dupOverlay = document.getElementById('dupOverlay');
+  let dupPlan = null;
+  async function maybeAskDedupe() {
+    let plan;
+    try { plan = await planDedupe(); } catch (err) { console.error('重複の確認に失敗しました', err); return; }
+    if (!plan.count) return;
+    // 「あとで」を押した同じ組み合わせは、この画面を開いている間は聞き直さない
+    const sig = plan.names.join('|') + '|' + plan.count;
+    try { if (sessionStorage.getItem(DUP_LATER_KEY) === sig) return; } catch (e) { /* 使えなければ毎回聞く */ }
+    dupPlan = { plan, sig };
+    const extra = [plan.albums ? `アルバム${plan.albums}枚` : '', plan.tracks ? `楽曲${plan.tracks}曲` : ''].filter(Boolean).join('・');
+    document.getElementById('dupMsg').textContent =
+      (plan.names.length ? `同じ名前のアーティストがいます：${plan.names.slice(0, 6).join('、')}${plan.names.length > 6 ? ' ほか' : ''}。` : '')
+      + (extra ? `同じアルバム・楽曲もあります（${extra}）。` : '')
+      + '\n別々の端末で登録したものが、同期で合流したためです。1つにまとめますか？\n（アルバム・楽曲は残す方へ移します。概要・歌詞が違うときは両方を残します）';
+    dupOverlay.classList.add('is-open');
+  }
+  function closeDup(later) {
+    dupOverlay.classList.remove('is-open');
+    if (later && dupPlan) { try { sessionStorage.setItem(DUP_LATER_KEY, dupPlan.sig); } catch (e) { /* 何もしない */ } }
+    dupPlan = null;
+  }
+  document.getElementById('dupLaterBtn').addEventListener('click', () => closeDup(true));
+  dupOverlay.addEventListener('click', (e) => { if (e.target === dupOverlay) closeDup(true); });
+  document.getElementById('dupMergeBtn').addEventListener('click', async () => {
+    if (!dupPlan) return;
+    const { plan } = dupPlan;
+    closeDup(false);
+    try {
+      await applyDedupe(plan);
+      showToast('まとめました');
+    } catch (err) {
+      console.error(err);
+      showToast('まとめられませんでした（何も変えていません）');
+    }
+    await loadArtists();
+  });
+
   /* ===================== 初期化 ===================== */
   openDb().then(async (_db) => {
     db = _db;
     await loadArtists();
+    maybeAskDedupe();
   }).catch((err) => {
     console.error('IndexedDBの初期化に失敗しました', err);
     artistTrack.innerHTML = '';

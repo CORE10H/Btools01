@@ -59,6 +59,7 @@ sideops/
     ├── recon.html           # 販売データの取込・分析（段階1・3a・3b実装済み）。画面の骨組みとCSS、CSP
     ├── recon.js             #   本体（CSV取込・検算・照合・重複防止・取消・取引履歴・月別・作品別・顧客管理・バックアップ）
     ├── librarium.html       # AIのべりすとの .novel から本文を取り込んで並べる本棚（2026-10-07〜）
+    │                        #   本は sideops_librarium、読んだ位置は sideops_librarium_pos（2026-10-08〜）
     ├── vendor/              # 同梱の外部ライブラリ（CDNは使わない）
     │   ├── papaparse.min.js      # Papa Parse 5.7.0（CSV解析、MIT）。RECONが使用
     │   └── papaparse.LICENSE.txt # 上記のライセンス全文

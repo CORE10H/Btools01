@@ -214,6 +214,16 @@
   .imp-meta { font-size: 10.5px; color: var(--text-faint); display: flex; gap: 10px; flex-wrap: wrap; }
   .imp-meta .warn { color: var(--amber); }
   .imp-preview { font-family: var(--font-book); font-size: 11.5px; color: var(--text-dim); line-height: 1.7; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; }
+  /* 会話形式の発言の選び方（2026-10-07） */
+  .imp-turns { border: 1px solid var(--line-soft); padding: 6px 8px; }
+  .imp-turns summary { font-size: 10.5px; color: var(--text-dim); cursor: pointer; }
+  .imp-turn-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 220px; overflow-y: auto; }
+  .imp-turn { display: flex; align-items: flex-start; gap: 6px; font-size: 11px; color: var(--text-dim); line-height: 1.5; cursor: pointer; }
+  .imp-turn input { margin-top: 2px; flex-shrink: 0; accent-color: var(--cyan); }
+  .imp-role { flex-shrink: 0; font-size: 10px; padding: 0 5px; border: 1px solid var(--line); color: var(--text-faint); }
+  .imp-role[data-role-kind="assistant"] { border-color: var(--cyan-dim); color: var(--cyan); }
+  .imp-turn-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-book); }
+  .imp-badge { flex-shrink: 0; font-size: 9.5px; color: var(--amber); }
   .imp-errors { border: 1px solid var(--magenta-dim); padding: 8px 10px; font-size: 11px; color: var(--magenta); line-height: 1.7; margin-bottom: 10px; word-break: break-all; }
   .imp-summary { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
 
@@ -437,12 +447,18 @@
                           coverImage(Blob|null), coverThumb?(見え方),
                           source: { kind: 'novel'|'txt', fileName, title, workId, savedAt, hash },
                           createdAt, updatedAt, importedAt }
+       progress … 2026-10-07の版の名残（今は使わない）
+     IndexedDB（sideops_librarium_pos・版1）2026-10-08〜
        progress … 読んだ位置 = { id(本のid), ratio(0〜1), vertical, updatedAt }
-                  本文を何度も送り直さないよう、本とは別のストアにしている（同期は記録ごと）
+                  本文を何度も送り直さないよう、本とは別のDBにしている（同期はDBごとに1ファイル）
      ===================================================================== */
   const DB_NAME = 'sideops_librarium';
   const DB_VERSION = 1;
   const S = { books: 'books', progress: 'progress' };
+  // 読んだ位置は別のDBに置く（2026-10-08）。同期はDBごとに1つのファイルを送るので、本と同じDBだと、
+  // 位置が変わるたびに全部の本文まで送り直していた
+  const POS_DB_NAME = 'sideops_librarium_pos';
+  const POS_DB_VERSION = 1;
 
   const NOVEL_SEP = '<|endofsection|>';
   const FILE_MAX_BYTES = 30 * 1024 * 1024;     // 1ファイル（.novel / .txt）
@@ -472,12 +488,25 @@
 
   /* ===================== IndexedDB ===================== */
   let db = null;
+  let posDb = null; // 読んだ位置（sideops_librarium_pos）。開けなければ、位置を覚えないだけで本棚は使える
   function openDb() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const d = req.result;
         if (!d.objectStoreNames.contains(S.books)) d.createObjectStore(S.books, { keyPath: 'id' });
+        // 2026-10-07の版の名残（読んだ位置の置き場所）。今は使わない（中身は下の移し替えで POS_DB へ移す）
+        if (!d.objectStoreNames.contains(S.progress)) d.createObjectStore(S.progress, { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function openPosDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(POS_DB_NAME, POS_DB_VERSION);
+      req.onupgradeneeded = () => {
+        const d = req.result;
         if (!d.objectStoreNames.contains(S.progress)) d.createObjectStore(S.progress, { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
@@ -487,16 +516,26 @@
   function reqP(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
   const getAll = (store) => reqP(db.transaction(store).objectStore(store).getAll());
   const put = (store, v) => reqP(db.transaction(store, 'readwrite').objectStore(store).put(v));
-  // 本と読んだ位置をまとめて消す（片方だけ残らないように1トランザクション）
-  function deleteBook(id) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([S.books, S.progress], 'readwrite');
-      tx.objectStore(S.books).delete(id);
-      tx.objectStore(S.progress).delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error || new Error('中断されました'));
+  const getAllPos = () => (posDb ? reqP(posDb.transaction(S.progress).objectStore(S.progress).getAll()) : Promise.resolve([]));
+  const putPos = (v) => (posDb ? reqP(posDb.transaction(S.progress, 'readwrite').objectStore(S.progress).put(v)) : Promise.resolve());
+  const deletePos = (id) => (posDb ? reqP(posDb.transaction(S.progress, 'readwrite').objectStore(S.progress).delete(id)) : Promise.resolve());
+  // 本を消す。読んだ位置は別のDBなので、本を消した後に消す（位置だけ残っても害はない。消せなくても続ける）
+  async function deleteBook(id) {
+    await reqP(db.transaction(S.books, 'readwrite').objectStore(S.books).delete(id));
+    try { await deletePos(id); } catch (err) { console.warn('読んだ位置を消せませんでした', err); }
+  }
+  // 2026-10-07の版で本と同じDBに置いていた読んだ位置を、POS_DB へ1回だけ移す（移したら元は空にする）
+  async function migrateOldProgress() {
+    if (!posDb) return;
+    const old = await getAll(S.progress);
+    if (!old.length) return;
+    const now = new Map((await getAllPos()).map((p) => [p.id, p]));
+    await new Promise((resolve, reject) => {
+      const tx = posDb.transaction(S.progress, 'readwrite');
+      old.forEach((p) => { const cur = now.get(p.id); if (p && typeof p.id === 'string' && (!cur || (cur.updatedAt || 0) < (p.updatedAt || 0))) tx.objectStore(S.progress).put(p); });
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
     });
+    await reqP(db.transaction(S.progress, 'readwrite').objectStore(S.progress).clear());
   }
   // 取り込み：まとめて1トランザクションで書く（途中で失敗したら何も書かない）
   function putBooks(list) {
@@ -608,10 +647,77 @@
   function baseName(name) {
     return String(name || '').split(/[\\/]/).pop().replace(/\.(novel|txt)$/i, '').trim();
   }
+  /* ---- AIの「思考」（<think>〜</think>）を除く（2026-10-07） ----
+     タグのまま（<think>）でも、文字として（&lt;think&gt;）でも入りうる。本文の HTML を文字にする前に、
+     タグのものは文字に直しておき（DOMParser に消されないように）、文字にしてから取り除く。
+       ・<think>〜</think> の組 → 丸ごと除く
+       ・</think> だけ（始まりの印がない）→ その区切り（会話の1発言）の頭から印までを思考とみなして除く。
+         会話の区切りがない本文では、印だけを消す（どこからが思考か分からないため）
+       ・<think> だけ（終わりの印がない）→ 印からその区切りの終わりまでを除く */
+  const thinkTagsToText = (html) => String(html || '').replace(/<(\/?)think\b[^>]*>/gi, '&lt;$1think&gt;');
+  function removeThink(text, isTurn) {
+    let n = 0;
+    let t = text.replace(/<think>[\s\S]*?<\/think>/gi, () => { n++; return ''; });
+    const closes = [...t.matchAll(/<\/think>/gi)];
+    if (closes.length) {
+      n++;
+      if (isTurn) { const last = closes[closes.length - 1]; t = t.slice(last.index + last[0].length); }
+      else t = t.replace(/<\/think>/gi, '');
+    }
+    const open = t.search(/<think>/i);
+    if (open >= 0) { n++; t = t.slice(0, open); }
+    return { text: t.replace(/^\n+/, '').replace(/\n+$/, ''), n };
+  }
+
+  /* ---- 会話形式（チャット）の作品（2026-10-07） ----
+     AIのべりすとのチャットで書いた作品は、発言ごとに
+       <img src="images/chat_icon_user00.png" class="chat_icon" alt="[＃ユーザー]">
+       <img src="images/chat_icon_assistant00.png" class="chat_icon" alt="[＃アシスタント]">
+     のアイコンが本文に入る。発言ごとに分け、取り込みの確認で本文にする発言を選べるようにする。
+     既定：アシスタントの発言だけ。断りの返事らしいもの（「お断りします」等で始まる）と、
+     ユーザーの発言・最初のアイコンより前の文は入れない */
+  const CHAT_ICON_RE = /<img\b[^>]*\bclass\s*=\s*["'][^"']*\bchat_icon\b[^"']*["'][^>]*>/gi;
+  const REFUSAL_RE = /^(お断りします|申し訳(ありません|ございません)|すみません|ごめんなさい|そのような(内容|ご依頼|文章|リクエスト)|この(ご依頼|リクエスト)には|I'?m sorry|I can(no|')t|I am unable|I'?m unable)/i;
+  function chatRole(tag) {
+    const src = (tag.match(/\bsrc\s*=\s*["']([^"']*)["']/i) || [])[1] || '';
+    const alt = (tag.match(/\balt\s*=\s*["']([^"']*)["']/i) || [])[1] || '';
+    if (/assistant/i.test(src) || /アシスタント/.test(alt)) return 'assistant';
+    if (/user/i.test(src) || /ユーザー/.test(alt)) return 'user';
+    return 'other';
+  }
+  function splitChat(html) {
+    const icons = [...String(html).matchAll(CHAT_ICON_RE)];
+    if (!icons.length) return null;
+    const turns = [];
+    const push = (role, part) => {
+      const r = removeThink(htmlToText(thinkTagsToText(part)), true);
+      if (!r.text.trim() && !r.n) return;
+      const refusal = role === 'assistant' && REFUSAL_RE.test(r.text.trim());
+      turns.push({ role, text: r.text, think: r.n, refusal, keep: role === 'assistant' && !refusal && !!r.text.trim() });
+    };
+    push('pre', html.slice(0, icons[0].index));
+    icons.forEach((m, i) => {
+      const end = i + 1 < icons.length ? icons[i + 1].index : html.length;
+      push(chatRole(m[0]), html.slice(m.index + m[0].length, end));
+    });
+    return turns;
+  }
+  function chatBody(turns) {
+    return turns.filter((t) => t.keep && t.text.trim()).map((t) => t.text).join('\n\n');
+  }
+
   function parseNovel(text, fileName) {
     const parts = String(text).split(NOVEL_SEP);
     if (parts.length < 2) throw new Error('AIのべりすとの .novel の形ではありません（区切りが見つかりません）');
-    const body = htmlToText(parts[0]);
+    const turns = splitChat(parts[0]);
+    let body, think = 0;
+    if (turns) {
+      body = chatBody(turns);
+      think = turns.reduce((s, t) => s + t.think, 0);
+    } else {
+      const r = removeThink(htmlToText(thinkTagsToText(parts[0])), false);
+      body = r.text; think = r.n;
+    }
     let title = parts.length > 6 ? oneLine(parts[6], 200) : '';
     if (!title) title = baseName(fileName);
     const idRaw = parts.length > 7 ? parts[7].trim() : '';
@@ -622,7 +728,7 @@
       if (/^\d{10}$/.test(v)) savedAt = Number(v) * 1000;
       else if (/^\d{13}$/.test(v)) savedAt = Number(v);
     }
-    return { kind: 'novel', title, body, workId, savedAt };
+    return { kind: 'novel', title, body, workId, savedAt, turns, think };
   }
   function parseTxt(text, fileName) {
     const body = String(text).replace(/\r\n?/g, '\n').replace(/^\n+/, '').replace(/\s+$/, '');
@@ -740,10 +846,11 @@
     for (const r of raws) {
       try {
         const parsed = r.kind === 'novel' ? parseNovel(r.text, r.fileName) : parseTxt(r.text, r.fileName);
-        if (!parsed.body.trim()) throw new Error('本文が空です');
+        // 会話形式は、確認の画面で発言を選び直せるので、既定の選び方で空でも読み込む
+        if (!parsed.body.trim() && !(parsed.turns && parsed.turns.some((t) => t.text.trim()))) throw new Error('本文が空です');
         if (parsed.body.length > BODY_MAX_CHARS) throw new Error('本文が長すぎます');
         const hash = await sha256Hex(parsed.body);
-        items.push({ fileName: r.fileName, parsed, hash, chars: countChars(parsed.body), title: parsed.title || '無題' });
+        items.push({ fileName: r.fileName, parsed, hash, body: parsed.body, chars: countChars(parsed.body), title: parsed.title || '無題' });
       } catch (err) {
         errors.push(`${r.fileName}：${err.message}`);
       }
@@ -782,6 +889,7 @@
     if (!importItems.length) {
       list.innerHTML = '';
       $('importSummary').textContent = '取り込める本はありませんでした。';
+      $('importOkBtn').disabled = true;
     } else {
       list.innerHTML = importItems.map((it, i) => {
         const opts = [`<option value="new"${it.action === 'new' ? ' selected' : ''}>新しく追加</option>`];
@@ -789,29 +897,61 @@
         opts.push(`<option value="skip"${it.action === 'skip' ? ' selected' : ''}>取り込まない</option>`);
         const note = it.action === 'skip' && it.dupOf ? `<span class="warn">同じ本文があります：${escapeHtml(it.dupOf)}</span>`
           : it.targetId ? `<span class="warn">同じ作品があります：${escapeHtml(it.dupOf)}</span>` : '';
+        const think = it.parsed.think ? `<span>思考（&lt;think&gt;）を${it.parsed.think}か所除きました</span>` : '';
+        const turns = it.parsed.turns;
+        // 会話形式：本文にする発言を選ぶ（2026-10-07）
+        const turnsHtml = turns ? `<details class="imp-turns"${turns.some((t) => t.refusal) || !it.body.trim() ? ' open' : ''}>
+            <summary data-role="turns-summary"></summary>
+            <div class="imp-turn-list">${turns.map((t, j) => `<label class="imp-turn">
+              <input type="checkbox" data-role="turn" data-t="${j}"${t.keep ? ' checked' : ''}>
+              <span class="imp-role" data-role-kind="${t.role}">${TURN_LABEL[t.role] || '発言'}</span>
+              <span class="imp-turn-text"></span>
+              ${t.refusal ? '<span class="imp-badge">断りの返事らしい</span>' : ''}${t.think ? '<span class="imp-badge">思考を除いた</span>' : ''}
+            </label>`).join('')}</div>
+          </details>` : '';
         return `<div class="imp-row${it.action === 'skip' ? ' is-skip' : ''}" data-i="${i}">
           <div class="imp-head">
             <input type="text" value="${escapeHtml(it.title)}" maxlength="200" aria-label="題名" data-role="title">
             <select data-role="action" aria-label="取り込み方">${opts.join('')}</select>
           </div>
-          <div class="imp-meta"><span>${it.chars.toLocaleString()}字</span>${it.parsed.savedAt ? `<span>保存 ${escapeHtml(formatDateTime(it.parsed.savedAt))}</span>` : ''}<span>${escapeHtml(it.fileName)}</span>${note}</div>
+          <div class="imp-meta"><span data-role="chars">${it.chars.toLocaleString()}字</span>${it.parsed.savedAt ? `<span>保存 ${escapeHtml(formatDateTime(it.parsed.savedAt))}</span>` : ''}<span>${escapeHtml(it.fileName)}</span>${think}${note}</div>
+          ${turnsHtml}
           <div class="imp-preview"></div>
         </div>`;
       }).join('');
       list.querySelectorAll('.imp-row').forEach((row) => {
         const it = importItems[Number(row.dataset.i)];
-        row.querySelector('.imp-preview').textContent = it.parsed.body.slice(0, 160);
+        if (it.parsed.turns) {
+          row.querySelectorAll('.imp-turn').forEach((lab, j) => {
+            lab.querySelector('.imp-turn-text').textContent = it.parsed.turns[j].text.replace(/\s+/g, ' ').slice(0, 80) || '（空）';
+          });
+        }
+        refreshImportRow(row, it);
       });
       updateImportSummary();
     }
-    $('importOkBtn').disabled = !importItems.some((it) => it.action !== 'skip');
     $('importModal').classList.add('is-open');
   }
+  const TURN_LABEL = { pre: '最初の文', user: 'ユーザー', assistant: 'アシスタント', other: '発言' };
+  // 1冊の行の表示（文字数・本文の見本・会話の選び方）を、今の選び方に合わせる
+  function refreshImportRow(row, it) {
+    row.querySelector('[data-role="chars"]').textContent = `${it.chars.toLocaleString()}字`;
+    row.querySelector('.imp-preview').textContent = it.body.trim() ? it.body.slice(0, 160) : '（本文にする発言が選ばれていません）';
+    const sum = row.querySelector('[data-role="turns-summary"]');
+    if (sum) {
+      const turns = it.parsed.turns;
+      sum.textContent = `会話形式：本文にする発言 ${turns.filter((t) => t.keep).length} / ${turns.length}（ユーザーの発言・断りの返事は、はじめは外してあります）`;
+    }
+  }
+  // 取り込める（本文が空でない・取り込まないでない）ものの数
+  const importable = (it) => it.action !== 'skip' && !!it.body.trim();
   function updateImportSummary() {
     const n = { new: 0, update: 0, skip: 0 };
     importItems.forEach((it) => { n[it.action]++; });
-    $('importSummary').textContent = `${importItems.length}冊を読みました：新しく追加 ${n.new}・本文を更新 ${n.update}・取り込まない ${n.skip}`;
-    $('importOkBtn').disabled = !(n.new + n.update);
+    const empty = importItems.filter((it) => it.action !== 'skip' && !it.body.trim()).length;
+    $('importSummary').textContent = `${importItems.length}冊を読みました：新しく追加 ${n.new}・本文を更新 ${n.update}・取り込まない ${n.skip}`
+      + (empty ? `（本文が空の${empty}冊は取り込みません）` : '');
+    $('importOkBtn').disabled = !importItems.some(importable);
   }
   $('importList').addEventListener('change', (e) => {
     const row = e.target.closest('.imp-row');
@@ -820,6 +960,12 @@
     if (e.target.dataset.role === 'action') {
       it.action = e.target.value;
       row.classList.toggle('is-skip', it.action === 'skip');
+      updateImportSummary();
+    } else if (e.target.dataset.role === 'turn') {
+      it.parsed.turns[Number(e.target.dataset.t)].keep = e.target.checked;
+      it.body = chatBody(it.parsed.turns);
+      it.chars = countChars(it.body);
+      refreshImportRow(row, it);
       updateImportSummary();
     }
   });
@@ -841,25 +987,28 @@
     const now = Date.now();
     const out = [];
     let added = 0, updated = 0;
-    importItems.forEach((it, i) => {
-      if (it.action === 'skip') return;
+    for (let i = 0; i < importItems.length; i++) {
+      const it = importItems[i];
+      if (!importable(it)) continue;
       const title = (it.title || '').replace(/\s+/g, ' ').trim().slice(0, 200) || it.parsed.title || '無題';
-      const source = { kind: it.parsed.kind, fileName: String(it.fileName).slice(0, 300), title: it.parsed.title, workId: it.parsed.workId, savedAt: it.parsed.savedAt, hash: it.hash };
+      // 本文の見分けの印（hash）は、選び直した後の本文で作る
+      const hash = it.body === it.parsed.body ? it.hash : await sha256Hex(it.body);
+      const source = { kind: it.parsed.kind, fileName: String(it.fileName).slice(0, 300), title: it.parsed.title, workId: it.parsed.workId, savedAt: it.parsed.savedAt, hash, ...(it.parsed.turns ? { chat: true } : {}) };
       const target = it.action === 'update' && it.targetId ? books.find((b) => b.id === it.targetId) : null;
       if (target) {
         // 本文だけ入れ替える。表紙・名義・メモ・タグはそのまま。題名は、取り込んだときのままなら新しい題名に
         const keepTitle = target.source && target.title !== target.source.title;
-        out.push({ ...target, title: keepTitle ? target.title : title, body: it.parsed.body, chars: it.chars, source, updatedAt: now, importedAt: now });
+        out.push({ ...target, title: keepTitle ? target.title : title, body: it.body, chars: it.chars, source, updatedAt: now, importedAt: now });
         updated++;
       } else {
         out.push({
           id: genId(), title, author: '', series: '', tags: [], memo: '',
-          body: it.parsed.body, chars: it.chars, coverImage: null, source,
+          body: it.body, chars: it.chars, coverImage: null, source,
           createdAt: now + i, updatedAt: now + i, importedAt: now + i,
         });
         added++;
       }
-    });
+    }
     if (!out.length) return;
     $('importOkBtn').disabled = true;
     try {
@@ -995,7 +1144,7 @@
     if (prev && Math.abs((prev.ratio || 0) - ratio) < 0.001) return; // ほとんど動いていなければ書かない（同期の送り直しを減らす）
     const rec = { id, ratio, vertical: !!prefs.vertical, updatedAt: Date.now() };
     progress.set(id, rec);
-    try { await put(S.progress, rec); } catch (err) { console.error('読んだ位置を保存できませんでした', err); }
+    try { await putPos(rec); } catch (err) { console.error('読んだ位置を保存できませんでした', err); }
   }
   function scheduleProgress() {
     updateProgressBar();
@@ -1253,7 +1402,7 @@
 
   /* ===================== 読み込み ===================== */
   async function loadAll() {
-    const [bs, ps] = await Promise.all([getAll(S.books), getAll(S.progress)]);
+    const [bs, ps] = await Promise.all([getAll(S.books), getAllPos().catch(() => [])]);
     books = bs.filter((b) => b && typeof b.id === 'string');
     progress.clear();
     ps.forEach((p) => { if (p && typeof p.id === 'string') progress.set(p.id, p); });
@@ -1264,6 +1413,11 @@
   openDb().then(async (d) => {
     db = d;
     db.onversionchange = () => { db.close(); showToast('データが別のタブで更新されました。開き直してください', true); };
+    try {
+      posDb = await openPosDb();
+      posDb.onversionchange = () => { posDb.close(); posDb = null; };
+      await migrateOldProgress();
+    } catch (err) { console.error('読んだ位置のDBを開けませんでした（位置は覚えません）', err); }
     dbReady = true;
     await loadAll();
     renderShelf();

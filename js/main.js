@@ -1921,7 +1921,7 @@
   // 本体のモーダル（同期の進み具合・確認のダイアログは、答えを待つものなので戻る操作の対象にしない）
   if (BackNav) {
     ['settingsOverlay', 'customThemeOverlay', 'appManageOverlay', 'appDeleteConfirmOverlay',
-      'launcherAddOverlay', 'launcherDeleteOverlay', 'syncOverlay']
+      'launcherAddOverlay', 'launcherDeleteOverlay', 'launcherDupOverlay', 'syncOverlay']
       .forEach((id) => BackNav.watchOverlay(document.getElementById(id)));
   }
 
@@ -2307,6 +2307,129 @@
   // スマホ幅のままトラック幅が変わった場合も、カード高さ連動の間隔を追従させる
   window.addEventListener('resize', () => { if (isMobileLayout()) render(); });
 
+  /* ===================== 同じカードをまとめる（2026-10-08） =====================
+     PCとスマホで同じアプリのカードを別々に作ってから同期すると、IDが違うので両方残り、2枚ずつになる
+     （同期は「IDが違えば別のもの」として合流する）。開いたときに見つけたら、まとめるかを聞く。
+     同じとみなすもの：
+       ・アプリ本体：先天的アプリは src が同じ、取り込んだアプリは名前と中身が同じ（ショートカット等は対象外）
+       ・カード：同じアプリ（まとめた後）で、カテゴリとアプリの名称が同じ
+     残すのは、作った日時がいちばん古いもの（同じならIDの小さいもの）。どの端末でまとめても同じものが残るので、
+     2台が別々にまとめても食い違わない。消したものは同期で、ほかの端末からも消える。
+     残すカードにカバー画像がなく、消す方にあれば、カバー画像（と見え方）を引き継ぐ。
+     全部を1つのトランザクションで書く（途中で失敗したら何も変えない） */
+  const LAUNCHER_DUP_LATER_KEY = 'sideops_launcher_dup_later';
+  const launcherByAge = (a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.id).localeCompare(String(b.id));
+  function planLauncherDedupe() {
+    const appMap = new Map(); // 消すアプリのid → 残すアプリのid
+    const appGroups = new Map();
+    apps.forEach((a) => {
+      const key = a.type === 'builtin' && a.src ? 'b|' + a.src
+        : (a.type === 'imported' && typeof a.htmlContent === 'string' ? 'i|' + (a.name || '') + '|' + a.htmlContent : null);
+      if (!key) return;
+      if (!appGroups.has(key)) appGroups.set(key, []);
+      appGroups.get(key).push(a);
+    });
+    const appDeletes = [];
+    appGroups.forEach((list) => {
+      if (list.length < 2) return;
+      list.sort(launcherByAge);
+      list.slice(1).forEach((a) => { appMap.set(a.id, list[0].id); appDeletes.push(a.id); });
+    });
+    const appOf = (c) => appMap.get(c.appId) || c.appId;
+    const cardGroups = new Map();
+    cards.forEach((c) => {
+      const key = [appOf(c), (c.cat || '').trim(), (c.overlayText || '').trim()].join('\u0000');
+      if (!cardGroups.has(key)) cardGroups.set(key, []);
+      cardGroups.get(key).push(c);
+    });
+    const now = Date.now();
+    const cardDeletes = new Set();
+    const cardPuts = new Map();
+    const names = [];
+    cardGroups.forEach((list) => {
+      if (list.length < 2) return;
+      list.sort(launcherByAge);
+      const keep = { ...list[0], appId: appOf(list[0]) };
+      if (!(keep.coverImage instanceof Blob)) {
+        const withCover = list.find((c) => c.coverImage instanceof Blob);
+        if (withCover) {
+          keep.coverImage = withCover.coverImage;
+          if (withCover.coverThumb) keep.coverThumb = withCover.coverThumb; else delete keep.coverThumb;
+        }
+      }
+      keep.updatedAt = now;
+      cardPuts.set(keep.id, keep);
+      list.slice(1).forEach((c) => cardDeletes.add(c.id));
+      const app = apps.find((a) => a.id === keep.appId);
+      names.push(`${(keep.overlayText || '').trim() || (app ? app.name : 'カード')}（${list.length}枚）`);
+    });
+    // まとめないカードでも、消すアプリを指しているものは、残すアプリへ付け替える
+    cards.forEach((c) => {
+      if (cardDeletes.has(c.id) || cardPuts.has(c.id) || !appMap.has(c.appId)) return;
+      cardPuts.set(c.id, { ...c, appId: appOf(c), updatedAt: now });
+    });
+    return { appDeletes, cardDeletes: [...cardDeletes], cardPuts: [...cardPuts.values()], names, count: appDeletes.length + cardDeletes.size };
+  }
+  function applyLauncherDedupe(plan) {
+    return new Promise((resolve, reject) => {
+      const tx = launcherDb.transaction([CARDS_STORE, APPS_STORE], 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('中断されました'));
+      try {
+        plan.cardPuts.forEach((c) => tx.objectStore(CARDS_STORE).put(c));
+        plan.cardDeletes.forEach((id) => tx.objectStore(CARDS_STORE).delete(id));
+        plan.appDeletes.forEach((id) => tx.objectStore(APPS_STORE).delete(id));
+      } catch (err) { try { tx.abort(); } catch (e) { /* すでに終了 */ } }
+    });
+  }
+  const launcherDupOverlay = document.getElementById('launcherDupOverlay');
+  let launcherDupPlan = null;
+  // 開いた直後の同期（js/sync.js）の画面が出ている間は待つ（同期で受け取った後のデータで数え直す）
+  function launcherSyncScreenOpen() {
+    return !!document.querySelector('#syncProgress.is-open, #syncDialog.is-open, #syncOverlay.is-open');
+  }
+  function maybeAskLauncherDedupe(tries = 0) {
+    if (!launcherDb) return;
+    if (launcherSyncScreenOpen() || (stageEl && stageEl.classList.contains('is-open'))) {
+      if (tries < 40) setTimeout(() => maybeAskLauncherDedupe(tries + 1), 3000);
+      return;
+    }
+    const plan = planLauncherDedupe();
+    if (!plan.names.length && !plan.appDeletes.length) return;
+    const sig = plan.names.join('|') + '|' + plan.appDeletes.length;
+    try { if (sessionStorage.getItem(LAUNCHER_DUP_LATER_KEY) === sig) return; } catch (e) { /* 使えなければ毎回聞く */ }
+    launcherDupPlan = { plan, sig };
+    document.getElementById('launcherDupMsg').textContent = plan.names.length
+      ? `同じカードがあります：${plan.names.slice(0, 6).join('、')}${plan.names.length > 6 ? ' ほか' : ''}。\n別々の端末で作ったカードが、同期で合流したためです。1枚にまとめますか？\n（アプリのデータは消えません。カバー画像は、残すカードになければ引き継ぎます）`
+      : '同じアプリの登録が重なっています（別々の端末で作ったものが、同期で合流したため）。1つにまとめますか？（カードとアプリのデータはそのまま使えます）';
+    launcherDupOverlay.classList.add('is-open');
+  }
+  function closeLauncherDup(later) {
+    launcherDupOverlay.classList.remove('is-open');
+    if (later && launcherDupPlan) { try { sessionStorage.setItem(LAUNCHER_DUP_LATER_KEY, launcherDupPlan.sig); } catch (e) { /* 何もしない */ } }
+    launcherDupPlan = null;
+  }
+  document.getElementById('launcherDupLaterBtn').addEventListener('click', () => closeLauncherDup(true));
+  launcherDupOverlay.addEventListener('click', (e) => { if (e.target === launcherDupOverlay) closeLauncherDup(true); });
+  document.getElementById('launcherDupMergeBtn').addEventListener('click', async () => {
+    if (!launcherDupPlan) return;
+    const { plan } = launcherDupPlan;
+    closeLauncherDup(false);
+    try {
+      await applyLauncherDedupe(plan);
+      showLauncherToast('まとめました');
+    } catch (err) {
+      console.error('カードをまとめられませんでした', err);
+      showLauncherToast('まとめられませんでした（何も変えていません）');
+    }
+    await loadLauncherData();
+    buildCoverflow();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && launcherDupOverlay.classList.contains('is-open')) closeLauncherDup(true);
+  });
+
   // カバーフロー・ランチャーDBの初期化 → データ読み込み → 初回描画。
   // 失敗時（プライベートブラウジング等でIndexedDB不可）は、空のカバーフロー
   // （＋新規作成カードのみ）を表示し、ダッシュボード全体は落とさない。
@@ -2314,6 +2437,7 @@
     launcherDb = _db;
     await loadLauncherData();
     buildCoverflow();
+    setTimeout(() => maybeAskLauncherDedupe(), 1500); // 開いた直後の同期の画面が先に出るのを待ってから
   }).catch((err) => {
     console.error('カバーフロー用DBの初期化に失敗しました', err);
     cards = [];

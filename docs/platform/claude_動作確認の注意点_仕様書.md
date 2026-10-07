@@ -37,6 +37,8 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 - **ホーム画面に追加できるか**：`Page.getAppManifest`（manifestの読み込みエラー）と`Page.getInstallabilityErrors`（インストールできない理由）で確かめる（`pwa_check.dart`。2つ目の引数に公開サイトのURLを渡すとそちらを調べる）
 - **display-mode**：このEdgeでは`Emulation.setEmulatedMedia`で`display-mode`を真似できない（効かない）。ホーム画面から開いたときの動きは、`?app=1`の印の扱いだけを確かめている（2026-10-07）
 - **ファイル選択の画面**：`Page.setInterceptFileChooserDialog`を有効にしておくと、`input[type=file]`のクリックで選ぶ画面が開いて止まることがない。そのうえで`DOM.setFileInputFiles`でファイルを渡す
+- **偽のOneDriveの一覧**：`fake_ms.dart`はページ送りを確かめるため、一覧を3件ずつ返す（`pageSize`）。通信の回数を測るときは200にする（本物と同じく1回で返る。`sync_perf.dart`はそうしている）
+- **同じポートのテストを同時に流さない**：`sync_e2e.dart`と`D:dev_handoffdartstage_back.dart`は、どちらもEdgeのポート9341・9342を使う。同時に流すと互いのブラウザにつながって失敗する（2026-10-07に発生）。失敗して残った使い捨てのEdge（`--headless=new`・`sideops-sync-e2e-*`）は止めてから流し直す
 - **ダウンロード先**：`Browser.setDownloadBehavior`の`downloadPath`は、Windowsの書き方（`C:\...`）で渡す。`C:/...`（スラッシュ）で渡したら何もダウンロードされなかった（2026-10-06）。`sync_e2e.dart`の2つ目の引数（作業フォルダ）も同じ
 - **再読み込みの直前の片付け**：`location.reload()`を呼ぶと、その呼び出しの中で`beforeunload`が起きる（2026-10-06に確認）。そのあとで`history.back()`等を呼ぶと再読み込みが打ち消される（`js/back-nav.js`はこれを避けている）
 
@@ -54,6 +56,10 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 | `frame_e2e.dart` | 画像の見え方（`apps/sideops-frame.js`）：SCAFFOLD・MANUSCRIPT・Discotica・ランチャーで、選ぶ → 調整 → 保存 → 一覧に反映、Esc・戻るボタンで調整だけ閉じる（2026-10-07） |
 | `librarium_e2e.dart` | LIBRARIUM：.novel・ZIP・.txt の取り込み、更新、読む画面と続きの位置、情報・表紙、削除、Stageの中の戻るボタン。テスト用の .novel と ZIP はこのテストが作る（2026-10-07） |
 | `cover_librarium.dart` | LIBRARIUMのカバー画像を描いて書き出す（`icon_src/librarium.html`） |
+| `dedupe_e2e.dart` | 同期で2つずつになったものをまとめる（ランチャー・Discotica）（2026-10-08） |
+| `sync_perf.dart` | 同期の速さの計測：偽のOneDriveに遅延（既定200ms/回）、CPUを遅く（既定4倍）して、1回の同期の時間・通信の回数（種類ごと：`PERF_DETAIL=1`）・送ったバイト数・かかった時間の内訳を出す（2026-10-08） |
+| `probe_blob.dart` | IndexedDBの画像（Blob）の読み出しと要約の重さを測る |
+| `probe_sample.dart` | 実物の .novel を LIBRARIUM の取り込みの確認に通して、題名・発言の分け方を見る（ファイルは読むだけ） |
 
 
 Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。
