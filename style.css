@@ -1041,6 +1041,7 @@
   }
   .sync-banner .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
   /* 同期の記録 */
+  .sync-runlog { font-size: 11px; color: var(--text-dim); line-height: 1.8; margin: 4px 0 6px; white-space: pre-wrap; }
   .sync-journal { display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: var(--text-dim); }
   .sync-journal-row { border: 1px solid var(--line); padding: 6px 8px; }
   .sync-journal-row.is-undone { opacity: .55; }

@@ -486,6 +486,16 @@
     </div>
 
     <div class="settings-row settings-row-col">
+      <div class="settings-row-label">同期のログ（かかった時間）</div>
+      <div class="settings-row-hint">同期のたびに、きっかけ・かかった時間・通信の回数を、この端末に残しています（データの中身は残しません。30日分）。「ログを書き出す」は、ほかの端末のログもまとめて1つのファイルにします（OneDriveにつないでいる端末は、自分のログを暗号化してOneDriveに置き、ほかの端末が置いたログも読みます）。</div>
+      <div class="sync-runlog" id="syncRunlog"></div>
+      <div class="sync-actions">
+        <button class="btn" id="syncRunlogExportBtn" data-sync-action>ログを書き出す</button>
+        <button class="btn" id="syncRunlogClearBtn" data-sync-action>この端末のログを消す</button>
+      </div>
+    </div>
+
+    <div class="settings-row settings-row-col">
       <div class="settings-row-label">バックアップ・その他</div>
       <div class="sync-actions">
         <button class="btn" id="syncBackupBtn" data-sync-action>全データを書き出す</button>

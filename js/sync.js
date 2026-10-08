@@ -46,7 +46,7 @@
   const SYNC_APP_BUILD = 2026100801;
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
-  const SYNC_DB_VERSION = 2; // 2：同期の記録（journal）を追加
+  const SYNC_DB_VERSION = 3; // 2：同期の記録（journal）を追加、3：同期のログ（runlog。かかった時間）を追加
   const KDF_ITERATIONS = 600000;        // OWASPの推奨値（PBKDF2-HMAC-SHA256）
   const KDF_ITERATIONS_MIN = 100000;    // 読み込んだmanifestの値の妥当範囲（細工されたファイルで固まらないように）
   const KDF_ITERATIONS_MAX = 10000000;
@@ -336,6 +336,7 @@
           if (!d.objectStoreNames.contains('conflicts')) d.createObjectStore('conflicts', { keyPath: 'id' }).createIndex('at', 'at', { unique: false });
           if (!d.objectStoreNames.contains('log')) d.createObjectStore('log', { keyPath: 'id', autoIncrement: true });
           if (!d.objectStoreNames.contains('journal')) d.createObjectStore('journal', { keyPath: 'id', autoIncrement: true }).createIndex('at', 'at', { unique: false });
+          if (!d.objectStoreNames.contains('runlog')) d.createObjectStore('runlog', { keyPath: 'id', autoIncrement: true }).createIndex('at', 'at', { unique: false });
         };
         req.onsuccess = () => {
           const d = req.result;
@@ -367,6 +368,78 @@
       if (keys.length > LOG_MAX) keys.slice(0, keys.length - LOG_MAX).forEach((k) => os.delete(k));
       await txDone(tx);
     } catch (err) { console.error('同期の記録に失敗しました', err); }
+  }
+
+  // ===================== 同期のログ（2026-10-08） =====================
+  // 「しょっちゅう同期がかかって時間を取られる」の原因を調べるため、1回ごとに、きっかけ・結果・
+  // かかった時間（段階ごと・通信の種類ごと・DBごと）・件数を、この端末の sideops_sync の runlog に残す。
+  // ページの読み込み（ブラウザに閉じられて読み込み直したか）、しばらく離れて戻ったこと、
+  // アプリを開くのを待ってもらった時間も残す。中身（データそのもの）は入れない。
+  // 30日・1500件を超えた古いものから消す。書き出して分析に使う（同期の画面の「同期のログ」）
+  const RUNLOG_MAX = 1500;
+  const RUNLOG_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+  function logEnv() {
+    const c = navigator.connection;
+    return {
+      vis: document.visibilityState,
+      online: navigator.onLine,
+      conn: (c && c.effectiveType) || '',
+      sinceLoad: Math.round(performance.now()),
+    };
+  }
+  async function addRunLog(entry) {
+    try {
+      const d = await syncDb();
+      const tx = d.transaction('runlog', 'readwrite');
+      const os = tx.objectStore('runlog');
+      os.add({ v: 1, at: Date.now(), build: SYNC_APP_BUILD, ...entry, env: logEnv() });
+      const old = await reqP(os.index('at').getAllKeys(IDBKeyRange.upperBound(Date.now() - RUNLOG_KEEP_MS)));
+      old.forEach((k) => os.delete(k));
+      const n = await reqP(os.count());
+      if (n > RUNLOG_MAX) (await reqP(os.getAllKeys(null, n - RUNLOG_MAX))).forEach((k) => os.delete(k));
+      await txDone(tx);
+    } catch (err) { /* ログを残せなくても、同期には影響させない */ }
+  }
+  async function listRunLog() {
+    try {
+      const d = await syncDb();
+      return await reqP(d.transaction('runlog').objectStore('runlog').getAll());
+    } catch (err) { return []; }
+  }
+  async function clearRunLog() {
+    const d = await syncDb();
+    const tx = d.transaction('runlog', 'readwrite');
+    tx.objectStore('runlog').clear();
+    await txDone(tx);
+  }
+  // 1回の同期のログを組み立てる道具。lap(名前)＝前の区切りからの時間
+  function startRunLog(kind, trigger, flags) {
+    const t0 = performance.now();
+    let last = t0;
+    const e = { kind, trigger: trigger || '', flags: flags || {}, ms: {}, result: '' };
+    return {
+      e,
+      lap(name) { const now = performance.now(); e.ms[name] = (e.ms[name] || 0) + Math.round(now - last); last = now; },
+      skip(reason) { e.result = 'skip'; e.skip = reason; },
+      fail(err) { e.result = 'error'; e.error = String((err && err.message) || err).slice(0, 300); },
+      report(r) {
+        if (!r) return;
+        e.t = r.timing;
+        e.stats = r.stats;
+        e.conflicts = r.conflicts || 0;
+        if (r.deferred) e.deferred = true;
+        if (r.firstTime) e.firstTime = true;
+        if (r.appliedDbs && r.appliedDbs.length) e.applied = r.appliedDbs;
+        e.dbs = r.results
+          .filter((x) => x.inAdd || x.inChange || x.inDel || x.outAdd || x.outChange || x.outDel || x.note || (r.timing && r.timing.scan && r.timing.scan[x.db] !== undefined))
+          .map((x) => ({ db: x.db, in: [x.inAdd, x.inChange, x.inDel], out: [x.outAdd, x.outChange, x.outDel], ...(x.note ? { note: String(x.note).slice(0, 120) } : {}) }));
+      },
+      async end() {
+        e.ms.total = Math.round(performance.now() - t0);
+        if (!e.result) e.result = 'ok';
+        await addRunLog(e);
+      },
+    };
   }
 
   function guessDeviceName() {
@@ -848,6 +921,8 @@
       device: async (deviceId) => 'd_' + (await hmacHex(keys.nameKey, 'device|' + deviceId)).slice(0, 32) + '.bin',
       db: async (deviceId, dbName) => 'b_' + (await hmacHex(keys.nameKey, 'db|' + deviceId + '|' + dbName)).slice(0, 32) + '.bin',
       blob: (hash) => 'x_' + hash + '.bin',
+      // 同期のログ（2026-10-08）：「ログを書き出す」を押したときだけ置く。同期そのものは読まない（l_ で始まる名前は無視する）
+      log: async (deviceId) => 'l_' + (await hmacHex(keys.nameKey, 'log|' + deviceId)).slice(0, 32) + '.bin',
     };
   }
   async function writeJsonFile(backend, keys, spaceId, name, obj) {
@@ -873,16 +948,26 @@
   // 戻り値：{ results: [...], applied, appliedDbs, conflicts, firstTime, pushOnly, stats }
   // 保存先の4操作の時間を測る（中身は変えない）
   function timedBackend(backend, timing) {
-    const wrap = (fn) => (typeof fn !== 'function' ? fn : async (...a) => {
+    // 操作の種類ごとに、回数・時間・バイト数も数える（同期のログ用）
+    timing.ops = timing.ops || {};
+    const wrap = (name, fn) => (typeof fn !== 'function' ? fn : async (...a) => {
       const t = performance.now();
-      try { return await fn(...a); } finally { timing.net += performance.now() - t; timing.netCount++; }
+      const o = timing.ops[name] || (timing.ops[name] = { n: 0, ms: 0, bytes: 0 });
+      let r;
+      try { r = await fn(...a); return r; } finally {
+        const dt = performance.now() - t;
+        timing.net += dt; timing.netCount++;
+        o.n++; o.ms += dt;
+        if (name === 'read' && r && typeof r.length === 'number') o.bytes += r.length;
+        if (name === 'write' && a[1] && typeof a[1].length === 'number') o.bytes += a[1].length;
+      }
     });
-    return { ...backend, list: wrap(backend.list), read: wrap(backend.read), write: wrap(backend.write), remove: wrap(backend.remove) };
+    return { ...backend, list: wrap('list', backend.list), read: wrap('read', backend.read), write: wrap('write', backend.write), remove: wrap('remove', backend.remove) };
   }
   async function syncWith(backend, hooks = {}) {
     const progress = (t) => { try { if (hooks.onProgress) hooks.onProgress(t); } catch (err) { /* 表示に失敗しても続ける */ } };
     // かかった時間の内訳（2026-10-08）：通信（保存先とのやり取り）とDBの見直しを分けて測り、同期の記録に残す
-    const timing = { start: performance.now(), net: 0, netCount: 0, scan: {}, scanDetail: {} };
+    const timing = { start: performance.now(), net: 0, netCount: 0, scan: {}, scanDetail: {}, apply: {} };
     backend = timedBackend(backend, timing);
     const keys = await getKeys();
     if (!keys) throw new SyncError('この端末はまだ同期の鍵を持っていません');
@@ -1218,6 +1303,7 @@
 
         // ---- 反映（1トランザクション。失敗したら何も変わらない） ----
         if (plan.length) {
+          const applyT0 = performance.now();
           progress(`${rule.label}を受け取っています`);
           const storeNames = [...new Set(plan.map((p) => p.store))];
           const keyPaths = readSchema(db, storeNames);
@@ -1278,6 +1364,7 @@
             if (s && c) s.fp = c.fp;
             journalItems.push({ db: rule.name, store: p.store, key: p.key, kp: keyPaths[p.store].keyPath, before: existing.get(p.id), op: p.op, afterFp: c ? c.fp : null });
           }
+          timing.apply[rule.name] = Math.round(performance.now() - applyT0); // 受け取った分の書き込みと、指紋の取り直し
         }
 
         // ---- 自分のファイルを書く：画像 → DBのファイル（端末の情報は最後にまとめて） ----
@@ -1398,6 +1485,8 @@
     await saveBlobCache(blobCache);
     report.timing = {
       total: Math.round(performance.now() - timing.start), net: Math.round(timing.net), netCount: timing.netCount, scan: timing.scan, scanDetail: timing.scanDetail,
+      ops: Object.fromEntries(Object.entries(timing.ops || {}).map(([k, o]) => [k, { n: o.n, ms: Math.round(o.ms), bytes: o.bytes }])),
+      apply: timing.apply,
     };
     lastReport = report;
     return report;
@@ -1856,6 +1945,7 @@
     const INTENT_KEY = 'sideops_sync_intent'; // ログインに出る前の目的（'check'：確認だけ／'sync'：同期）
     const DISMISS_KEY = 'sideops_sync_unsent_dismissed';
     const hook = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && window.__SIDEOPS_SYNC_TEST__ ? window.__SIDEOPS_SYNC_TEST__ : {};
+    const LAST_HIDDEN_KEY = 'sideops_sync_last_hidden'; // 画面を最後に離れた時刻（ページを開き直したときに、離れていた時間をログに残す）
     const AWAY_MS = hook.awayMs || 10 * 60 * 1000;        // これ以上離れてから戻ったら、開いたときと同じ扱い
     const PUSH_EVERY_MS = hook.pushEveryMs || 30 * 60 * 1000; // アプリを開いたままの作業で「送るだけ」をする間隔
     const FULL_SCAN_MS = 24 * 60 * 60 * 1000;            // 1日1回は、印に関係なくすべてを見直す
@@ -1991,6 +2081,7 @@
           dbListEl.appendChild(label);
         }
         await refreshJournal();
+        await refreshRunlog();
         await refreshCloud();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
@@ -2274,7 +2365,19 @@
     if (cloudSel) cloudSel.addEventListener('change', () => { refreshCloud(); });
 
     // クラウドで同期する（手動）
+    // 手動の同期（☁）。かかった時間を同期のログに残す
     async function cloudSyncFlow() {
+      const L = startRunLog('manual', 'manual', { scanAll: true });
+      try {
+        await cloudSyncFlowInner(L);
+      } catch (err) {
+        L.fail(err);
+        throw err;
+      } finally {
+        await L.end();
+      }
+    }
+    async function cloudSyncFlowInner(L) {
       const p = await currentProvider();
       if (!p || !p.configured()) throw new SyncError('クラウドの設定（アプリの登録）がまだありません');
       if (p.loginLeavesPage) {
@@ -2293,7 +2396,9 @@
         await p.ensureToken({ interactive: true });
       }
       await withLock(async () => {
-        await precheck();
+        // ログインでページを離れる方式は、上で確かめたばかりなので省く（ほかのタブの確認は0.4秒待つ。2026-10-08）
+        if (!p.loginLeavesPage) await precheck();
+        L.lap('check');
         progStep(`${p.label}を確認しています`);
         const backend = p.createBackend();
         let info = await inspect(backend);
@@ -2337,9 +2442,13 @@
           if (pass === null) { showResult(['やめました'], ''); return; }
         }
         if (!(await firstBackupIfNeeded())) { showResult(['やめました'], ''); return; }
+        L.lap('prepare'); // 確認・（初めてなら）パスフレーズなどのやり取り
         const report = await syncWith(backend, { confirmSensitive, scanAll: true, onProgress: progStep, canApply: () => !stageBusy() });
+        L.lap('sync');
+        L.report(report);
         await metaPut({ ...(await cloudMeta()), provider: p.id, connected: true });
         await p.persist(); // 鍵ができた後に、更新用トークンを暗号化して保存する（OneDrive）
+        L.lap('persist');
         if (touchesMain(report.appliedDbs)) needReload = true;
         showResult(resultLinesFor(report, `${p.label}と同期しました。`), 'ok');
         if (needReload) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
@@ -2390,7 +2499,11 @@
     // 自動の同期の本体。showBanner のときは、上の帯で進み具合と結果を知らせる
     let autoPromise = null;
     function autoRun(cp, hooks = {}) {
-      if (autoRunning || reloadPending || overlay.classList.contains('is-busy')) return Promise.resolve(null);
+      if (autoRunning || reloadPending || overlay.classList.contains('is-busy')) {
+        // 走らせなかったことも残す（きっかけが重なっている回数を見るため）
+        addRunLog({ kind: 'auto', trigger: hooks.trigger || '', result: 'skip', skip: autoRunning ? 'running' : reloadPending ? 'reloading' : 'manualBusy', ms: {} });
+        return Promise.resolve(null);
+      }
       autoPromise = autoRunInner(cp, hooks).finally(() => { autoPromise = null; });
       return autoPromise;
     }
@@ -2398,24 +2511,33 @@
       const { p } = cp;
       autoRunning = true;
       const say = (text, kind = 'busy', extra = {}) => { if (hooks.showBanner) banner.show({ text, kind, ...extra }); };
+      const L = startRunLog('auto', hooks.trigger, { pushOnly: !!hooks.pushOnly, scanAll: !!hooks.scanAll, freshBlobs: !!hooks.freshBlobs });
+      if (hooks.tokenMs) L.e.ms.startCheck = hooks.tokenMs; // 開いたときの同期の前の、ログインの確かめ
       try {
         // ログインの確認と、ほかのタブの確認（返事を0.4秒待つ）は並べて行う（2026-10-08）
         const [token, others] = await Promise.all([p.ensureToken({ interactive: false }), otherTabsOpen()]);
-        if (!token) { updateIndicator(); return null; } // 自動ではログインし直さない
-        if (others) return null;
+        L.lap('check');
+        if (!token) { L.skip('notLoggedIn'); updateIndicator(); return null; } // 自動ではログインし直さない
+        if (others) { L.skip('otherTabs'); return null; }
         updateIndicator('busy');
         say(hooks.pushOnly ? `☁ ${p.label}へ送っています（アプリは開いたまま）…` : `☁ ${p.label}と同期しています…`);
         const report = await withLock(async () => {
+          L.lap('lock');
           const backend = p.createBackend();
           const info = await inspect(backend);
+          L.lap('inspect');
           if (info.state !== 'ready') throw new SyncError(`${p.label}の同期を確認してください（☁から同期してください）`);
-          return syncWith(backend, {
+          const r = await syncWith(backend, {
             ...hooks,
             onProgress: (t) => say(`☁ ${t}…`),
             canApply: () => !stageBusy(),
           });
+          L.lap('sync');
+          return r;
         });
+        L.report(report);
         await p.persist();
+        L.lap('persist');
         updateIndicator('ok');
         const inN = report.results.reduce((a, r) => a + r.inAdd + r.inChange + r.inDel, 0);
         const outN = report.results.reduce((a, r) => a + r.outAdd + r.outChange + r.outDel, 0);
@@ -2424,6 +2546,7 @@
         if (touchesMain(report.appliedDbs)) reloadSoon();
         return report;
       } catch (err) {
+        L.fail(err);
         if (userFacing(err)) console.warn('自動の同期を中止しました：' + err.message);
         else { console.error(err); addLog('error', err && err.stack ? err.stack : String(err)); }
         const loginLost = err && err.code === 'login';
@@ -2437,7 +2560,10 @@
         return null;
       } finally {
         autoRunning = false;
+        L.lap('after');
         await updateUnsent();
+        L.lap('unsent');
+        await L.end();
       }
     }
 
@@ -2445,28 +2571,37 @@
     let gate = null;
     window.SideOpsSyncGate = (openLater) => {
       if (!gate) return false;
+      if (!gate.pending) gate.heldAt = performance.now(); // 待ってもらい始めた時刻（同期のログ用）
       gate.pending = openLater;
-      banner.show({ text: '☁ ほかの端末の変更を受け取っています。終わったらアプリを開きます', kind: 'busy', actions: [{ label: '待たずに開く', onClick: () => releaseGate(true) }] });
+      banner.show({ text: '☁ ほかの端末の変更を受け取っています。終わったらアプリを開きます', kind: 'busy', actions: [{ label: '待たずに開く', onClick: () => releaseGate(true, 'skip') }] });
       return true;
     };
-    function releaseGate(openNow) {
+    function releaseGate(openNow, how = 'synced') {
       const g = gate;
       gate = null;
+      // アプリを開くのを待ってもらった時間を残す（いちばん体感に響く待ち）
+      if (g && g.pending) addRunLog({ kind: 'gate', trigger: g.trigger || '', result: how, ms: { total: Math.round(performance.now() - (g.heldAt || performance.now())) } });
       if (g && g.pending && openNow && !reloadPending) g.pending();
     }
 
     // 開いたとき（しばらく離れて戻ったときも）：ログイン中なら裏で受け取る。ログインが切れていたら、まず確かめる
-    async function startupSync() {
+    // trigger：'open'（ページを開いた）・'return'（しばらく離れて戻った）
+    async function startupSync(trigger = 'open') {
       const cp = await connectedProvider();
       if (!cp || !cp.c.auto || stageBusy() || overlay.classList.contains('is-busy')) return;
       // 覚えているログインが本当に使えるかは、取り直してみるまで分からない。だめなら、ここで止めて確かめる
+      const t0 = performance.now();
       let usable = (await cp.p.status()) === 'ready';
       if (usable) { try { usable = await cp.p.ensureToken({ interactive: false }); } catch (err) { usable = false; } }
-      if (!usable) { await showLoginGate(cp.p); return; }
-      gate = { pending: null };
+      if (!usable) {
+        addRunLog({ kind: 'auto', trigger, result: 'skip', skip: 'loginGate', ms: { total: Math.round(performance.now() - t0) } });
+        await showLoginGate(cp.p);
+        return;
+      }
+      gate = { pending: null, trigger };
       try {
         const due = await fullScanDue();
-        await autoRun(cp, { showBanner: true, scanAll: due, freshBlobs: due });
+        await autoRun(cp, { showBanner: true, scanAll: due, freshBlobs: due, trigger, tokenMs: Math.round(performance.now() - t0) });
       } finally {
         releaseGate(true);
       }
@@ -2532,7 +2667,7 @@
       setTimeout(() => { if (progTitle.textContent === '最新です') progClose(); }, 1500);
       // この端末に未送信があれば、裏で送っておく
       const cp = await connectedProvider();
-      if (cp && (await unsentDbs()).length) autoRun(cp, { showBanner: true });
+      if (cp && (await unsentDbs()).length) autoRun(cp, { showBanner: true, trigger: 'afterLogin' });
     }
 
     // ---- 未送信の表示：☁に印。ログインが切れているなど自動で送れないときは、帯で知らせる ----
@@ -2568,13 +2703,16 @@
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now();
+        try { localStorage.setItem(LAST_HIDDEN_KEY, String(hiddenAt)); } catch (err) { /* 残せなくても動く */ }
         // 画面を離れるとき：未送信があれば送る（スマホでは途中で止められることがある。その分は次回送る）
         const cp = await connectedProvider();
-        if (cp && cp.c.auto && !stageBusy() && (await unsentDbs()).length) autoRun(cp, {});
+        if (cp && cp.c.auto && !stageBusy() && (await unsentDbs()).length) autoRun(cp, { trigger: 'hidden' });
         return;
       }
       // しばらく離れて戻ったとき：開いたときと同じ扱い（ほかの端末で作業していたかもしれない）
-      if (hiddenAt && Date.now() - hiddenAt >= AWAY_MS) startupSync();
+      const away = hiddenAt ? Date.now() - hiddenAt : 0;
+      if (away >= Math.min(30 * 1000, AWAY_MS)) addRunLog({ kind: 'away', trigger: away >= AWAY_MS ? 'return' : '', result: '', ms: { total: away } }); // 離れていた時間（30秒以上）
+      if (hiddenAt && away >= AWAY_MS) startupSync('return');
       else scheduleUnsent();
       hiddenAt = 0;
     });
@@ -2587,7 +2725,7 @@
           // アプリを閉じたとき：保存し終えるのを待って、未送信があれば送る
           setTimeout(async () => {
             const cp = await connectedProvider();
-            if (cp && cp.c.auto && !stageBusy() && (await unsentDbs()).length) autoRun(cp, { showBanner: true });
+            if (cp && cp.c.auto && !stageBusy() && (await unsentDbs()).length) autoRun(cp, { showBanner: true, trigger: 'stageClose' });
             else scheduleUnsent();
           }, STAGE_RETIRE_WAIT_MS + 500);
         }
@@ -2602,8 +2740,76 @@
       const s = (await metaGet('status')) || {};
       if (Date.now() - (s.lastPushAt || 0) < PUSH_EVERY_MS) return;
       if (!(await unsentDbs()).length) return;
-      autoRun(cp, { pushOnly: true, showBanner: true });
+      autoRun(cp, { pushOnly: true, showBanner: true, trigger: 'push30' });
     }, hook.pushCheckMs || 60 * 1000);
+
+    // ===================== 同期のログ（かかった時間）（2026-10-08） =====================
+    const runlogEl = $('syncRunlog');
+    const TRIGGER_LABEL = { open: '開いたとき', return: '戻ったとき', hidden: '離れるとき', stageClose: 'アプリを閉じたとき', push30: '30分ごと', afterLogin: 'ログインの後', manual: '☁を押した' };
+    const sec = (ms) => (Math.max(0, ms || 0) / 1000).toFixed(1);
+    // この端末の、ここ24時間のまとめ
+    async function refreshRunlog() {
+      if (!runlogEl) return;
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const list = (await listRunLog()).filter((e) => e.at >= since);
+      const runs = list.filter((e) => (e.kind === 'auto' || e.kind === 'manual') && e.result !== 'skip');
+      if (!list.length) { runlogEl.textContent = 'まだログはありません'; return; }
+      const total = runs.reduce((a, e) => a + (e.ms.total || 0), 0);
+      const longest = runs.reduce((m, e) => ((e.ms.total || 0) > ((m && m.ms.total) || 0) ? e : m), null);
+      const lines = [`ここ24時間：同期${runs.length}回・合計${sec(total)}秒${runs.length ? `・1回あたり${sec(total / runs.length)}秒` : ''}${longest ? `・いちばん長い${sec(longest.ms.total)}秒（${TRIGGER_LABEL[longest.trigger] || longest.trigger || '?'}）` : ''}`];
+      const by = {};
+      runs.forEach((e) => { const k = e.trigger || '?'; (by[k] = by[k] || { n: 0, ms: 0 }); by[k].n++; by[k].ms += e.ms.total || 0; });
+      if (Object.keys(by).length) lines.push('きっかけ：' + Object.entries(by).sort((a, b) => b[1].ms - a[1].ms).map(([k, v]) => `${TRIGGER_LABEL[k] || k} ${v.n}回（${sec(v.ms)}秒）`).join('・'));
+      const skips = list.filter((e) => e.result === 'skip').length;
+      const pages = list.filter((e) => e.kind === 'page');
+      const discarded = pages.filter((e) => e.discarded).length;
+      const gates = list.filter((e) => e.kind === 'gate');
+      lines.push(`ページの読み込み${pages.length}回${discarded ? `（うち、ブラウザが裏で閉じたのを開き直し${discarded}回）` : ''}・アプリを開くのを待った${gates.length}回（${sec(gates.reduce((a, e) => a + (e.ms.total || 0), 0))}秒）・見送り${skips}回`);
+      runlogEl.textContent = lines.join('\n');
+    }
+    // 書き出し：この端末のログと、OneDriveに置かれたほかの端末のログを1つのファイルにする。
+    // OneDriveにつないでいれば、この端末のログも暗号化して置く（ほかの端末で書き出したときに入るように）
+    async function exportRunLogs() {
+      const dev = await getDevice();
+      const me = { deviceName: dev.name, device: String(dev.id).slice(0, 8), build: SYNC_APP_BUILD, ua: navigator.userAgent, entries: await listRunLog() };
+      const out = { format: 'sideops-sync-log', formatVersion: 1, exportedAt: new Date().toISOString(), devices: [me] };
+      const notes = [`この端末のログ：${me.entries.length}件`];
+      const cp = await connectedProvider();
+      const keys = await getKeys();
+      if (cp && keys && (await cp.p.status()) === 'ready' && (await cp.p.ensureToken({ interactive: false }))) {
+        progStep(`${cp.p.label}にログを置いています`);
+        const backend = cp.p.createBackend();
+        const info = await inspect(backend);
+        if (info.state === 'ready') {
+          const spaceId = info.manifest.spaceId;
+          const names = fileNames(keys);
+          const mine = await names.log(dev.id);
+          await writeJsonFile(backend, keys, spaceId, mine, me);
+          for (const n of await backend.list()) {
+            if (!n.startsWith('l_') || n === mine) continue;
+            try {
+              const o = await readJsonFile(backend, keys, spaceId, n);
+              if (isPlainObject(o) && Array.isArray(o.entries)) { out.devices.push(o); notes.push(`${String(o.deviceName || '別の端末').slice(0, 40)}のログ：${o.entries.length}件`); }
+            } catch (err) { notes.push('読めないログがありました'); }
+          }
+        }
+      } else {
+        notes.push('（クラウドにつないでいないため、ほかの端末のログは入っていません）');
+      }
+      downloadBlob(new Blob([JSON.stringify(out)], { type: 'application/json' }), `sideops-sync-log-${stamp()}.json`);
+      return notes;
+    }
+    $('syncRunlogExportBtn').addEventListener('click', () => run(async () => {
+      const notes = await exportRunLogs();
+      showResult(['同期のログを書き出しました。', ...notes, 'ファイルはダウンロードのフォルダに入ります。分析に使うときは、このファイルを渡してください（データの中身は入っていません）'], 'ok');
+    }, { title: '同期のログを書き出しています' }));
+    $('syncRunlogClearBtn').addEventListener('click', () => run(async () => {
+      const ok = await dialog({ message: 'この端末の同期のログを消します（同期のデータには影響しません）。', okLabel: '消す', danger: true });
+      if (!ok) { showResult(['やめました'], ''); return; }
+      await clearRunLog();
+      showResult(['この端末の同期のログを消しました'], 'ok');
+      await refreshRunlog();
+    }, { title: '同期のログを消しています' }));
 
     // ===================== 同期の記録（受け取った変更を戻す） =====================
     async function refreshJournal() {
@@ -2672,6 +2878,17 @@
     // ===================== ページを開いたとき =====================
     // ログイン（ページを離れる方式）から戻ったときは、その目的（確認だけ／同期）の続きをする。
     // それ以外は、開いたときの同期をする
+    // ページの読み込みを残す（2026-10-08）：ブラウザが裏で閉じた（discard）タブを開き直したのか、
+    // 前に画面を離れてからどれだけ経っていたか。開いたときの同期がどれだけ起きているかを見るため
+    try {
+      const nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || null;
+      const lastHidden = Number(localStorage.getItem(LAST_HIDDEN_KEY) || 0);
+      addRunLog({
+        kind: 'page', trigger: nav ? nav.type : '', result: '',
+        discarded: !!document.wasDiscarded, standalone: !!(window.matchMedia && window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches),
+        ms: { total: Math.round(performance.now()), sinceHidden: lastHidden ? Date.now() - lastHidden : -1 },
+      });
+    } catch (err) { /* 残せなくても動く */ }
     (async () => {
       let resumed = false;
       for (const p of providerList) {
@@ -2701,7 +2918,7 @@
       }
       applyCloudAvailability();
       updateIndicator();
-      if (!resumed) await startupSync();
+      if (!resumed) await startupSync('open');
       scheduleUnsent();
     })();
 

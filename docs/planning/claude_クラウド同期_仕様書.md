@@ -767,3 +767,38 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 
 - DBの中身が1つ変わると、そのDBのファイル（そのアプリの全部の記録）を送り直す。MANUSCRIPTのように文章の多いアプリでは、送る量が大きくなる（圧縮はしている）。ストアごと・記録のまとまりごとにファイルを分ければ減らせる（同期ファイルの形の変更になるので、別に計画する）
 - ページを開いた直後は、OneDriveのログインの更新（トークンの取り直し）で1回通信する
+
+## 同期のログ（2026-10-08）
+
+ユーザーから「しょっちゅう同期がかかって時間を取られる（続けて使っているとそうでもない）」。計算上の時間（上の「速さの見直し」）と体感が合わないので、実際の使い方での記録を取り、それをもとに分析する。
+
+### 残すもの（この端末の `sideops_sync` の `runlog` ストア。SYNC_DB_VERSION 3）
+
+1件ごとに `{ v, at, build, kind, trigger, result, skip?, error?, ms, t?, stats?, dbs?, conflicts?, applied?, deferred?, flags?, env }`。データの中身（記録の値）は入れない。30日・1500件を超えた古いものから消す。
+
+| kind | いつ | 主な中身 |
+|---|---|---|
+| `auto` | 自動の同期（走らせなかった「見送り」も） | `trigger`：`open`（ページを開いた）・`return`（しばらく離れて戻った）・`hidden`（離れるとき）・`stageClose`（アプリを閉じた）・`push30`（30分ごと）・`afterLogin`。`result`：`ok`・`error`・`skip`（`skip`：`notLoggedIn`・`otherTabs`・`loginGate`・`running`・`reloading`・`manualBusy`） |
+| `manual` | ☁を押した同期 | 同上（`trigger`：`manual`） |
+| `page` | ページの読み込み | `trigger`＝読み込みの種類（`navigate`・`reload`・`back_forward`）、`discarded`（ブラウザが裏で閉じたタブを開き直したか。`document.wasDiscarded`）、`standalone`（ホーム画面のアプリか）、`ms.sinceHidden`（前に画面を離れてからの時間） |
+| `away` | 30秒以上（試験では「戻った」の時間以上）離れて戻った | `ms.total`＝離れていた時間、`trigger`＝`return`なら同期した |
+| `gate` | アプリを開くのを待ってもらった | `ms.total`＝待った時間、`result`：`synced`（同期が終わって開いた）・`skip`（「待たずに開く」） |
+
+`ms`（段階ごとの時間。前の区切りからのミリ秒）：自動は `startCheck`（開いたときのログインの確かめ）・`check`（ログインとほかのタブ）・`lock`・`inspect`（一覧と設定）・`sync`（同期の本体）・`persist`（ログインの保存）・`after`・`unsent`（未送信の見直し）・`total`。手動は `check`・`prepare`・`sync`・`persist`・`total`。
+
+`t`（同期の本体の内訳 `report.timing`）：`total`・`net`／`netCount`・`ops`（`list`・`read`・`write`・`remove` ごとの回数・時間・バイト数）・`scan`（DBごとの見直しの時間）・`scanDetail`（読み込み・符号化・指紋・件数）・`apply`（受け取った分の書き込み）。`dbs`：DBごとの受け取り・送り出しの件数（追加・変更・削除）と注記。`env`：`vis`（見えているか）・`online`・`conn`（回線の種類。対応するブラウザだけ）・`sinceLoad`（ページを開いてからの時間）。
+
+### 画面と書き出し
+
+- 同期の画面の「同期のログ（かかった時間）」に、ここ24時間のまとめ（回数・合計・1回あたり・いちばん長いもの・きっかけ別・ページの読み込み〔ブラウザが閉じたのを開き直した回数〕・アプリを開くのを待った回数と時間・見送り）を出す
+- 「ログを書き出す」：この端末のログと、OneDriveに置かれたほかの端末のログを1つのJSON（`sideops-sync-log-日時.json`、`{ format: 'sideops-sync-log', devices: [{ deviceName, device, build, ua, entries }] }`）にしてダウンロードする。OneDriveにつないでいる端末は、自分のログを同期の鍵で暗号化して`l_<HMAC>.bin`として置く（同期そのものは`l_`で始まるファイルを読まない・片付けない）。2台分を集めるには、先に片方で書き出してから、もう片方で書き出す
+- 「この端末のログを消す」（確認あり）
+- ☁の結果の画面の最後の「※かかった時間」は、この中の`t`のまとめ
+
+### ついでに直したこと
+
+- OneDriveの手動の同期で、ほかのタブの確認（0.4秒）を2回していた（ログインの前と、同期の直前）。ログインの前に確かめた場合は、同期の直前の分を省く
+
+### 動作確認
+
+`D:\dev\sideops_sync_verify\runlog_e2e.dart`（17項目）：結果の画面の「かかった時間」、ページの読み込み・開いたとき・離れるとき・離れていた時間・戻ったとき・☁がそれぞれ残る、段階・通信の種類・DBごとの内訳、24時間のまとめ、2台分の書き出し（OneDriveのログは暗号化）、データの中身が入らないこと
