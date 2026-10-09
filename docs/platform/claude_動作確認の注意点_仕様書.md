@@ -60,7 +60,7 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 | `sync_perf.dart` | 同期の速さの計測：偽のOneDriveに遅延（既定200ms/回）、CPUを遅く（既定4倍）して、1回の同期の時間・通信の回数（種類ごと：`PERF_DETAIL=1`）・送ったバイト数・かかった時間の内訳を出す（2026-10-08） |
 | `probe_blob.dart` | IndexedDBの画像（Blob）の読み出しと要約の重さを測る |
 | `probe_sample.dart` | 実物の .novel を LIBRARIUM の取り込みの確認に通して、題名・発言の分け方を見る（ファイルは読むだけ） |
-| `runlog_e2e.dart` | 同期のログ：きっかけごとに残るか・内訳・まとめ・2台分の書き出し（2026-10-08） |
+| `runlog_e2e.dart` | 同期のログ：きっかけごとに残るか・内訳・まとめ・2台分の書き出し・結果の「ログを見る」（2026-10-08・10-10） |
 
 
 Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。

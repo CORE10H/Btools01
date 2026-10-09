@@ -2270,7 +2270,12 @@
         if (needReload && !stageBusy()) location.reload();
         return;
       }
-      progActions([{ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: () => { progClose(); if (ctx.fromOpen) close(); } }]);
+      // ☁を押して始まった同期は、OKで☁の画面ごと閉じる（いつもの使い方を1回で終わらせる）。
+      // 「ログを見る」は、☁の画面を残して同期のログの欄を見せる（OKで閉じるとログを見られなかったため。2026-10-10）
+      const acts = [];
+      if (ctx.fromOpen) acts.push({ id: 'syncProgressLog', label: 'ログを見る', onClick: () => { progClose(); showRunlog(); } });
+      acts.push({ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: () => { progClose(); if (ctx.fromOpen) close(); } });
+      progActions(acts);
     }
 
     // ===================== クラウド（OneDrive・Googleドライブ） =====================
@@ -2782,6 +2787,13 @@
         });
       }
       runlogEl.textContent = lines.join('\n');
+    }
+    // 同期の結果の「ログを見る」：☁の画面に残って、同期のログの欄まで送る（今の同期の分も入れて出し直す）
+    async function showRunlog() {
+      if (!runlogEl) return;
+      try { await refreshRunlog(); } catch (err) { console.warn('同期のログを読めませんでした', err); } // 読めなくても欄までは送る
+      const row = runlogEl.closest('.settings-row') || runlogEl;
+      row.scrollIntoView({ block: 'start' });
     }
     // 書き出し：この端末のログと、OneDriveに置かれたほかの端末のログを1つのファイルにする。
     // OneDriveにつないでいれば、この端末のログも暗号化して置く（ほかの端末で書き出したときに入るように）
