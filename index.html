@@ -496,11 +496,19 @@
     </div>
 
     <div class="settings-row settings-row-col">
+      <div class="settings-row-label">競合の控え（両方の端末で変えていたデータ）</div>
+      <div class="settings-row-hint">同じデータを両方の端末で変えていたときは、新しい方（あとから同期した方）を採用し、もう一方をここに30日間残します。「違いを見る」で、どこが違うかを見比べられます（見るだけで、データは変えません）。</div>
+      <div class="sync-journal" id="syncConflictList"></div>
+      <div class="sync-actions">
+        <button class="btn" id="syncConflictsBtn" data-sync-action>競合の控えを書き出す</button>
+      </div>
+    </div>
+
+    <div class="settings-row settings-row-col">
       <div class="settings-row-label">バックアップ・その他</div>
       <div class="sync-actions">
         <button class="btn" id="syncBackupBtn" data-sync-action>全データを書き出す</button>
         <button class="btn" id="syncRestoreBtn" data-sync-action>バックアップから復元</button>
-        <button class="btn" id="syncConflictsBtn" data-sync-action>競合の控えを書き出す</button>
         <button class="btn danger" id="syncForgetBtn" data-sync-action>この端末を忘れる</button>
       </div>
       <input type="file" id="syncBackupInput" accept=".json,application/json" hidden>
@@ -515,6 +523,18 @@
     <div class="sync-progress-step" id="syncProgressStep"></div>
     <div class="sync-result" id="syncResult"></div>
     <div class="launcher-confirm-actions" id="syncProgressActions"></div>
+  </div>
+</div>
+
+<!-- 同期：競合の控えの「違いを見る」（2026-10-10）。☁の画面の上に重ねて出す。見るだけ -->
+<div class="launcher-confirm-overlay sync-diff" id="syncDiff">
+  <div class="launcher-confirm-box">
+    <div class="sync-progress-title">競合の違い</div>
+    <div class="sync-diff-meta" id="syncDiffMeta"></div>
+    <div class="sync-diff-body" id="syncDiffBody"></div>
+    <div class="launcher-confirm-actions">
+      <button class="btn primary" id="syncDiffClose">閉じる</button>
+    </div>
   </div>
 </div>
 

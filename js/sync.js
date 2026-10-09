@@ -984,7 +984,7 @@
     const dbsMeta = (await metaGet('dbs')) || { key: 'dbs', synced: {} };
     const names = fileNames(keys);
     const hash = (bytes) => hmacHex(keys.nameKey, bytes);
-    const report = { results: [], applied: false, appliedDbs: [], conflicts: 0, firstTime: false, pushOnly, stats: { scanned: 0, skipped: 0, downloaded: 0 } };
+    const report = { results: [], applied: false, appliedDbs: [], conflicts: 0, conflictIds: [], firstTime: false, pushOnly, stats: { scanned: 0, skipped: 0, downloaded: 0 } };
     const journalItems = []; // 受け取りで書き換える前の中身（同期の記録。取り消しに使う）
     // 画像の要約の控え（1日1回の全体の見直しでは使わずに取り直す）
     const blobCache = hooks.freshBlobs ? { spaceId, map: new Map(), changed: true } : await loadBlobCache(spaceId);
@@ -1053,6 +1053,9 @@
     const prevOwnDbs = (ownMeta && ownMeta.dbs) || (ownPrev && ownPrev.dbs) || {};
     const prevOwnBlobs = (ownMeta && isPlainObject(ownMeta.blobs) && ownMeta.blobs) || {};
     report.devices = remoteDevices.map((i) => ({ name: String(i.deviceName || '別の端末').slice(0, 40), at: i.lastWriteAt || i.writtenAt || '' }));
+    // 版の末尾の端末IDから、その変更をした端末の名前を引く（競合の控えに残す。2026-10-10）
+    const devNames = new Map(remoteDevices.map((i) => [i.device, String(i.deviceName || '別の端末').slice(0, 40)]));
+    const verBy = (v) => (typeof v !== 'string' ? '' : v.slice(19) === dev.id ? 'この端末' : devNames.get(v.slice(19)) || '別の端末');
 
     // ---- ほかの端末のDBのファイル：版の印が変わったものだけダウンロードする ----
     const referenced = new Set();
@@ -1238,7 +1241,7 @@
 
         // ---- 合流：レコードごとに版の大きい方を採用。両方で変えていたら負けた方を控える ----
         const plan = [];         // { op: 'put'|'del', id, store, key, value(符号化済み) }
-        const losers = [];       // { side, id, store, key, loserVer, winnerVer, raw | encoded }
+        const losers = [];       // { side, id, store, key, loserVer, winnerVer, raw | encoded, 勝った方：winnerRaw | winnerEnc, winnerDeleted }
         let n = 0;
         for (const [id, r] of best) {
           if (++n % 50 === 0) await yieldUi();
@@ -1258,7 +1261,7 @@
           if (r.ver > s.ver) {
             if (s.dirty && !s.deleted && (r.deleted || await fingerprint(r.value) !== s.fp)) {
               const c = scan.recs.get(id);
-              if (c) losers.push({ side: 'local', id, store: s.store, key: s.key, loserVer: s.ver, winnerVer: r.ver, raw: c.raw });
+              if (c) losers.push({ side: 'local', id, store: s.store, key: s.key, loserVer: s.ver, winnerVer: r.ver, raw: c.raw, winnerEnc: r.deleted ? null : r.value, winnerDeleted: r.deleted });
             }
             if (r.deleted) { if (!s.deleted) plan.push({ op: 'del', id, store: r.store, key: r.key }); }
             else plan.push({ op: 'put', id, store: r.store, key: r.key, value: r.value });
@@ -1266,14 +1269,15 @@
           } else if (s.dirty && !r.deleted && (s.baseVer === null || r.ver > s.baseVer)
             && (s.deleted || await fingerprint(r.value) !== s.fp)) {
             // こちらの変更が勝ったが、相手もその間に変えていた → 相手の版を控える
-            losers.push({ side: 'remote', id, store: r.store, key: r.key, loserVer: r.ver, winnerVer: s.ver, encoded: r.value });
+            const w = scan.recs.get(id);
+            losers.push({ side: 'remote', id, store: r.store, key: r.key, loserVer: r.ver, winnerVer: s.ver, encoded: r.value, winnerRaw: s.deleted || !w ? null : w.raw, winnerDeleted: s.deleted || !w });
           }
         }
 
         // ---- 必要な画像を集めて検証する ----
         const need = new Set();
         plan.forEach((p) => { if (p.op === 'put') blobRefs(p.value, need); });
-        losers.forEach((l) => { if (l.encoded) blobRefs(l.encoded, need); });
+        losers.forEach((l) => { if (l.encoded) blobRefs(l.encoded, need); if (l.winnerEnc) blobRefs(l.winnerEnc, need); });
         const fetched = new Map();
         if (need.size) progress(`${rule.label}の画像を受け取っています`);
         for (const h of need) {
@@ -1427,7 +1431,15 @@
         for (const l of losers) {
           let value = l.raw;
           if (l.encoded) value = decodeValue(l.encoded, bytesOf);
-          wtx2.objectStore('conflicts').put({ id: randomHex(8), at: now, db: rule.name, store: l.store, key: l.key, side: l.side, loserVer: l.loserVer, winnerVer: l.winnerVer, value });
+          // 勝った方の中身（winner）と、それぞれの変更をした端末（loserBy・winnerBy）も残す（「違いを見る」で見比べるため。2026-10-10）
+          let winner = l.winnerDeleted ? null : l.winnerRaw;
+          if (!l.winnerDeleted && l.winnerEnc !== undefined && l.winnerEnc !== null) winner = decodeValue(l.winnerEnc, bytesOf);
+          const cid = randomHex(8);
+          report.conflictIds.push(cid);
+          wtx2.objectStore('conflicts').put({
+            id: cid, at: now, db: rule.name, store: l.store, key: l.key, side: l.side, loserVer: l.loserVer, winnerVer: l.winnerVer, value,
+            winner, winnerDeleted: !!l.winnerDeleted, loserBy: verBy(l.loserVer), winnerBy: verBy(l.winnerVer),
+          });
         }
         await txDone(wtx2);
         res.conflicts = losers.length;
@@ -1696,6 +1708,91 @@
     const d = await syncDb();
     return reqP(d.transaction('conflicts').objectStore('conflicts').count());
   }
+  // 競合の控えの一覧（新しい順）・1件・ある時刻より後にできたもの（「違いを見る」で使う。2026-10-10）
+  async function listConflicts() {
+    const d = await syncDb();
+    const list = await reqP(d.transaction('conflicts').objectStore('conflicts').getAll());
+    return list.sort((a, b) => b.at - a.at);
+  }
+  async function getConflict(id) {
+    const d = await syncDb();
+    return reqP(d.transaction('conflicts').objectStore('conflicts').get(id));
+  }
+  async function conflictIdsSince(t) {
+    const d = await syncDb();
+    const list = await reqP(d.transaction('conflicts').objectStore('conflicts').index('at').getAll(IDBKeyRange.lowerBound(t)));
+    return list.sort((a, b) => b.at - a.at).map((c) => c.id);
+  }
+  // アプリのDBにある、今のデータ（勝った方の中身を残していない古い控えは、今のデータと見比べる）
+  async function currentRecord(dbName, store, key) {
+    let db;
+    try { db = await openExistingDb(dbName); } catch (err) { return { missing: true }; }
+    try {
+      if (!db.objectStoreNames.contains(store)) return { missing: true };
+      const v = await reqP(db.transaction(store).objectStore(store).get(key));
+      return v === undefined ? { missing: true } : { value: v };
+    } finally { db.close(); }
+  }
+
+  // ===================== 違いの見比べ（2026-10-10） =====================
+  // 行（または文字）の並びの違いを、Myersの差分法（diff コマンドと同じ考え方）で求める。
+  // 戻り値：[{ t: '=' | '-' | '+', v }]（'-' は a にだけ、'+' は b にだけある）。
+  // 前後の同じ部分は先に除く。違いが多すぎるとき（maxD を超える）は、間をまるごと「消して足した」扱いにする（重くしないため）
+  function diffSeq(a, b, maxD = 1000) {
+    let s = 0;
+    while (s < a.length && s < b.length && a[s] === b[s]) s++;
+    let ea = a.length, eb = b.length;
+    while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+    const out = [];
+    for (let i = 0; i < s; i++) out.push({ t: '=', v: a[i] });
+    const mid = myersDiff(a.slice(s, ea), b.slice(s, eb), maxD);
+    if (mid) out.push(...mid);
+    else {
+      for (let i = s; i < ea; i++) out.push({ t: '-', v: a[i] });
+      for (let i = s; i < eb; i++) out.push({ t: '+', v: b[i] });
+    }
+    for (let i = ea; i < a.length; i++) out.push({ t: '=', v: a[i] });
+    return out;
+  }
+  function myersDiff(a, b, maxD) {
+    const n = a.length, m = b.length;
+    if (!n) return b.map((v) => ({ t: '+', v }));
+    if (!m) return a.map((v) => ({ t: '-', v }));
+    const max = Math.min(n + m, maxD);
+    const off = max + 1;
+    const v = new Int32Array(2 * max + 3);
+    const trace = [];
+    let found = false;
+    outer:
+    for (let d = 0; d <= max; d++) {
+      trace.push(v.slice());
+      for (let k = -d; k <= d; k += 2) {
+        let x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+        let y = x - k;
+        while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+        v[off + k] = x;
+        if (x >= n && y >= m) { found = true; break outer; }
+      }
+    }
+    if (!found) return null;
+    // 終わりから始めへたどって、手順を組み立てる
+    const ops = [];
+    let x = n, y = m;
+    for (let d = trace.length - 1; d >= 0; d--) {
+      const tv = trace[d];
+      const k = x - y;
+      const prevK = (k === -d || (k !== d && tv[off + k - 1] < tv[off + k + 1])) ? k + 1 : k - 1;
+      const prevX = tv[off + prevK];
+      const prevY = prevX - prevK;
+      while (x > prevX && y > prevY) { ops.push({ t: '=', v: a[x - 1] }); x--; y--; }
+      if (d > 0) {
+        if (x === prevX) ops.push({ t: '+', v: b[y - 1] });
+        else ops.push({ t: '-', v: a[x - 1] });
+      }
+      x = prevX; y = prevY;
+    }
+    return ops.reverse();
+  }
 
   // ===================== バックアップ（暗号化しない書き出し・復元） =====================
   // 同期の対象のDBを、ストア丸ごと（端末ごとの項目も含めて）書き出す
@@ -1790,7 +1887,11 @@
     const list = await reqP(d.transaction('conflicts').objectStore('conflicts').getAll());
     const blobs = new Map();
     const rows = [];
-    for (const c of list) rows.push({ ...c, value: await encodeValue(c.value, { hash: sha256Hex, blobs }) });
+    for (const c of list) {
+      const row = { ...c, value: await encodeValue(c.value, { hash: sha256Hex, blobs }) };
+      if (c.winner !== undefined && c.winner !== null) row.winner = await encodeValue(c.winner, { hash: sha256Hex, blobs }); // 勝った方の中身（2026-10-10から）
+      rows.push(row);
+    }
     const out = { format: 'sideops-sync-conflicts', exportedAt: new Date().toISOString(), conflicts: rows, blobs: {} };
     blobs.forEach((b, h) => { out.blobs[h] = bytesToB64(b); });
     return new Blob([JSON.stringify(out)], { type: 'application/json' });
@@ -2084,6 +2185,7 @@
           dbListEl.appendChild(label);
         }
         await refreshJournal();
+        await refreshConflicts();
         await refreshCloud();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
@@ -2102,6 +2204,7 @@
       if (overlay.classList.contains('is-busy')) return;
       overlay.classList.remove('is-open');
       progClose();
+      closeDiff();
       if (needReload) location.reload(); // ランチャー・本体の設定を受け取ったら、画面の表示を最新にする
     }
     openBtn.addEventListener('click', () => open());
@@ -2109,6 +2212,7 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || $('syncDialog').classList.contains('is-open')) return;
+      if (diffEl && diffEl.classList.contains('is-open')) { closeDiff(); return; } // 違いを見る画面を先に閉じる
       if (prog.classList.contains('is-open')) { if (!overlay.classList.contains('is-busy') && progActs.querySelector('#syncProgressOk')) progActs.querySelector('#syncProgressOk').click(); return; }
       if (overlay.classList.contains('is-open')) close();
     });
@@ -2195,7 +2299,7 @@
       if (report.firstTime) lines.push('※初めて同期したアプリは、この端末にしかなかったデータを「送り出し（追加）」として数えています');
       return lines;
     }
-    const CONFLICT_LINE = (n) => `両方の端末で変えていたデータが${n}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました（「競合の控えを書き出す」で確かめられます）`;
+    const CONFLICT_LINE = (n) => `両方の端末で変えていたデータが${n}件ありました。新しい方を採用し、もう一方は「競合の控え」に残しました（「違いを見る」で、どこが違うかを確かめられます）`;
     const RELOAD_LINE = '受け取ったデータは、この端末に保存済みです。ランチャー・本体の設定の表示を最新にするため、閉じると再読み込みします';
     const SAVED_LINE = '受け取ったデータは、この端末に保存済みです（アプリを開くと反映されています）';
     const RELOAD_BUTTON = '今すぐ画面を最新にする';
@@ -2234,6 +2338,7 @@
       setBusy(true);
       const ctx = { fromOpen, background: false };
       runCtx = ctx;
+      const startedAt = Date.now(); // この操作の間にできた競合の控えを、あとで「違いを見る」に出す
       progOpen(title);
       progStep('準備しています');
       // 自動の同期の途中なら、終わるのを待ってから始める（同時に2つ走らせない）
@@ -2264,15 +2369,26 @@
       progStep('');
       const kind = resultEl.classList.contains('is-error') ? 'error' : resultEl.classList.contains('is-ok') ? 'ok' : '';
       progTitle.textContent = kind === 'error' ? 'うまくいきませんでした' : kind === 'ok' ? '完了しました' : progTitle.textContent;
+      let fresh = [];
+      try { fresh = await conflictIdsSince(startedAt); } catch (err) { /* 数えられなくても、結果は出す */ }
       if (ctx.background) {
         const first = resultEl.firstChild ? resultEl.firstChild.textContent : '';
-        banner.show({ text: (kind === 'error' ? '☁ ' : '☁ ') + first, kind: kind === 'error' ? 'error' : 'ok', hideMs: kind === 'error' ? 0 : 5000, actions: kind === 'error' ? [{ label: '閉じる', onClick: () => banner.hide() }] : [] });
+        if (fresh.length && kind !== 'error') {
+          banner.show({ text: '☁ ' + first + `（両方の端末で変えていたデータが${fresh.length}件）`, kind: 'conflict', actions: [
+            { label: '違いを見る', cls: 'primary', onClick: () => { banner.hide(); openConflicts(fresh.length === 1 ? fresh[0] : null); } },
+            { label: '閉じる', onClick: () => banner.hide() },
+          ] });
+        } else {
+          banner.show({ text: (kind === 'error' ? '☁ ' : '☁ ') + first, kind: kind === 'error' ? 'error' : 'ok', hideMs: kind === 'error' ? 0 : 5000, actions: kind === 'error' ? [{ label: '閉じる', onClick: () => banner.hide() }] : [] });
+        }
         if (needReload && !stageBusy()) location.reload();
         return;
       }
       // ☁を押して始まった同期は、OKで☁の画面ごと閉じる（いつもの使い方を1回で終わらせる）。
       // 「ログを見る」は、☁の画面を残して同期のログの欄を見せる（OKで閉じるとログを見られなかったため。2026-10-10）
       const acts = [];
+      // 両方の端末で変えていたデータがあれば「違いを見る」（1件ならそのまま開く。2026-10-10）
+      if (fresh.length) acts.push({ id: 'syncProgressDiff', label: '違いを見る', onClick: () => { progClose(); showConflicts(fresh.length === 1 ? fresh[0] : null); } });
       if (ctx.fromOpen) acts.push({ id: 'syncProgressLog', label: 'ログを見る', onClick: () => { progClose(); showRunlog(); } });
       acts.push({ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: () => { progClose(); if (ctx.fromOpen) close(); } });
       progActions(acts);
@@ -2551,6 +2667,14 @@
         const outN = report.results.reduce((a, r) => a + r.outAdd + r.outChange + r.outDel, 0);
         const msg = hooks.pushOnly ? `☁ 送りました（${outN}件）` : (inN || outN ? `☁ 同期しました（受け取り${inN}件・送り出し${outN}件）` : '☁ 最新です');
         say(msg, 'ok', { hideMs: 4000 });
+        // 両方の端末で変えていたデータがあれば、帯で知らせて「違いを見る」を出す（帯を出さないきっかけでも出す。2026-10-10）
+        if (report.conflicts && !hooks.pushOnly) {
+          const ids = report.conflictIds || [];
+          banner.show({ text: `☁ 両方の端末で変えていたデータが${report.conflicts}件ありました。新しい方を採用し、もう一方を控えました`, kind: 'conflict', actions: [
+            { label: '違いを見る', cls: 'primary', onClick: () => { banner.hide(); openConflicts(ids.length === 1 ? ids[0] : null); } },
+            { label: '閉じる', onClick: () => banner.hide() },
+          ] });
+        }
         if (touchesMain(report.appliedDbs)) reloadSoon();
         return report;
       } catch (err) {
@@ -2839,6 +2963,259 @@
       await refreshRunlog();
     }, { title: '同期のログを消しています' }));
 
+    // ===================== 競合の控え：一覧と「違いを見る」（2026-10-10） =====================
+    // 両方の端末で同じデータを変えていたとき、採用されなかった方（控え）と採用された方を、項目ごとに見比べる。
+    // 見るだけ（データは変えない）。文字の項目は行ごとに比べ、少しだけ変えた行は、変えた文字に印を付ける
+    const conflictListEl = $('syncConflictList');
+    const diffEl = $('syncDiff');
+    const diffMeta = $('syncDiffMeta');
+    const diffBody = $('syncDiffBody');
+    const CONFLICT_SHOW = 20;
+    const DIFF_CONTEXT = 2; // 変わった行の前後に出す、同じ行の数
+    const FIELD_LABEL = {
+      title: 'タイトル', name: '名前', body: '本文', text: '本文', content: '本文', memo: 'メモ', note: 'メモ', notes: 'メモ',
+      tags: 'タグ', genre: 'ジャンル', cover: 'カバー', image: '画像', prompt: 'プロンプト', createdAt: '作った日時', updatedAt: '変えた日時', order: '並び順',
+    };
+    const fieldLabel = (k) => (FIELD_LABEL[k] ? `${FIELD_LABEL[k]}（${k}）` : k);
+    const mk = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    };
+    // 一覧に出すデータの名前：タイトル・名前などの文字の項目。なければキー
+    function recordName(v, key) {
+      if (isPlainObject(v)) {
+        for (const k of ['title', 'name', 'label', 'heading', 'text', 'body', 'memo']) {
+          if (typeof v[k] === 'string' && v[k].trim()) return v[k].trim().replace(/\s+/g, ' ').slice(0, 40);
+        }
+      }
+      if (typeof v === 'string' && v.trim()) return v.trim().replace(/\s+/g, ' ').slice(0, 40);
+      return 'キー ' + String(typeof key === 'string' ? key : JSON.stringify(key)).slice(0, 40);
+    }
+    const isImageLike = (v) => (v instanceof Blob && (!v.type || v.type.startsWith('image/'))) || (typeof v === 'string' && v.startsWith('data:image/'));
+    // 見比べるための文字にする（画像・バイナリは、種類と大きさだけ）
+    function displayText(k, v) {
+      if (v === undefined) return null;
+      if (typeof v === 'string') return v;
+      if (typeof v === 'number' && /(At|Date)$|^at$/.test(k) && v > 1e11 && v < 1e14) return new Date(v).toLocaleString('ja-JP');
+      return JSON.stringify(v, (kk, x) => {
+        if (x instanceof Blob) return `［${x.type || 'ファイル'}・${x.size}バイト］`;
+        if (typeof x === 'string' && x.startsWith('data:') && x.length > 200) return `［${x.slice(5, Math.min(40, Math.max(5, x.indexOf(';'))))}の画像・${x.length}文字］`;
+        if (x instanceof ArrayBuffer) return `［バイナリ・${x.byteLength}バイト］`;
+        if (ArrayBuffer.isView(x)) return `［バイナリ・${x.byteLength}バイト］`;
+        return x;
+      }, 2);
+    }
+    // 同じ中身か（画像は中身の要約で比べる）
+    async function sameValue(a, b) {
+      if (a === b) return true;
+      try {
+        const ctx = { hash: sha256Hex, blobs: new Map() };
+        return canonical(await encodeValue(a, ctx)) === canonical(await encodeValue(b, ctx));
+      } catch (err) {
+        return displayText('', a) === displayText('', b);
+      }
+    }
+    // 1行の中で違う文字に印を付ける部品。ほとんど違う行は、印を付けない（行の色だけ）
+    function linePieces(cd, side) {
+      const shown = cd.filter((c) => c.t === '=' || c.t === side);
+      const same = shown.filter((c) => c.t === '=').length;
+      const markOn = shown.length > 0 && same / shown.length >= 0.3;
+      const out = [];
+      for (const c of shown) {
+        const mark = markOn && c.t === side;
+        const last = out[out.length - 1];
+        if (last && last.mark === mark) last.text += c.v;
+        else out.push({ text: c.v, mark });
+      }
+      return out;
+    }
+    function addDiffLine(box, t, parts) {
+      const row = mk('div', 'sync-diff-line' + (t === '-' ? ' is-del' : t === '+' ? ' is-add' : ''));
+      row.appendChild(mk('span', 'sync-diff-sign', t === '-' ? '−' : t === '+' ? '＋' : ' '));
+      const body = mk('span', 'sync-diff-text');
+      for (const p of parts) {
+        if (p.mark) body.appendChild(mk('mark', '', p.text));
+        else body.appendChild(document.createTextNode(p.text));
+      }
+      if (!body.textContent) body.textContent = ' '; // 空の行も高さを持たせる
+      row.appendChild(body);
+      box.appendChild(row);
+    }
+    // 行の違いを出す。同じ行が続くところは、変わった行の前後だけ出して「同じ行がn行」にまとめる
+    function renderDiffLines(ops, box) {
+      const keep = new Array(ops.length).fill(false);
+      ops.forEach((o, i) => {
+        if (o.t === '=') return;
+        for (let j = Math.max(0, i - DIFF_CONTEXT); j <= Math.min(ops.length - 1, i + DIFF_CONTEXT); j++) keep[j] = true;
+      });
+      let i = 0;
+      while (i < ops.length) {
+        if (!keep[i]) {
+          let j = i;
+          while (j < ops.length && !keep[j]) j++;
+          box.appendChild(mk('div', 'sync-diff-fold', `…同じ行が${j - i}行…`));
+          i = j;
+          continue;
+        }
+        if (ops[i].t === '-') {
+          let j = i;
+          while (j < ops.length && ops[j].t === '-') j++;
+          let k = j;
+          while (k < ops.length && ops[k].t === '+') k++;
+          const dels = ops.slice(i, j), adds = ops.slice(j, k);
+          // 消した行と足した行が同じ数で並んでいて、どれも長すぎなければ、行どうしを文字で比べる
+          if (dels.length === adds.length && dels.length <= 30 && dels.every((o, x) => o.v.length <= 500 && adds[x].v.length <= 500)) {
+            const pairs = dels.map((o, x) => diffSeq(Array.from(o.v), Array.from(adds[x].v), 300));
+            pairs.forEach((cd) => addDiffLine(box, '-', linePieces(cd, '-')));
+            pairs.forEach((cd) => addDiffLine(box, '+', linePieces(cd, '+')));
+            i = k;
+            continue;
+          }
+        }
+        addDiffLine(box, ops[i].t, [{ text: ops[i].v, mark: false }]);
+        i++;
+      }
+    }
+    let diffUrls = [];
+    function diffImageCell(label, v) {
+      const cell = mk('div', 'sync-diff-image');
+      cell.appendChild(mk('div', 'sync-diff-image-label', label));
+      if (v === undefined || v === null || v === '') cell.appendChild(mk('div', 'sync-diff-note', 'なし'));
+      else if (isImageLike(v)) {
+        const img = document.createElement('img');
+        img.alt = label;
+        if (typeof v === 'string') img.src = v;
+        else { const u = URL.createObjectURL(v); diffUrls.push(u); img.src = u; }
+        cell.appendChild(img);
+      } else cell.appendChild(mk('div', 'sync-diff-note', String(displayText('', v)).slice(0, 200)));
+      return cell;
+    }
+    function renderDiffField(k, lv, wv, box) {
+      const block = mk('div', 'sync-diff-field');
+      block.appendChild(mk('div', 'sync-diff-field-name', k === null ? '中身' : fieldLabel(k)));
+      if (isImageLike(lv) || isImageLike(wv)) {
+        const pair = mk('div', 'sync-diff-images');
+        pair.appendChild(diffImageCell('−控え', lv));
+        pair.appendChild(diffImageCell('＋採用', wv));
+        block.appendChild(pair);
+      } else {
+        const a = displayText(k || '', lv), b = displayText(k || '', wv);
+        if (a === null) block.appendChild(mk('div', 'sync-diff-note', '控えには、この項目がありません'));
+        if (b === null) block.appendChild(mk('div', 'sync-diff-note', '採用された方には、この項目がありません'));
+        const lines = mk('div', 'sync-diff-lines');
+        renderDiffLines(diffSeq(a === null ? [] : a.split(/\r?\n/), b === null ? [] : b.split(/\r?\n/)), lines);
+        if (lines.childNodes.length) block.appendChild(lines);
+      }
+      box.appendChild(block);
+    }
+    function closeDiff() {
+      if (!diffEl) return;
+      diffEl.classList.remove('is-open');
+      diffUrls.forEach((u) => URL.revokeObjectURL(u));
+      diffUrls = [];
+    }
+    async function openDiff(id) {
+      if (!diffEl) return;
+      closeDiff();
+      diffMeta.textContent = '';
+      diffBody.textContent = '読み込んでいます…';
+      diffEl.classList.add('is-open');
+      try {
+        const c = await getConflict(id);
+        diffBody.textContent = '';
+        if (!c) { diffBody.appendChild(mk('div', 'sync-diff-note', 'この控えは見つかりません（30日たって消えたか、この端末の同期を解除しました）')); return; }
+        const myId = (await getDevice()).id;
+        const who = (by, ver) => by || (typeof ver === 'string' && ver.slice(19) === myId ? 'この端末' : 'ほかの端末');
+        const when = (ver) => (typeof ver === 'string' && VER_RE.test(ver) ? `（${fmt(verTime(ver))}に同期）` : ''); // 版の時刻＝その変更を同期で見つけた時刻
+        // 勝った方の中身を残していない古い控え（2026-10-10より前）は、今のデータと見比べる
+        const legacy = !Object.prototype.hasOwnProperty.call(c, 'winnerDeleted');
+        let winner = c.winner, winnerDeleted = !!c.winnerDeleted;
+        if (legacy) {
+          const cur = await currentRecord(c.db, c.store, c.key);
+          winner = cur.value;
+          winnerDeleted = !!cur.missing;
+        }
+        diffMeta.appendChild(mk('div', 'sync-diff-head', `${fmt(c.at)}の同期　${ruleLabel(c.db)}：${recordName(c.value, c.key)}`));
+        const legend = mk('div', 'sync-diff-legend');
+        const l1 = mk('div', 'sync-diff-line is-del');
+        l1.appendChild(mk('span', 'sync-diff-sign', '−'));
+        l1.appendChild(mk('span', 'sync-diff-text', `控え（採用されなかった方）：${who(c.loserBy, c.loserVer)}${when(c.loserVer)}`));
+        const l2 = mk('div', 'sync-diff-line is-add');
+        l2.appendChild(mk('span', 'sync-diff-sign', '＋'));
+        l2.appendChild(mk('span', 'sync-diff-text', legacy ? '今のデータ（採用された方。その後に変えていれば、変えた後）' : `採用された方：${who(c.winnerBy, c.winnerVer)}${when(c.winnerVer)}`));
+        legend.appendChild(l1);
+        legend.appendChild(l2);
+        diffMeta.appendChild(legend);
+        if (legacy) diffMeta.appendChild(mk('div', 'sync-diff-note', 'この控えは、採用された方の中身を残す前（2026-10-10より前）のものなので、今のデータと見比べています'));
+        if (winnerDeleted) diffMeta.appendChild(mk('div', 'sync-diff-note', legacy ? '今は、このデータはありません（消されています）' : '採用された方では、このデータは消されていました（消した方があとだったため）'));
+        const lv = c.value;
+        const wv = winnerDeleted ? undefined : winner;
+        if (isPlainObject(lv) && (wv === undefined || isPlainObject(wv))) {
+          const keys = [];
+          const add = (k) => { if (!keys.includes(k)) keys.push(k); };
+          ['title', 'name', 'label'].forEach((k) => { if (k in lv || (wv && k in wv)) add(k); });
+          Object.keys(lv).forEach(add);
+          if (wv) Object.keys(wv).forEach(add);
+          const same = [];
+          let shown = 0;
+          for (const k of keys) {
+            const a = lv[k], b = wv ? wv[k] : undefined;
+            if (await sameValue(a, b)) { same.push(FIELD_LABEL[k] || k); continue; }
+            renderDiffField(k, a, b, diffBody);
+            shown++;
+          }
+          if (!shown) diffBody.appendChild(mk('div', 'sync-diff-note', 'どの項目も同じでした（見た目に出ない違いだけでした）'));
+          if (same.length) diffBody.appendChild(mk('div', 'sync-diff-same', `同じだった項目：${same.join('・')}`));
+        } else if (await sameValue(lv, wv)) {
+          diffBody.appendChild(mk('div', 'sync-diff-note', '中身は同じでした'));
+        } else {
+          renderDiffField(null, lv, wv, diffBody);
+        }
+      } catch (err) {
+        console.error(err);
+        diffBody.textContent = '';
+        diffBody.appendChild(mk('div', 'sync-diff-note', '違いを出せませんでした：' + (err && err.message)));
+      }
+    }
+    async function refreshConflicts() {
+      if (!conflictListEl) return;
+      const list = await listConflicts();
+      conflictListEl.textContent = '';
+      if (!list.length) { conflictListEl.textContent = '競合の控えはありません'; return; }
+      const myId = (await getDevice()).id;
+      const who = (by, ver) => by || (typeof ver === 'string' && ver.slice(19) === myId ? 'この端末' : 'ほかの端末');
+      for (const c of list.slice(0, CONFLICT_SHOW)) {
+        const row = mk('div', 'sync-journal-row sync-conflict-row');
+        row.dataset.conflictId = c.id;
+        row.appendChild(mk('div', 'sync-journal-head', `${fmt(c.at)}　${ruleLabel(c.db)}：${recordName(c.value, c.key)}`));
+        row.appendChild(mk('div', 'sync-conflict-sub', `採用：${who(c.winnerBy, c.winnerVer)}${c.winnerDeleted ? '（消した）' : ''}／控え：${who(c.loserBy, c.loserVer)}`));
+        const acts = mk('div', 'sync-journal-actions');
+        const b = mk('button', 'btn sync-conflict-diff', '違いを見る');
+        b.addEventListener('click', () => openDiff(c.id));
+        acts.appendChild(b);
+        row.appendChild(acts);
+        conflictListEl.appendChild(row);
+      }
+      if (list.length > CONFLICT_SHOW) conflictListEl.appendChild(mk('div', 'sync-diff-note', `ほかに${list.length - CONFLICT_SHOW}件（「競合の控えを書き出す」で、すべてを書き出せます）`));
+    }
+    // 結果・帯の「違いを見る」：☁の画面の競合の控えの欄まで送る。1件だけなら、そのまま違いを開く
+    async function showConflicts(id) {
+      try { await refreshConflicts(); } catch (err) { console.warn('競合の控えを読めませんでした', err); }
+      if (conflictListEl) (conflictListEl.closest('.settings-row') || conflictListEl).scrollIntoView({ block: 'start' });
+      if (id) await openDiff(id);
+    }
+    // 帯の「違いを見る」：☁の画面を（同期を始めずに）開いてから
+    async function openConflicts(id) {
+      await open({ autoSync: false });
+      await showConflicts(id);
+    }
+    if (diffEl) {
+      $('syncDiffClose').addEventListener('click', closeDiff);
+      diffEl.addEventListener('click', (e) => { if (e.target === diffEl) closeDiff(); });
+    }
+
     // ===================== 同期の記録（受け取った変更を戻す） =====================
     async function refreshJournal() {
       if (!journalEl) return;
@@ -3070,7 +3447,7 @@
     SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME, SyncError, saveSecret, loadSecret, deleteSecret,
     createMemoryBackend, backendFromPackage, packageBlob, inspect, unlock, createSpace, syncWith,
     forgetDevice, buildBackup, restoreBackup, countConflicts, getDevice, localDbVersions,
-    unsentDbs, readDirtyMarks, listJournal, undoJournal, checkRemote,
+    unsentDbs, readDirtyMarks, listJournal, undoJournal, checkRemote, listConflicts, diffSeq,
     get lastReport() { return lastReport; },
   };
 

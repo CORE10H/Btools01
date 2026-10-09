@@ -1921,7 +1921,7 @@
   // 本体のモーダル（同期の進み具合・確認のダイアログは、答えを待つものなので戻る操作の対象にしない）
   if (BackNav) {
     ['settingsOverlay', 'customThemeOverlay', 'appManageOverlay', 'appDeleteConfirmOverlay',
-      'launcherAddOverlay', 'launcherDeleteOverlay', 'launcherDupOverlay', 'syncOverlay']
+      'launcherAddOverlay', 'launcherDeleteOverlay', 'launcherDupOverlay', 'syncOverlay', 'syncDiff']
       .forEach((id) => BackNav.watchOverlay(document.getElementById(id)));
   }
 
