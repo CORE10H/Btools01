@@ -2055,12 +2055,15 @@
         const unsent = await unsentDbs();
         deviceNameInput.value = dev.name;
         const lines = [];
+        // このページの版（古い版のまま開いていないかを確かめられるように。2026-10-08）
+        lines.push(`このページの版：${SYNC_APP_BUILD}`);
         lines.push(keys ? `同期の鍵：あり（ID ${keys.keyId.slice(0, 8)}）` : '同期の鍵：なし（まだ同期していません）');
         lines.push('最後の同期：' + fmt(status.lastSyncAt) + (status.lastSummary ? `（${status.lastSummary}）` : ''));
         (status.devices || []).forEach((d) => lines.push(`ほかの端末：${d.name}（最終送信 ${fmt(d.at)}）`));
         if (keys) lines.push('この端末の未送信：' + (unsent.length ? `あり（${unsent.map((r) => r.label).join('・')}）` : 'なし'));
         if (conflicts) lines.push(`競合の控え：${conflicts}件（30日で自動的に消えます）`);
         statusEl.textContent = lines.join('\n');
+        await refreshRunlog(); // 同期のログのまとめ（この後の欄が読めなくても、先に出しておく）
         dbListEl.textContent = '';
         for (const rule of DB_RULES) {
           const label = document.createElement('label');
@@ -2081,7 +2084,6 @@
           dbListEl.appendChild(label);
         }
         await refreshJournal();
-        await refreshRunlog();
         await refreshCloud();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
@@ -2375,6 +2377,7 @@
         throw err;
       } finally {
         await L.end();
+        refreshRunlog();
       }
     }
     async function cloudSyncFlowInner(L) {
@@ -2564,6 +2567,7 @@
         await updateUnsent();
         L.lap('unsent');
         await L.end();
+        if (overlay.classList.contains('is-open')) refreshRunlog();
       }
     }
 
@@ -2765,6 +2769,18 @@
       const discarded = pages.filter((e) => e.discarded).length;
       const gates = list.filter((e) => e.kind === 'gate');
       lines.push(`ページの読み込み${pages.length}回${discarded ? `（うち、ブラウザが裏で閉じたのを開き直し${discarded}回）` : ''}・アプリを開くのを待った${gates.length}回（${sec(gates.reduce((a, e) => a + (e.ms.total || 0), 0))}秒）・見送り${skips}回`);
+      // 直近の5回の内訳（全体／通信／データの見直し）
+      const recent = runs.slice(-5).reverse();
+      if (recent.length) {
+        lines.push('直近の同期：');
+        recent.forEach((e) => {
+          const t = e.t || {};
+          const scan = Object.values(t.scan || {}).reduce((a, b) => a + b, 0);
+          const d = new Date(e.at);
+          const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          lines.push(`　${hm} ${TRIGGER_LABEL[e.trigger] || e.trigger || '?'}：${sec(e.ms.total)}秒${t.total !== undefined ? `（通信 ${sec(t.net)}秒・${t.netCount}回／見直し ${sec(scan)}秒）` : ''}${e.result === 'error' ? '　失敗' : ''}`);
+        });
+      }
       runlogEl.textContent = lines.join('\n');
     }
     // 書き出し：この端末のログと、OneDriveに置かれたほかの端末のログを1つのファイルにする。

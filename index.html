@@ -456,8 +456,18 @@
         <button class="btn primary" id="syncCloudBtn" data-sync-action>同期する</button>
         <button class="btn" id="syncCloudOffBtn" data-sync-action>接続を解除</button>
       </div>
-      <label class="sync-db-item sync-auto"><input type="checkbox" id="syncCloudAuto" data-sync-action><span>ログイン中は自動で同期する（画面を離れるとき・戻ったとき・アプリを閉じたとき・5分ごと）</span></label>
+      <label class="sync-db-item sync-auto"><input type="checkbox" id="syncCloudAuto" data-sync-action><span>ログイン中は自動で同期する（開いたとき・しばらく離れて戻ったとき・画面を離れるとき・アプリを閉じたとき・アプリを開いたまま30分ごと）</span></label>
       <div class="sync-status" id="syncCloudStatus"></div>
+    </div>
+
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">同期のログ（かかった時間）</div>
+      <div class="settings-row-hint">同期のたびに、きっかけ・かかった時間・通信の回数を、この端末に残しています（データの中身は残しません。30日分）。「ログを書き出す」は、ほかの端末のログもまとめて1つのファイルにします（OneDriveにつないでいる端末は、自分のログを暗号化してOneDriveに置き、ほかの端末が置いたログも読みます）。</div>
+      <div class="sync-runlog" id="syncRunlog"></div>
+      <div class="sync-actions">
+        <button class="btn" id="syncRunlogExportBtn" data-sync-action>ログを書き出す</button>
+        <button class="btn" id="syncRunlogClearBtn" data-sync-action>この端末のログを消す</button>
+      </div>
     </div>
 
     <div class="settings-row settings-row-col">
@@ -483,16 +493,6 @@
       <div class="settings-row-label">同期の記録（受け取った変更を戻す）</div>
       <div class="settings-row-hint">ほかの端末の変更を受け取るたびに、受け取る前の中身を30日間残しています。間違って上書きされたときは、ここから戻せます。</div>
       <div class="sync-journal" id="syncJournal"></div>
-    </div>
-
-    <div class="settings-row settings-row-col">
-      <div class="settings-row-label">同期のログ（かかった時間）</div>
-      <div class="settings-row-hint">同期のたびに、きっかけ・かかった時間・通信の回数を、この端末に残しています（データの中身は残しません。30日分）。「ログを書き出す」は、ほかの端末のログもまとめて1つのファイルにします（OneDriveにつないでいる端末は、自分のログを暗号化してOneDriveに置き、ほかの端末が置いたログも読みます）。</div>
-      <div class="sync-runlog" id="syncRunlog"></div>
-      <div class="sync-actions">
-        <button class="btn" id="syncRunlogExportBtn" data-sync-action>ログを書き出す</button>
-        <button class="btn" id="syncRunlogClearBtn" data-sync-action>この端末のログを消す</button>
-      </div>
     </div>
 
     <div class="settings-row settings-row-col">
