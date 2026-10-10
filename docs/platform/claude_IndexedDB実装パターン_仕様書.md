@@ -93,7 +93,7 @@ openDb().then(async (_db) => {
 
 ## 現在稼働中のIndexedDB一覧
 
-`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）・`sideops_sync`（同期の管理用：端末ID・鍵・前回同期した時点の状態・競合の控え・同期の記録）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_prompt_gallery_red`・`sideops_scaffold`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`・`sideops_librarium`・`sideops_librarium_pos`等）。
+`sideops_launcher`（カバーフロー）・`sideops_settings`（設定）・`sideops_log`（LOG）・`sideops_sync`（同期の管理用：端末ID・鍵・前回同期した時点の状態・競合の控え・同期の記録）と、各アプリ専用のもの（`sideops_memo`・`sideops_prompt_gallery`・`sideops_prompt_gallery_red`・`sideops_scaffold`・`sideops_discotica`・`sideops_donemore`・`sideops_scribit`・`sideops_manuscript`・`sideops_mindframe`・`sideops_recon`・`sideops_librarium`・`sideops_librarium_pos`・`sideops_stampworks`・`sideops_stampworks_work`等）。
 
 **同期との関係（2026-10-05〜）**：同期（`js/sync.js`）は「DBを機能ごとに独立させる」原則の唯一の例外で、許可リスト（`DB_RULES`）にあるDBを直接読み書きする。新しいアプリを作ったら`DB_RULES`に足す。`DB_VERSION`やレコードの項目を変えたら、`DB_RULES`の`version`と`SYNC_APP_BUILD`を上げる（`planning/claude_クラウド同期_仕様書.md`の「開発時の決まり」）。同期は、端末にないDBを作るときに、同期ファイルに記録されたストア・キー・索引の形で作る。また2026-10-06から、アプリの書き込みには`apps/sideops-theme-bridge.js`が「変えたよ」の印を付ける（`IDBObjectStore`の書き込み用の関数を包む）。新しいアプリでもこのファイルを読み込むこと（`core/claude_テーマブリッジ_仕様書.md`）。そのため、アプリの`onupgradeneeded`で作るストアの形と、DBの版は対応させたままにする。
 
@@ -102,6 +102,10 @@ openDb().then(async (_db) => {
 ## よく変わる小さなデータは、別のDBにする（2026-10-08）
 
 同期（`js/sync.js`）は、DBごとに1つのファイルを丸ごと送る。大きなデータ（本文・長い文章）と、よく変わる小さなデータ（読んだ位置・表示の状態など）を同じDBに置くと、小さなデータが変わるたびに大きなデータまで送り直すことになる（同じDBの別のストアにしても同じ）。LIBRARIUMで実際に起きたので、読んだ位置を`sideops_librarium_pos`に分けた。端末ごとでよいもの（表示位置・ズーム等）は、`DB_RULES`の`excludeStores`で同期から外す（MINDFRAMEの`views`）
+
+## 同期しない大きなデータは、`DB_RULES`に入れない別のDBにする（2026-10-10）
+
+同期したくない大きなデータ（取り込んだ画像など、端末の中にあれば足りるもの）は、同期するデータと同じDBに置かず、`DB_RULES`に入れない別のDBにする。STAMPWORKSは、企画（`sideops_stampworks`。小さく、PCとスマホでそろえたい）と作業中の画像（`sideops_stampworks_work`。数MBの画像。元はカメラロールにあり作り直せる）を分けた。テーマブリッジは別のDBへの書き込みにも「変えたよ」の印を付けるが、同期は`DB_RULES`にないDBの印を数えないので、未送信の扱いにはならない。同期しないDBは自分で片付ける（STAMPWORKSは、なくなった企画の画像と30日使っていない画像を開いたときに消す。企画を読めなかったときは、企画の有無では消さない）。開けなかったときも、そのDBを使う機能以外は動くようにする
 
 ## 同期で2つずつになったものをまとめる型（2026-10-08）
 

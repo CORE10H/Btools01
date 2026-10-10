@@ -1136,6 +1136,8 @@
     { name: 'RECON', src: 'apps/recon.html', coverImg: 'apps/img/recon.jpg' },
     // LIBRARIUM：AIのべりすとの .novel から本文を取り込んで並べる本棚（2026-10-07）
     { name: 'LIBRARIUM', src: 'apps/librarium.html', coverImg: 'apps/img/librarium.jpg' },
+    // STAMPWORKS：LINEスタンプの企画・プロンプト・透過と切り分け・書き出し（2026-10-10）
+    { name: 'STAMPWORKS', src: 'apps/stampworks.html', coverImg: 'apps/img/stampworks.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 

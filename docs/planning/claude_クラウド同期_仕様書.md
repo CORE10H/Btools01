@@ -243,6 +243,8 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 | `sideops_recon` | 同期する（2026-10-05決定） | 下の「RECONを同期するときの扱い」を参照 |
 | `sideops_librarium` | 同期する（2026-10-07） | LIBRARIUMの本（`books`）。`progress`ストアは2026-10-07の版の名残で同期しない（`excludeStores`。`apps/claude_アプリ_LIBRARIUM_仕様書.md`） |
 | `sideops_librarium_pos` | 同期する（2026-10-08） | LIBRARIUMの読んだ位置。本のDBから分けた（下の「速さの見直し」）。本のDBに残る`progress`ストアは同期しない |
+| `sideops_stampworks` | 同期する（2026-10-10） | STAMPWORKSの企画（`plans`）。第2弾で同じキャラクターの設定を使い回すため、PCとスマホでそろえる |
+| `sideops_stampworks_work` | 同期しない（2026-10-10。`DB_RULES`に入れない） | STAMPWORKSの作業中の画像（取り込んだ画像と選択）。数MBの画像を毎回送ると重くなるため。端末の中の一時保存（`apps/claude_アプリ_STAMPWORKS_仕様書.md`） |
 | その他のアプリ | 同期する | |
 
 ### 本体の設定の分け方（2026-10-05決定）
@@ -402,7 +404,7 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 
 - アプリの`DB_VERSION`を上げたら、`js/sync.js`の`DB_RULES`の`version`も同じ値にし、`SYNC_APP_BUILD`（`yyyymmddnn`の数値）を上げる
 - アプリのレコードの項目（データの形）を変えたら、`SYNC_APP_BUILD`を上げる
-  - 上げた記録：`2026100601`（PROMPTGALLERYの`thumb`）、`2026100701`（MANUSCRIPTの画像・SCAFFOLDの下書き・Discoticaのアーティストとアルバム・ランチャーのカードに見え方の項目を追加、LIBRARIUMを追加）、`2026100801`（LIBRARIUMの読んだ位置を別のDBへ）
+  - 上げた記録：`2026100601`（PROMPTGALLERYの`thumb`）、`2026100701`（MANUSCRIPTの画像・SCAFFOLDの下書き・Discoticaのアーティストとアルバム・ランチャーのカードに見え方の項目を追加、LIBRARIUMを追加）、`2026100801`（LIBRARIUMの読んだ位置を別のDBへ）、`2026101001`（STAMPWORKSを追加）
 - 新しいアプリ（新しいDB）を足したら、`DB_RULES`に足す。足さないと同期されない
 - 本体の設定（`main`）に項目を足し、それを同期したいときは、`DB_RULES`の`only`に書き足す。書き足さない項目は端末ごとになる
 

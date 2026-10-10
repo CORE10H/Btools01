@@ -1,0 +1,2973 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STAMPWORKS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
+    /* 確認用の背景の市松（わざとテーマに追従させない：スタンプが実際に置かれる背景を真似て確かめるため） */
+    --chk-a: #FFFFFF;
+    --chk-b: #DDE3EA;
+    color-scheme: dark;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  button, input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
+  [hidden] { display: none !important; }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; min-height: 51px;
+  }
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .bar-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .bar-plan-title { min-width: 0; font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-right { display: flex; align-items: center; gap: 8px; min-width: 0; flex-shrink: 0; }
+
+  .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+    flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+  .btn.lg { font-size: 12px; padding: 9px 16px; min-height: 38px; }
+
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 240px; max-width: calc(100vw - 32px);
+    background: var(--panel); border: 1px solid var(--line); z-index: 40; display: none;
+    padding: 6px;
+  }
+  .menu-panel.is-open { display: block; }
+  .menu-panel-item {
+    width: 100%; text-align: left; background: transparent; border: none;
+    color: var(--text-dim); font-size: 12px; padding: 9px 10px; cursor: pointer;
+  }
+  .menu-panel-item:hover { background: var(--bg-alt); color: var(--cyan); }
+  .menu-panel-item.danger:hover { color: var(--magenta); }
+
+  .app-body { flex: 1; overflow: hidden; min-height: 0; position: relative; display: flex; flex-direction: column; }
+
+  .empty-state {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--text-faint); flex-direction: column; gap: 10px; padding: 48px 20px;
+  }
+  .empty-state .big { font-family: var(--font-display); font-size: 13px; color: var(--text-dim); letter-spacing: .04em; }
+  .empty-state .small { font-size: 11px; max-width: 360px; line-height: 1.8; }
+  .empty-state .btn { margin-top: 6px; }
+
+  /* =====================================================================
+     一覧
+  ===================================================================== */
+  #listView { flex: 1; overflow-y: auto; padding: 16px; min-height: 0; display: none; }
+  #listView.is-active { display: block; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .filter-btn {
+    font-size: 11px; padding: 6px 10px; border: 1px solid var(--line); background: transparent;
+    color: var(--text-dim); cursor: pointer; white-space: nowrap;
+  }
+  .filter-btn b { font-family: var(--font-display); font-weight: 600; margin-left: 4px; color: var(--text-faint); }
+  .filter-btn[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .filter-btn[aria-pressed="true"] b { color: var(--cyan); }
+  .plan-card {
+    display: block; width: 100%; text-align: left; padding: 12px 14px; color: var(--text);
+    background: var(--bg-alt); border: 1px solid var(--line-soft); margin-bottom: 8px; cursor: pointer;
+  }
+  .plan-card:hover { background: var(--panel-hi); border-color: var(--cyan-dim); }
+  .plan-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .pc-top { display: flex; align-items: center; gap: 10px; }
+  .pc-title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pc-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 10.5px; color: var(--text-faint); }
+  .pc-meta .pc-work { color: var(--text-dim); }
+  .status-badge { font-size: 10px; padding: 2px 8px; border: 1px solid var(--line); color: var(--text-dim); flex-shrink: 0; white-space: nowrap; }
+  .status-badge.s-making { border-color: var(--amber); color: var(--amber); }
+  .status-badge.s-applied { border-color: var(--cyan-dim); color: var(--cyan); }
+  .status-badge.s-selling { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+
+  /* =====================================================================
+     編集（3つの手順）
+  ===================================================================== */
+  #editView { flex: 1; overflow-y: auto; min-height: 0; display: none; }
+  #editView.is-active { display: block; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 48px; }
+
+  .tabs {
+    position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px; padding: 10px 0; background: var(--bg);
+  }
+  .tab {
+    appearance: none; border: 1px solid var(--line-soft); background: transparent; padding: 8px 2px; min-height: 40px;
+    display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+    font-size: 12px; color: var(--text-dim); cursor: pointer; min-width: 0;
+  }
+  .tab b {
+    display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid currentColor; font-family: var(--font-display); font-size: 11px; font-weight: 600;
+  }
+  .tab[aria-selected="true"] { border-color: var(--cyan-dim); color: var(--cyan); background: var(--panel); }
+  .badge {
+    flex: none; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--cyan-dim); color: var(--cyan);
+    font-family: var(--font-display); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center;
+  }
+  .badge:empty { display: none; }
+
+  .panel { background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 14px; margin: 12px 0; }
+  .panel > h2 {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 12.5px; font-weight: 600; letter-spacing: .03em;
+    margin: -14px -14px 14px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft);
+  }
+  .save-ind { font-size: 10.5px; font-weight: 400; color: var(--text-faint); letter-spacing: 0; }
+  .save-ind.is-error { color: var(--magenta); }
+  .field { margin: 0 0 14px; }
+  .field > label, fieldset > legend, .lab { display: block; font-size: 11px; color: var(--text-dim); margin: 0 0 6px; padding: 0; }
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
+  .help { font-size: 11px; line-height: 1.7; color: var(--text-faint); margin: 6px 0 0; }
+  textarea, input[type="text"], select {
+    width: 100%; background: var(--bg); border: 1px solid var(--line); padding: 9px 10px;
+    font-size: 13px; line-height: 1.6; color: var(--text); outline: none;
+  }
+  textarea:focus, input[type="text"]:focus, select:focus { border-color: var(--cyan-dim); }
+  select { width: auto; max-width: 100%; padding: 7px 9px; }
+  textarea { resize: vertical; }
+  #styleCustom { margin-top: 10px; }
+  input[type="range"] { width: 100%; accent-color: var(--cyan); }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0 0; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--cyan); margin: 0; flex: none; }
+
+  /* 選択チップ */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .chip span {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 12px;
+    border: 1px solid var(--line); font-size: 12px; color: var(--text-dim); background: transparent;
+  }
+  .chip input:checked + span { border-color: var(--cyan); background: var(--cyan-dim); color: var(--cyan); }
+  .chip input:focus-visible + span { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .25); flex: none; }
+
+  .btn:focus-visible, .tab:focus-visible, summary:focus-visible, select:focus-visible, .filter-btn:focus-visible,
+  textarea:focus-visible, input[type="text"]:focus-visible, input[type="range"]:focus-visible,
+  .seg button:focus-visible, .check input:focus-visible, .hamburger-btn:focus-visible {
+    outline: 2px solid var(--cyan); outline-offset: 2px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row.between { justify-content: space-between; }
+
+  /* 区切りボタン */
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); }
+  .seg button {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    min-height: 32px; padding: 6px 12px; font-size: 11.5px; color: var(--text-dim);
+  }
+  .seg button + button { border-left: 1px solid var(--line-soft); }
+  .seg button[aria-pressed="true"] { background: var(--cyan-dim); color: var(--cyan); }
+
+  /* プロンプト */
+  .plan-summary { margin: 0 0 4px; font-size: 13px; }
+  .pcard { border: 1px solid var(--line); margin: 12px 0; }
+  .pcard header {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 8px 7px 12px; background: var(--panel); border-bottom: 1px solid var(--line-soft);
+  }
+  .pcard h3 { font-size: 12.5px; font-weight: 600; }
+  .pcard h3 small { font-weight: 400; color: var(--text-faint); margin-left: 6px; font-size: 11px; }
+  .ptext {
+    margin: 0; padding: 10px 12px; max-height: 230px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    font-family: var(--font-body); font-size: 12px; line-height: 1.7; -webkit-user-select: text; user-select: text;
+  }
+  .note { background: var(--amber-dim); color: var(--amber); padding: 9px 11px; font-size: 11.5px; line-height: 1.7; margin: 10px 0 0; }
+  .note.info { background: transparent; color: var(--text-dim); border: 1px solid var(--line-soft); }
+  .note ul { margin: 4px 0 0; padding-left: 1.3em; }
+  .tips, .steps { margin: 14px 0; padding-left: 1.4em; color: var(--text-dim); font-size: 12px; line-height: 1.8; }
+  .steps { color: var(--text); }
+  .tips li, .steps li { margin: 3px 0; }
+  .checks { margin: 0; padding-left: 1.2em; font-size: 12px; line-height: 1.8; }
+  .checks li { margin: 3px 0; }
+
+  /* 読み込み */
+  .drop {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 20px 14px; border: 1px dashed var(--cyan-dim); text-align: center; cursor: pointer;
+  }
+  .drop.over { background: var(--cyan-dim); }
+  .drop:focus-within { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .status { min-height: 1.6em; margin: 10px 0 0; font-size: 12px; color: var(--cyan); }
+  .sheet-count { font-size: 11px; color: var(--text-faint); margin: 0 0 8px; }
+  .sheets { display: grid; gap: 10px; }
+  .scard {
+    display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 12px;
+    border: 1px solid var(--line-soft); background: var(--bg);
+  }
+  .scard .thumb { width: 64px; height: 64px; object-fit: contain; background: var(--panel); }
+  .scard .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .scard h3 { font-size: 12.5px; font-weight: 600; line-height: 1.5; min-width: 0; }
+  .scard h3 small { display: block; font-weight: 400; font-size: 10.5px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scard .meta { margin: 2px 0 8px; font-size: 11px; line-height: 1.5; color: var(--text-dim); display: flex; align-items: flex-start; gap: 6px; }
+  .scard .meta .sw { margin-top: 2px; }
+  .scard .meta span { flex: 1 1 auto; min-width: 0; }
+  .scard .ctrls { display: flex; gap: 8px; }
+  .scard .ctrls label { flex: 1 1 0; min-width: 0; font-size: 10.5px; color: var(--text-faint); }
+  .scard .ctrls select { display: block; width: 100%; margin-top: 3px; }
+  .scard .note { margin: 8px 0 0; }
+  .scard > div { min-width: 0; }
+
+  /* 結果タイル */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 14px 10px; margin: 14px 0 6px; padding: 4px; }
+  .tile {
+    position: relative; aspect-ratio: 37 / 32; display: flex; align-items: center; justify-content: center;
+    padding: 0; border: 0; cursor: pointer;
+  }
+  .tile canvas { max-width: 90%; max-height: 90%; width: auto; height: auto; }
+  .tile[aria-pressed="true"] { outline: 2px dashed var(--cyan); outline-offset: 3px; }
+  .tile[aria-pressed="false"] canvas { opacity: .22; }
+  .tile:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .no {
+    position: absolute; left: 5px; top: 5px; min-width: 22px; padding: 0 6px;
+    background: var(--panel); color: var(--text); font-family: var(--font-display); font-size: 12px; font-weight: 600;
+    line-height: 20px; text-align: center; box-shadow: 0 0 0 1px var(--line);
+  }
+  .tile[aria-pressed="false"] .no { color: var(--text-faint); }
+  [data-bg="check"] .tile, [data-bg="check"] .oart {
+    background-color: var(--chk-a);
+    background-image:
+      linear-gradient(45deg, var(--chk-b) 25%, transparent 25%, transparent 75%, var(--chk-b) 75%),
+      linear-gradient(45deg, var(--chk-b) 25%, transparent 25%, transparent 75%, var(--chk-b) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+  }
+  /* 確認用の背景（テーマに追従させない）。トークの色は LINE の既定のトーク背景に近い色（実測ではない） */
+  [data-bg="white"] .tile, [data-bg="white"] .oart { background: #FFFFFF; }
+  [data-bg="black"] .tile, [data-bg="black"] .oart { background: #000000; }
+  [data-bg="talk"] .tile, [data-bg="talk"] .oart { background: #8FAAD3; }
+  .empty { margin: 10px 0; color: var(--text-faint); font-size: 12px; }
+  details.adjust { margin: 16px 0; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  details.adjust summary { cursor: pointer; font-size: 12px; color: var(--text-dim); }
+  details.adjust[open] summary { margin-bottom: 12px; }
+  output { font-family: var(--font-display); font-size: 13px; font-weight: 600; color: var(--cyan); margin-left: 6px; }
+
+  /* 書き出し */
+  .count { margin: 10px 0; font-size: 12.5px; line-height: 1.7; }
+  .count:empty { display: none; }
+  .count.warn { color: var(--amber); background: var(--amber-dim); padding: 8px 12px; }
+  .dl-status { font-size: 11.5px; color: var(--cyan); margin: 8px 0 0; min-height: 1.4em; }
+  .outs { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 16px 12px; margin: 14px 0 4px; }
+  .otile { margin: 0; min-width: 0; }
+  .oart { aspect-ratio: 37 / 32; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .oart img { max-width: 100%; max-height: 100%; display: block; }
+  .otile.extra .oart { aspect-ratio: 1; }
+  .otile figcaption { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; font-size: 11.5px; }
+  .otile .mainpick { margin-top: 6px; width: 100%; }
+  .otile .mainpick[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 60; max-width: 86vw; text-align: center; line-height: 1.6;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); padding: 16px 18px; }
+  .confirm-box.is-danger { border-color: var(--magenta-dim); }
+  .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 14px; white-space: pre-line; }
+  .confirm-box .cf-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+  @media (min-width: 640px) {
+    .wrap { padding: 0 24px 56px; }
+    .panel { padding: 18px 20px; }
+    .panel > h2 { margin: -18px -20px 16px; padding: 10px 20px; }
+  }
+</style>
+<script src="sideops-theme-bridge.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <!-- 上のバー：一覧 -->
+  <div class="app-bar" id="barList">
+    <span class="app-title">// STAMPWORKS</span>
+    <div class="bar-right">
+      <button class="btn primary" id="addPlanBtn" type="button">＋ 新しい企画</button>
+      <div class="menu-wrap">
+        <button class="hamburger-btn" id="listMenuBtn" type="button" title="メニュー" aria-haspopup="true">☰</button>
+        <div class="menu-panel" id="listMenu">
+          <button class="menu-panel-item danger" id="menuCleanAll" type="button">作業中の画像をすべて片付ける</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 上のバー：編集 -->
+  <div class="app-bar" id="barEdit" hidden>
+    <div class="bar-left">
+      <button class="btn" id="backBtn" type="button">← 一覧</button>
+      <span class="bar-plan-title" id="barPlanTitle"></span>
+    </div>
+    <div class="bar-right">
+      <div class="menu-wrap">
+        <button class="hamburger-btn" id="editMenuBtn" type="button" title="メニュー" aria-haspopup="true">☰</button>
+        <div class="menu-panel" id="editMenu">
+          <button class="menu-panel-item" id="menuDuplicate" type="button">この企画を複製（第2弾を作る）</button>
+          <button class="menu-panel-item" id="menuCleanPlan" type="button">この企画の作業中の画像を片付ける</button>
+          <button class="menu-panel-item danger" id="menuDelete" type="button">この企画を削除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <!-- 一覧 -->
+    <div id="listView" class="is-active">
+      <div class="filter-row" id="filterRow" role="group" aria-label="状態で絞り込む"></div>
+      <div id="planList"></div>
+    </div>
+
+    <!-- 編集 -->
+    <div id="editView">
+      <div class="wrap">
+        <nav class="tabs" role="tablist" aria-label="作業の手順">
+          <button class="tab" role="tab" id="tab-p" aria-controls="panel-p" aria-selected="true" data-tab="p" type="button"><b>1</b>プロンプト</button>
+          <button class="tab" role="tab" id="tab-c" aria-controls="panel-c" aria-selected="false" data-tab="c" tabindex="-1" type="button"><b>2</b>切り抜き<span class="badge" id="badge-c"></span></button>
+          <button class="tab" role="tab" id="tab-s" aria-controls="panel-s" aria-selected="false" data-tab="s" tabindex="-1" type="button"><b>3</b>保存<span class="badge" id="badge-s"></span></button>
+        </nav>
+
+        <!-- 1 プロンプト -->
+        <section id="panel-p" role="tabpanel" aria-labelledby="tab-p">
+          <p class="note" id="noDbNote" hidden>このブラウザでは企画を保存できません（IndexedDB を使えません）。閉じると企画は消えます。</p>
+          <div class="panel">
+            <h2>企画<span class="save-ind" id="saveInd" role="status" aria-live="polite"></span></h2>
+            <div class="field">
+              <label for="planTitle">企画名</label>
+              <input type="text" id="planTitle" maxlength="80" placeholder="例）まじめ柴犬 第1弾" autocomplete="off">
+              <p class="help">空欄なら、一覧ではテーマの先頭を名前にします。</p>
+            </div>
+            <fieldset>
+              <legend>状態</legend>
+              <div class="chips" id="statusChips"></div>
+            </fieldset>
+            <div class="field">
+              <label for="planMemo">メモ</label>
+              <textarea id="planMemo" rows="2" placeholder="例）申請日・販売ページのURL・次に直すこと"></textarea>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>テーマとキャラクター</h2>
+            <div class="field">
+              <label for="theme">テーマ</label>
+              <textarea id="theme" rows="2" placeholder="例）工場で働くまじめな柴犬。仕事の連絡に使える"></textarea>
+            </div>
+            <div class="field">
+              <label for="character">キャラクターの見た目</label>
+              <textarea id="character" rows="2" placeholder="例）茶色の柴犬、黄色いヘルメット、紺の作業着"></textarea>
+              <p class="help">2枚目以降も同じキャラで描かせるため、色や服装まで具体的に。空欄ならAIにおまかせします。</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>絵柄と枚数</h2>
+            <fieldset>
+              <legend>絵柄</legend>
+              <div class="chips" id="styleChips"></div>
+              <input type="text" id="styleCustom" placeholder="例）クレヨンで描いたような素朴なタッチ" hidden>
+            </fieldset>
+            <fieldset>
+              <legend>セットの個数</legend>
+              <div class="chips" id="countChips"></div>
+            </fieldset>
+            <fieldset>
+              <legend>1枚の画像に描く数</legend>
+              <div class="chips" id="perChips"></div>
+              <p class="help">少ないほど1コマの画質が上がり、多いほど早くそろいます。</p>
+            </fieldset>
+            <fieldset>
+              <legend>文字</legend>
+              <div class="chips" id="textChips"></div>
+            </fieldset>
+            <fieldset>
+              <legend>背景色</legend>
+              <div class="chips" id="keyChips"></div>
+              <p class="help">あとで透明にする色です。キャラに使っていない色を選びます（緑のキャラならブルーかマゼンタ）。</p>
+            </fieldset>
+          </div>
+
+          <div class="panel">
+            <h2>セリフ</h2>
+            <div class="row">
+              <select id="preset" aria-label="セリフのプリセット"></select>
+              <button class="btn" id="refill" type="button">プリセットで入れ直す</button>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label for="phrases">1行に1つ「セリフ｜しぐさ」</label>
+              <textarea id="phrases" rows="10" spellcheck="false"></textarea>
+              <p class="help" id="phraseStatus"></p>
+            </div>
+            <div class="row">
+              <button class="btn" id="copyPhrasePrompt" type="button">セリフ案を頼むプロンプトをコピー</button>
+            </div>
+            <p class="help">ChatGPT・Gemini などに貼り、返ってきた行をセリフ欄に貼り付けます。</p>
+          </div>
+
+          <div class="panel">
+            <h2>生成AIに渡すプロンプト</h2>
+            <p class="plan-summary" id="planSummary"></p>
+            <p class="note" id="themeWarn" hidden>テーマが空欄です。入れるとプロンプトに反映されます。</p>
+            <div id="prompts"></div>
+            <ol class="tips">
+              <li>ChatGPTやGeminiに、1枚目から順に貼り付けます。</li>
+              <li>2枚目以降も同じチャットで続けると、絵柄がそろいやすくなります。</li>
+              <li>できた画像を保存して、「2 切り抜き」で読み込みます。</li>
+            </ol>
+            <button class="btn primary lg" type="button" data-go="c">切り抜きへ進む</button>
+          </div>
+        </section>
+
+        <!-- 2 切り抜き -->
+        <section id="panel-c" role="tabpanel" aria-labelledby="tab-c" hidden>
+          <div class="panel">
+            <h2>画像を読み込む</h2>
+            <label class="drop" id="drop">
+              <input type="file" id="file" accept="image/*" multiple>
+              <span class="btn primary lg" aria-hidden="true">生成した画像を選ぶ</span>
+              <span class="help">複数まとめて選べます。PCならドラッグや貼り付けでも読み込めます。</span>
+            </label>
+            <p class="status" id="busy" role="status" aria-live="polite"></p>
+            <div class="note" id="skipped" hidden></div>
+            <p class="help" id="workNote"></p>
+            <p class="sheet-count" id="sheetCount"></p>
+            <div class="sheets" id="sheets"></div>
+          </div>
+
+          <div class="panel">
+            <h2>切り抜き結果</h2>
+            <div class="row between">
+              <div class="seg" id="bgSeg" role="group" aria-label="確認用の背景"></div>
+              <div class="row">
+                <button class="btn" id="selAll" type="button">全部使う</button>
+                <button class="btn" id="selNone" type="button">全部外す</button>
+              </div>
+            </div>
+            <div class="tiles" id="tiles" data-bg="check"></div>
+            <p class="empty" id="tilesEmpty">まだ画像がありません。上で生成した画像を選んでください。</p>
+            <p class="help" id="selInfo"></p>
+            <p class="help">タップで使う・使わないを切り替えます。背景を黒にして、キャラの内側が透けていないか確かめてください（透けているとリジェクトの原因になります）。</p>
+            <details class="adjust">
+              <summary>うまく切れないときの調整</summary>
+              <div class="field">
+                <label for="strength">透過の強さ<output id="strengthOut" for="strength"></output></label>
+                <input type="range" id="strength" min="0" max="100" step="5">
+                <p class="help">背景色が残るなら強く、キャラが欠けるなら弱く。</p>
+              </div>
+              <label class="check"><input type="checkbox" id="holes">囲まれた背景も消す（腕と体のすき間など）</label>
+              <p class="help">キャラの内側まで消えてしまうときはオフに。</p>
+              <fieldset style="margin-top:14px">
+                <legend>フチを削る</legend>
+                <div class="chips" id="erodeChips"></div>
+                <p class="help">輪郭に背景色のふちが残るときは1〜2px。</p>
+              </fieldset>
+              <label class="check"><input type="checkbox" id="clean">小さなゴミや区切り線を消す</label>
+              <p class="help">この調整はこの端末に覚えます（企画ごとではありません）。</p>
+            </details>
+            <button class="btn primary lg" type="button" data-go="s">保存へ進む</button>
+          </div>
+        </section>
+
+        <!-- 3 保存 -->
+        <section id="panel-s" role="tabpanel" aria-labelledby="tab-s" hidden>
+          <div class="panel">
+            <h2>書き出し</h2>
+            <div class="seg" id="outSeg" role="group" aria-label="書き出し先"></div>
+            <p class="help" id="outDesc"></p>
+            <p class="count" id="saleStatus"></p>
+            <div class="row">
+              <button class="btn primary lg" id="dlAll" type="button">全部ダウンロード</button>
+              <button class="btn danger lg" id="dlStop" type="button" hidden>止める</button>
+              <button class="btn primary lg" id="shareAll" type="button" hidden>まとめて写真に保存</button>
+              <button class="btn lg" id="zipAll" type="button">ZIPで保存</button>
+            </div>
+            <p class="dl-status" id="dlStatus" role="status" aria-live="polite"></p>
+            <p class="help" id="saveHint"></p>
+            <div class="outs" id="outs" data-bg="check"></div>
+            <p class="empty" id="outsEmpty">使う画像がありません。「2 切り抜き」で画像を読み込んでください。</p>
+          </div>
+
+          <div class="panel" id="howMaker">
+            <h2>スタンプメーカーでの仕上げ</h2>
+            <ol class="steps">
+              <li>「スタンプ」を選び、カメラロールから保存した画像を1枚選ぶ</li>
+              <li>切りぬき方法は「スキップ」を選ぶ（背景はもう透明です）</li>
+              <li>必要ならテキストやステッカーを足して保存。個数分くり返す</li>
+              <li>8個以上できたら販売申請。AIの使用は「AIを使用」を選ぶ</li>
+            </ol>
+            <p class="help">最初は1枚だけ取り込み、背景が透明のまま入るかを確かめてから進めると安全です。</p>
+          </div>
+
+          <div class="panel" id="howCm" hidden>
+            <h2>Creators Marketでの登録</h2>
+            <ol class="steps">
+              <li>新しいスタンプを作り、セットの個数を選ぶ</li>
+              <li>スタンプ画像の編集で、このZIPをまとめてアップロードする</li>
+              <li>メイン画像・タブ画像も同じZIPに入っています</li>
+              <li>申請時、AIの使用を正しく申告する</li>
+            </ol>
+            <p class="help">画像の大きさ（370×320・メイン240×240・タブ96×74）は第三者の記事によるものです。申請の前に、公式の制作ガイドラインで確かめてください。</p>
+          </div>
+
+          <div class="panel">
+            <h2>申請前のチェック</h2>
+            <ul class="checks">
+              <li>キャラの内側（目や体）が透けていない</li>
+              <li>既存のキャラクター・有名人・ロゴに似ていない</li>
+              <li>文字に誤字や崩れがない</li>
+              <li>トーク画面のライト・ダーク両方で見やすい</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 確認（削除・片付け・食い違いなど共通） -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box" id="confirmBox" role="dialog" aria-modal="true" aria-labelledby="confirmMsg">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions" id="confirmActions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   STAMPWORKS：LINEスタンプの企画・プロンプト・透過と切り分け・書き出し
+   仕様：docs/apps/claude_アプリ_STAMPWORKS_仕様書.md
+   画像の処理・プロンプトの合成・書き出しは、claude.ai で作って確かめた単体版
+   （スタンプ下ごしらえ）から移した。中身は変えていない（読む先だけ変えた）
+   ===================================================================== */
+
+/* ================= データ ================= */
+
+const PRESETS = {
+  daily: { label: '日常あいさつ', lines: [
+    'おはよう｜元気に手を挙げる', 'おやすみ｜まくらを抱えてうとうと', 'ありがとう｜笑顔でぺこりとおじぎ',
+    'ごめんね｜しょんぼり手を合わせる', 'OK！｜両手で大きな丸を作る', '了解！｜びしっと敬礼',
+    'おつかれさま｜湯のみを差し出す', 'よろしくね｜にっこりおじぎ', 'いいね！｜親指を立ててウインク',
+    'すごい！｜目をキラキラさせる', 'やったー！｜バンザイしてジャンプ', 'えっ!?｜びっくりしてのけぞる',
+    'ウケる｜おなかを抱えて大笑い', 'かなしい…｜涙をぽろぽろ流す', 'おめでとう！｜クラッカーを鳴らす',
+    'ファイト！｜こぶしを突き上げる', '大丈夫？｜心配そうにのぞきこむ', 'お願い！｜両手を合わせて拝む',
+    'ちょっと待って｜あわてて手のひらを出す', 'なるほど｜あごに手を当ててうなずく', 'はーい｜手を挙げて返事',
+    'いってきます｜手を振って駆け出す', 'ただいま｜ドアから顔をのぞかせる', 'おかえり｜両手を広げて迎える',
+    '楽しみ！｜わくわく体をゆらす', '眠い…｜目をこすってあくび', 'おなかすいた｜おなかを押さえてへにゃり',
+    'ドンマイ｜肩をぽんとたたく', '無理〜｜床にばたんと倒れる', 'はてな？｜首をかしげる',
+    'がーん｜白目でショックを受ける', 'ぷんぷん｜ほっぺをふくらませる', 'てへっ｜舌を出して頭をかく',
+    '助かる！｜拝むようにお礼', '今どこ？｜スマホを見てきょろきょろ', 'いま行く！｜全速力で走る',
+    'また明日｜手を振って見送る', '気をつけてね｜心配そうに手を振る', 'ひとやすみ｜ごろんと寝ころぶ',
+    'わかる〜｜うんうんとうなずく', 'ほんとに？｜目を細めて疑う', 'だいすき｜ハートを抱きしめる',
+    'えらい！｜頭をなでなでする', '任せて！｜胸をどんとたたく', '考え中…｜腕を組んで悩む'
+  ]},
+  work: { label: '仕事・敬語', lines: [
+    'おはようございます｜きちんとおじぎ', 'お疲れさまです｜丁寧に頭を下げる', 'ありがとうございます｜深々とおじぎ',
+    '承知しました｜手帳にメモを取る', '了解です｜びしっと敬礼', '申し訳ありません｜深く頭を下げる',
+    'よろしくお願いします｜両手をそろえておじぎ', '確認します｜書類をじっと見る', '少々お待ちください｜手のひらを前に出す',
+    '助かります｜拝むようにお礼', 'お先に失礼します｜カバンを持って会釈', '向かっています｜早足で歩く',
+    '遅れます！｜時計を見てあわてる', '会議中です｜資料を抱えて静かに', 'お手数おかけします｜申し訳なさそうにおじぎ',
+    'かしこまりました｜胸に手を当てる', 'さすがです！｜拍手する', 'お疲れさまでした｜手を振って見送る',
+    '休憩します｜コーヒーを飲んでひと息', 'ご安全に！｜ヘルメットに手を添えて敬礼', 'いいと思います｜親指を立てる',
+    '後ほど連絡します｜スマホを手に持つ', '対応します！｜腕まくりする', '無理しないでください｜心配そうに見つめる'
+  ]},
+  family: { label: '家族・夫婦', lines: [
+    'いま帰るね｜カバンを持って歩く', 'ごはんできたよ｜おたまを持って呼ぶ', '何か買ってく？｜買い物かごを持つ',
+    '了解〜｜ゆるく手を挙げる', 'ありがと〜｜にこにこ手を振る', 'ごめん！｜手を合わせて謝る',
+    '迎えに来て｜手を振って待つ', 'もうすぐ着く｜時計を見て小走り', '先に寝るね｜まくらを抱える',
+    'おつかれ〜｜肩をもんであげる', '大好き｜ハートを抱きしめる', 'ゆっくりしてね｜お茶を出す',
+    '電話して｜電話のジェスチャー', '今日は遅くなる｜申し訳なさそうに時計を見る', 'ゴミ出しお願い｜ゴミ袋を差し出す',
+    'お風呂わいたよ｜湯気の中で手招き', '晩ごはん何がいい？｜首をかしげて考える', 'いってらっしゃい｜笑顔で手を振る',
+    'おかえりなさい｜両手を広げる', '起きてる？｜そっと顔をのぞかせる'
+  ]},
+  friends: { label: '友だち', lines: [
+    'それな｜指をさしてうなずく', '草｜転げ回って笑う', '天才か｜拍手かっさい', 'マジで!?｜目が飛び出るほど驚く',
+    'いいじゃん｜親指を立てる', 'ひま？｜ひょっこり顔を出す', '行こ！｜手を引っぱる', '尊い…｜胸を押さえて天をあおぐ',
+    'はいはい｜手をひらひら', '最高！｜ガッツポーズ', 'え、無理｜真顔で手を横に振る', 'ごめん寝てた｜寝ぐせ頭で謝る',
+    'ありがてぇ｜拝む', 'またね｜ウインクして手を振る', '既読スルー禁止｜スマホを突きつける', 'ちょっと聞いて｜身を乗り出す',
+    'おけまる｜指で丸を作る', 'どゆこと？｜頭に「？」を浮かべる', 'お腹痛い笑｜笑いすぎて涙', 'かわいい｜目がハートになる'
+  ]},
+  react: { label: 'リアクション', lines: [
+    '！｜驚いて飛び上がる', '？｜首をかしげる', 'OK｜両手で丸を作る', 'NG｜両手でバツを作る', '♡｜ハートを投げる',
+    '…｜無表情で固まる', 'ガーン｜ショックで真っ白', 'ドキドキ｜胸を押さえる', 'ワクワク｜目を輝かせる',
+    'しーん｜うつろな目', 'ぷいっ｜そっぽを向く', 'ぎゅー｜クッションを抱きしめる', 'パチパチ｜拍手',
+    'ペコリ｜おじぎ', 'ガクブル｜震える', 'ニヤリ｜不敵な笑み', 'きゃー｜両手でほおを押さえる',
+    'るんるん｜スキップ', 'ぐぬぬ｜歯を食いしばる', 'ほっ｜胸をなでおろす', 'ジーッ｜物陰から見つめる',
+    'ズーン｜落ち込んでうなだれる'
+  ]}
+};
+
+const STYLES = {
+  yurukawa: ['ゆるかわ', 'シンプルでかわいい、ゆるいタッチの手描きイラスト。太めの線、やわらかい配色'],
+  pop: ['ポップ', '太い輪郭線のポップでカラフルなイラスト。くっきりしたベタ塗り'],
+  chibi: ['ちびキャラ', '2〜3頭身のデフォルメキャラ。アニメ塗り'],
+  watercolor: ['水彩', 'やさしい水彩風のイラスト。ただし輪郭ははっきりさせ、色を背景ににじませない'],
+  gekiga: ['劇画', '濃い陰影の劇画タッチ。まじめな顔つきとセリフのギャップが出るように'],
+  pixel: ['ドット絵', 'レトロゲーム風のドット絵。輪郭はくっきり'],
+  custom: ['自由入力', '']
+};
+
+const KEYS = {
+  green: ['グリーン', '#00FF00'],
+  blue: ['ブルー', '#0000FF'],
+  magenta: ['マゼンタ', '#FF00FF']
+};
+
+const PER = {
+  4: { r: 2, c: 2, aspect: '正方形（1:1）', label: '4コマ' },
+  6: { r: 3, c: 2, aspect: '縦長（2:3）', label: '6コマ' },
+  9: { r: 3, c: 3, aspect: '正方形（1:1）', label: '9コマ' }
+};
+
+const GRIDS = [
+  ['1x1', '1コマ'], ['2x2', '2×2'], ['3x2', '3段×2列'], ['2x3', '2段×3列'], ['3x3', '3×3'], ['4x4', '4×4']
+];
+
+const SALE_SIZES = [8, 16, 24, 32, 40];
+const MAX_SIDE = 2048;
+
+const STATUSES = { idea: '企画中', making: '制作中', applied: '申請中', selling: '販売中' };
+
+// 企画（1件＝スタンプ1セット）の既定値。同期する（DB sideops_stampworks）
+const PLAN_DEFAULTS = {
+  title: '', status: 'idea', theme: '', character: '', style: 'yurukawa', styleCustom: '',
+  count: 16, per: 9, textMode: 'ai', key: 'green',
+  preset: 'daily', phrases: '', phrasesEdited: false, memo: ''
+};
+// 端末ごとの設定（localStorage。同期しない）。透過の調整は、そのとき取り込んだ画像に合わせるものなので端末ごと
+const PREF_DEFAULTS = {
+  lastPlanId: null, tab: 'p', bg: 'check', out: 'maker',
+  strength: 50, holes: true, erode: 1, clean: true
+};
+
+const DB_NAME = 'sideops_stampworks';            // 企画（同期する。js/sync.js の DB_RULES）
+const DB_VERSION = 1;
+const ST_PLANS = 'plans';
+const WORK_DB_NAME = 'sideops_stampworks_work';  // 作業中の画像（同期しない。DB_RULES に入れない）
+const WORK_DB_VERSION = 1;
+const ST_SHEETS = 'sheets';
+const ST_SESSION = 'session';
+const PREFS_KEY = 'sideops_stampworks_prefs';
+
+const SAVE_DELAY_MS = 600;       // 入力から保存までの間（メモ・SCRIBITと同じ考え方）
+const SESSION_DELAY_MS = 400;
+const MAX_SHEETS = 12;           // 1企画あたりの作業中の画像
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const WORK_KEEP_MS = 30 * 24 * 60 * 60 * 1000;  // 使っていない作業中の画像を片付けるまで
+const USED_TOUCH_MS = 24 * 60 * 60 * 1000;      // 「使った時刻」の書き直しは1日に1回まで（画像ごと書き直しになるため）
+const DL_GAP_MS = 400;           // 全部ダウンロードの1枚ごとの間
+
+/* ================= 端末ごとの設定 ================= */
+
+function loadPrefs() {
+  let raw = {};
+  try {
+    const v = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
+    if (v && typeof v === 'object') raw = v;
+  } catch (e) { /* 使えなければ既定値 */ }
+  const p = Object.assign({}, PREF_DEFAULTS, raw);
+  if (typeof p.lastPlanId !== 'string') p.lastPlanId = null;
+  if (!['p', 'c', 's'].includes(p.tab)) p.tab = 'p';
+  if (!['check', 'white', 'black', 'talk'].includes(p.bg)) p.bg = 'check';
+  if (!['maker', 'cm'].includes(p.out)) p.out = 'maker';
+  p.strength = Math.min(100, Math.max(0, +p.strength || 0));
+  p.holes = p.holes !== false;
+  p.clean = p.clean !== false;
+  p.erode = [0, 1, 2].includes(+p.erode) ? +p.erode : 1;
+  return p;
+}
+const prefs = loadPrefs();
+function savePrefs() {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* 保存できなくても動く */ }
+}
+
+/* ================= 状態 ================= */
+
+const S = {
+  view: 'list', plans: [], plan: null, filter: 'all', workCounts: new Map(),
+  sheets: [], stickers: [], off: new Set(), mainId: null,
+  outputs: [], extras: [], shareFiles: null,
+  procSeq: 0, buildSeq: 0, outWant: 0, outBuilt: 0,
+  shareBroken: false, workLoaded: true, importing: false, dl: null, workFailNotified: false
+};
+let db = null;       // 企画のDB（開けなければ null。企画は保存されない）
+let workDb = null;   // 作業中の画像のDB（開けなければ null。切り抜き・書き出しはできる）
+let openSeq = 0;     // 企画を開き直すたびに増やす（読み込み途中の処理を打ち切る目印）
+
+/* ================= 小道具 ================= */
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const el = (tag, cls, txt) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+};
+const tick = () => new Promise(r => setTimeout(r, 0));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const pad = n => String(n).padStart(2, '0');
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+function newId(prefix) {
+  const d = new Date();
+  const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let r = '';
+  try {
+    const a = new Uint8Array(6);
+    crypto.getRandomValues(a);
+    for (const x of a) r += abc[x % 36];
+  } catch (e) {
+    for (let i = 0; i < 6; i++) r += abc[Math.floor(Math.random() * 36)];
+  }
+  return `${prefix}${ts}_${r}`;
+}
+function formatDateTime(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function mb(bytes) { return `${(bytes / 1024 / 1024).toFixed(1)}MB`; }
+
+let toastTimer;
+function toast(msg, isError) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.toggle('is-error', !!isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), isError ? 3600 : 2600);
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* 次の方法へ */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+
+function chips(container, name, options, current, onChange) {
+  container.textContent = '';
+  for (const opt of options) {
+    const [value, label, swatch] = opt;
+    const lab = el('label', 'chip');
+    const inp = el('input');
+    inp.type = 'radio';
+    inp.name = name;
+    inp.value = String(value);
+    inp.checked = String(value) === String(current);
+    const span = el('span');
+    if (swatch) { const sw = el('i', 'sw'); sw.style.background = swatch; span.append(sw); }
+    span.append(document.createTextNode(label));
+    inp.addEventListener('change', () => { if (inp.checked) onChange(inp.value); });
+    lab.append(inp, span);
+    container.append(lab);
+  }
+}
+
+function seg(container, options, current, onChange) {
+  container.textContent = '';
+  for (const [value, label] of options) {
+    const b = el('button', null, label);
+    b.type = 'button';
+    b.dataset.value = value;
+    b.setAttribute('aria-pressed', String(value === current));
+    b.addEventListener('click', () => {
+      for (const x of container.children) x.setAttribute('aria-pressed', String(x === b));
+      onChange(value);
+    });
+    container.append(b);
+  }
+}
+
+/* ---- 確認（.confirm-overlay。背景のクリック・Esc で「やめる」） ---- */
+let askResolve = null;
+function ask(msg, buttons, opts = {}) {
+  if (askResolve) closeAsk(null);
+  $('#confirmMsg').textContent = msg;
+  $('#confirmBox').classList.toggle('is-danger', !!opts.danger);
+  const box = $('#confirmActions');
+  box.textContent = '';
+  const cancel = el('button', 'btn', opts.cancelLabel || 'やめる');
+  cancel.type = 'button';
+  cancel.addEventListener('click', () => closeAsk(null));
+  box.append(cancel);
+  for (const b of buttons) {
+    const x = el('button', 'btn' + (b.kind ? ' ' + b.kind : ''), b.label);
+    x.type = 'button';
+    x.dataset.value = b.value;
+    x.addEventListener('click', () => closeAsk(b.value));
+    box.append(x);
+  }
+  $('#confirmOverlay').classList.add('is-open');
+  setTimeout(() => { try { cancel.focus(); } catch (e) { /* 何もしない */ } }, 30);
+  return new Promise(r => { askResolve = r; });
+}
+function closeAsk(value) {
+  $('#confirmOverlay').classList.remove('is-open');
+  const r = askResolve;
+  askResolve = null;
+  if (r) r(value);
+}
+
+/* ================= IndexedDB ================= */
+
+function idbOpen(name, version, upgrade) {
+  return new Promise((resolve, reject) => {
+    let req;
+    try { req = indexedDB.open(name, version); } catch (e) { reject(e); return; }
+    req.onupgradeneeded = () => upgrade(req.result);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function reqP(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error || new Error('中断されました'));
+  });
+}
+const dbGetAll = (d, store) => reqP(d.transaction(store, 'readonly').objectStore(store).getAll());
+const dbGet = (d, store, key) => reqP(d.transaction(store, 'readonly').objectStore(store).get(key));
+async function dbPut(d, store, value) {
+  const tx = d.transaction(store, 'readwrite');
+  tx.objectStore(store).put(value);
+  await txDone(tx);
+}
+async function dbAdd(d, store, value) {
+  const tx = d.transaction(store, 'readwrite');
+  tx.objectStore(store).add(value);
+  await txDone(tx);
+}
+async function dbDel(d, store, key) {
+  const tx = d.transaction(store, 'readwrite');
+  tx.objectStore(store).delete(key);
+  await txDone(tx);
+}
+
+// 企画のDB。ストアの形はこの版のまま変えない（同期は記録した形でほかの端末にDBを作る）
+function openPlanDb() {
+  return idbOpen(DB_NAME, DB_VERSION, d => {
+    if (!d.objectStoreNames.contains(ST_PLANS)) d.createObjectStore(ST_PLANS, { keyPath: 'id' });
+  });
+}
+// 作業中の画像のDB（この端末だけ）
+function openWorkDb() {
+  return idbOpen(WORK_DB_NAME, WORK_DB_VERSION, d => {
+    if (!d.objectStoreNames.contains(ST_SHEETS)) {
+      const os = d.createObjectStore(ST_SHEETS, { keyPath: 'id' });
+      os.createIndex('planId', 'planId', { unique: false });
+    }
+    if (!d.objectStoreNames.contains(ST_SESSION)) d.createObjectStore(ST_SESSION, { keyPath: 'planId' });
+  });
+}
+
+const workSheetsOf = planId => reqP(workDb.transaction(ST_SHEETS, 'readonly').objectStore(ST_SHEETS).index('planId').getAll(planId));
+const workGetSession = planId => reqP(workDb.transaction(ST_SESSION, 'readonly').objectStore(ST_SESSION).get(planId));
+async function workDeletePlan(planId) {
+  const tx = workDb.transaction([ST_SHEETS, ST_SESSION], 'readwrite');
+  const done = txDone(tx);
+  const os = tx.objectStore(ST_SHEETS);
+  const keys = await reqP(os.index('planId').getAllKeys(planId));
+  for (const k of keys) os.delete(k);
+  tx.objectStore(ST_SESSION).delete(planId);
+  await done;
+  return keys.length;
+}
+async function workClearAll() {
+  const tx = workDb.transaction([ST_SHEETS, ST_SESSION], 'readwrite');
+  tx.objectStore(ST_SHEETS).clear();
+  tx.objectStore(ST_SESSION).clear();
+  await txDone(tx);
+}
+// 企画ごとの作業中の画像の枚数（中身は読まない）
+function workCountsByPlan() {
+  return new Promise((resolve, reject) => {
+    const out = new Map();
+    const req = workDb.transaction(ST_SHEETS, 'readonly').objectStore(ST_SHEETS).index('planId').openKeyCursor();
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) { resolve(out); return; }
+      out.set(cur.key, (out.get(cur.key) || 0) + 1);
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+// 開いたときの片付け：なくなった企画（ほかの端末で消された企画）の画像と、30日使っていない画像を消す。
+// planIds が null（企画を読めなかった）のときは、企画の有無では消さない（全部消してしまわないように）
+async function workCleanup(planIds) {
+  const now = Date.now();
+  const tx = workDb.transaction([ST_SHEETS, ST_SESSION], 'readwrite');
+  const done = txDone(tx);
+  const kept = new Set();
+  let removed = 0;
+  await new Promise((resolve, reject) => {
+    const req = tx.objectStore(ST_SHEETS).openCursor();
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) { resolve(); return; }
+      const v = cur.value || {};
+      const gone = planIds && !planIds.has(v.planId);
+      const old = !(now - (Number(v.usedAt) || 0) <= WORK_KEEP_MS);
+      if (gone || old) { cur.delete(); removed++; } else kept.add(v.planId);
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+  await new Promise((resolve, reject) => {
+    const req = tx.objectStore(ST_SESSION).openCursor();
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) { resolve(); return; }
+      const v = cur.value || {};
+      const gone = planIds && !planIds.has(v.planId);
+      const stale = !kept.has(v.planId) && !(now - (Number(v.updatedAt) || 0) <= WORK_KEEP_MS);
+      if (gone || stale) cur.delete();
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+  await done;
+  return removed;
+}
+
+/* ================= 企画（読み込み・保存） ================= */
+
+function totalCellsOf(p) {
+  const per = +p.per;
+  return Math.ceil(p.count / per) * per;
+}
+function totalCells() { return totalCellsOf(S.plan); }
+
+// 1件ずつ値を確かめ、知らない値は既定値にする（ほかの端末の新しい版から届いた形でも落ちないように）。
+// 知らない項目は消さずに残す
+function normalizePlan(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !raw.id) return null;
+  const p = {};
+  for (const k of Object.keys(raw)) if (k !== '__proto__') p[k] = raw[k];
+  const str = v => (typeof v === 'string' ? v : '');
+  p.title = str(raw.title);
+  p.status = Object.prototype.hasOwnProperty.call(STATUSES, raw.status) ? raw.status : PLAN_DEFAULTS.status;
+  p.theme = str(raw.theme);
+  p.character = str(raw.character);
+  p.style = Object.prototype.hasOwnProperty.call(STYLES, raw.style) ? raw.style : PLAN_DEFAULTS.style;
+  p.styleCustom = str(raw.styleCustom);
+  p.count = SALE_SIZES.includes(+raw.count) ? +raw.count : PLAN_DEFAULTS.count;
+  p.per = PER[+raw.per] ? +raw.per : PLAN_DEFAULTS.per;
+  p.textMode = ['ai', 'none'].includes(raw.textMode) ? raw.textMode : PLAN_DEFAULTS.textMode;
+  p.key = Object.prototype.hasOwnProperty.call(KEYS, raw.key) ? raw.key : PLAN_DEFAULTS.key;
+  p.preset = Object.prototype.hasOwnProperty.call(PRESETS, raw.preset) ? raw.preset : PLAN_DEFAULTS.preset;
+  p.phrases = str(raw.phrases);
+  p.phrasesEdited = raw.phrasesEdited === true;
+  if (!p.phrases.trim()) {
+    p.phrases = presetLines(p.preset, totalCellsOf(p)).join('\n');
+    p.phrasesEdited = false;
+  }
+  p.memo = str(raw.memo);
+  const now = Date.now();
+  p.createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : now;
+  p.updatedAt = Number.isFinite(raw.updatedAt) ? raw.updatedAt : p.createdAt;
+  return p;
+}
+
+function planName(p) {
+  const t = (p.title || '').trim();
+  if (t) return t;
+  const th = [...(p.theme || '').trim().replace(/\s+/g, ' ')];
+  if (th.length) return th.length > 20 ? th.slice(0, 20).join('') + '…' : th.join('');
+  return '無題の企画';
+}
+
+const baseAt = new Map();  // 企画のID → DBにある（と知っている）updatedAt。別のタブとの食い違いを見つけるため
+
+async function loadPlans() {
+  if (!db) return false;
+  try {
+    const rows = await dbGetAll(db, ST_PLANS);
+    const list = [];
+    for (const r of rows) {
+      const p = normalizePlan(r);
+      if (!p) continue;
+      list.push(p);
+      baseAt.set(p.id, Number.isFinite(r.updatedAt) ? r.updatedAt : 0);
+    }
+    S.plans = list;
+    return true;
+  } catch (err) {
+    console.error('企画の読み込みに失敗しました', err);
+    return false;
+  }
+}
+
+let saveTimer = null, dirtyPlan = null, saving = Promise.resolve(), conflictOpen = false;
+function setSaveInd(state) {
+  const e = $('#saveInd');
+  const text = !db ? '保存できません'
+    : state === 'editing' ? '編集中…'
+    : state === 'saved' ? '保存しました'
+    : state === 'error' ? '保存に失敗しました'
+    : state === 'conflict' ? '未保存（別の画面と食い違い）' : '';
+  e.textContent = text;
+  e.classList.toggle('is-error', !db || state === 'error' || state === 'conflict');
+}
+// 入力のたびに呼ぶ。600ms後に保存する
+function touchPlan() {
+  const p = S.plan;
+  if (!p) return;
+  p.updatedAt = Math.max(Date.now(), (p.updatedAt || 0) + 1);
+  dirtyPlan = p;
+  setSaveInd('editing');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveTimer = null; savePlanNow(); }, SAVE_DELAY_MS);
+}
+// 保存待ちを今すぐ書き込む（一覧へ戻る・Stageを閉じる・画面を離れるとき）
+function flushPlan() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; return savePlanNow(); }
+  return saving;
+}
+function savePlanNow() {
+  const p = dirtyPlan;
+  dirtyPlan = null;
+  if (!p || !db) { if (p) setSaveInd(''); return saving; }
+  saving = saving.catch(() => {}).then(async () => {
+    try {
+      const cur = await dbGet(db, ST_PLANS, p.id);
+      const base = baseAt.get(p.id) || 0;
+      if (cur && Number.isFinite(cur.updatedAt) && cur.updatedAt > base && cur.updatedAt !== p.updatedAt && !conflictOpen) {
+        // 別のタブ（画面）が先に保存していた：黙って上書きせず、どうするか聞く
+        conflictOpen = true;
+        const choice = await ask('この企画は別の画面（タブ）で更新されています。\nどちらの内容を残しますか？', [
+          { value: 'mine', label: 'こちらで上書き', kind: 'danger' },
+          { value: 'theirs', label: 'あちらの内容を読み込む', kind: 'primary' }
+        ]);
+        conflictOpen = false;
+        if (choice === 'theirs') { reloadPlanFrom(cur); return; }
+        if (choice !== 'mine') { if (S.plan === p) setSaveInd('conflict'); return; } // 次に入力したときにもう一度聞く
+      }
+      const rec = Object.assign({}, p);
+      await dbPut(db, ST_PLANS, rec);
+      baseAt.set(p.id, rec.updatedAt);
+      if (S.plan === p && !dirtyPlan) setSaveInd('saved');
+    } catch (err) {
+      console.error('企画の保存に失敗しました', err);
+      if (S.plan === p) setSaveInd('error');
+      toast('保存に失敗しました。容量不足の可能性があります', true);
+    }
+  });
+  return saving;
+}
+function reloadPlanFrom(raw) {
+  const p = normalizePlan(raw);
+  if (!p) return;
+  // 古い方の保存待ちは捨てる（読み込んだ内容を、すぐに古い内容で上書きしないように）
+  if (dirtyPlan && dirtyPlan.id === p.id) { clearTimeout(saveTimer); saveTimer = null; dirtyPlan = null; }
+  baseAt.set(p.id, raw.updatedAt);
+  const i = S.plans.findIndex(x => x.id === p.id);
+  if (i >= 0) S.plans[i] = p; else S.plans.unshift(p);
+  if (S.plan && S.plan.id === p.id) {
+    S.plan = p;
+    fillPlanForm();
+    setSaveInd('saved');
+  }
+}
+
+async function createPlan(src) {
+  const now = Date.now();
+  const p = normalizePlan(Object.assign({}, PLAN_DEFAULTS, src || {}, { id: newId('sw_'), createdAt: now, updatedAt: now }));
+  if (db) {
+    try {
+      await dbAdd(db, ST_PLANS, Object.assign({}, p));
+      baseAt.set(p.id, p.updatedAt);
+    } catch (err) {
+      console.error('企画の作成に失敗しました', err);
+      toast('企画を作れませんでした。容量不足の可能性があります', true);
+      return null;
+    }
+  }
+  S.plans.unshift(p);
+  return p;
+}
+
+/* ================= 1 プロンプト ================= */
+
+function presetLines(key, n) {
+  const out = [];
+  const seen = new Set();
+  const add = line => {
+    const t = line.split('｜')[0];
+    if (seen.has(t) || out.length >= n) return;
+    seen.add(t);
+    out.push(line);
+  };
+  for (const l of PRESETS[key].lines) add(l);
+  for (const l of PRESETS.daily.lines) add(l);
+  for (const k of Object.keys(PRESETS)) for (const l of PRESETS[k].lines) add(l);
+  return out;
+}
+
+function parsePhrases(text) {
+  return String(text || '').split(/\r?\n/)
+    .map(s => s.trim()).filter(Boolean)
+    .map(s => {
+      const parts = s.split(/[｜|]/);
+      return { text: (parts[0] || '').trim(), pose: parts.slice(1).join(' ').trim() };
+    })
+    .filter(p => p.text);
+}
+
+function styleText() {
+  const p = S.plan;
+  if (p.style === 'custom') return p.styleCustom.trim() || 'かわいいイラスト';
+  return STYLES[p.style][1];
+}
+
+function buildPrompts() {
+  const P = S.plan;
+  const per = +P.per;
+  const g = PER[per];
+  const [keyName, keyHex] = KEYS[P.key];
+  const sheets = Math.ceil(P.count / per);
+  const ph = parsePhrases(P.phrases);
+  const theme = P.theme.trim() || '（テーマ未入力）';
+  const chara = P.character.trim() || 'テーマに合うオリジナルのキャラクター（全コマ同じキャラ）';
+  const withText = P.textMode === 'ai';
+  const list = [];
+
+  for (let b = 0; b < sheets; b++) {
+    const items = [];
+    for (let k = 0; k < per; k++) {
+      const p = ph[b * per + k];
+      const no = k + 1;
+      if (!p) {
+        items.push(withText
+          ? `${no}. セリフはおまかせ（テーマに合う、トークでよく使う一言）`
+          : `${no}. しぐさはおまかせ（テーマに合う、トークでよく使う気持ち）`);
+      } else if (withText) {
+        items.push(`${no}. 「${p.text}」 ${p.pose || 'セリフに合う表情としぐさ'}`);
+      } else {
+        items.push(`${no}. ${p.pose || 'セリフに合う表情としぐさ'}（気持ち：${p.text}）`);
+      }
+    }
+
+    const lines = [];
+    lines.push(`LINEスタンプ用のイラストを、1枚の画像に${per}個並べて描いてください。`);
+    if (b > 0) lines.push('※このチャットで先に描いた画像と同じキャラクター・同じ絵柄・同じ線の太さで描いてください。');
+    lines.push('');
+    lines.push('■レイアウト');
+    lines.push(`・${g.aspect}の画像に、${g.r}段×${g.c}列で${per}個を等間隔に並べる`);
+    lines.push('・並び順は下の番号どおり（左上から右へ、上の段から下の段へ）');
+    lines.push('・イラスト同士のすき間を広くとり、重ねたり、となりのマスにはみ出したりしない');
+    lines.push('・区切り線、枠、番号、タイトルは描かない');
+    lines.push('');
+    lines.push('■背景（最重要）');
+    lines.push(`・画像全体を、完全にフラットな純色の${keyName}（${keyHex}）一色で塗りつぶす`);
+    lines.push('・グラデーション、影、床、模様、光の反射、背景の小物は入れない');
+    lines.push(`・キャラクター、文字、小物には${keyName}や近い色を使わない`);
+    lines.push('');
+    lines.push('■キャラクターと絵柄');
+    lines.push(`・テーマ：${theme}`);
+    lines.push(`・キャラクター：${chara}`);
+    lines.push(`・絵柄：${styleText()}`);
+    lines.push('・全コマ同じキャラクター、同じ絵柄、同じ線の太さで描く');
+    lines.push('・表情としぐさは大きくはっきり（スマホの小さな表示でも伝わるように）');
+    lines.push('・キャラクターと文字の外側を、太めの白いフチで囲む');
+    lines.push('・既存の作品のキャラクター、実在の人物、企業のロゴには似せない');
+    lines.push('');
+    lines.push(withText ? '■各コマの内容（セリフは一字一句このとおりに）' : '■各コマの内容');
+    lines.push(...items);
+    lines.push('');
+    lines.push('■文字');
+    if (withText) {
+      lines.push('・セリフは日本語で、太く丸みのある読みやすい書体にする');
+      lines.push('・文字は大きめに入れ、キャラクターの顔には重ねない');
+      lines.push('・指定したセリフ以外の文字（番号、説明、サイン、透かし）は入れない');
+    } else {
+      lines.push('・文字は一切入れない（セリフは表情としぐさの参考）');
+    }
+    list.push({ text: lines.join('\n'), from: b * per + 1, to: (b + 1) * per });
+  }
+  return list;
+}
+
+function phraseRequestPrompt(n) {
+  const theme = S.plan.theme.trim() || '（おまかせ）';
+  const chara = S.plan.character.trim() || '（おまかせ）';
+  return [
+    `LINEスタンプのセリフを${n}個考えてください。`,
+    '',
+    `テーマ：${theme}`,
+    `キャラクター：${chara}`,
+    '',
+    '条件',
+    '・LINEのトークで実際によく使う、返しやすい言葉にする',
+    '・あいさつ、返事、お礼、謝る、気持ち、リアクションをバランスよく入れる',
+    '・テーマの口調や世界観に合わせる',
+    '・1つ12文字以内。意味が重なるものは入れない',
+    '・既存作品の決めゼリフ、実在の人物名、商標は使わない',
+    '',
+    `出力形式（この形式だけを${n}行で）`,
+    'セリフ｜しぐさ・表情（15文字以内）'
+  ].join('\n');
+}
+
+function renderPrompts() {
+  if (!S.plan) return;
+  const per = +S.plan.per;
+  const sheets = Math.ceil(S.plan.count / per);
+  const total = sheets * per;
+  const spare = total - S.plan.count;
+  $('#planSummary').textContent =
+    `${S.plan.count}個セット：${per}コマの画像を${sheets}枚${spare ? `（予備${spare}コマ）` : ''}`;
+
+  const ph = parsePhrases(S.plan.phrases);
+  $('#phraseStatus').textContent = ph.length >= total
+    ? `いま${ph.length}行。先頭の${total}行を使います。`
+    : `いま${ph.length}行。あと${total - ph.length}行あると全コマを指定できます（足りない分はおまかせ）。`;
+  $('#themeWarn').hidden = !!S.plan.theme.trim();
+
+  const box = $('#prompts');
+  box.textContent = '';
+  buildPrompts().forEach((p, i) => {
+    const card = el('article', 'pcard');
+    const head = el('header');
+    const h3 = el('h3', null, `${i + 1}枚目`);
+    h3.append(el('small', null, `No.${p.from}〜${p.to}`));
+    const btn = el('button', 'btn primary', 'コピー');
+    btn.type = 'button';
+    btn.addEventListener('click', async () => {
+      const ok = await copyText(p.text);
+      if (ok) {
+        btn.textContent = 'コピー済み';
+        setTimeout(() => { btn.textContent = 'コピー'; }, 1800);
+        toast(`${i + 1}枚目のプロンプトをコピーしました`);
+      } else {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        toast('自動でコピーできませんでした。選択中の文をコピーしてください', true);
+      }
+    });
+    head.append(h3, btn);
+    const pre = el('pre', 'ptext', p.text);
+    card.append(head, pre);
+    box.append(card);
+  });
+}
+const renderPromptsSoon = debounce(renderPrompts, 160);
+
+function refillPhrases() {
+  S.plan.phrases = presetLines(S.plan.preset, totalCells()).join('\n');
+  S.plan.phrasesEdited = false;
+  $('#phrases').value = S.plan.phrases;
+}
+
+// 開いている企画の中身を入力欄に入れる（企画を開いたとき・別の画面の内容を読み込んだとき）
+function fillPlanForm() {
+  const p = S.plan;
+  $('#planTitle').value = p.title;
+  $('#planMemo').value = p.memo;
+  $('#theme').value = p.theme;
+  $('#character').value = p.character;
+  $('#styleCustom').value = p.styleCustom;
+  $('#phrases').value = p.phrases;
+  $('#preset').value = p.preset;
+  $('#styleCustom').hidden = p.style !== 'custom';
+  $('#noDbNote').hidden = !!db;
+
+  chips($('#statusChips'), 'status', Object.entries(STATUSES), p.status, v => { S.plan.status = v; touchPlan(); });
+  chips($('#styleChips'), 'style', Object.entries(STYLES).map(([k, v]) => [k, v[0]]), p.style, v => {
+    S.plan.style = v;
+    $('#styleCustom').hidden = v !== 'custom';
+    touchPlan();
+    renderPromptsSoon();
+  });
+  const sizeChanged = () => {
+    if (!S.plan.phrasesEdited) refillPhrases();
+    touchPlan();
+    renderPromptsSoon();
+  };
+  chips($('#countChips'), 'count', SALE_SIZES.map(n => [n, `${n}個`]), p.count, v => { S.plan.count = +v; sizeChanged(); });
+  chips($('#perChips'), 'per', [[4, '4コマ（高画質）'], [6, '6コマ'], [9, '9コマ（速い）']], p.per, v => { S.plan.per = +v; sizeChanged(); });
+  chips($('#textChips'), 'textMode', [['ai', 'AIに描かせる'], ['none', '入れない（スタンプメーカーで足す）']], p.textMode, v => { S.plan.textMode = v; touchPlan(); renderPromptsSoon(); });
+  chips($('#keyChips'), 'key', Object.entries(KEYS).map(([k, v]) => [k, v[0], v[1]]), p.key, v => { S.plan.key = v; touchPlan(); renderPromptsSoon(); });
+  renderBarTitle();
+  renderPrompts();
+}
+
+function renderBarTitle() {
+  if (S.plan) $('#barPlanTitle').textContent = planName(S.plan);
+}
+
+function initPromptPanel() {
+  const bindText = (sel, key, after) => {
+    $(sel).addEventListener('input', e => {
+      if (!S.plan) return;
+      S.plan[key] = e.target.value;
+      if (after) after();
+      touchPlan();
+    });
+  };
+  bindText('#planTitle', 'title', renderBarTitle);
+  bindText('#planMemo', 'memo');
+  bindText('#theme', 'theme', () => { renderBarTitle(); renderPromptsSoon(); });
+  bindText('#character', 'character', renderPromptsSoon);
+  bindText('#styleCustom', 'styleCustom', renderPromptsSoon);
+  bindText('#phrases', 'phrases', () => { S.plan.phrasesEdited = true; renderPromptsSoon(); });
+
+  const sel = $('#preset');
+  for (const [k, v] of Object.entries(PRESETS)) {
+    const o = el('option', null, v.label);
+    o.value = k;
+    sel.append(o);
+  }
+  sel.addEventListener('change', () => {
+    if (!S.plan) return;
+    S.plan.preset = sel.value;
+    if (!S.plan.phrasesEdited) refillPhrases();
+    touchPlan();
+    renderPromptsSoon();
+  });
+  $('#refill').addEventListener('click', () => {
+    if (!S.plan) return;
+    refillPhrases();
+    touchPlan();
+    renderPromptsSoon();
+    toast(`「${PRESETS[S.plan.preset].label}」で入れ直しました`);
+  });
+
+  $('#copyPhrasePrompt').addEventListener('click', async () => {
+    if (!S.plan) return;
+    const ok = await copyText(phraseRequestPrompt(totalCells()));
+    toast(ok ? 'コピーしました。返ってきた行をセリフ欄に貼り付けます' : 'コピーできませんでした', !ok);
+  });
+}
+
+/* ================= 2 透過と切り分け ================= */
+
+function ycc(r, g, b) {
+  return {
+    cb: -0.168736 * r - 0.331264 * g + 0.5 * b,
+    cr: 0.5 * r - 0.418688 * g - 0.081312 * b
+  };
+}
+
+// 外周から背景色を推定する
+function detectKey(d, w, h) {
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 300));
+  const band = Math.max(2, Math.round(Math.min(w, h) * 0.004));
+  const hr = new Uint32Array(256), hg = new Uint32Array(256), hb = new Uint32Array(256);
+  const smp = [];
+  let total = 0, clear = 0;
+  const take = (x, y) => {
+    const i = (y * w + x) * 4;
+    total++;
+    if (d[i + 3] < 16) { clear++; return; }
+    hr[d[i]]++; hg[d[i + 1]]++; hb[d[i + 2]]++;
+    smp.push(d[i], d[i + 1], d[i + 2]);
+  };
+  for (let x = 0; x < w; x += step) for (let k = 0; k < band; k++) { take(x, k); take(x, h - 1 - k); }
+  for (let y = 0; y < h; y += step) for (let k = 0; k < band; k++) { take(k, y); take(w - 1 - k, y); }
+  if (!total || clear / total > 0.5) return { mode: 'alpha', uniform: 1 };
+  const n = smp.length / 3;
+  const med = hist => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc * 2 >= n) return v; } return 255; };
+  const r = med(hr), g = med(hg), b = med(hb);
+  let near = 0;
+  for (let i = 0; i < smp.length; i += 3) {
+    const dr = smp[i] - r, dg = smp[i + 1] - g, db = smp[i + 2] - b;
+    if (dr * dr + dg * dg + db * db < 2025) near++;
+  }
+  const { cb, cr } = ycc(r, g, b);
+  const sat = Math.sqrt(cb * cb + cr * cr);
+  return { mode: sat >= 40 ? 'chroma' : 'neutral', rgb: [r, g, b], cb, cr, sat, uniform: near / n };
+}
+
+// 背景らしさから不透明度を決める
+function keyAlpha(d, w, h, key, s) {
+  const N = w * h;
+  const A = new Uint8ClampedArray(N);
+  if (key.mode === 'alpha') {
+    for (let p = 0, i = 3; p < N; p++, i += 4) A[p] = d[i];
+    return A;
+  }
+  if (key.mode === 'chroma') {
+    const ux = key.cb / key.sat, uy = key.cr / key.sat;
+    const hi = key.sat * (0.72 - 0.44 * s), lo = hi * 0.42, span = hi - lo;
+    for (let p = 0, i = 0; p < N; p++, i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const cb = -0.168736 * r - 0.331264 * g + 0.5 * b;
+      const cr = 0.5 * r - 0.418688 * g - 0.081312 * b;
+      const pr = cb * ux + cr * uy;
+      const pp = cb * uy - cr * ux;
+      const m = pr - (pp < 0 ? -pp : pp);
+      let a = m <= lo ? 255 : m >= hi ? 0 : 255 * (hi - m) / span;
+      const sa = d[i + 3];
+      if (sa < 255) a = a * sa / 255;
+      A[p] = a;
+    }
+    return A;
+  }
+  const kr = key.rgb[0], kg = key.rgb[1], kb = key.rgb[2];
+  const t0 = 10 + 46 * s, t1 = t0 * 1.9, t0s = t0 * t0, t1s = t1 * t1, span = t1 - t0;
+  for (let p = 0, i = 0; p < N; p++, i += 4) {
+    const dr = d[i] - kr, dg = d[i + 1] - kg, db = d[i + 2] - kb;
+    const ds = dr * dr + dg * dg + db * db;
+    let a = ds <= t0s ? 0 : ds >= t1s ? 255 : 255 * (Math.sqrt(ds) - t0) / span;
+    const sa = d[i + 3];
+    if (sa < 255) a = a * sa / 255;
+    A[p] = a;
+  }
+  return A;
+}
+
+// 外周とつながった背景だけを消す
+function floodRestrict(A, w, h) {
+  const N = w * h;
+  const seen = new Uint8Array(N);
+  const stack = new Int32Array(N);
+  let sp = 0;
+  const seed = p => { if (!seen[p] && A[p] < 255) { seen[p] = 1; stack[sp++] = p; } };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+  while (sp) {
+    const p = stack[--sp];
+    const x = p % w;
+    if (x > 0) seed(p - 1);
+    if (x < w - 1) seed(p + 1);
+    if (p >= w) seed(p - w);
+    if (p < N - w) seed(p + w);
+  }
+  for (let p = 0; p < N; p++) if (!seen[p] && A[p] < 255) A[p] = 255;
+}
+
+function dilateMask(m, w, h, r) {
+  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let cnt = 0;
+    for (let x = 0; x < Math.min(r, w); x++) cnt += m[row + x];
+    for (let x = 0; x < w; x++) {
+      if (x + r < w) cnt += m[row + x + r];
+      if (x - r - 1 >= 0) cnt -= m[row + x - r - 1];
+      tmp[row + x] = cnt > 0 ? 1 : 0;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let cnt = 0;
+    for (let y = 0; y < Math.min(r, h); y++) cnt += tmp[y * w + x];
+    for (let y = 0; y < h; y++) {
+      if (y + r < h) cnt += tmp[(y + r) * w + x];
+      if (y - r - 1 >= 0) cnt -= tmp[(y - r - 1) * w + x];
+      out[y * w + x] = cnt > 0 ? 1 : 0;
+    }
+  }
+  return out;
+}
+
+// 輪郭まわりの背景色かぶりを抜く
+function despill(d, A, w, h, key, r) {
+  const N = w * h;
+  const m = new Uint8Array(N);
+  for (let p = 0; p < N; p++) m[p] = A[p] < 128 ? 1 : 0;
+  const near = dilateMask(m, w, h, r);
+  const ux = key.cb / key.sat, uy = key.cr / key.sat;
+  for (let p = 0, i = 0; p < N; p++, i += 4) {
+    const a = A[p];
+    if (a === 0 || (a === 255 && !near[p])) continue;
+    const R = d[i], G = d[i + 1], B = d[i + 2];
+    const Y = 0.299 * R + 0.587 * G + 0.114 * B;
+    let cb = -0.168736 * R - 0.331264 * G + 0.5 * B;
+    let cr = 0.5 * R - 0.418688 * G - 0.081312 * B;
+    const pr = cb * ux + cr * uy;
+    if (pr <= 0) continue;
+    cb -= pr * ux;
+    cr -= pr * uy;
+    d[i] = Y + 1.402 * cr;
+    d[i + 1] = Y - 0.344136 * cb - 0.714136 * cr;
+    d[i + 2] = Y + 1.772 * cb;
+  }
+}
+
+function erodeAlpha(A, w, h, r) {
+  if (r <= 0) return A;
+  const tmp = new Uint8ClampedArray(w * h), out = new Uint8ClampedArray(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let mn = 255;
+      const x0 = x - r < 0 ? 0 : x - r, x1 = x + r >= w ? w - 1 : x + r;
+      for (let k = x0; k <= x1; k++) { const v = A[row + k]; if (v < mn) mn = v; }
+      tmp[row + x] = mn;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    const y0 = y - r < 0 ? 0 : y - r, y1 = y + r >= h ? h - 1 : y + r;
+    for (let x = 0; x < w; x++) {
+      let mn = 255;
+      for (let k = y0; k <= y1; k++) { const v = tmp[k * w + x]; if (v < mn) mn = v; }
+      out[y * w + x] = mn;
+    }
+  }
+  return out;
+}
+
+// つながった絵のかたまりを数える
+let STACK = new Int32Array(0);
+function workStack(n) {
+  if (STACK.length < n) STACK = new Int32Array(n);
+  return STACK;
+}
+function labelComponents(A, w, h, thr) {
+  const N = w * h;
+  const lab = new Int32Array(N);
+  const stack = workStack(N);
+  const comps = [null];
+  let L = 0;
+  for (let p = 0; p < N; p++) {
+    if (lab[p] || A[p] <= thr) continue;
+    L++;
+    let sp = 0;
+    stack[sp++] = p;
+    lab[p] = L;
+    const p0 = p;
+    let size = 0, minx = w, miny = h, maxx = -1, maxy = -1, sx = 0, sy = 0;
+    while (sp) {
+      const q = stack[--sp];
+      const x = q % w, y = (q - x) / w;
+      size++; sx += x; sy += y;
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        const base = yy * w;
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          const r = base + xx;
+          if (!lab[r] && A[r] > thr) { lab[r] = L; stack[sp++] = r; }
+        }
+      }
+    }
+    comps.push({ p0, size, minx, miny, maxx, maxy, cx: sx / size, cy: sy / size, drop: false });
+  }
+  return { lab, comps };
+}
+
+// 近くにある部品（離れた文字や、フチが消えて分かれた頭と体）を1つのまとまりにする
+function clusterComponents(lab, comps, w, h) {
+  const N = w * h;
+  const fg = new Uint8Array(N);
+  for (let p = 0; p < N; p++) {
+    const L = lab[p];
+    if (L && !comps[L].drop) fg[p] = 1;
+  }
+  const g = Math.max(2, Math.round(Math.min(w, h) * 0.008));
+  const near = dilateMask(fg, w, h, g);
+  const cl = labelComponents(near, w, h, 0);
+  const of = new Int32Array(comps.length).fill(-1);
+  const stats = Array.from({ length: cl.comps.length }, () => ({ n: 0, sx: 0, sy: 0 }));
+  for (let L = 1; L < comps.length; L++) {
+    const c = comps[L];
+    if (c.drop) continue;
+    const k = cl.lab[c.p0];
+    of[L] = k;
+    const s = stats[k];
+    s.n += c.size;
+    s.sx += c.cx * c.size;
+    s.sy += c.cy * c.size;
+  }
+  let maxN = 0;
+  for (const s of stats) if (s.n > maxN) maxN = s.n;
+  let major = 0;
+  for (const s of stats) if (s.n > 0 && s.n >= maxN * 0.2) major++;
+  return { of, stats, major };
+}
+
+function pruneComponents(comps, w, h, clean) {
+  if (!clean) return;
+  const minArea = Math.max(24, Math.round(w * h * 0.00004));
+  for (let L = 1; L < comps.length; L++) {
+    const c = comps[L];
+    const bw = c.maxx - c.minx + 1, bh = c.maxy - c.miny + 1;
+    if (c.size < minArea) { c.drop = true; continue; }
+    const longH = bw > w * 0.8 && bh < h * 0.04;
+    const longV = bh > h * 0.8 && bw < w * 0.04;
+    const frame = bw > w * 0.9 && bh > h * 0.9 && c.size < bw * bh * 0.06;
+    if (longH || longV || frame) c.drop = true;
+  }
+}
+
+function cropToCanvas(o) {
+  const cv = document.createElement('canvas');
+  cv.width = o.w;
+  cv.height = o.h;
+  cv.getContext('2d').putImageData(new ImageData(o.data, o.w, o.h), 0, 0);
+  return cv;
+}
+
+// マスごとに1コマずつ切り出す
+function buildCrops(d, A, w, h, lab, comps, clusters, R, C, mode) {
+  const cells = R * C;
+  const cw = w / C, ch = h / R;
+  const minCell = cw * ch * 0.003;
+  const boxes = Array.from({ length: cells }, () => ({ minx: w, miny: h, maxx: -1, maxy: -1, n: 0 }));
+  const cellOf = new Int32Array(comps.length).fill(-1);
+  const results = [];
+
+  if (mode === 'auto') {
+    for (let L = 1; L < comps.length; L++) {
+      const c = comps[L];
+      if (c.drop) continue;
+      const k0 = clusters.of[L];
+      const s = k0 > 0 ? clusters.stats[k0] : null;
+      const px = s && s.n ? s.sx / s.n : c.cx;
+      const py = s && s.n ? s.sy / s.n : c.cy;
+      const col = Math.min(C - 1, Math.max(0, Math.floor(px / cw)));
+      const row = Math.min(R - 1, Math.max(0, Math.floor(py / ch)));
+      const k = row * C + col;
+      cellOf[L] = k;
+      const b = boxes[k];
+      b.n += c.size;
+      if (c.minx < b.minx) b.minx = c.minx;
+      if (c.miny < b.miny) b.miny = c.miny;
+      if (c.maxx > b.maxx) b.maxx = c.maxx;
+      if (c.maxy > b.maxy) b.maxy = c.maxy;
+    }
+    const outs = boxes.map(b => {
+      if (b.n < minCell) return null;
+      const ow = b.maxx - b.minx + 1, oh = b.maxy - b.miny + 1;
+      return { x: b.minx, y: b.miny, w: ow, h: oh, data: new Uint8ClampedArray(ow * oh * 4) };
+    });
+    for (let y = 0; y < h; y++) {
+      let p = y * w;
+      for (let x = 0; x < w; x++, p++) {
+        const L = lab[p];
+        if (!L) continue;
+        const k = cellOf[L];
+        if (k < 0) continue;
+        const o = outs[k];
+        if (!o) continue;
+        const i = p * 4, j = ((y - o.y) * o.w + (x - o.x)) * 4;
+        o.data[j] = d[i]; o.data[j + 1] = d[i + 1]; o.data[j + 2] = d[i + 2]; o.data[j + 3] = A[p];
+      }
+    }
+    outs.forEach((o, k) => { if (o) results.push({ cell: k, canvas: cropToCanvas(o) }); });
+    return results;
+  }
+
+  // 均等に切る
+  for (let row = 0; row < R; row++) {
+    for (let col = 0; col < C; col++) {
+      const x0 = Math.round(col * cw), x1 = Math.round((col + 1) * cw);
+      const y0 = Math.round(row * ch), y1 = Math.round((row + 1) * ch);
+      let minx = x1, miny = y1, maxx = -1, maxy = -1, n = 0;
+      for (let y = y0; y < y1; y++) {
+        let p = y * w + x0;
+        for (let x = x0; x < x1; x++, p++) {
+          const L = lab[p];
+          if (!L || comps[L].drop) continue;
+          n++;
+          if (x < minx) minx = x; if (x > maxx) maxx = x;
+          if (y < miny) miny = y; if (y > maxy) maxy = y;
+        }
+      }
+      if (n < minCell) continue;
+      const ow = maxx - minx + 1, oh = maxy - miny + 1;
+      const o = { w: ow, h: oh, data: new Uint8ClampedArray(ow * oh * 4) };
+      for (let y = miny; y <= maxy; y++) {
+        let p = y * w + minx;
+        for (let x = minx; x <= maxx; x++, p++) {
+          const L = lab[p];
+          if (!L || comps[L].drop) continue;
+          const i = p * 4, j = ((y - miny) * ow + (x - minx)) * 4;
+          o.data[j] = d[i]; o.data[j + 1] = d[i + 1]; o.data[j + 2] = d[i + 2]; o.data[j + 3] = A[p];
+        }
+      }
+      results.push({ cell: row * C + col, canvas: cropToCanvas(o) });
+    }
+  }
+  return results;
+}
+
+function processSheet(sheet) {
+  const { w, h } = sheet;
+  const img = sheet.ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const key = detectKey(d, w, h);
+  const s = prefs.strength / 100;
+  let A = keyAlpha(d, w, h, key, s);
+  if (key.mode === 'neutral' || (key.mode === 'chroma' && !prefs.holes)) floodRestrict(A, w, h);
+  if (key.mode === 'chroma') despill(d, A, w, h, key, Math.max(2, Math.round(Math.min(w, h) / 600)));
+  if (prefs.erode > 0) A = erodeAlpha(A, w, h, prefs.erode);
+  const { lab, comps } = labelComponents(A, w, h, 8);
+  pruneComponents(comps, w, h, prefs.clean);
+  const clusters = clusterComponents(lab, comps, w, h);
+  const crops = buildCrops(d, A, w, h, lab, comps, clusters, sheet.r, sheet.c, sheet.split);
+  sheet.key = key;
+  sheet.major = clusters.major;
+  sheet.stickers = crops.map(c => ({ id: `${sheet.id}:${c.cell}`, sheetId: sheet.id, cell: c.cell, canvas: c.canvas }));
+}
+
+// 読み込み時、まとまりの数からコマ割りを推測する
+function guessGrid(sheet) {
+  const n = sheet.major;
+  const portrait = sheet.h > sheet.w * 1.2, landscape = sheet.w > sheet.h * 1.2;
+  if (n === 1) return [1, 1];
+  if (n === 4) return [2, 2];
+  if (n === 9) return [3, 3];
+  if (n === 16) return [4, 4];
+  if (n === 6) return portrait ? [3, 2] : landscape ? [2, 3] : null;
+  return null;
+}
+
+async function decodeImage(file) {
+  if ('createImageBitmap' in window) {
+    try { return await createImageBitmap(file); } catch (e) { /* 次の方法へ */ }
+  }
+  return await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { resolve(img); setTimeout(() => URL.revokeObjectURL(url), 2000); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+
+// id：作業中の画像として保存したものを開き直すときは、そのID（コマのIDが変わらないように）
+function makeSheet(src, name, id) {
+  const sw = src.width || src.naturalWidth, sh = src.height || src.naturalHeight;
+  const sc = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, w, h);
+  if (typeof src.close === 'function') src.close();
+  const tc = document.createElement('canvas');
+  const ts = Math.min(1, 160 / Math.max(w, h));
+  tc.width = Math.max(1, Math.round(w * ts));
+  tc.height = Math.max(1, Math.round(h * ts));
+  const tctx = tc.getContext('2d');
+  tctx.imageSmoothingQuality = 'high';
+  tctx.drawImage(canvas, 0, 0, tc.width, tc.height);
+  const g = PER[S.plan && S.plan.per] || PER[9];
+  return {
+    id: id || newId('sh_'), name: name || '画像', canvas, ctx, w, h,
+    r: g.r, c: g.c, split: 'auto', key: null, stickers: [], thumb: tc.toDataURL('image/png')
+  };
+}
+
+function setBusy(msg) {
+  $('#busy').textContent = msg || '';
+  $('#panel-c').setAttribute('aria-busy', msg ? 'true' : 'false');
+}
+
+/* ---- 作業中の画像の一時保存（この端末だけ。同期しない） ---- */
+function sheetRecord(sheet, planId) {
+  return {
+    id: sheet.id, planId, name: sheet.name, blob: sheet.blob,
+    r: sheet.r, c: sheet.c, split: sheet.split, order: sheet.order,
+    addedAt: sheet.addedAt, usedAt: Date.now()
+  };
+}
+function workFail(err) {
+  console.error('作業中の画像を保存できませんでした', err);
+  if (S.workFailNotified) return;
+  S.workFailNotified = true;
+  toast('作業中の画像をこの端末に保存できませんでした（容量不足の可能性）。切り抜きと書き出しはこのまま使えます', true);
+  renderWorkNote();
+}
+function persistSheet(sheet) {
+  if (!workDb || !S.plan || !sheet.blob) return;
+  dbPut(workDb, ST_SHEETS, sheetRecord(sheet, S.plan.id)).catch(workFail);
+}
+function unpersistSheet(sheet) {
+  if (!workDb) return;
+  dbDel(workDb, ST_SHEETS, sheet.id).catch(workFail);
+}
+
+let sessTimer = null;
+function scheduleSession() {
+  if (!workDb || !S.plan || !S.workLoaded) return;
+  clearTimeout(sessTimer);
+  sessTimer = setTimeout(() => { sessTimer = null; saveSessionNow(); }, SESSION_DELAY_MS);
+}
+function flushSession() {
+  if (!sessTimer) return Promise.resolve();
+  clearTimeout(sessTimer);
+  sessTimer = null;
+  return saveSessionNow();
+}
+// 記録は呼んだ時点の状態で作る（このあと企画を閉じて状態を空にしても、閉じる前の選択が残る）
+function saveSessionNow() {
+  if (!workDb || !S.plan || !S.workLoaded) return Promise.resolve();
+  const rec = { planId: S.plan.id, off: [...S.off], mainId: S.mainId || null, updatedAt: Date.now() };
+  return dbPut(workDb, ST_SESSION, rec).catch(workFail);
+}
+
+function renderWorkNote() {
+  const n = $('#workNote');
+  if (!workDb) {
+    n.textContent = 'この端末では作業中の画像を保存できません。切り抜きと書き出しは使えますが、閉じると画像は消えます。';
+  } else if (S.workFailNotified) {
+    n.textContent = '作業中の画像の一部をこの端末に保存できませんでした（容量不足の可能性）。閉じると消えることがあります。';
+  } else {
+    n.textContent = `取り込んだ画像はこの端末に一時保存し、開き直すと続きからできます（同期はしません）。30日使わないと自動で片付けます。1つの企画に${MAX_SHEETS}枚・1ファイル20MBまで。`;
+  }
+}
+
+function renderSkipped(list) {
+  const box = $('#skipped');
+  box.textContent = '';
+  if (!list.length) { box.hidden = true; return; }
+  box.append(document.createTextNode(`取り込まなかった画像（${list.length}件）`));
+  const ul = el('ul');
+  for (const [name, why] of list) ul.append(el('li', null, `${name}：${why}`));
+  box.append(ul);
+  box.hidden = false;
+}
+
+function isImageFile(f) {
+  return (f.type && f.type.startsWith('image/')) || /\.(png|jpe?g|webp|gif|avif|heic)$/i.test(f.name || '');
+}
+
+async function importFiles(fileList) {
+  if (!S.plan) return;
+  const files = [...fileList];
+  if (!files.length) return;
+  if (!S.workLoaded) { toast('作業中の画像を読み込んでいます。終わってから選んでください', true); return; }
+  if (S.importing) { toast('読み込み中です。終わってから選んでください', true); return; }
+  showTab('c');
+  S.importing = true;
+  const my = openSeq;
+  const skipped = [];
+  let added = 0;
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const name = f.name || '画像';
+      if (!isImageFile(f)) { skipped.push([name, '画像ではありません']); continue; }
+      if (f.size > MAX_FILE_BYTES) { skipped.push([name, `20MBを超えています（${mb(f.size)}）`]); continue; }
+      if (S.sheets.length >= MAX_SHEETS) { skipped.push([name, `1つの企画に取り込めるのは${MAX_SHEETS}枚までです`]); continue; }
+      setBusy(`読み込み中…（${i + 1}/${files.length}）`);
+      await tick();
+      if (my !== openSeq) return;
+      let sheet;
+      try {
+        const src = await decodeImage(f);
+        if (my !== openSeq) { if (typeof src.close === 'function') src.close(); return; }
+        sheet = makeSheet(src, f.name);
+        processSheet(sheet);
+        const guess = guessGrid(sheet);
+        const cells = sheet.r * sheet.c;
+        if (guess && (guess[0] !== sheet.r || guess[1] !== sheet.c) && (sheet.stickers.length !== cells || sheet.major > cells)) {
+          sheet.r = guess[0];
+          sheet.c = guess[1];
+          processSheet(sheet);
+        }
+      } catch (e) {
+        console.warn('画像を読めませんでした', name, e); // 理由は画面に出す
+        skipped.push([name, '画像を読めませんでした（壊れているか、この端末で開けない形式です）']);
+        continue;
+      }
+      sheet.blob = f;
+      sheet.addedAt = Date.now();
+      sheet.order = S.sheets.reduce((m, x) => Math.max(m, x.order || 0), 0) + 1;
+      S.sheets.push(sheet);
+      persistSheet(sheet);
+      added++;
+    }
+  } finally {
+    S.importing = false;
+    if (my === openSeq) setBusy('');
+  }
+  if (my !== openSeq) return;
+  renderSkipped(skipped);
+  afterProcess();
+  if (added) scheduleSession();
+  if (skipped.length) toast(`${skipped.length}件を取り込みませんでした。理由は画面に出しています`, true);
+}
+
+async function reprocessAll() {
+  if (!S.sheets.length) return;
+  const my = ++S.procSeq;
+  for (let i = 0; i < S.sheets.length; i++) {
+    setBusy(`切り抜き中…（${i + 1}/${S.sheets.length}）`);
+    await tick();
+    if (my !== S.procSeq) return;
+    processSheet(S.sheets[i]);
+  }
+  setBusy('');
+  afterProcess();
+}
+const reprocessSoon = debounce(reprocessAll, 260);
+
+async function reprocessOne(sheet) {
+  const my = openSeq;
+  setBusy('切り抜き中…');
+  await tick();
+  if (my !== openSeq || !S.sheets.includes(sheet)) return;
+  processSheet(sheet);
+  setBusy('');
+  afterProcess();
+  persistSheet(sheet);
+}
+
+function afterProcess() {
+  S.stickers = S.sheets.flatMap(sh => sh.stickers);
+  const ids = new Set(S.stickers.map(s => s.id));
+  let pruned = false;
+  for (const id of [...S.off]) if (!ids.has(id)) { S.off.delete(id); pruned = true; }
+  renderSheets();
+  renderTiles();
+  updateCounts();
+  scheduleOutputs();
+  if (pruned) scheduleSession();
+}
+
+function keyLabel(key) {
+  if (!key) return '';
+  if (key.mode === 'alpha') return '背景：もともと透明';
+  if (key.mode === 'neutral') return '背景：白・灰色系';
+  const [r, g, b] = key.rgb;
+  let name = 'その他の色';
+  if (g > r + 50 && g > b + 50) name = 'グリーン系';
+  else if (b > r + 50 && b > g + 50) name = 'ブルー系';
+  else if (r > g + 50 && b > g + 50) name = 'マゼンタ系';
+  return `背景：${name}を透明にしました`;
+}
+
+function renderSheets() {
+  const box = $('#sheets');
+  box.textContent = '';
+  $('#sheetCount').textContent = S.sheets.length ? `取り込んだ画像 ${S.sheets.length} / ${MAX_SHEETS}枚` : '';
+  S.sheets.forEach((sh, idx) => {
+    const card = el('article', 'scard');
+    const img = el('img', 'thumb');
+    img.src = sh.thumb;
+    img.alt = `${idx + 1}枚目の元画像`;
+    const body = el('div');
+    const top = el('div', 'top');
+    const h3 = el('h3', null, `${idx + 1}枚目　${sh.stickers.length} / ${sh.r * sh.c}コマ`);
+    h3.append(el('small', null, sh.name));
+    top.append(h3);
+    const del = el('button', 'btn', '外す');
+    del.type = 'button';
+    del.setAttribute('aria-label', `${idx + 1}枚目の画像を外す`);
+    del.addEventListener('click', () => {
+      S.sheets = S.sheets.filter(x => x !== sh);
+      unpersistSheet(sh);
+      afterProcess();
+      scheduleSession();
+    });
+    top.append(del);
+    body.append(top);
+
+    const meta = el('p', 'meta');
+    if (sh.key && sh.key.mode !== 'alpha') {
+      const sw = el('i', 'sw');
+      sw.style.background = `rgb(${sh.key.rgb.join(',')})`;
+      meta.append(sw);
+    }
+    meta.append(el('span', null, keyLabel(sh.key)));
+    body.append(meta);
+
+    const ctr = el('div', 'ctrls');
+    const gridLab = el('label', null, 'コマ割り');
+    const gridSel = el('select');
+    for (const [v, label] of GRIDS) {
+      const o = el('option', null, label);
+      o.value = v;
+      gridSel.append(o);
+    }
+    gridSel.value = `${sh.r}x${sh.c}`;
+    if (!gridSel.value) {
+      const o = el('option', null, `${sh.r}×${sh.c}`);
+      o.value = `${sh.r}x${sh.c}`;
+      gridSel.append(o);
+      gridSel.value = o.value;
+    }
+    gridSel.addEventListener('change', () => {
+      const [r, c] = gridSel.value.split('x').map(Number);
+      sh.r = r; sh.c = c;
+      reprocessOne(sh);
+    });
+    gridLab.append(gridSel);
+    const splitLab = el('label', null, '切り方');
+    const splitSel = el('select');
+    for (const [v, label] of [['auto', '自動'], ['even', '均等']]) {
+      const o = el('option', null, label);
+      o.value = v;
+      splitSel.append(o);
+    }
+    splitSel.value = sh.split;
+    splitSel.addEventListener('change', () => { sh.split = splitSel.value; reprocessOne(sh); });
+    splitLab.append(splitSel);
+    ctr.append(gridLab, splitLab);
+    body.append(ctr);
+
+    const warns = [];
+    if (sh.key) {
+      if (sh.key.mode === 'neutral') warns.push('背景が白や灰色に近いため、白いフチまで消えることがあります。グリーン背景で作り直すのがおすすめです。');
+      if (sh.key.mode !== 'alpha' && sh.key.uniform < 0.75) warns.push('背景にムラ（グラデーションや模様）があります。色が残るときは「透過の強さ」を上げるか、作り直してください。');
+    }
+    if (sh.stickers.length < sh.r * sh.c) warns.push('見つからないコマがあります。コマ割りが画像と合っているか確かめ、2つのイラストがくっついている時は切り方を「均等」にしてください。');
+    for (const msg of warns) body.append(el('p', 'note', msg));
+
+    card.append(img, body);
+    box.append(card);
+  });
+}
+
+function renderTiles() {
+  const box = $('#tiles');
+  box.textContent = '';
+  box.dataset.bg = prefs.bg;
+  S.stickers.forEach((st, i) => {
+    const b = el('button', 'tile');
+    b.type = 'button';
+    b.dataset.id = st.id;
+    const on = !S.off.has(st.id);
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', `No.${i + 1}　${on ? '使う' : '使わない'}`);
+    st.canvas.setAttribute('aria-hidden', 'true');
+    b.append(st.canvas, el('span', 'no', String(i + 1)));
+    b.addEventListener('click', () => {
+      if (S.off.has(st.id)) S.off.delete(st.id); else S.off.add(st.id);
+      const now = !S.off.has(st.id);
+      b.setAttribute('aria-pressed', String(now));
+      b.setAttribute('aria-label', `No.${i + 1}　${now ? '使う' : '使わない'}`);
+      updateCounts();
+      scheduleOutputs();
+      scheduleSession();
+    });
+    box.append(b);
+  });
+  $('#tilesEmpty').hidden = S.stickers.length > 0;
+}
+
+function selectedStickers() {
+  return S.stickers.filter(s => !S.off.has(s.id));
+}
+
+function updateCounts() {
+  const total = S.stickers.length;
+  const n = selectedStickers().length;
+  $('#badge-c').textContent = total ? String(total) : '';
+  $('#badge-s').textContent = n ? String(n) : '';
+  $('#selInfo').textContent = total ? `${total}コマ中 ${n}コマを使います。` : '';
+
+  const st = $('#saleStatus');
+  st.classList.remove('warn');
+  if (!n) {
+    st.textContent = '';
+  } else if (n > 40) {
+    st.textContent = `40個を超えています（いま${n}個）。「2 切り抜き」で使わないものを外してください。`;
+    st.classList.add('warn');
+  } else if (SALE_SIZES.includes(n)) {
+    st.textContent = `${n}個セットとして申請できる数です。`;
+  } else {
+    const next = SALE_SIZES.find(v => v > n);
+    const prev = [...SALE_SIZES].reverse().find(v => v < n);
+    st.textContent = `販売は8・16・24・32・40個単位です。いま${n}個（あと${next - n}個で${next}個${prev ? `、${n - prev}個外せば${prev}個` : ''}）。`;
+    st.classList.add('warn');
+  }
+}
+
+/* ================= 3 書き出し ================= */
+
+function toBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
+  });
+}
+
+// 余白をとって枠の中央に収める（縮小は段階的に）
+function drawFit(src, W, H, margin) {
+  const out = document.createElement('canvas');
+  out.width = W;
+  out.height = H;
+  const sw = src.width, sh = src.height;
+  if (!sw || !sh) return out;
+  const s = Math.min((W - 2 * margin) / sw, (H - 2 * margin) / sh);
+  const dw = Math.max(1, Math.round(sw * s)), dh = Math.max(1, Math.round(sh * s));
+  let cur = src, cw = sw, chh = sh;
+  while (cw > dw * 2 && chh > dh * 2) {
+    const nw = Math.max(dw, Math.round(cw / 2)), nh = Math.max(dh, Math.round(chh / 2));
+    const tmp = document.createElement('canvas');
+    tmp.width = nw;
+    tmp.height = nh;
+    const t = tmp.getContext('2d');
+    t.imageSmoothingEnabled = true;
+    t.imageSmoothingQuality = 'high';
+    t.drawImage(cur, 0, 0, nw, nh);
+    cur = tmp; cw = nw; chh = nh;
+  }
+  const c = out.getContext('2d');
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(cur, Math.round((W - dw) / 2), Math.round((H - dh) / 2), dw, dh);
+  return out;
+}
+
+// 書き出す画像は、選び方が変わってから少し待って作り直す。保存の直前には readyOutputs() で
+// 作り直しを待つ（選び直した直後に押しても、古い画像を保存しないように）
+let outTimer = 0, building = null;
+function scheduleOutputs() {
+  S.outWant++;
+  clearTimeout(outTimer);
+  outTimer = setTimeout(runBuild, 220);
+}
+function runBuild() {
+  outTimer = 0;
+  building = buildOutputs().catch(err => { console.error('書き出す画像を作れませんでした', err); });
+  return building;
+}
+async function readyOutputs() {
+  for (let i = 0; i < 6; i++) {
+    if (outTimer) { clearTimeout(outTimer); runBuild(); }
+    if (building) await building;
+    if (!outTimer && S.outBuilt === S.outWant) return true;
+  }
+  return S.outBuilt === S.outWant;
+}
+
+async function buildOutputs() {
+  const want = S.outWant;
+  const my = ++S.buildSeq;
+  const sel = selectedStickers();
+  const mode = prefs.out;
+  const res = [];
+  for (let i = 0; i < sel.length; i++) {
+    const st = sel[i];
+    const cv = mode === 'cm' ? drawFit(st.canvas, 370, 320, 10) : drawFit(st.canvas, 740, 640, 20);
+    const blob = await toBlob(cv);
+    if (my !== S.buildSeq) return;
+    res.push({ id: st.id, no: i + 1, name: mode === 'cm' ? `${pad(i + 1)}.png` : `stamp_${pad(i + 1)}.png`, blob });
+  }
+  let extras = [];
+  if (mode === 'cm' && sel.length) {
+    const main = sel.find(s => s.id === S.mainId) || sel[0];
+    extras = [
+      { kind: 'main', label: 'メイン 240×240', name: 'main.png', blob: await toBlob(drawFit(main.canvas, 240, 240, 10)) },
+      { kind: 'tab', label: 'タブ 96×74', name: 'tab.png', blob: await toBlob(drawFit(main.canvas, 96, 74, 2)) }
+    ];
+    if (my !== S.buildSeq) return;
+  }
+  for (const o of [...S.outputs, ...S.extras]) if (o.url) URL.revokeObjectURL(o.url);
+  for (const o of res) o.url = URL.createObjectURL(o.blob);
+  for (const o of extras) o.url = URL.createObjectURL(o.blob);
+  S.outputs = res;
+  S.extras = extras;
+  try {
+    S.shareFiles = res.map(o => new File([o.blob], o.name, { type: 'image/png' }));
+  } catch (e) { S.shareFiles = null; }
+  S.outBuilt = want;
+  renderOutputs();
+}
+
+function canShareFiles() {
+  if (S.shareBroken || !S.shareFiles || !S.shareFiles.length) return false;
+  try { return !!(navigator.share && navigator.canShare && navigator.canShare({ files: S.shareFiles })); }
+  catch (e) { return false; }
+}
+
+function renderOutputs() {
+  const box = $('#outs');
+  box.textContent = '';
+  box.dataset.bg = prefs.bg;
+  const cm = prefs.out === 'cm';
+  const mainId = (S.outputs.find(o => o.id === S.mainId) || S.outputs[0] || {}).id;
+
+  if (cm) {
+    for (const e of S.extras) box.append(outTile(e, e.label, false, true));
+  }
+  for (const o of S.outputs) {
+    const fig = outTile(o, `No.${o.no}`, cm, false);
+    fig.dataset.id = o.id;
+    if (cm) {
+      const pick = el('button', 'btn mainpick', o.id === mainId ? 'メイン画像' : 'メインにする');
+      pick.type = 'button';
+      pick.setAttribute('aria-pressed', String(o.id === mainId));
+      pick.addEventListener('click', () => { S.mainId = o.id; scheduleOutputs(); scheduleSession(); });
+      fig.append(pick);
+    }
+    box.append(fig);
+  }
+  $('#outsEmpty').hidden = S.outputs.length > 0;
+  $('#zipAll').disabled = !S.outputs.length;
+  $('#dlAll').hidden = cm;
+  $('#dlAll').disabled = !S.outputs.length || !!S.dl;
+  $('#shareAll').hidden = cm || !canShareFiles();
+}
+
+function outTile(o, label, isCm, isExtra) {
+  const fig = el('figure', 'otile' + (isExtra ? ' extra' : ''));
+  const art = el('div', 'oart');
+  const img = el('img');
+  img.src = o.url;
+  img.alt = label;
+  img.decoding = 'async';
+  img.dataset.name = o.name;
+  art.append(img);
+  const cap = el('figcaption');
+  cap.append(el('span', null, label));
+  const btn = el('button', 'btn', '保存');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', `${label}を保存`);
+  btn.addEventListener('click', () => saveFile(o.name, o.blob));
+  cap.append(btn);
+  fig.append(art, cap);
+  return fig;
+}
+
+// 本体と同じオリジンの iframe の中なので、<a download> で保存できる
+function saveFile(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = el('a');
+  a.href = url;
+  a.download = filename;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+}
+
+// ZIP（無圧縮）を自前で組み立てる
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function buildZip(entries) {
+  const enc = new TextEncoder();
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const parts = [], central = [];
+  let offset = 0;
+  for (const e of entries) {
+    const data = new Uint8Array(await e.blob.arrayBuffer());
+    const name = enc.encode(e.name);
+    const crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true);
+    lh.setUint16(4, 20, true);
+    lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true);
+    lh.setUint16(10, dosTime, true);
+    lh.setUint16(12, dosDate, true);
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, data.length, true);
+    lh.setUint32(22, data.length, true);
+    lh.setUint16(26, name.length, true);
+    lh.setUint16(28, 0, true);
+    parts.push(lh, name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true);
+    ch.setUint16(4, 20, true);
+    ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true);
+    ch.setUint16(12, dosTime, true);
+    ch.setUint16(14, dosDate, true);
+    ch.setUint32(16, crc, true);
+    ch.setUint32(20, data.length, true);
+    ch.setUint32(24, data.length, true);
+    ch.setUint16(28, name.length, true);
+    ch.setUint16(30, 0, true);
+    ch.setUint16(32, 0, true);
+    ch.setUint16(34, 0, true);
+    ch.setUint16(36, 0, true);
+    ch.setUint32(38, 0, true);
+    ch.setUint32(42, offset, true);
+    central.push(ch, name);
+    offset += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((s, v) => s + v.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(4, 0, true);
+  end.setUint16(6, 0, true);
+  end.setUint16(8, entries.length, true);
+  end.setUint16(10, entries.length, true);
+  end.setUint32(12, cdSize, true);
+  end.setUint32(16, offset, true);
+  end.setUint16(20, 0, true);
+  return new Blob([...parts, ...central, end], { type: 'application/zip' });
+}
+
+function stamp() {
+  const d = new Date();
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+}
+
+async function zipAll() {
+  const btn = $('#zipAll');
+  btn.disabled = true;
+  try {
+    await readyOutputs();
+    if (!S.outputs.length) return;
+    const cm = prefs.out === 'cm';
+    if (cm) {
+      // Creators Market は 8・16・24・32・40個のセットだけ。違う数のまま作る前に確かめる
+      const n = S.outputs.length;
+      if (n > 40 || !SALE_SIZES.includes(n)) {
+        const ok = await ask(`Creators Marketで申請できるのは8・16・24・32・40個のセットです（いま${n}個）。\nこのままZIPにしますか？`,
+          [{ value: 'ok', label: 'このままZIPにする', kind: 'primary' }]);
+        if (ok !== 'ok') return;
+      }
+    }
+    const entries = cm ? [...S.outputs, ...S.extras] : S.outputs;
+    const zip = await buildZip(entries);
+    const name = cm ? `line_stamp_${stamp()}.zip` : `stamp_maker_${stamp()}.zip`;
+    saveFile(name, zip);
+  } catch (e) {
+    console.error(e);
+    toast('ZIPを作れませんでした', true);
+  } finally {
+    btn.disabled = !S.outputs.length;
+  }
+}
+
+async function shareAll() {
+  if (outTimer || S.outBuilt !== S.outWant) await readyOutputs();
+  if (!canShareFiles()) return;
+  try {
+    await navigator.share({ files: S.shareFiles });
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    S.shareBroken = true;
+    $('#shareAll').hidden = true;
+    toast('この画面ではまとめて保存が使えません。全部ダウンロードかZIPで保存してください', true);
+  }
+}
+
+// 全部ダウンロード（スタンプメーカー用）：PNGを1枚ずつ順に、間を空けて保存する。
+// AndroidではZIPをスタンプメーカーで開けず、1枚ずつ押すのは手間が多いため
+async function downloadAll() {
+  if (S.dl) return;
+  await readyOutputs();
+  const list = S.outputs.slice();
+  if (!list.length || prefs.out !== 'maker') return;
+  const job = S.dl = { stop: false, done: 0 };
+  const status = $('#dlStatus');
+  $('#dlAll').disabled = true;
+  $('#dlStop').hidden = false;
+  try {
+    for (let i = 0; i < list.length; i++) {
+      if (job.stop) break;
+      status.textContent = `ダウンロード中…（${i + 1}/${list.length}）`;
+      saveFile(list[i].name, list[i].blob);
+      job.done = i + 1;
+      if (i < list.length - 1) await sleep(DL_GAP_MS);
+    }
+  } finally {
+    if (S.dl === job) {
+      status.textContent = job.stop
+        ? `止めました（${job.done}/${list.length}枚をダウンロード）`
+        : `${list.length}枚をダウンロードしました。足りないときは、ブラウザの「複数のファイルのダウンロード」が許可されているか確かめてください。`;
+      S.dl = null;
+      $('#dlStop').hidden = true;
+      $('#dlAll').disabled = !S.outputs.length;
+    }
+  }
+}
+function stopDownload() {
+  if (S.dl) S.dl.stop = true;
+}
+
+function renderOutMode() {
+  const cm = prefs.out === 'cm';
+  $('#outDesc').textContent = cm
+    ? '370×320のスタンプ画像に、メイン（240×240）とタブ（96×74）を足してZIPにまとめます。メイン画像を選んでいないときは、先頭のスタンプをメインとタブに使います。'
+    : '740×640の透明PNGで書き出します。スタンプメーカーで1枚ずつ読み込みます。';
+  $('#saveHint').textContent = cm
+    ? '1枚ずつ保存するときは各画像の「保存」を押します。'
+    : '「全部ダウンロード」は1枚ずつ順に保存します（初めてのとき、ブラウザが「複数のファイルのダウンロード」の許可を聞いてきたら「許可」を押します）。1枚ずつ保存するときは各画像の「保存」を押します。画像を長押ししても保存できます。';
+  $('#howMaker').hidden = cm;
+  $('#howCm').hidden = !cm;
+}
+
+/* ================= 画面の切り替え（一覧 ⇔ 編集） ================= */
+
+function switchView(v) {
+  S.view = v;
+  $('#listView').classList.toggle('is-active', v === 'list');
+  $('#editView').classList.toggle('is-active', v === 'edit');
+  $('#barList').hidden = v !== 'list';
+  $('#barEdit').hidden = v !== 'edit';
+  closeMenus();
+}
+
+function showTab(t, force) {
+  for (const b of document.querySelectorAll('.tab')) {
+    const on = b.dataset.tab === t;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  }
+  for (const id of ['p', 'c', 's']) $('#panel-' + id).hidden = id !== t;
+  if (prefs.tab !== t || force) {
+    prefs.tab = t;
+    savePrefs();
+    $('#editView').scrollTop = 0;
+  }
+}
+
+// 作業の状態（取り込んだ画像・選択・書き出し）を空にする。読み込み途中の処理も打ち切る
+function resetWork() {
+  S.procSeq++;
+  S.buildSeq++;
+  clearTimeout(outTimer);
+  outTimer = 0;
+  if (S.dl) S.dl.stop = true;
+  S.dl = null;
+  for (const o of [...S.outputs, ...S.extras]) if (o.url) URL.revokeObjectURL(o.url);
+  S.sheets = []; S.stickers = []; S.off = new Set(); S.mainId = null;
+  S.outputs = []; S.extras = []; S.shareFiles = null;
+  S.outWant = 0; S.outBuilt = 0;
+  S.importing = false;
+  $('#dlStop').hidden = true;
+  $('#dlStatus').textContent = '';
+  setBusy('');
+  renderSkipped([]);
+}
+
+// 開いている企画を閉じる。保存待ちは閉じる前の状態で書き込む
+function leavePlan() {
+  if (!S.plan) return Promise.resolve();
+  const pending = [flushPlan(), flushSession()];
+  openSeq++;
+  resetWork();
+  S.plan = null;
+  return Promise.all(pending).catch(() => {});
+}
+
+async function openPlan(id, tab) {
+  const p = S.plans.find(x => x.id === id);
+  if (!p) return;
+  await leavePlan();
+  const my = ++openSeq;
+  S.plan = p;
+  S.workLoaded = false;
+  S.workFailNotified = false;
+  prefs.lastPlanId = p.id;
+  savePrefs();
+  fillPlanForm();
+  setSaveInd('');
+  switchView('edit');
+  showTab(tab || prefs.tab, true);
+  renderWorkNote();
+  afterProcess();
+  await restoreWork(p, my);
+}
+
+// 企画を開いたら、その企画の作業中の画像と選択（使わないコマ・メイン画像）まで戻す。
+// 切り抜いた結果は保存していないので、元の画像から作り直す
+async function restoreWork(p, my) {
+  if (!workDb) { S.workLoaded = true; return; }
+  let recs = [], sess = null;
+  try {
+    [recs, sess] = await Promise.all([workSheetsOf(p.id), workGetSession(p.id)]);
+  } catch (err) {
+    console.error('作業中の画像を読めませんでした', err);
+    if (my === openSeq) { S.workLoaded = true; toast('作業中の画像を読めませんでした', true); }
+    return;
+  }
+  if (my !== openSeq) return;
+  recs.sort((a, b) => ((a.order || 0) - (b.order || 0)) || ((a.addedAt || 0) - (b.addedAt || 0)));
+  const now = Date.now();
+  let failed = 0;
+  for (let i = 0; i < recs.length; i++) {
+    const r = recs[i];
+    setBusy(`作業中の画像を読み込み中…（${i + 1}/${recs.length}）`);
+    await tick();
+    if (my !== openSeq) return;
+    try {
+      if (!(r.blob instanceof Blob)) throw new Error('画像がありません');
+      const src = await decodeImage(r.blob);
+      if (my !== openSeq) { if (typeof src.close === 'function') src.close(); return; }
+      const sheet = makeSheet(src, r.name, r.id);
+      const grid = GRIDS.some(([v]) => v === `${r.r}x${r.c}`);
+      if (grid) { sheet.r = r.r; sheet.c = r.c; }
+      sheet.split = r.split === 'even' ? 'even' : 'auto';
+      sheet.order = Number(r.order) || 0;
+      sheet.addedAt = Number(r.addedAt) || now;
+      sheet.blob = r.blob;
+      processSheet(sheet);
+      S.sheets.push(sheet);
+      if (!(now - (Number(r.usedAt) || 0) < USED_TOUCH_MS)) {
+        r.usedAt = now;
+        dbPut(workDb, ST_SHEETS, r).catch(err => console.error('使った時刻を記録できませんでした', err));
+      }
+    } catch (err) {
+      console.error('作業中の画像を開けませんでした', r && r.name, err);
+      failed++;
+    }
+  }
+  if (my !== openSeq) return;
+  setBusy('');
+  if (sess) {
+    S.off = new Set((Array.isArray(sess.off) ? sess.off : []).filter(x => typeof x === 'string'));
+    S.mainId = typeof sess.mainId === 'string' ? sess.mainId : null;
+  }
+  S.workLoaded = true;
+  afterProcess();
+  if (failed) toast(`作業中の画像${failed}枚を開けませんでした`, true);
+}
+
+/* ================= 一覧 ================= */
+
+function renderList() {
+  const box = $('#planList');
+  box.textContent = '';
+  const row = $('#filterRow');
+  row.textContent = '';
+  if (!db && !S.plans.length) {
+    row.hidden = true;
+    const es = el('div', 'empty-state');
+    es.append(el('div', 'big', '保存機能を使えません'),
+      el('div', 'small', 'このブラウザ／モードでは IndexedDB を使えないため、企画を保存できません。プライベートブラウジングなどを確かめてください。保存せずに使うこともできます（閉じると消えます）。'));
+    const b = el('button', 'btn primary', '＋ 保存せずに使う');
+    b.type = 'button';
+    b.addEventListener('click', newPlan);
+    es.append(b);
+    box.append(es);
+    return;
+  }
+  if (!S.plans.length) {
+    row.hidden = true;
+    const es = el('div', 'empty-state');
+    es.append(el('div', 'big', '企画がありません'),
+      el('div', 'small', 'スタンプ1セットごとに企画を作ります。テーマ・キャラクター・セリフからプロンプトを作り、生成した画像の切り抜きと書き出しまで進めます。'));
+    const b = el('button', 'btn primary', '＋ 新しい企画');
+    b.type = 'button';
+    b.addEventListener('click', newPlan);
+    es.append(b);
+    box.append(es);
+    return;
+  }
+  row.hidden = false;
+  const counts = { all: S.plans.length };
+  for (const k of Object.keys(STATUSES)) counts[k] = S.plans.filter(p => p.status === k).length;
+  for (const [k, label] of [['all', 'すべて'], ...Object.entries(STATUSES)]) {
+    const b = el('button', 'filter-btn', label);
+    b.type = 'button';
+    b.dataset.filter = k;
+    b.append(el('b', null, String(counts[k])));
+    b.setAttribute('aria-pressed', String(S.filter === k));
+    b.addEventListener('click', () => { S.filter = k; renderList(); });
+    row.append(b);
+  }
+  const list = S.plans
+    .filter(p => S.filter === 'all' || p.status === S.filter)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!list.length) {
+    box.append(el('p', 'empty', 'この状態の企画はありません。'));
+    return;
+  }
+  for (const p of list) {
+    const card = el('button', 'plan-card');
+    card.type = 'button';
+    card.dataset.id = p.id;
+    const top = el('div', 'pc-top');
+    top.append(el('span', 'pc-title', planName(p)), el('span', `status-badge s-${p.status}`, STATUSES[p.status]));
+    const meta = el('div', 'pc-meta');
+    meta.append(el('span', null, `${p.count}個・1枚に${p.per}コマ`), el('span', null, `更新 ${formatDateTime(p.updatedAt)}`));
+    const n = S.workCounts.get(p.id) || 0;
+    if (n) meta.append(el('span', 'pc-work', `作業中の画像 ${n}枚（この端末）`));
+    card.append(top, meta);
+    card.addEventListener('click', () => openPlan(p.id));
+    box.append(card);
+  }
+}
+
+async function refreshWorkCounts() {
+  if (!workDb) { S.workCounts = new Map(); return; }
+  try { S.workCounts = await workCountsByPlan(); } catch (err) { console.error('作業中の画像を数えられませんでした', err); }
+}
+
+async function goList() {
+  if (S.view !== 'edit') return;
+  const leaving = leavePlan();
+  prefs.lastPlanId = null;
+  savePrefs();
+  switchView('list');
+  renderList();
+  await leaving;
+  if (S.view !== 'list') return;
+  await loadPlans();       // ほかのタブでの変更も拾う
+  await refreshWorkCounts();
+  if (S.view === 'list') renderList();
+}
+
+let creating = false;
+async function newPlan() {
+  if (creating) return; // 二度押しで2つできないように
+  creating = true;
+  try {
+    const p = await createPlan();
+    if (p) await openPlan(p.id, 'p'); // 新しい企画は「1 プロンプト」から
+  } finally { creating = false; }
+}
+
+/* ================= メニュー（複製・削除・片付け） ================= */
+
+function closeMenus() {
+  for (const m of document.querySelectorAll('.menu-panel.is-open')) m.classList.remove('is-open');
+  for (const b of document.querySelectorAll('.hamburger-btn.is-active')) b.classList.remove('is-active');
+}
+function bindMenu(btnSel, panelSel) {
+  const btn = $(btnSel), panel = $(panelSel);
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = !panel.classList.contains('is-open');
+    closeMenus();
+    if (open) { panel.classList.add('is-open'); btn.classList.add('is-active'); }
+  });
+}
+
+// 複製：中身をすべて写した新しい企画（企画名に「 2」、状態は企画中、作業中の画像は写さない）。第2弾を作る入口
+async function duplicatePlan() {
+  closeMenus();
+  const src = S.plan;
+  if (!src) return;
+  await flushPlan();
+  const copy = Object.assign({}, src);
+  delete copy.id; delete copy.createdAt; delete copy.updatedAt;
+  copy.title = `${planName(src)} 2`;
+  copy.status = 'idea';
+  const p = await createPlan(copy);
+  if (!p) return;
+  await openPlan(p.id, 'p');
+  toast('複製しました（作業中の画像は写していません）');
+}
+
+async function deletePlan() {
+  closeMenus();
+  const p = S.plan;
+  if (!p) return;
+  let n = S.sheets.length;
+  if (workDb) { try { n = (await workSheetsOf(p.id)).length; } catch (e) { /* 数えられなければ画面の数 */ } }
+  const ok = await ask(`企画「${planName(p)}」を削除します。元に戻せません。\nこの端末の作業中の画像${n}枚も消えます（ほかの端末の画像は、その端末で開いたときに片付きます）。`,
+    [{ value: 'del', label: '削除する', kind: 'danger' }], { danger: true });
+  if (ok !== 'del' || S.plan !== p) return;
+  // 保存待ちを捨てる（消した企画を書き戻さないように）
+  clearTimeout(saveTimer); saveTimer = null; dirtyPlan = null;
+  clearTimeout(sessTimer); sessTimer = null;
+  await saving.catch(() => {});
+  try {
+    if (db) await dbDel(db, ST_PLANS, p.id);
+  } catch (err) {
+    console.error('企画の削除に失敗しました', err);
+    toast('削除に失敗しました', true);
+    return;
+  }
+  S.plans = S.plans.filter(x => x.id !== p.id);
+  baseAt.delete(p.id);
+  if (workDb) { try { await workDeletePlan(p.id); } catch (err) { console.error('作業中の画像を消せませんでした', err); } }
+  openSeq++;
+  resetWork();
+  S.plan = null;
+  toast('企画を削除しました');
+  await goList();
+}
+
+async function cleanPlanWork() {
+  closeMenus();
+  const p = S.plan;
+  if (!p) return;
+  if (!S.workLoaded) { toast('作業中の画像を読み込んでいます。終わってからもう一度', true); return; }
+  const n = S.sheets.length;
+  if (!n) { toast('この企画の作業中の画像はありません'); return; }
+  const ok = await ask(`この企画の作業中の画像${n}枚を、この端末から消します。\n元の画像（カメラロールなど）は消えません。企画の中身もそのままです。`,
+    [{ value: 'ok', label: '片付ける', kind: 'danger' }], { danger: true });
+  if (ok !== 'ok' || S.plan !== p) return;
+  clearTimeout(sessTimer); sessTimer = null;
+  if (workDb) {
+    try { await workDeletePlan(p.id); } catch (err) { console.error(err); toast('片付けられませんでした', true); return; }
+  }
+  openSeq++;
+  resetWork();
+  S.workLoaded = true;
+  afterProcess();
+  toast('作業中の画像を片付けました');
+}
+
+async function cleanAllWork() {
+  closeMenus();
+  if (!workDb) { toast('この端末では作業中の画像を保存していません'); return; }
+  await refreshWorkCounts();
+  let n = 0;
+  for (const v of S.workCounts.values()) n += v;
+  if (!n) { toast('作業中の画像はありません'); return; }
+  const ok = await ask(`この端末の作業中の画像${n}枚をすべて消します。\n元の画像（カメラロールなど）と企画の中身は消えません。`,
+    [{ value: 'ok', label: 'すべて片付ける', kind: 'danger' }], { danger: true });
+  if (ok !== 'ok') return;
+  try { await workClearAll(); } catch (err) { console.error(err); toast('片付けられませんでした', true); return; }
+  await refreshWorkCounts();
+  renderList();
+  toast('作業中の画像を片付けました');
+}
+
+/* ================= 初期化 ================= */
+
+function initTabs() {
+  const tabs = [...document.querySelectorAll('.tab')];
+  tabs.forEach((b, i) => {
+    b.addEventListener('click', () => showTab(b.dataset.tab));
+    b.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      next.focus();
+      showTab(next.dataset.tab);
+    });
+  });
+  for (const b of document.querySelectorAll('[data-go]')) b.addEventListener('click', () => showTab(b.dataset.go));
+}
+
+function initCutPanel() {
+  const file = $('#file');
+  file.addEventListener('change', () => {
+    if (file.files && file.files.length) importFiles(file.files);
+    file.value = '';
+  });
+  const drop = $('#drop');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    drop.classList.remove('over');
+    if (e.dataTransfer && e.dataTransfer.files.length) importFiles(e.dataTransfer.files);
+  });
+  // 落とし先を外れても、画像が開いてアプリが入れ替わらないようにする（編集中なら取り込む）
+  const hasFiles = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
+  document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  document.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    if (S.view === 'edit' && e.dataTransfer.files.length) importFiles(e.dataTransfer.files);
+  });
+  document.addEventListener('paste', e => {
+    if (S.view !== 'edit') return;
+    const t = e.target;
+    if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return;
+    const files = e.clipboardData && e.clipboardData.files;
+    if (files && files.length) { e.preventDefault(); importFiles(files); }
+  });
+
+  seg($('#bgSeg'), [['check', '市松'], ['white', '白'], ['black', '黒'], ['talk', 'トーク']], prefs.bg, v => {
+    prefs.bg = v;
+    savePrefs();
+    $('#tiles').dataset.bg = v;
+    $('#outs').dataset.bg = v;
+  });
+
+  const strength = $('#strength');
+  const out = $('#strengthOut');
+  strength.value = prefs.strength;
+  out.textContent = String(prefs.strength);
+  strength.addEventListener('input', () => {
+    prefs.strength = +strength.value;
+    out.textContent = strength.value;
+    savePrefs();
+    reprocessSoon();
+  });
+  $('#holes').checked = !!prefs.holes;
+  $('#holes').addEventListener('change', e => { prefs.holes = e.target.checked; savePrefs(); reprocessSoon(); });
+  $('#clean').checked = !!prefs.clean;
+  $('#clean').addEventListener('change', e => { prefs.clean = e.target.checked; savePrefs(); reprocessSoon(); });
+  chips($('#erodeChips'), 'erode', [[0, 'なし'], [1, '1px'], [2, '2px']], prefs.erode, v => {
+    prefs.erode = +v;
+    savePrefs();
+    reprocessSoon();
+  });
+
+  $('#selAll').addEventListener('click', () => { S.off.clear(); renderTiles(); updateCounts(); scheduleOutputs(); scheduleSession(); });
+  $('#selNone').addEventListener('click', () => { for (const s of S.stickers) S.off.add(s.id); renderTiles(); updateCounts(); scheduleOutputs(); scheduleSession(); });
+}
+
+function initSavePanel() {
+  seg($('#outSeg'), [['maker', 'スタンプメーカー用'], ['cm', 'Creators Market用']], prefs.out, v => {
+    if (S.dl) S.dl.stop = true;
+    prefs.out = v;
+    savePrefs();
+    renderOutMode();
+    scheduleOutputs();
+  });
+  renderOutMode();
+  $('#zipAll').addEventListener('click', zipAll);
+  $('#shareAll').addEventListener('click', shareAll);
+  $('#dlAll').addEventListener('click', downloadAll);
+  $('#dlStop').addEventListener('click', stopDownload);
+  renderOutputs();
+}
+
+function initShell() {
+  $('#addPlanBtn').addEventListener('click', newPlan);
+  $('#backBtn').addEventListener('click', goList);
+  bindMenu('#listMenuBtn', '#listMenu');
+  bindMenu('#editMenuBtn', '#editMenu');
+  $('#menuDuplicate').addEventListener('click', duplicatePlan);
+  $('#menuDelete').addEventListener('click', deletePlan);
+  $('#menuCleanPlan').addEventListener('click', cleanPlanWork);
+  $('#menuCleanAll').addEventListener('click', cleanAllWork);
+  document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) closeMenus(); });
+
+  const ov = $('#confirmOverlay');
+  ov.addEventListener('click', e => { if (e.target === ov) closeAsk(null); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (ov.classList.contains('is-open')) closeAsk(null);
+    else closeMenus();
+  });
+
+  // 保存待ちを今すぐ書き込む：Stageを閉じる合図・画面を離れる・裏に回る（スタンプメーカーへ切り替えるときなど）
+  const flushAll = () => { flushPlan(); flushSession(); };
+  window.addEventListener('message', e => {
+    if (e.source === window.parent && e.data && e.data.type === 'sideops:stage-closing') flushAll();
+  });
+  window.addEventListener('pagehide', flushAll);
+  window.addEventListener('beforeunload', flushAll);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAll(); });
+
+  // スマホの戻るボタン（SIDE-OPSのStageの中）：編集の画面も1段として数え、戻るで一覧に戻す
+  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, #editView.is-active';
+  window.SideOpsBack = () => {
+    if (document.querySelector('.confirm-overlay.is-open, .modal-overlay.is-open')) return false;
+    if (S.view === 'edit') { goList(); return true; }
+    return false;
+  };
+}
+
+async function start() {
+  const [pr, wr] = await Promise.allSettled([openPlanDb(), openWorkDb()]);
+  if (pr.status === 'fulfilled') db = pr.value;
+  else console.error('STAMPWORKS用DBの初期化に失敗しました', pr.reason);
+  if (wr.status === 'fulfilled') workDb = wr.value;
+  else console.error('作業中の画像のDBを開けませんでした', wr.reason);
+
+  const loaded = await loadPlans();
+  if (workDb) {
+    try { await workCleanup(loaded ? new Set(S.plans.map(p => p.id)) : null); }
+    catch (err) { console.error('作業中の画像の片付けに失敗しました', err); }
+  }
+  if (prefs.lastPlanId && S.plans.some(p => p.id === prefs.lastPlanId)) {
+    await openPlan(prefs.lastPlanId);
+  } else {
+    prefs.lastPlanId = null;
+    savePrefs();
+    await refreshWorkCounts();
+    renderList();
+  }
+}
+
+initShell();
+initPromptPanel();
+initCutPanel();
+initSavePanel();
+initTabs();
+start().catch(err => { console.error('STAMPWORKSの初期化に失敗しました', err); renderList(); });
+})();
+</script>
+</body>
+</html>

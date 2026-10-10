@@ -68,6 +68,8 @@
 
 先天的アプリ一覧（`BUILTIN_APP_CHOICES`）に、2026-10-07からLIBRARIUM（`apps/librarium.html`・`apps/img/librarium.jpg`）を足した（`apps/claude_アプリ_LIBRARIUM_仕様書.md`）。
 
+2026-10-10からSTAMPWORKS（`apps/stampworks.html`・`apps/img/stampworks.jpg`）を足した（`apps/claude_アプリ_STAMPWORKS_仕様書.md`）。
+
 ## ローカルhtmlインポート機能
 
 「種類」で「ローカルhtmlをインポート」を選択した場合のフロー：

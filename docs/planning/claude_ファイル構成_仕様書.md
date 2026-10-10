@@ -40,7 +40,8 @@ sideops/
     │   ├── scaffold.jpg
     │   ├── mindframe.jpg
     │   ├── recon.jpg
-    │   └── librarium.jpg
+    │   ├── librarium.jpg
+    │   └── stampworks.jpg
     ├── sideops-theme-bridge.js  # テーマブリッジの受信側共通スクリプト。各アプリが
     │                            # <head>で1行読み込むopt-in方式
     │                            # （同期の「変えたよ」の印・戻る操作との連携も受け持つ）
@@ -62,6 +63,8 @@ sideops/
     ├── recon.js             #   本体（CSV取込・検算・照合・重複防止・取消・取引履歴・月別・作品別・顧客管理・バックアップ）
     ├── librarium.html       # AIのべりすとの .novel から本文を取り込んで並べる本棚（2026-10-07〜）
     │                        #   本は sideops_librarium、読んだ位置は sideops_librarium_pos（2026-10-08〜）
+    ├── stampworks.html      # LINEスタンプの企画・プロンプト・透過と切り分け・書き出し（2026-10-10〜）
+    │                        #   企画は sideops_stampworks（同期する）、作業中の画像は sideops_stampworks_work（同期しない）
     ├── vendor/              # 同梱の外部ライブラリ（CDNは使わない）
     │   ├── papaparse.min.js      # Papa Parse 5.7.0（CSV解析、MIT）。RECONが使用
     │   └── papaparse.LICENSE.txt # 上記のライセンス全文

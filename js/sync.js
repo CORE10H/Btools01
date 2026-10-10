@@ -43,7 +43,7 @@
   // SIDE-OPSの版（yyyymmddnn の数値）。どれかのアプリでデータの形（レコードの
   // 項目・DBの版）を変えたら必ず上げる。自分より新しい版の端末が書いたファイルを
   // 見つけたら同期を止める（古い版が新しい項目を知らずに上書きして消すのを防ぐ）
-  const SYNC_APP_BUILD = 2026100801;
+  const SYNC_APP_BUILD = 2026101001;
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
   const SYNC_DB_VERSION = 3; // 2：同期の記録（journal）を追加、3：同期のログ（runlog。かかった時間）を追加
@@ -92,6 +92,9 @@
     // 本のDBに残る progress ストアは2026-10-07の版の名残（移し替えた後は空。同期しない）
     { name: 'sideops_librarium', label: 'LIBRARIUM', version: 1, excludeStores: ['progress'] },
     { name: 'sideops_librarium_pos', label: 'LIBRARIUM（読んだ位置）', version: 1 },
+    // STAMPWORKS は企画だけを同期する（2026-10-10）。作業中の画像（sideops_stampworks_work）は数MBの画像を毎回送ると
+    // 同期が重くなるので、わざとここに入れない（端末の中の一時保存。元の画像はカメラロールにあり、作り直せる）
+    { name: 'sideops_stampworks', label: 'STAMPWORKS', version: 1 },
   ];
   const RULE_BY_NAME = new Map(DB_RULES.map((r) => [r.name, r]));
 
