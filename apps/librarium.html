@@ -85,6 +85,7 @@
   .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
   .btn.danger:hover { background: var(--magenta-dim); }
   .btn.small { padding: 4px 9px; font-size: 10.5px; }
+  .is-hidden { display: none !important; }
 
   .menu-wrap { position: relative; flex-shrink: 0; }
   .hamburger-btn {
@@ -100,6 +101,7 @@
   .menu-panel.is-open { display: flex; }
   .menu-panel button { background: transparent; border: none; text-align: left; font-size: 12px; color: var(--text-dim); padding: 8px 10px; cursor: pointer; }
   .menu-panel button:hover { background: var(--bg-alt); color: var(--cyan); }
+  .menu-panel button:disabled { opacity: .4; cursor: default; background: transparent; color: var(--text-dim); }
 
   /* ---- views ---- */
   .app-body { flex: 1; min-height: 0; position: relative; }
@@ -128,6 +130,16 @@
     transition: transform .18s ease, border-color .18s ease;
   }
   .book:hover .book-cover, .book:focus-visible .book-cover { transform: translateY(-3px); border-color: var(--cyan-dim); }
+  /* 選んで削除：選んでいる間は表紙の右上にチェック欄を出し、選んだ本を赤く縁どる */
+  .select-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 18px 0; padding: 8px 12px; border: 1px solid var(--magenta-dim); background: rgba(var(--magenta-dim-rgb), .35); font-size: 11.5px; color: var(--text); flex-shrink: 0; }
+  .select-bar .sb-text { margin-right: auto; line-height: 1.6; }
+  .select-bar strong { color: var(--magenta); font-size: 13px; }
+  @media (max-width: 480px) { .select-bar { margin: 10px 12px 0; } .select-bar .sb-lead { display: none; } } /* 狭い画面では案内を省き、帯を2段に収める */
+  .book.is-selectable .book-cover::after { content: ''; position: absolute; top: 8px; right: 8px; z-index: 3; width: 18px; height: 18px; box-sizing: border-box; border: 1px solid var(--line); background: rgba(var(--bg-rgb), .85); }
+  .book.is-picked .book-cover, .book.is-picked:hover .book-cover { border-color: var(--magenta); }
+  .book.is-picked .book-cover img, .book.is-picked .bc-type { opacity: .5; }
+  .book.is-picked .book-cover::after { content: '✓'; border-color: var(--magenta); background: var(--magenta); color: var(--bg); font-size: 13px; line-height: 16px; text-align: center; font-weight: 700; }
+  .book.is-picked .book-title { color: var(--magenta); }
   .book-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .book-cover::before { content: ''; position: absolute; top: 0; bottom: 0; left: 7px; width: 1px; background: rgba(var(--text-rgb), .18); z-index: 2; }
   .bc-type {
@@ -272,6 +284,7 @@
       <div class="menu-wrap">
         <button type="button" class="hamburger-btn" id="menuBtn" title="メニュー" aria-label="メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
+          <button type="button" id="menuSelect">選んで削除</button>
           <button type="button" id="menuHelp">取り込み方</button>
         </div>
       </div>
@@ -280,6 +293,13 @@
 
   <main class="app-body" id="appBody">
     <section class="view is-active" id="shelfView">
+      <div class="select-bar is-hidden" id="shelfSelectBar" role="region" aria-label="本を選んで削除">
+        <span class="sb-text"><span class="sb-lead">消す本を押して選んでください　</span>選択中 <strong id="shelfSelCount">0</strong>冊</span>
+        <button type="button" class="btn small" id="shelfSelAllBtn">表示中をすべて選ぶ</button>
+        <button type="button" class="btn small" id="shelfSelClearBtn">選択を外す</button>
+        <button type="button" class="btn small danger" id="shelfSelDeleteBtn">選んだ本を削除</button>
+        <button type="button" class="btn small" id="shelfSelExitBtn">やめる</button>
+      </div>
       <div class="scroll-area">
         <div class="shelf-count" id="shelfCount"></div>
         <div id="shelfList"></div>
@@ -461,6 +481,7 @@
   const POS_DB_VERSION = 1;
 
   const NOVEL_SEP = '<|endofsection|>';
+  const BULK_DELETE_TWICE = 20; // この冊数以上をまとめて消すときは、削除ボタンを2回押させる
   const FILE_MAX_BYTES = 30 * 1024 * 1024;     // 1ファイル（.novel / .txt）
   const ZIP_MAX_BYTES = 300 * 1024 * 1024;     // ZIP そのもの
   const ZIP_MAX_ENTRIES = 2000;
@@ -555,6 +576,8 @@
   let dbReady = false;
   let currentView = 'shelf';
   let readerBookId = null;
+  let shelfSelecting = false;     // 本棚の「選んで削除」の途中か
+  const shelfPicked = new Set(); // 選んだ本のID（検索や並べ方を変えても残る）
 
   /* ===================== 表示の小道具 ===================== */
   const toastEl = $('toast');
@@ -568,21 +591,36 @@
   }
 
   // 確認（OK で true）
+  // twice：OKを2回押させる（まとめて消す冊数が多いとき）。1回目でボタンの文字が変わり、
+  // 少しの間は押せない（ダブルクリックで2回目まで通ってしまわないように）
   let confirmResolve = null;
-  function ask(msg, okLabel, danger) {
+  let confirmTwice = false, confirmArmed = false, confirmArmTimer = 0;
+  function ask(msg, okLabel, danger, twice) {
     if (confirmResolve) confirmResolve(false);
-    $('confirmMsg').textContent = msg;
+    $('confirmMsg').textContent = msg + (twice ? '\n\n冊数が多いため、削除ボタンは2回押します。' : '');
     $('confirmOkBtn').textContent = okLabel || 'OK';
     $('confirmOkBtn').className = 'btn ' + (danger ? 'danger' : 'primary');
+    confirmTwice = !!twice; confirmArmed = false;
+    clearTimeout(confirmArmTimer); $('confirmOkBtn').disabled = false;
     $('confirmOverlay').classList.add('is-open');
     return new Promise((resolve) => { confirmResolve = resolve; });
   }
   function closeConfirm(v) {
     $('confirmOverlay').classList.remove('is-open');
+    clearTimeout(confirmArmTimer); $('confirmOkBtn').disabled = false; confirmTwice = false; confirmArmed = false;
     const r = confirmResolve; confirmResolve = null;
     if (r) r(v);
   }
-  $('confirmOkBtn').addEventListener('click', () => closeConfirm(true));
+  $('confirmOkBtn').addEventListener('click', () => {
+    if (confirmTwice && !confirmArmed) {
+      confirmArmed = true;
+      $('confirmOkBtn').textContent = 'もう一度押すと削除します';
+      $('confirmOkBtn').disabled = true;
+      confirmArmTimer = setTimeout(() => { $('confirmOkBtn').disabled = false; }, 700);
+      return;
+    }
+    closeConfirm(true);
+  });
   $('confirmCancelBtn').addEventListener('click', () => closeConfirm(false));
   $('confirmOverlay').addEventListener('click', (e) => { if (e.target === $('confirmOverlay')) closeConfirm(false); });
 
@@ -1042,6 +1080,7 @@
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
     e.preventDefault();
     appBody.classList.remove('is-dragover');
+    if (shelfSelecting) { showToast('「選んで削除」をやめてから取り込んでください', true); return; }
     readFiles(e.dataTransfer.files);
   });
 
@@ -1068,10 +1107,13 @@
     if (hay.includes(q)) return true;
     return q.length >= 2 && String(b.body || '').toLowerCase().includes(q);
   }
+  // いま本棚に並んでいる本（検索で絞った後）
+  const shownBooks = () => { const q = searchInput.value.trim().toLowerCase(); return sortedBooks().filter((b) => matches(b, q)); };
   function renderShelf() {
     const q = searchInput.value.trim().toLowerCase();
-    const list = sortedBooks().filter((b) => matches(b, q));
+    const list = shownBooks();
     const listEl = $('shelfList');
+    updateShelfSelectBar();
     if (!books.length) {
       $('shelfCount').textContent = '';
       listEl.innerHTML = `<div class="empty-state"><div class="big">本棚はまだ空です</div>
@@ -1083,7 +1125,8 @@
     listEl.innerHTML = '<div class="shelf-grid">' + list.map((b) => {
       const r = readRatio(b.id);
       const meta = `${(b.chars || 0).toLocaleString()}字` + (r > 0 ? `・${r >= 0.995 ? '読了' : Math.floor(r * 100) + '%'}` : '');
-      return `<button type="button" class="book" data-id="${escapeHtml(b.id)}">
+      const pick = shelfSelecting ? ` is-selectable${shelfPicked.has(b.id) ? ' is-picked' : ''}" aria-pressed="${shelfPicked.has(b.id)}` : '';
+      return `<button type="button" class="book${pick}" data-id="${escapeHtml(b.id)}">
         <span class="book-cover">${coverHtml(b)}${r > 0 ? `<span class="book-progress" style="width:${(r * 100).toFixed(1)}%"></span>` : ''}</span>
         <span class="book-title">${escapeHtml(b.title || '無題')}</span>
         ${b.author ? `<span class="book-pen">${escapeHtml(b.author)}</span>` : ''}
@@ -1096,7 +1139,80 @@
   sortSelect.addEventListener('change', () => { prefs.sort = sortSelect.value; savePrefs(); renderShelf(); });
   $('shelfList').addEventListener('click', (e) => {
     const b = e.target.closest('.book');
+    if (b && shelfSelecting) { toggleShelfPick(b); return; }
     if (b) openReader(b.dataset.id);
+  });
+
+  /* ---- 選んで削除（本棚）----
+     選んでいる間は、本を押すと選ぶ／外すになる（開かない）。検索や並べ方を変えても選択は残す。
+     本はまとめて1つの書き込みで消す（途中で失敗したら1冊も消えない）。読んだ位置は別のDBなので、その後に消す */
+  function updateShelfSelectBar() {
+    Array.from(shelfPicked).forEach((id) => { if (!books.some((b) => b.id === id)) shelfPicked.delete(id); });
+    $('shelfSelectBar').classList.toggle('is-hidden', !shelfSelecting);
+    $('importBtn').classList.toggle('is-hidden', shelfSelecting);
+    $('menuSelect').disabled = shelfSelecting || !books.length;
+    $('shelfSelCount').textContent = shelfPicked.size;
+    $('shelfSelDeleteBtn').disabled = shelfPicked.size === 0;
+    $('shelfSelClearBtn').disabled = shelfPicked.size === 0;
+    const shown = shownBooks();
+    $('shelfSelAllBtn').disabled = !shown.length || shown.every((b) => shelfPicked.has(b.id));
+  }
+  function toggleShelfPick(el) {
+    const id = el.dataset.id;
+    if (!books.some((b) => b.id === id)) return;
+    if (shelfPicked.has(id)) shelfPicked.delete(id); else shelfPicked.add(id);
+    el.classList.toggle('is-picked', shelfPicked.has(id));
+    el.setAttribute('aria-pressed', String(shelfPicked.has(id)));
+    updateShelfSelectBar();
+  }
+  function enterShelfSelect() {
+    if (!dbReady || !books.length) return;
+    shelfSelecting = true;
+    shelfPicked.clear();
+    renderShelf();
+  }
+  function exitShelfSelect() {
+    if (!shelfSelecting) return;
+    shelfSelecting = false;
+    shelfPicked.clear();
+    renderShelf();
+  }
+  $('shelfSelExitBtn').addEventListener('click', exitShelfSelect);
+  $('shelfSelAllBtn').addEventListener('click', () => { shownBooks().forEach((b) => shelfPicked.add(b.id)); renderShelf(); });
+  $('shelfSelClearBtn').addEventListener('click', () => { shelfPicked.clear(); renderShelf(); });
+  $('shelfSelDeleteBtn').addEventListener('click', async () => {
+    const targets = books.filter((b) => shelfPicked.has(b.id));
+    if (!targets.length) { showToast('消す本を選んでください', true); return; }
+    const reading = targets.filter((b) => { const r = readRatio(b.id); return r > 0 && r < 0.995; }).length;
+    const lines = [`選んだ本${targets.length}冊を本棚から削除します。`, '',
+      '・本文・表紙・読んだ位置も消え、元に戻せません（ゴミ箱はありません）',
+      '・同期を使っている場合は、次の同期でほかの端末からも消えます'];
+    if (reading) lines.push(`・うち${reading}冊は読みかけです`);
+    lines.push('', '（AIのべりすとの作品や、取り込んだ元のファイルは消えません）');
+    if (!(await ask(lines.join('\n'), `${targets.length}冊を削除する`, true, targets.length >= BULK_DELETE_TWICE))) return;
+    const ids = targets.map((b) => b.id);
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(S.books, 'readwrite');
+        ids.forEach((id) => tx.objectStore(S.books).delete(id));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('書き込みが中止されました'));
+      });
+    } catch (err) {
+      console.error('本をまとめて削除できませんでした', err);
+      showToast('削除できませんでした（1冊も消していません）', true);
+      return;
+    }
+    for (const id of ids) {
+      try { await deletePos(id); } catch (err) { console.warn('読んだ位置を消せませんでした', err); }
+      dropCoverUrl(id);
+    }
+    shelfSelecting = false;
+    shelfPicked.clear();
+    await loadAll();
+    renderShelf();
+    showToast(`${ids.length}冊を削除しました`);
   });
 
   /* =====================================================================
@@ -1374,6 +1490,7 @@
   function closeMenu() { menuPanel.classList.remove('is-open'); menuBtn.classList.remove('is-active'); }
   menuBtn.addEventListener('click', (e) => { e.stopPropagation(); const open = !menuPanel.classList.contains('is-open'); menuPanel.classList.toggle('is-open', open); menuBtn.classList.toggle('is-active', open); });
   document.addEventListener('click', (e) => { if (!e.target.closest('.menu-wrap')) closeMenu(); });
+  $('menuSelect').addEventListener('click', () => { closeMenu(); enterShelfSelect(); });
   $('menuHelp').addEventListener('click', () => { closeMenu(); $('helpModal').classList.add('is-open'); });
   const closeHelp = () => $('helpModal').classList.remove('is-open');
   $('helpCloseBtn').addEventListener('click', closeHelp);
@@ -1390,13 +1507,15 @@
     else if ($('helpModal').classList.contains('is-open')) closeHelp();
     else if (menuPanel.classList.contains('is-open')) closeMenu();
     else if (currentView === 'reader') closeReader();
+    else if (shelfSelecting) exitShelfSelect();
   });
-  // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：読む画面も1段として数え、戻るで本棚に戻す。
-  // モーダルはいつもの閉じ方（背景のクリック等）に任せる
-  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .sideops-frame-overlay.is-open, #readerView.is-active';
+  // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：読む画面と「選んで削除」の途中も1段として数え、
+  // 戻るで本棚に戻す／選ぶのをやめる。モーダルはいつもの閉じ方（背景のクリック等）に任せる
+  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .sideops-frame-overlay.is-open, #readerView.is-active, #shelfSelectBar';
   window.SideOpsBack = () => {
     if (anyModalOpen() || document.querySelector('.sideops-frame-overlay.is-open')) return false;
     if (currentView === 'reader') { closeReader(); return true; }
+    if (shelfSelecting) { exitShelfSelect(); return true; }
     return false;
   };
 

@@ -190,6 +190,7 @@
     font-size: 11px; color: var(--text); flex-shrink: 0; display: none;
   }
   .select-mode-hint.is-active { display: block; }
+  .select-mode-hint strong { color: var(--magenta); font-size: 13px; }
   .card.select-target { cursor: pointer; }
   .card-erase-overlay {
     position: absolute; inset: 0; display: none;
@@ -404,7 +405,7 @@
     </div>
   </div>
 
-  <div class="select-mode-hint" id="selectModeHint">選択削除モード：削除したいカードをクリックして選択してください。</div>
+  <div class="select-mode-hint" id="selectModeHint">選択削除モード：削除したいカードをクリックして選択してください。　選択中 <strong id="selectModeCount">0</strong>件（☰ の「削除」で消します）</div>
 
   <div class="app-body">
     <div class="grid" id="grid"></div>
@@ -650,6 +651,7 @@
   let tagColors = {};         // { タグ名: '#rrggbb' } のマップ
   let selectMode = false;             // 選択削除モードのON/OFF
   let selectedForDelete = new Set();  // 選択削除モード中に選んだentry idの集合
+  const BULK_DELETE_TWICE = 20;       // この件数以上をまとめて消すときは、削除ボタンを2回押させる
 
   /* ===================== DOM refs ===================== */
   const grid = document.getElementById('grid');
@@ -680,6 +682,7 @@
   const menuItemExitSelect = document.getElementById('menuItemExitSelect');
   const menuItemDeleteSelected = document.getElementById('menuItemDeleteSelected');
   const selectModeHint = document.getElementById('selectModeHint');
+  const selectModeCount = document.getElementById('selectModeCount');
 
   const freqTagModalOverlay = document.getElementById('freqTagModalOverlay');
   const freqTagModalCloseBtn = document.getElementById('freqTagModalCloseBtn');
@@ -1378,6 +1381,9 @@
 
   /* ===================== 削除確認（単数／複数の両方で使う） ===================== */
   let pendingDeleteIds = null; // 配列で保持。単一削除も複数削除も同じ経路を通す
+  // 件数の多い選択削除は削除ボタンを2回押させる。1回目でボタンの文字が変わり、
+  // 少しの間は押せない（ダブルクリックで2回目まで通ってしまわないように）
+  let confirmTwice = false, confirmArmed = false, confirmArmTimer = 0;
 
   function openConfirmDelete(id) {
     pendingDeleteIds = [id];
@@ -1386,17 +1392,32 @@
   }
   function openConfirmDeleteMultiple(ids) {
     pendingDeleteIds = ids;
-    confirmMsg.textContent = `選択した${ids.length}件を削除します。画像・プロンプトは復元できません。よろしいですか？`;
+    confirmTwice = ids.length >= BULK_DELETE_TWICE;
+    confirmMsg.textContent = [
+      `選択した${ids.length}件を削除します。`, '',
+      '・画像・プロンプトも消え、元に戻せません（ゴミ箱はありません）',
+      '・同期を使っている場合は、次の同期でほかの端末からも消えます',
+    ].join('\n') + (confirmTwice ? '\n\n件数が多いため、削除ボタンは2回押します。' : '');
+    confirmDeleteBtn.textContent = `${ids.length}件を削除する`;
     confirmOverlay.classList.add('is-open');
   }
   function closeConfirmDelete() {
     pendingDeleteIds = null;
     confirmOverlay.classList.remove('is-open');
+    confirmTwice = false; confirmArmed = false; clearTimeout(confirmArmTimer);
+    confirmDeleteBtn.disabled = false; confirmDeleteBtn.textContent = '削除する';
   }
   confirmCancelBtn.addEventListener('click', closeConfirmDelete);
   confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirmDelete(); });
   confirmDeleteBtn.addEventListener('click', async () => {
     if (!pendingDeleteIds || pendingDeleteIds.length === 0) return;
+    if (confirmTwice && !confirmArmed) {
+      confirmArmed = true;
+      confirmDeleteBtn.textContent = 'もう一度押すと削除します';
+      confirmDeleteBtn.disabled = true;
+      confirmArmTimer = setTimeout(() => { confirmDeleteBtn.disabled = false; }, 700);
+      return;
+    }
     try {
       for (const id of pendingDeleteIds) {
         await dbDelete(id);
@@ -1423,8 +1444,13 @@
       else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
       else if (tagMoreModalOverlay.classList.contains('is-open')) closeTagMoreModal();
       else if (menuPanel.classList.contains('is-open') || selectModeMenuPanel.classList.contains('is-open')) closeMenu();
+      else if (selectMode) exitSelectMode();
     }
   });
+  // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：選択削除モードも1段として数え、戻るでモードを解除する
+  // （いちばん手前の層には Esc を送る仕組みなので、上の Esc で解除される）。前半はブリッジの既定と同じ
+  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], .select-mode-hint.is-active';
 
   /* ===================== ハンバーガーメニュー：一覧の開閉 ===================== */
   // 通常時はmenuPanel（よく使うタグ／タグの色／選択して削除）、
@@ -1605,6 +1631,7 @@
   function enterSelectMode() {
     selectMode = true;
     selectedForDelete.clear();
+    selectModeCount.textContent = 0;
     closeMenu();
     selectModeHint.classList.add('is-active');
     setSelectModeUiLock(true);
@@ -1621,6 +1648,7 @@
   function toggleSelectForDelete(id) {
     if (selectedForDelete.has(id)) selectedForDelete.delete(id);
     else selectedForDelete.add(id);
+    selectModeCount.textContent = selectedForDelete.size;
     renderGrid();
   }
   menuItemSelectMode.addEventListener('click', enterSelectMode);

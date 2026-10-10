@@ -278,6 +278,27 @@
 
   .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
+  /* 完了したタスクを片付ける：完了済みのタスクだけを並べ、チェックしたものを消す */
+  .btn.small { font-size: 10.5px; padding: 4px 9px; }
+  .cleanup-modal { max-width: 460px; }
+  .cleanup-lead { font-size: 11px; color: var(--text-dim); line-height: 1.7; margin-bottom: 10px; }
+  .cleanup-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .cleanup-count { font-size: 11px; color: var(--text-dim); margin-right: auto; }
+  .cleanup-count strong { color: var(--magenta); font-family: var(--font-display); font-size: 14px; }
+  .cleanup-list { max-height: 50vh; overflow-y: auto; margin-bottom: 14px; border: 1px solid var(--line-soft); }
+  .cleanup-empty { padding: 18px 12px; font-size: 11.5px; color: var(--text-faint); text-align: center; }
+  .cleanup-group-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--panel-hi); font-size: 11.5px; cursor: pointer; border-top: 1px solid var(--line-soft); }
+  .cleanup-group-head:first-child { border-top: none; }
+  .cleanup-group-head .pg-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .cleanup-group-head .cg-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cleanup-group-head .cg-count { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; }
+  .cleanup-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 18px; border-top: 1px solid var(--line-soft); cursor: pointer; font-size: 12px; }
+  .cleanup-row:hover { background: var(--panel-hi); }
+  .cleanup-row.is-picked { background: rgba(var(--magenta-dim-rgb), .4); }
+  .cleanup-row input, .cleanup-group-head input { width: 15px; height: 15px; accent-color: var(--magenta); flex-shrink: 0; cursor: pointer; margin: 0; }
+  .cleanup-row .t-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  .cleanup-row .t-dates { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; white-space: nowrap; }
+
   .toast {
     position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
     background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
@@ -317,6 +338,7 @@
         <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
           <button class="menu-panel-item" id="menuItemProjectManage" type="button">プロジェクト管理</button>
+          <button class="menu-panel-item" id="menuItemCleanup" type="button">完了したタスクを片付ける</button>
         </div>
       </div>
     </div>
@@ -402,6 +424,27 @@
       <button class="modal-close" id="projectManageCloseBtn">✕</button>
     </div>
     <div id="projectManageList"></div>
+  </div>
+</div>
+
+<!-- 完了したタスクを片付けるモーダル（完了済みのタスクだけを並べる。まだ終わっていないタスクは出さない） -->
+<div class="modal-overlay" id="cleanupOverlay">
+  <div class="modal cleanup-modal">
+    <div class="modal-head">
+      <span class="modal-title">完了したタスクを片付ける</span>
+      <button class="modal-close" id="cleanupCloseBtn">✕</button>
+    </div>
+    <div class="cleanup-lead">完了にしたタスクだけが並んでいます（まだ終わっていないタスクは出てきません）。消すものにチェックを入れてください。</div>
+    <div class="cleanup-tools">
+      <span class="cleanup-count">選択中 <strong id="cleanupCount">0</strong>件</span>
+      <button class="btn small" id="cleanupAllBtn" type="button">すべて選ぶ</button>
+      <button class="btn small" id="cleanupNoneBtn" type="button">すべて外す</button>
+    </div>
+    <div class="cleanup-list" id="cleanupList"></div>
+    <div class="modal-footer">
+      <button class="btn" id="cleanupCancelBtn" type="button">閉じる</button>
+      <button class="btn danger" id="cleanupDeleteBtn" type="button">選んだタスクを削除</button>
+    </div>
   </div>
 </div>
 
@@ -496,7 +539,9 @@
   let currentView = 'list'; // 'list' | 'gantt'
   let editingProjectId = null; // null = 新規
   let editingTaskId = null;    // null = 新規
-  let deleteTarget = null;     // { type: 'project'|'task', id }
+  let deleteTarget = null;     // { type: 'project'|'task', id } または { type: 'tasks', ids, twice }（完了したタスクの片付け）
+  const cleanupPicked = new Set(); // 片付けの画面でチェックしたタスクのID
+  const BULK_DELETE_TWICE = 20;    // この件数以上をまとめて消すときは、削除ボタンを2回押させる
 
   const PROJECT_COLORS = ['#00f0d0', '#ff2f6e', '#ffb020', '#7c9eff', '#c792ea', '#66d97a', '#ff8a5c', '#5cc8ff'];
 
@@ -1134,16 +1179,29 @@
     confirmOverlay.classList.add('is-open');
   }
 
+  // 件数の多い片付け（deleteTarget.twice）は削除ボタンを2回押させる。1回目でボタンの文字が変わり、
+  // 少しの間は押せない（ダブルクリックで2回目まで通ってしまわないように）
+  let confirmArmed = false, confirmArmTimer = 0;
   function closeConfirm() {
     confirmOverlay.classList.remove('is-open');
     deleteTarget = null;
+    confirmArmed = false; clearTimeout(confirmArmTimer);
+    confirmDeleteBtn.disabled = false; confirmDeleteBtn.textContent = '削除する';
   }
   confirmCancelBtn.addEventListener('click', closeConfirm);
   confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirm(); });
 
   confirmDeleteBtn.addEventListener('click', async () => {
     if (!deleteTarget) return;
+    if (deleteTarget.twice && !confirmArmed) {
+      confirmArmed = true;
+      confirmDeleteBtn.textContent = 'もう一度押すと削除します';
+      confirmDeleteBtn.disabled = true;
+      confirmArmTimer = setTimeout(() => { confirmDeleteBtn.disabled = false; }, 700);
+      return;
+    }
     const { type, id } = deleteTarget;
+    if (type === 'tasks') { await deleteDoneTasks(deleteTarget.ids); return; }
     try {
       if (type === 'task') {
         await del(STORE_TASKS, id);
@@ -1222,11 +1280,131 @@
   projectManageCloseBtn.addEventListener('click', closeProjectManage);
   projectManageOverlay.addEventListener('click', (e) => { if (e.target === projectManageOverlay) closeProjectManage(); });
 
+  /* =====================================================================
+     完了したタスクを片付ける
+     完了にしたタスクだけを並べる（まだ終わっていないタスクは出さないので、選べない）。
+     消す直前にも「今も完了か」を確かめ直し、まとめて1つの書き込みで消す（途中で失敗したら何も消えない）
+  ===================================================================== */
+  const cleanupOverlay = document.getElementById('cleanupOverlay');
+  const cleanupList = document.getElementById('cleanupList');
+  const cleanupCount = document.getElementById('cleanupCount');
+  const cleanupDeleteBtn = document.getElementById('cleanupDeleteBtn');
+  const doneTasks = () => tasks.filter(t => t.done && getProject(t.projectId));
+
+  function renderCleanupList() {
+    const done = doneTasks();
+    const keepScroll = cleanupList.scrollTop; // チェックのたびに描き直すので、見ていた位置を保つ
+    Array.from(cleanupPicked).forEach(id => { if (!done.some(t => t.id === id)) cleanupPicked.delete(id); });
+    cleanupList.innerHTML = '';
+    if (done.length === 0) {
+      cleanupList.innerHTML = '<div class="cleanup-empty">完了したタスクはありません。</div>';
+    }
+    projects.forEach(proj => {
+      const list = tasksOfProject(proj.id).filter(t => t.done);
+      if (list.length === 0) return;
+      const picked = list.filter(t => cleanupPicked.has(t.id)).length;
+      const head = document.createElement('label');
+      head.className = 'cleanup-group-head';
+      head.innerHTML = `
+        <input type="checkbox" ${picked === list.length ? 'checked' : ''} aria-label="${escapeHtml(proj.name)}の完了したタスクをすべて選ぶ">
+        <span class="pg-swatch" style="background:${proj.color};"></span>
+        <span class="cg-name">${escapeHtml(proj.name)}</span>
+        <span class="cg-count">完了 ${list.length}件</span>
+      `;
+      const headBox = head.querySelector('input');
+      headBox.indeterminate = picked > 0 && picked < list.length;
+      headBox.addEventListener('change', () => {
+        list.forEach(t => { if (headBox.checked) cleanupPicked.add(t.id); else cleanupPicked.delete(t.id); });
+        renderCleanupList();
+      });
+      cleanupList.appendChild(head);
+      list.forEach(task => {
+        const row = document.createElement('label');
+        row.className = 'cleanup-row' + (cleanupPicked.has(task.id) ? ' is-picked' : '');
+        row.innerHTML = `
+          <input type="checkbox" ${cleanupPicked.has(task.id) ? 'checked' : ''}>
+          <span class="t-title">${escapeHtml(task.title)}</span>
+          <span class="t-dates">${formatDateShort(task.startDate)} 〜 ${formatDateShort(task.endDate)}</span>
+        `;
+        row.querySelector('input').addEventListener('change', (e) => {
+          if (e.target.checked) cleanupPicked.add(task.id); else cleanupPicked.delete(task.id);
+          renderCleanupList();
+        });
+        cleanupList.appendChild(row);
+      });
+    });
+    cleanupList.scrollTop = keepScroll;
+    cleanupCount.textContent = cleanupPicked.size;
+    cleanupDeleteBtn.disabled = cleanupPicked.size === 0;
+    document.getElementById('cleanupAllBtn').disabled = done.length === 0 || cleanupPicked.size === done.length;
+    document.getElementById('cleanupNoneBtn').disabled = cleanupPicked.size === 0;
+  }
+
+  function openCleanup() {
+    closeMenu();
+    cleanupPicked.clear();
+    renderCleanupList();
+    cleanupOverlay.classList.add('is-open');
+  }
+  function closeCleanup() {
+    cleanupOverlay.classList.remove('is-open');
+    cleanupPicked.clear();
+  }
+  document.getElementById('menuItemCleanup').addEventListener('click', openCleanup);
+  document.getElementById('cleanupCloseBtn').addEventListener('click', closeCleanup);
+  document.getElementById('cleanupCancelBtn').addEventListener('click', closeCleanup);
+  cleanupOverlay.addEventListener('click', (e) => { if (e.target === cleanupOverlay) closeCleanup(); });
+  document.getElementById('cleanupAllBtn').addEventListener('click', () => { doneTasks().forEach(t => cleanupPicked.add(t.id)); renderCleanupList(); });
+  document.getElementById('cleanupNoneBtn').addEventListener('click', () => { cleanupPicked.clear(); renderCleanupList(); });
+
+  cleanupDeleteBtn.addEventListener('click', () => {
+    const targets = doneTasks().filter(t => cleanupPicked.has(t.id));
+    if (targets.length === 0) { showToast('消すタスクを選んでください', true); return; }
+    const projCount = new Set(targets.map(t => t.projectId)).size;
+    const twice = targets.length >= BULK_DELETE_TWICE;
+    deleteTarget = { type: 'tasks', ids: targets.map(t => t.id), twice };
+    confirmMsg.textContent = [
+      `完了したタスク${targets.length}件（${projCount}つのプロジェクト）を削除します。`, '',
+      '・元に戻せません（ゴミ箱はありません）',
+      '・同期を使っている場合は、次の同期でほかの端末からも消えます',
+      '・まだ終わっていないタスクは含まれていません',
+    ].join('\n') + (twice ? '\n\n件数が多いため、削除ボタンは2回押します。' : '');
+    confirmDeleteBtn.textContent = `${targets.length}件を削除する`;
+    confirmOverlay.classList.add('is-open');
+  });
+
+  async function deleteDoneTasks(ids) {
+    // 確認の間に「完了」を外したものは消さない
+    const ids2 = ids.filter(id => { const t = tasks.find(x => x.id === id); return t && t.done; });
+    if (ids2.length === 0) { closeConfirm(); showToast('消せる完了したタスクがありませんでした', true); renderCleanupList(); return; }
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_TASKS, 'readwrite');
+        ids2.forEach(id => tx.objectStore(STORE_TASKS).delete(id));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('書き込みが中止されました'));
+      });
+    } catch (err) {
+      console.error('完了したタスクをまとめて削除できませんでした', err);
+      closeConfirm();
+      showToast('削除できませんでした（何も消していません）', true);
+      return;
+    }
+    const gone = new Set(ids2);
+    tasks = tasks.filter(t => !gone.has(t.id));
+    closeConfirm();
+    closeCleanup();
+    renderAll();
+    showToast(`完了したタスクを${ids2.length}件削除しました`);
+  }
+
   /* ===================== キーボード：Escで最前面のモーダルを閉じる ===================== */
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (dotPickOverlay.classList.contains('is-open')) closeDotPicker();
     else if (confirmOverlay.classList.contains('is-open')) closeConfirm();
+    else if (cleanupOverlay.classList.contains('is-open')) closeCleanup();
     else if (taskModalOverlay.classList.contains('is-open')) closeTaskModal();
     else if (projectModalOverlay.classList.contains('is-open')) closeProjectModal();
     else if (projectManageOverlay.classList.contains('is-open')) closeProjectManage();

@@ -33,3 +33,4 @@ RED版は、本家（`apps/prompt-gallery.html`）に次の置き換えをした
 - 道具：`D:\dev\sideops_sync_verify\mkred.pl`（Git Bashのperl）。`perl mkred.pl < apps/prompt-gallery.html > apps/prompt-gallery-red.html`
 - 本家で新しく強調色を使うときも`var(--cyan)`等で書けば、RED版では自動で赤になる
 - 動作確認は`D:\dev\sideops_sync_verify\gallery_e2e.dart`が本家とRED版の両方を確かめる
+- 2026-10-10：「選択して削除」の確認文（何が危ないか）・20件以上の2回押し・選択中の件数・Esc と戻るボタンでの解除を本家に足し、RED版を`mkred.pl`で作り直した（`bulkdel_e2e.dart`が本家とRED版の両方を確かめる）

@@ -105,6 +105,16 @@
   .nc-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-faint); }
   .tag-pill { font-size: 10px; border: 1px solid var(--line); color: var(--text-dim); padding: 1px 7px; }
   .used-mark { color: var(--cyan); margin-left: auto; }
+  /* 選んで削除：選択中は右上にチェック欄を出し、選んだカードを赤くする */
+  .select-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--magenta-dim); background: rgba(var(--magenta-dim-rgb), .35); font-size: 11.5px; color: var(--text); flex-shrink: 0; }
+  .select-bar .sb-text { margin-right: auto; line-height: 1.6; }
+  .select-bar strong { color: var(--magenta); font-family: var(--font-display); font-size: 13px; }
+  .neta-card.is-selectable { position: relative; }
+  .neta-card.is-selectable .nc-title { padding-right: 22px; }
+  .neta-card.is-selectable::after { content: ''; position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; border: 1px solid var(--line); background: var(--bg); box-sizing: border-box; }
+  .neta-card.is-picked { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .45); }
+  .neta-card.is-picked:hover { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .6); }
+  .neta-card.is-picked::after { content: '✓'; border-color: var(--magenta); background: var(--magenta); color: var(--bg); font-size: 12px; line-height: 14px; text-align: center; font-weight: 700; }
 
   /* ===================== ジャンルカード・ネタの取り込み ===================== */
   .neta-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -343,6 +353,8 @@
     .tabs { order: 3; flex-basis: 100%; }
     .bar-right { margin-left: auto; }
     .toolbar { padding: 10px 12px 0; }
+    .select-bar { margin: 10px 12px 0; }
+    .select-bar .sb-lead { display: none; } /* 狭い画面では案内を省き、帯を2段に収める */
     .scroll-area, #workView .scroll-area { padding: 12px; }
     .wr-thumb { width: 72px; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
@@ -388,6 +400,14 @@
         <input type="search" class="search-input" id="netaSearch" placeholder="ネタを検索（全ジャンル・タイトル・本文・タグ）">
         <button type="button" class="btn" id="netaImportBtn">§ ネタを取り込む</button>
         <button type="button" class="btn" id="genreAddBtn">＋ ジャンル</button>
+        <button type="button" class="btn" id="netaSelectBtn">☑ 選んで削除</button>
+      </div>
+      <div class="select-bar is-hidden" id="netaSelectBar" role="region" aria-label="ネタを選んで削除">
+        <span class="sb-text"><span class="sb-lead">消すネタを押して選んでください　</span>選択中 <strong id="netaSelCount">0</strong>件</span>
+        <button type="button" class="btn small" id="netaSelAllBtn">表示中をすべて選ぶ</button>
+        <button type="button" class="btn small" id="netaSelClearBtn">選択を外す</button>
+        <button type="button" class="btn small danger" id="netaSelDeleteBtn">選んだネタを削除</button>
+        <button type="button" class="btn small" id="netaSelExitBtn">やめる</button>
       </div>
       <div class="scroll-area" id="netaList"></div>
     </section>
@@ -844,6 +864,7 @@
   };
   const UNCAT = '__uncat'; // ネタ帳で「未分類」を開いている状態
   const NETA_IMPORT_MAX = 500;
+  const BULK_DELETE_TWICE = 20; // この件数以上をまとめて消すときは、削除ボタンを2回押させる
   const TEXT_FILE_MAX_BYTES = 5 * 1024 * 1024;
 
   const DEFAULT_TEMPLATES = [
@@ -1025,6 +1046,8 @@
   let editingLore = null;
   let editingGenre = null;
   let netaGenreView = null; // null=ジャンル一覧 / UNCAT=未分類 / ジャンルID
+  let netaSelecting = false;     // ネタ帳の「選んで削除」の途中か
+  const netaPicked = new Set(); // 選んだネタのID（ジャンルや検索をまたいで残る）
   let editingTplId = null;
   let pendingImport = null;
   let pendingSlot = null;
@@ -1260,13 +1283,18 @@
   const saveStateText = (s) => (s === 'editing' ? '編集中…' : s === 'saved' ? '保存しました' : '保存に失敗しました');
 
   // ---- 確認ダイアログ ----
+  // opts.twice：OKを2回押させる（まとめて消す件数が多いとき）。1回目でボタンの文字が変わり、
+  // 少しの間は押せない（ダブルクリックで2回目まで通ってしまわないように）
   let confirmResolve = null;
+  let confirmTwice = false, confirmArmed = false, confirmArmTimer = 0;
   function ask(message, opts) {
     const o = opts || {};
     if (confirmResolve) closeConfirm(false);
-    confirmMsg.textContent = message;
+    confirmMsg.textContent = message + (o.twice ? '\n\n件数が多いため、削除ボタンは2回押します。' : '');
     confirmOkBtn.textContent = o.ok || 'OK';
     confirmOkBtn.className = 'btn ' + (o.danger ? 'danger' : 'primary');
+    confirmTwice = !!o.twice; confirmArmed = false;
+    clearTimeout(confirmArmTimer); confirmOkBtn.disabled = false;
     confirmBox.classList.toggle('is-danger', !!o.danger);
     confirmOverlay.classList.add('is-open');
     setTimeout(() => confirmCancelBtn.focus(), 0);
@@ -1274,10 +1302,20 @@
   }
   function closeConfirm(result) {
     confirmOverlay.classList.remove('is-open');
+    clearTimeout(confirmArmTimer); confirmOkBtn.disabled = false; confirmTwice = false; confirmArmed = false;
     const r = confirmResolve; confirmResolve = null;
     if (r) r(result);
   }
-  confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+  confirmOkBtn.addEventListener('click', () => {
+    if (confirmTwice && !confirmArmed) {
+      confirmArmed = true;
+      confirmOkBtn.textContent = 'もう一度押すと削除します';
+      confirmOkBtn.disabled = true;
+      confirmArmTimer = setTimeout(() => { confirmOkBtn.disabled = false; }, 700);
+      return;
+    }
+    closeConfirm(true);
+  });
   confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
   confirmOverlay.addEventListener('click', (e) => { if (e.target === confirmOverlay) closeConfirm(false); });
 
@@ -1447,6 +1485,7 @@
   const TAB_OF_VIEW = { neta: 'neta', works: 'works', shelf: 'shelf', templates: 'templates', reader: 'shelf' };
   function showView(name) {
     currentView = name;
+    if (name !== 'neta' && netaSelecting) { netaSelecting = false; netaPicked.clear(); primaryActionBtn.disabled = false; } // ほかの画面へ移ったら選ぶのをやめる
     Object.keys(viewEls).forEach((k) => viewEls[k].classList.toggle('is-active', k === name));
     const tab = name === 'work' ? workReturnTab : TAB_OF_VIEW[name];
     tabsEl.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === tab));
@@ -1499,23 +1538,34 @@
   function netaCardHtml(n, showGenre) {
     const used = netaUsageCount(n.id);
     const g = showGenre && n.genreId ? getGenre(n.genreId) : null;
-    return `<button type="button" class="neta-card" data-id="${escapeHtml(n.id)}">
+    const pick = netaSelecting ? ` is-selectable${netaPicked.has(n.id) ? ' is-picked' : ''}" aria-pressed="${netaPicked.has(n.id)}` : '';
+    return `<button type="button" class="neta-card${pick}" data-id="${escapeHtml(n.id)}">
       <span class="nc-title">${escapeHtml(netaDisplayTitle(n))}</span>
       <span class="nc-body">${escapeHtml(String(n.body).slice(0, 300))}</span>
       <span class="nc-foot">${g ? `<span class="genre-pill">${escapeHtml(genreLabel(g))}</span>` : ''}${n.tags.slice(0, 4).map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
         <span>${escapeHtml(formatDateTime(n.updatedAt))}</span>${used ? `<span class="used-mark">作品 ${used}</span>` : ''}</span>
     </button>`;
   }
+  // いま一覧に並んでいるネタ（ジャンルのカードを並べている間は null）
+  function shownNeta() {
+    const q = netaSearch.value.trim().toLowerCase();
+    if (q) return netaList.filter((n) => (n.title + '\n' + n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q));
+    if (genres.length === 0) return netaList;
+    if (netaGenreView === null) return null;
+    const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
+    return netaList.filter((n) => n.genreId === (g ? g.id : ''));
+  }
   function renderNeta() {
     const q = netaSearch.value.trim().toLowerCase();
     if (netaGenreView && netaGenreView !== UNCAT && !getGenre(netaGenreView)) netaGenreView = null;
+    updateNetaSelectBar();
     if (netaList.length === 0 && genres.length === 0) {
       netaListEl.innerHTML = `<div class="empty-state"><div class="big">ネタ帳はまだ空です</div><div class="small">「＋ 新規ネタ」で1つずつ書くか、「§ ネタを取り込む」で §〜§ で区切った文章をまとめて取り込めます。「＋ ジャンル」でジャンルごとのカードに分けて管理できます。</div></div>`;
       return;
     }
     // 検索中は全ジャンルを横断して表示
     if (q) {
-      const hits = netaList.filter((n) => (n.title + '\n' + n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q));
+      const hits = shownNeta();
       netaListEl.innerHTML = hits.length ? '<div class="neta-grid">' + hits.map((n) => netaCardHtml(n, true)).join('') + '</div>'
         : `<div class="empty-state"><div class="big">「${escapeHtml(q)}」に一致するネタはありません</div></div>`;
       return;
@@ -1535,16 +1585,16 @@
         </button>`;
       }).join('') +
       (uncat ? `<button type="button" class="genre-card is-uncat" data-gid="${UNCAT}"><span class="gc-cover"><span class="gc-type">ジャンルなし</span></span><span class="gc-info"><span class="gc-name">未分類</span><span class="gc-count">${uncat}</span></span></button>` : '') +
-      '<button type="button" class="genre-card is-add" data-add-genre="1">＋ ジャンルを追加</button></div>';
+      (netaSelecting ? '' : '<button type="button" class="genre-card is-add" data-add-genre="1">＋ ジャンルを追加</button>') + '</div>';
       applyFrames(netaListEl);
       return;
     }
     const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
-    const list = netaList.filter((n) => n.genreId === (g ? g.id : ''));
+    const list = shownNeta();
     netaListEl.innerHTML = `<div class="neta-head">
         <button type="button" class="btn small" data-act="genre-back">← ジャンル一覧</button>
         <span class="nh-title">${escapeHtml(g ? genreLabel(g) : '未分類')}</span><span class="nh-count">${list.length}</span>
-        ${g ? '<button type="button" class="btn small" data-act="genre-edit">ジャンルを編集</button>' : ''}
+        ${g && !netaSelecting ? '<button type="button" class="btn small" data-act="genre-edit">ジャンルを編集</button>' : ''}
         ${g && g.note.trim() ? `<span class="nh-note">${escapeHtml(g.note)}</span>` : ''}
       </div>` + (list.length ? '<div class="neta-grid">' + list.map((n) => netaCardHtml(n, false)).join('') + '</div>'
       : '<div class="empty-state"><div class="big">このジャンルにはまだネタがありません</div><div class="small">「＋ 新規ネタ」か「§ ネタを取り込む」で追加できます。</div></div>');
@@ -1552,10 +1602,11 @@
   netaSearch.addEventListener('input', renderNeta);
   netaListEl.addEventListener('click', (e) => {
     const c = e.target.closest('.neta-card');
+    if (c && netaSelecting) { toggleNetaPick(c); return; }
     if (c) { const n = getNeta(c.dataset.id); if (n) openNetaModal(n); return; }
     const gc = e.target.closest('.genre-card');
     if (gc) {
-      if (gc.dataset.addGenre) openGenreModal(null);
+      if (gc.dataset.addGenre) { if (!netaSelecting) openGenreModal(null); }
       else { netaGenreView = gc.dataset.gid; renderNeta(); netaListEl.scrollTop = 0; }
       return;
     }
@@ -1564,6 +1615,79 @@
     if (act.dataset.act === 'genre-back') { netaGenreView = null; renderNeta(); }
     else if (act.dataset.act === 'genre-edit') { const g = getGenre(netaGenreView); if (g) openGenreModal(g); }
   });
+  /* ---- 選んで削除（ネタ帳）----
+     選んでいる間は、カードを押すと選ぶ／外すになる（開かない）。ジャンルの出入りや検索をしても選択は残す。
+     消すときは、ネタと「作品からの紐づけ外し」を1つの書き込みで行う（途中で失敗したら何も消えない） */
+  const netaSelectBar = $('netaSelectBar');
+  function updateNetaSelectBar() {
+    Array.from(netaPicked).forEach((id) => { if (!getNeta(id)) netaPicked.delete(id); });
+    netaSelectBar.classList.toggle('is-hidden', !netaSelecting);
+    ['netaImportBtn', 'genreAddBtn', 'netaSelectBtn'].forEach((id) => $(id).classList.toggle('is-hidden', netaSelecting));
+    primaryActionBtn.disabled = netaSelecting && currentView === 'neta';
+    $('netaSelCount').textContent = netaPicked.size;
+    $('netaSelDeleteBtn').disabled = netaPicked.size === 0;
+    const shown = shownNeta();
+    $('netaSelAllBtn').disabled = !shown || shown.length === 0 || shown.every((n) => netaPicked.has(n.id));
+    $('netaSelClearBtn').disabled = netaPicked.size === 0;
+  }
+  function toggleNetaPick(card) {
+    const id = card.dataset.id;
+    if (!getNeta(id)) return;
+    if (netaPicked.has(id)) netaPicked.delete(id); else netaPicked.add(id);
+    card.classList.toggle('is-picked', netaPicked.has(id));
+    card.setAttribute('aria-pressed', String(netaPicked.has(id)));
+    updateNetaSelectBar();
+  }
+  function enterNetaSelect() {
+    if (!dbReady) return;
+    netaSelecting = true;
+    netaPicked.clear();
+    renderNeta();
+  }
+  function exitNetaSelect() {
+    if (!netaSelecting) return;
+    netaSelecting = false;
+    netaPicked.clear();
+    primaryActionBtn.disabled = false;
+    renderNeta();
+  }
+  $('netaSelectBtn').addEventListener('click', enterNetaSelect);
+  $('netaSelExitBtn').addEventListener('click', exitNetaSelect);
+  $('netaSelAllBtn').addEventListener('click', () => { (shownNeta() || []).forEach((n) => netaPicked.add(n.id)); renderNeta(); });
+  $('netaSelClearBtn').addEventListener('click', () => { netaPicked.clear(); renderNeta(); });
+  $('netaSelDeleteBtn').addEventListener('click', async () => {
+    const targets = netaList.filter((n) => netaPicked.has(n.id));
+    if (!targets.length) { showToast('消すネタを選んでください', true); return; }
+    const ids = new Set(targets.map((n) => n.id));
+    const usedWorks = works.filter((w) => w.netaIds.some((id) => ids.has(id)));
+    const usedNeta = targets.filter((n) => netaUsageCount(n.id) > 0).length;
+    const lines = [`選んだネタ${targets.length}件を削除します。`, '',
+      '・元に戻せません（ゴミ箱はありません）',
+      '・同期を使っている場合は、次の同期でほかの端末からも消えます'];
+    if (usedNeta) lines.push(`・うち${usedNeta}件は作品${usedWorks.length}件で使われています。作品のプロットや本文は残りますが、ネタとの紐づけは外れます`);
+    if (!(await ask(lines.join('\n'), { ok: `${targets.length}件を削除する`, danger: true, twice: targets.length >= BULK_DELETE_TWICE }))) return;
+    const nextIds = new Map(usedWorks.map((w) => [w.id, w.netaIds.filter((id) => !ids.has(id))]));
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([S.neta, S.works], 'readwrite');
+        ids.forEach((id) => tx.objectStore(S.neta).delete(id));
+        usedWorks.forEach((w) => tx.objectStore(S.works).put({ ...w, netaIds: nextIds.get(w.id) }));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('書き込みが中止されました'));
+      });
+    } catch (err) {
+      console.error('ネタをまとめて削除できませんでした', err);
+      showToast('削除できませんでした（何も消していません）', true);
+      return;
+    }
+    netaList = netaList.filter((n) => !ids.has(n.id));
+    usedWorks.forEach((w) => { w.netaIds = nextIds.get(w.id); });
+    exitNetaSelect();
+    renderAll();
+    showToast(`ネタを${targets.length}件削除しました`);
+  });
+
   const currentNetaGenreId = () => (netaGenreView && netaGenreView !== UNCAT && getGenre(netaGenreView) ? netaGenreView : '');
   function fillGenreSelect(sel, selected) {
     sel.innerHTML = '';
@@ -3085,8 +3209,13 @@
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
     if (niModal.classList.contains('is-open')) { closeNetaImport(); return; }
     if (netaModal.classList.contains('is-open')) { closeNetaModal(); return; }
-    if (menuPanel.classList.contains('is-open')) closeMenu();
+    if (menuPanel.classList.contains('is-open')) { closeMenu(); return; }
+    if (netaSelecting && currentView === 'neta') exitNetaSelect();
   });
+  // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：ネタ帳の「選んで削除」の途中も1段として数え、
+  // 戻るで選ぶのをやめる（いちばん手前の層には Esc を送る仕組みなので、上の Esc でやめる）。前半はブリッジの既定と同じ
+  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar';
   const flushAll = () => { netaSaver.flush(); loreSaver.flush(); genreSaver.flush(); workSaver.flush(); };
   window.addEventListener('beforeunload', (e) => {
     if (netaSaver.pending || loreSaver.pending || genreSaver.pending || workSaver.pending) { flushAll(); e.preventDefault(); e.returnValue = ''; }

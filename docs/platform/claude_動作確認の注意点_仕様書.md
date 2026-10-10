@@ -66,6 +66,8 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 | `header_fit.dart` | スマホ幅（320〜479px）で本体のヘッダーが横にあふれず、時計がボタンに重ならないか。Google Fontsあり・なしの両方（2026-10-10） |
 | `stampworks_e2e.dart` | STAMPWORKS：企画（作る・自動保存・絞り込み・複製・削除）、ダミー画像4枚の透過と切り分け（`fixtures_stampworks/`）、書き出し（大きさ・四隅・ZIPの中身・メイン画像・個数の確認）、全部ダウンロード、作業中の画像（開き直すと戻る・企画を消すと消える・開いたときの片付け）、取り込みの歯止め、幅320〜768px、Stageの中（戻るボタン・閉じる直前の保存）（2026-10-10） |
 | `cover_stampworks.dart` | STAMPWORKSのカバー画像を描いて書き出す（`icon_src/stampworks.html`） |
+| `bulkdel_e2e.dart` | 選んでまとめて削除：MANUSCRIPT ネタ帳・LIBRARIUM 本棚・DONE MORE 完了したタスクの片付け・PROMPTGALLERY と RED。選ぶ・外す・表示中を全部選ぶ・確認文（何が危ないか）・キャンセル・紐づけや読んだ位置の後始末・20件以上の2回押し（すぐの2回目は通らない）・Esc・Stageの中の戻るボタン（2026-10-10） |
+| `bulkdel_shots.dart` | 上の4つの「選んで削除」の画面と確認をPC・スマホで撮る（`out_bulkdel/`） |
 
 **ボタンを押すEnter**：`cdp.dart`の`key('Enter')`は文字なし（`rawKeyDown`）で送るので、入力欄の`keydown`には届くが、ボタンは押されない。ボタンを押すときは`key('Enter', text: '\r')`と文字付きで送る（実機のEnterと同じ）。日本語の変換中のキーは、`KeyboardEvent`を`isComposing: true`（`keyCode: 229`）で作って`dispatchEvent`すれば再現できる。
 
