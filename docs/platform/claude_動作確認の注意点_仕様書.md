@@ -68,7 +68,7 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 | `cover_stampworks.dart` | STAMPWORKSのカバー画像を描いて書き出す（`icon_src/stampworks.html`） |
 | `bulkdel_e2e.dart` | 選んでまとめて削除：MANUSCRIPT ネタ帳・LIBRARIUM 本棚・DONE MORE 完了したタスクの片付け・PROMPTGALLERY と RED。選ぶ・外す・表示中を全部選ぶ・確認文（何が危ないか）・キャンセル・紐づけや読んだ位置の後始末・20件以上の2回押し（すぐの2回目は通らない）・Esc・Stageの中の戻るボタン（2026-10-10） |
 | `bulkdel_shots.dart` | 上の4つの「選んで削除」の画面と確認をPC・スマホで撮る（`out_bulkdel/`） |
-| `msedit_e2e.dart` | MANUSCRIPT：作品の概要（欄・テンプレート・`{{概要}}`・退避・コピー・書き出しと取り込み・閲覧）、作品エディタの見出しでたたむ（覚える・壊れた値・進み具合・トースト・新しい作品）、ネタの1列の横長のカード（PC・幅700px・スマホ・選んで削除のチェック欄）。画面は`out_msedit/`（2026-10-10） |
+| `msedit_e2e.dart` | MANUSCRIPT：作品の概要（欄・テンプレート・`{{概要}}`・退避・コピー・書き出しと取り込み・閲覧）、ネタのタイトルをなくしたときの移し替え（以前のデータ・以前の形のJSON）、作品エディタの見出しでたたむ（覚える・壊れた値・進み具合・トースト・新しい作品）、ネタの1列の横長のカード（PC・幅700px・スマホ・選んで削除のチェック欄）。画面は`out_msedit/`（2026-10-10） |
 
 **ボタンを押すEnter**：`cdp.dart`の`key('Enter')`は文字なし（`rawKeyDown`）で送るので、入力欄の`keydown`には届くが、ボタンは押されない。ボタンを押すときは`key('Enter', text: '\r')`と文字付きで送る（実機のEnterと同じ）。日本語の変換中のキーは、`KeyboardEvent`を`isComposing: true`（`keyCode: 229`）で作って`dispatchEvent`すれば再現できる。
 

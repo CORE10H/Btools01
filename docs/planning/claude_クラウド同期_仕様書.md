@@ -404,7 +404,7 @@ blob_<識別子>.enc  … 画像などのバイナリ。1点1ファイル
 
 - アプリの`DB_VERSION`を上げたら、`js/sync.js`の`DB_RULES`の`version`も同じ値にし、`SYNC_APP_BUILD`（`yyyymmddnn`の数値）を上げる
 - アプリのレコードの項目（データの形）を変えたら、`SYNC_APP_BUILD`を上げる
-  - 上げた記録：`2026100601`（PROMPTGALLERYの`thumb`）、`2026100701`（MANUSCRIPTの画像・SCAFFOLDの下書き・Discoticaのアーティストとアルバム・ランチャーのカードに見え方の項目を追加、LIBRARIUMを追加）、`2026100801`（LIBRARIUMの読んだ位置を別のDBへ）、`2026101001`（STAMPWORKSを追加）、`2026101002`（MANUSCRIPTの作品に`synopsis`＝作品の概要を追加）
+  - 上げた記録：`2026100601`（PROMPTGALLERYの`thumb`）、`2026100701`（MANUSCRIPTの画像・SCAFFOLDの下書き・Discoticaのアーティストとアルバム・ランチャーのカードに見え方の項目を追加、LIBRARIUMを追加）、`2026100801`（LIBRARIUMの読んだ位置を別のDBへ）、`2026101001`（STAMPWORKSを追加）、`2026101002`（MANUSCRIPTの作品に`synopsis`＝作品の概要を追加）、`2026101003`（MANUSCRIPTのネタから`title`をなくした）
 - 新しいアプリ（新しいDB）を足したら、`DB_RULES`に足す。足さないと同期されない
 - 本体の設定（`main`）に項目を足し、それを同期したいときは、`DB_RULES`の`only`に書き足す。書き足さない項目は端末ごとになる
 

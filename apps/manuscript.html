@@ -98,20 +98,16 @@
 
   /* ===================== ネタ帳 ===================== */
   /* ネタの一覧は1列の横長のカード（2026-10-10。それまでは幅230pxからの段組みで、PCでは3列）。
-     左にタイトル・まん中に本文の書き出し（2行）・右にジャンル・タグ・日時。幅640px以下では縦に積む */
+     ネタにタイトルはない（同日になくした）。左に本文の書き出し（2行）・右にジャンル・タグ・日時。幅640px以下では縦に積む */
   .neta-grid { display: flex; flex-direction: column; gap: 6px; }
-  .neta-card { width: 100%; background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 10px 14px; cursor: pointer; display: grid; grid-template-columns: minmax(100px, 220px) minmax(0, 1fr) auto; grid-template-areas: "title body foot"; align-items: center; column-gap: 16px; row-gap: 5px; text-align: left; }
+  .neta-card { width: 100%; background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 10px 14px; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "body foot"; align-items: center; column-gap: 16px; row-gap: 5px; text-align: left; }
   .neta-card:hover { border-color: var(--cyan-dim); background: var(--panel-hi); }
-  .nc-title { grid-area: title; min-width: 0; font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nc-body { grid-area: body; min-width: 0; font-size: 11.5px; color: var(--text-dim); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; }
+  .nc-body { grid-area: body; min-width: 0; font-size: 12.5px; color: var(--text); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; }
   .nc-foot { grid-area: foot; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; max-width: 260px; font-size: 10.5px; color: var(--text-faint); }
-  @media (max-width: 860px) { /* 中くらいの幅では、タイトルとタグの幅を詰めて本文の幅を残す */
-    .neta-card { grid-template-columns: minmax(90px, 170px) minmax(0, 1fr) auto; }
-    .nc-foot { max-width: 180px; }
-  }
+  @media (max-width: 860px) { .nc-foot { max-width: 180px; } } /* 中くらいの幅では、タグの欄を詰めて本文の幅を残す */
   .tag-pill { font-size: 10px; border: 1px solid var(--line); color: var(--text-dim); padding: 1px 7px; }
   .used-mark { color: var(--cyan); margin-left: auto; }
-  /* 選んで削除：選択中は右上にチェック欄を出し、選んだカードを赤くする */
+  /* 選んで削除：選択中はチェック欄を出し、選んだカードを赤くする */
   .select-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--magenta-dim); background: rgba(var(--magenta-dim-rgb), .35); font-size: 11.5px; color: var(--text); flex-shrink: 0; }
   .select-bar .sb-text { margin-right: auto; line-height: 1.6; }
   .select-bar strong { color: var(--magenta); font-family: var(--font-display); font-size: 13px; }
@@ -236,8 +232,7 @@
   .neta-attached { display: flex; flex-direction: column; gap: 6px; }
   .na-item { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line-soft); background: var(--bg); padding: 8px 10px; }
   .na-text { flex: 1; min-width: 0; }
-  .na-title { font-size: 12px; font-weight: 600; }
-  .na-body { font-size: 11px; color: var(--text-dim); line-height: 1.6; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .na-body { font-size: 12px; color: var(--text); line-height: 1.6; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .icon-btn { width: 24px; height: 24px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 11px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .icon-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
   .icon-btn.del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
@@ -376,7 +371,7 @@
     .scroll-area, #workView .scroll-area { padding: 12px; }
     .wr-thumb { width: 72px; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
-    .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "body" "foot"; align-items: start; }
+    .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "body" "foot"; align-items: start; }
     .nc-foot { justify-content: flex-start; max-width: none; }
     .step-hint { display: none; }
     .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
@@ -417,7 +412,7 @@
   <main class="app-body">
     <section class="view" id="netaView">
       <div class="toolbar">
-        <input type="search" class="search-input" id="netaSearch" placeholder="ネタを検索（全ジャンル・タイトル・本文・タグ）">
+        <input type="search" class="search-input" id="netaSearch" placeholder="ネタを検索（全ジャンル・本文・タグ）">
         <button type="button" class="btn" id="netaImportBtn">§ ネタを取り込む</button>
         <button type="button" class="btn" id="genreAddBtn">＋ ジャンル</button>
         <button type="button" class="btn" id="netaSelectBtn">☑ 選んで削除</button>
@@ -709,7 +704,6 @@
     <div class="modal-head"><span class="modal-title" id="netaModalTitle">ネタ</span><button type="button" class="modal-close" id="netaCloseBtn" aria-label="閉じる">✕</button></div>
     <div class="modal-body">
       <select class="field-select" id="netaGenre" aria-label="ジャンル"></select>
-      <input type="text" class="field-input" id="netaTitle" placeholder="タイトル（空欄なら本文の冒頭を使います）" maxlength="200">
       <textarea class="field-textarea" id="netaBody" rows="12" placeholder="思いついたことを書き溜める"></textarea>
       <input type="text" class="field-input" id="netaTags" placeholder="タグ（カンマ・スペース区切り）" maxlength="600">
       <div class="field-hint" id="netaUsage"></div>
@@ -783,7 +777,6 @@
         <div><div class="field-label"><span>取り込み先のジャンル</span></div><select class="field-select" id="niGenre"></select></div>
         <div><div class="field-label"><span>全件に付けるタグ（任意）</span></div><input type="text" class="field-input" id="niTags" maxlength="600" placeholder="カンマ・スペース区切り"></div>
       </div>
-      <label class="check-row"><input type="checkbox" id="niFirstLine">各ネタの1行目をタイトルにする</label>
       <label class="check-row"><input type="checkbox" id="niSkipDup" checked>同じ内容のネタが既にあれば取り込まない</label>
       <div class="import-stats" id="niStats"></div>
       <div class="import-preview" id="niPreview"></div>
@@ -858,7 +851,7 @@
   /* =====================================================================
      IndexedDB（IndexedDB実装パターン_仕様書 に準拠）
      DB: sideops_manuscript（v2）
-       neta      : { id(nt_), title, body, tags[], createdAt, updatedAt }
+       neta      : { id(nt_), body, tags[], genreId, createdAt, updatedAt }  … タイトルは 2026-10-10 になくした（あれば本文の1行目へ）
        works     : { id(ms_), title, penName, series, netaIds[], plot, synopsis（作品の概要。2026-10-10〜）, tpl{}, isBook, bookAt, undo{}, createdAt, updatedAt }
        chapters  : { id(ch_), workId, order, title, outline, body, summary, final, publishUrl, noteId, publishedAt, undo{}, createdAt, updatedAt }
        lore      : { id(lr_), workId, kind, name, body, createdAt, updatedAt }
@@ -1136,7 +1129,7 @@
   const chUrl = $('chUrl'), chUrlErr = $('chUrlErr'), chNoteId = $('chNoteId'), chPubDate = $('chPubDate');
   const bookBtn = $('bookBtn'), bookState = $('bookState'), readBookBtn = $('readBookBtn');
 
-  const netaModal = $('netaModal'), netaTitle = $('netaTitle'), netaBody = $('netaBody'), netaTags = $('netaTags'), netaUsage = $('netaUsage'), netaSaveInd = $('netaSaveInd');
+  const netaModal = $('netaModal'), netaBody = $('netaBody'), netaTags = $('netaTags'), netaUsage = $('netaUsage'), netaSaveInd = $('netaSaveInd');
   const loreModal = $('loreModal'), loreKind = $('loreKind'), loreName = $('loreName'), loreBody = $('loreBody'), loreSaveInd = $('loreSaveInd');
   const tplModal = $('tplModal'), tplKind = $('tplKind'), tplName = $('tplName'), tplBody = $('tplBody'), tplError = $('tplError'), tplReqHint = $('tplReqHint'), tplPhButtons = $('tplPhButtons'), tplModalTitle = $('tplModalTitle');
   const importModal = $('importModal'), importFile = $('importFile'), imgFile = $('imgFile');
@@ -1228,10 +1221,10 @@
     .sort((a, b) => LORE_ORDER.indexOf(a.kind) - LORE_ORDER.indexOf(b.kind) || a.createdAt - b.createdAt);
   const imgId = (ownerId, name) => ownerId + ':' + name;
 
-  function netaDisplayTitle(n) {
-    if (n.title && n.title.trim()) return n.title.trim();
-    const first = String(n.body || '').trim().split('\n')[0];
-    return first ? first.slice(0, 40) : '（無題のネタ）';
+  // ネタを短く示すときの文字（本文の1行目。選択肢・確認文に使う）
+  function netaHead(n) {
+    const first = String(n.body || '').trim().split('\n')[0].trim();
+    return first ? first.slice(0, 40) : '（空のネタ）';
   }
   function workDisplayTitle(w) { return w.title && w.title.trim() ? w.title.trim() : '（タイトル未定）'; }
   function chapterNumLabel(ch) { const idx = chaptersOf(ch.workId).findIndex((c) => c.id === ch.id); return `第${idx + 1}章`; }
@@ -1399,10 +1392,20 @@
     });
     return out;
   }
+  // ネタのタイトルは 2026-10-10 になくした（本文だけで持つ）。以前のデータにタイトルがあれば、本文の1行目に移す
+  // （本文の1行目がすでに同じなら足さない。§取り込みの「1行目をタイトルにする」で分けたものは、元の文章に戻る）
+  function netaBodyWithTitle(x) {
+    const body = str(x.body, 200000), title = str(x.title, 200).trim();
+    if (!title) return body;
+    if (!body.trim()) return title;
+    if (body.trim().split('\n')[0].trim() === title) return body;
+    return title + '\n' + body;
+  }
+  const netaHasOldTitle = (x) => !!x && typeof x.title === 'string' && !!x.title.trim();
   function normalizeNeta(x) {
     if (!x || !validId(x.id)) return null;
     return {
-      id: x.id, title: str(x.title, 200), body: str(x.body, 200000),
+      id: x.id, body: netaBodyWithTitle(x),
       tags: Array.isArray(x.tags) ? parseTags(x.tags.filter((t) => typeof t === 'string').join(',')) : [],
       genreId: validId(x.genreId) ? x.genreId : '',
       createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
@@ -1493,6 +1496,14 @@
     genres = g.map(normalizeGenre).filter(Boolean);
     netaList = n.map(normalizeNeta).filter(Boolean);
     netaList.forEach((x) => { if (x.genreId && !getGenre(x.genreId)) x.genreId = ''; }); // 存在しないジャンルは未分類扱い
+    // タイトルのあるネタ（2026-10-10 より前のデータ）だけ、本文に移した形で書き直す。
+    // 更新日時は変えない（どの端末で書き直しても同じ中身になり、同期で競合にならない）。タイトルのないネタは書き直さない
+    for (const raw of n.filter(netaHasOldTitle)) {
+      const x = normalizeNeta(raw); // 上の「未分類扱い」は画面だけのことなので、書き直しには元のジャンルIDを使う
+      if (!x) continue;
+      try { await put(S.neta, x); }
+      catch (err) { console.error('ネタのタイトルを本文に移せませんでした（次に開いたときにやり直します）', err); }
+    }
     works = w.map(normalizeWork).filter(Boolean);
     chapters = c.map(normalizeChapter).filter(Boolean);
     loreList = l.map(normalizeLore).filter(Boolean);
@@ -1606,7 +1617,6 @@
     const g = showGenre && n.genreId ? getGenre(n.genreId) : null;
     const pick = netaSelecting ? ` is-selectable${netaPicked.has(n.id) ? ' is-picked' : ''}" aria-pressed="${netaPicked.has(n.id)}` : '';
     return `<button type="button" class="neta-card${pick}" data-id="${escapeHtml(n.id)}">
-      <span class="nc-title">${escapeHtml(netaDisplayTitle(n))}</span>
       <span class="nc-body">${escapeHtml(String(n.body).slice(0, 300))}</span>
       <span class="nc-foot">${g ? `<span class="genre-pill">${escapeHtml(genreLabel(g))}</span>` : ''}${n.tags.slice(0, 4).map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
         <span>${escapeHtml(formatDateTime(n.updatedAt))}</span>${used ? `<span class="used-mark">作品 ${used}</span>` : ''}</span>
@@ -1615,7 +1625,7 @@
   // いま一覧に並んでいるネタ（ジャンルのカードを並べている間は null）
   function shownNeta() {
     const q = netaSearch.value.trim().toLowerCase();
-    if (q) return netaList.filter((n) => (n.title + '\n' + n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q));
+    if (q) return netaList.filter((n) => (n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q));
     if (genres.length === 0) return netaList;
     if (netaGenreView === null) return null;
     const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
@@ -1772,22 +1782,22 @@
     await put(S.neta, n);
     if (!persisted) netaList.unshift(n);
   }, (s) => { netaSaveInd.textContent = saveStateText(s); });
-  function readNetaForm(n) { n.title = netaTitle.value.slice(0, 200); n.body = netaBody.value; n.tags = parseTags(netaTags.value); n.genreId = getGenre($('netaGenre').value) ? $('netaGenre').value : ''; }
-  const isNetaEmpty = (n) => !n.title.trim() && !n.body.trim() && n.tags.length === 0;
+  function readNetaForm(n) { n.body = netaBody.value; n.tags = parseTags(netaTags.value); n.genreId = getGenre($('netaGenre').value) ? $('netaGenre').value : ''; }
+  const isNetaEmpty = (n) => !n.body.trim() && n.tags.length === 0;
 
   function openNetaModal(n) {
-    if (!n) { const now = Date.now(); n = { id: genId('nt'), title: '', body: '', tags: [], genreId: currentNetaGenreId(), createdAt: now, updatedAt: now }; }
+    if (!n) { const now = Date.now(); n = { id: genId('nt'), body: '', tags: [], genreId: currentNetaGenreId(), createdAt: now, updatedAt: now }; }
     editingNeta = n;
     fillGenreSelect($('netaGenre'), n.genreId);
-    netaTitle.value = n.title; netaBody.value = n.body; netaTags.value = n.tags.join(', ');
+    netaBody.value = n.body; netaTags.value = n.tags.join(', ');
     const used = netaUsageCount(n.id);
     netaUsage.textContent = used ? `このネタを使っている作品：${used}件` : '';
     netaSaveInd.textContent = '入力は自動で保存されます';
     $('netaMakeWorkBtn').textContent = currentView === 'work' ? 'この作品に追加' : 'このネタで作品を作る';
     netaModal.classList.add('is-open');
-    setTimeout(() => (n.body ? netaBody : netaTitle).focus(), 0);
+    setTimeout(() => netaBody.focus(), 0);
   }
-  [netaTitle, netaBody, netaTags].forEach((el) => el.addEventListener('input', () => netaSaver.schedule()));
+  [netaBody, netaTags].forEach((el) => el.addEventListener('input', () => netaSaver.schedule()));
   $('netaGenre').addEventListener('change', () => netaSaver.schedule());
   function afterNetaChangeInEditor() { if (currentView === 'work') { const w = getWork(currentWorkId); if (w) { renderWorkNeta(w); updateWorkState(); } } }
 
@@ -1816,8 +1826,8 @@
     if (!netaList.includes(n)) { editingNeta = null; netaModal.classList.remove('is-open'); return; }
     const used = netaUsageCount(n.id);
     const msg = used
-      ? `「${netaDisplayTitle(n)}」を削除します。\nこのネタは${used}件の作品で使われています。作品のプロットや本文は残りますが、ネタとの紐づけは外れます。`
-      : `「${netaDisplayTitle(n)}」を削除します。元に戻せません。`;
+      ? `「${netaHead(n)}」を削除します。\nこのネタは${used}件の作品で使われています。作品のプロットや本文は残りますが、ネタとの紐づけは外れます。`
+      : `「${netaHead(n)}」を削除します。元に戻せません。`;
     if (!(await ask(msg, { ok: '削除する', danger: true }))) return;
     if (!(await delSafe(S.neta, n.id))) { showToast('削除に失敗しました', true); return; }
     netaList = netaList.filter((x) => x !== n);
@@ -1941,9 +1951,9 @@
   /* =====================================================================
      ネタの取り込み（§ と § で挟んだ文章を1件ずつ）
   ===================================================================== */
-  const niModal = $('niModal'), niText = $('niText'), niGenre = $('niGenre'), niTags = $('niTags'), niFirstLine = $('niFirstLine'), niSkipDup = $('niSkipDup'), niStats = $('niStats'), niPreview = $('niPreview'), niRunBtn = $('niRunBtn'), niFile = $('niFile');
-  const contentKey = (title, body) => [String(title || '').trim(), String(body || '').trim()].filter(Boolean).join('\n').replace(/\s+/g, ' ');
-  function parseNetaText(text, firstLineTitle) {
+  const niModal = $('niModal'), niText = $('niText'), niGenre = $('niGenre'), niTags = $('niTags'), niSkipDup = $('niSkipDup'), niStats = $('niStats'), niPreview = $('niPreview'), niRunBtn = $('niRunBtn'), niFile = $('niFile');
+  const contentKey = (body) => String(body || '').trim().replace(/\s+/g, ' '); // 同じ内容かどうか（空白・改行の違いは見ない）
+  function parseNetaText(text) {
     const src = String(text || '').replace(/\r\n?/g, '\n');
     const count = (src.match(/§/g) || []).length;
     const parts = src.split('§');
@@ -1956,24 +1966,18 @@
       const raw = parts[i].trim();
       if (!raw) { empty++; continue; }
       if (raw.length > 200000) { tooLong++; continue; }
-      let title = '', body = raw;
-      if (firstLineTitle) {
-        const lines = raw.split('\n');
-        title = lines[0].trim().slice(0, 200);
-        body = lines.slice(1).join('\n').trim();
-      }
-      items.push({ title, body });
+      items.push({ body: raw });
     }
     const outside = parts.filter((_, i) => i % 2 === 0).join('').trim();
     return { items, empty, tooLong, unclosed, unclosedHead: unclosed ? parts[lastIdx].trim().slice(0, 20) : '', hasOutside: !!outside, markCount: count };
   }
   let niParsed = null;
   function updateNetaImportPreview() {
-    const r = parseNetaText(niText.value, niFirstLine.checked);
-    const existing = new Set(netaList.map((n) => contentKey(n.title, n.body)));
+    const r = parseNetaText(niText.value);
+    const existing = new Set(netaList.map((n) => contentKey(n.body)));
     const seen = new Set();
     r.items.forEach((it) => {
-      const k = contentKey(it.title, it.body);
+      const k = contentKey(it.body);
       it.dup = niSkipDup.checked && (existing.has(k) || seen.has(k));
       seen.add(k);
     });
@@ -1992,8 +1996,8 @@
     if (ok.length > NETA_IMPORT_MAX) warn.push(`一度に取り込めるのは${NETA_IMPORT_MAX}件までです。先頭から${NETA_IMPORT_MAX}件だけ取り込みます`);
     niStats.innerHTML = lines.join('') + warn.map((w) => `<span class="warn">・${w}</span>`).join('');
     niPreview.innerHTML = r.items.slice(0, 100).map((it, i) => {
-      const head = (it.title || it.body.split('\n')[0] || '').slice(0, 80);
-      return `<div class="ip-item${it.dup ? ' is-dup' : ''}">${i + 1}. ${escapeHtml(head || '（本文なし）')}${it.title && it.body ? '　…' : ''}</div>`;
+      const lines = it.body.split('\n');
+      return `<div class="ip-item${it.dup ? ' is-dup' : ''}">${i + 1}. ${escapeHtml(lines[0].slice(0, 80))}${lines.length > 1 ? '　…' : ''}</div>`;
     }).join('') + (r.items.length > 100 ? `<div class="ip-item">ほか ${r.items.length - 100}件</div>` : '');
     niRunBtn.disabled = ok.length === 0;
   }
@@ -2012,7 +2016,7 @@
   niModal.addEventListener('click', (e) => { if (e.target === niModal) closeNetaImport(); });
   let niTimer = null;
   niText.addEventListener('input', () => { clearTimeout(niTimer); niTimer = setTimeout(updateNetaImportPreview, 250); });
-  [niFirstLine, niSkipDup].forEach((el) => el.addEventListener('change', updateNetaImportPreview));
+  niSkipDup.addEventListener('change', updateNetaImportPreview);
   $('niFileBtn').addEventListener('click', () => niFile.click());
   niFile.addEventListener('change', async () => {
     const f = niFile.files && niFile.files[0];
@@ -2039,7 +2043,7 @@
     for (let i = 0; i < targets.length; i++) {
       const it = targets[i];
       // 一覧（更新日時の新しい順）で、貼り付けた順に上から並ぶよう更新日時を1ミリ秒ずつずらす
-      const n = { id: genId('nt'), title: it.title, body: it.body, tags: tags.slice(), genreId: gid, createdAt: base, updatedAt: base + (targets.length - i) };
+      const n = { id: genId('nt'), body: it.body, tags: tags.slice(), genreId: gid, createdAt: base, updatedAt: base + (targets.length - i) };
       try { await put(S.neta, n); netaList.push(n); added++; }
       catch (err) { console.error('ネタの取り込みに失敗しました', err); failed++; }
     }
@@ -2361,7 +2365,7 @@
     wNetaList.innerHTML = attached.length === 0
       ? '<div class="field-hint">まだネタがありません。下から追加するか、ネタなしでプロットを直接書くこともできます。</div>'
       : attached.map((n) => `<div class="na-item" data-id="${escapeHtml(n.id)}">
-          <div class="na-text"><div class="na-title">${escapeHtml(netaDisplayTitle(n))}</div><div class="na-body">${escapeHtml(n.body.slice(0, 300))}</div></div>
+          <div class="na-text"><div class="na-body">${escapeHtml(n.body.slice(0, 300))}</div></div>
           <button type="button" class="icon-btn" data-act="open" title="ネタを開く" aria-label="ネタを開く">✎</button>
           <button type="button" class="icon-btn del" data-act="remove" title="この作品から外す" aria-label="この作品から外す">✕</button>
         </div>`).join('');
@@ -2370,7 +2374,7 @@
     const first = document.createElement('option');
     first.value = ''; first.textContent = candidates.length ? '追加するネタを選ぶ' : '追加できるネタはありません';
     wNetaAddSelect.appendChild(first);
-    candidates.forEach((n) => { const o = document.createElement('option'); o.value = n.id; const g = getGenre(n.genreId); o.textContent = (g ? `［${genreLabel(g)}］` : '') + netaDisplayTitle(n); wNetaAddSelect.appendChild(o); });
+    candidates.forEach((n) => { const o = document.createElement('option'); o.value = n.id; const g = getGenre(n.genreId); o.textContent = (g ? `［${genreLabel(g)}］` : '') + netaHead(n); wNetaAddSelect.appendChild(o); });
     wNetaAddBtn.disabled = candidates.length === 0;
   }
   wNetaAddBtn.addEventListener('click', () => {
@@ -2601,7 +2605,7 @@
   // ---- プロンプト合成（1回の走査で置き換え、差し込んだ文章中の {{…}} は再置換しない） ----
   function netaText(w) {
     return w.netaIds.map(getNeta).filter(Boolean)
-      .map((n) => `## ${netaDisplayTitle(n)}\n${n.body.trim()}${n.tags.length ? '\nタグ：' + n.tags.join('、') : ''}`).join('\n\n');
+      .map((n, i) => `## ネタ${i + 1}\n${n.body.trim()}${n.tags.length ? '\nタグ：' + n.tags.join('、') : ''}`).join('\n\n'); // ネタにタイトルはない（2026-10-10〜）ので番号で区切る
   }
   function loreText(workId) {
     return loreOf(workId).filter((l) => l.name.trim() || l.body.trim())
@@ -3244,7 +3248,7 @@
       return getGenre(gid) || importedGenreIds.has(gid) ? gid : ''; // 行き先のないジャンルは未分類にする
     };
     for (const t of p.templates) await simpleImport(S.tpl, t, getTpl, 'tp', (a, b) => a.kind === b.kind && a.name === b.name && a.body === b.body, (r) => { r.name = suffix(r.name, 60); });
-    for (const n0 of p.neta) { const n = Object.assign({}, n0, { genreId: mapGenre(n0.genreId) }); await simpleImport(S.neta, n, getNeta, 'nt', (a, b) => a.title === b.title && a.body === b.body && a.tags.join('\n') === b.tags.join('\n'), (r) => { r.title = suffix(r.title, 200); }); }
+    for (const n0 of p.neta) { const n = Object.assign({}, n0, { genreId: mapGenre(n0.genreId) }); await simpleImport(S.neta, n, getNeta, 'nt', (a, b) => a.body === b.body && a.tags.join('\n') === b.tags.join('\n'), () => {}); } // ネタは複製しても本文を変えない（新しいIDで見分ける）
 
     const idTaken = (id) => !!(getChapter(id) || getLore(id));
     for (const w0 of p.works) {

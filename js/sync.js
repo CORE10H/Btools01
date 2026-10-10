@@ -43,7 +43,7 @@
   // SIDE-OPSの版（yyyymmddnn の数値）。どれかのアプリでデータの形（レコードの
   // 項目・DBの版）を変えたら必ず上げる。自分より新しい版の端末が書いたファイルを
   // 見つけたら同期を止める（古い版が新しい項目を知らずに上書きして消すのを防ぐ）
-  const SYNC_APP_BUILD = 2026101002;
+  const SYNC_APP_BUILD = 2026101003;
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
   const SYNC_DB_VERSION = 3; // 2：同期の記録（journal）を追加、3：同期のログ（runlog。かかった時間）を追加
