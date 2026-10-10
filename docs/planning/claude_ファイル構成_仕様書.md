@@ -17,6 +17,8 @@ sideops/
 │   │             # テーマ（基本色＋派生色・テーマブリッジ送信）・
 │   │             # スポイト・カバーフロー（アプリランチャー、
 │   │             # cards/apps分離のIndexedDB駆動）・アンビエントFX
+│   ├── temp-memo.js # 一時メモ（画面に浮かぶ書き付け。保存しない・同期しない）。
+│   │                 # main.jsの後に読み込む（2026-10-10〜。core/claude_一時メモ_仕様書.md）
 │   ├── sync-onedrive.js # 同期の保存先：OneDrive（ログイン＝認可コード＋PKCE・アプリフォルダの読み書き）。
 │   │                     # sync.jsより前に読み込む
 │   ├── sync-gdrive.js # 同期の保存先：Googleドライブ（ログイン・appDataFolderの読み書き）。

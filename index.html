@@ -28,6 +28,7 @@
       </div>
     </div>
     <div class="header-icons">
+      <button class="header-icon-btn" id="tempMemoBtn" title="一時メモ（保存しません。SIDE-OPSを閉じると消えます）" aria-pressed="false">✎</button>
       <button class="header-icon-btn" id="fullscreenBtn" title="全画面表示（このボタン推奨。F11で入った場合、解除はEscキーのみ対応）">⛶</button>
       <button class="header-icon-btn" id="cloudSyncBtn" title="同期（複数の端末でデータを使う）" disabled>☁</button>
       <button class="header-icon-btn" id="settingsBtn" title="設定">⚙</button>
@@ -327,6 +328,8 @@
     <button class="stage-size-btn" id="stageSizeVerticalBtn" title="上下いっぱいに広げる（左右幅はそのまま）">⇕</button>
     <button class="stage-size-btn" id="stageSizeFullBtn" title="四方いっぱいに広げる">⛶</button>
   </div>
+  <!-- 一時メモの出し入れ（Stageを広げるとヘッダーが隠れるため、ここにも置く。2026-10-10） -->
+  <button class="stage-temp-memo-btn" id="stageTempMemoBtn" title="一時メモ（保存しません。SIDE-OPSを閉じると消えます）" aria-pressed="false">✎</button>
   <button class="stage-close" id="stageCloseBtn" title="閉じる">✕</button>
   <div class="stage-content" id="stageContent">
     <div class="stage-bar">
@@ -344,6 +347,23 @@
     </div>
   </div>
 </section>
+
+<!-- ===== 一時メモ（2026-10-10）=====
+     ヘッダー／Stageの ✎ で出し入れする、画面に浮かぶ小さなメモ。ドラッグで動かし、右下の角で大きさを変える。
+     中身はDBに保存せず、同期もしない（このタブ・アプリを閉じたら消える）。仕組みは js/temp-memo.js。
+     Stageと同じ理由（.shell の perspective によるスタッキングコンテキスト）で .shell の外に置く。
+     モーダルではないので is-open は使わない（戻る操作で閉じる対象にしない） -->
+<aside class="temp-memo" id="tempMemo" aria-label="一時メモ">
+  <div class="temp-memo-bar" id="tempMemoBar" title="ドラッグで動かす">
+    <span class="temp-memo-title">一時メモ</span>
+    <span class="temp-memo-hint" id="tempMemoHint"></span>
+    <button class="temp-memo-btn" id="tempMemoCopyBtn" type="button" title="中身をコピー">コピー</button>
+    <button class="temp-memo-btn danger" id="tempMemoClearBtn" type="button" title="中身を消す（2回押す）">消す</button>
+    <button class="temp-memo-btn" id="tempMemoHideBtn" type="button" title="隠す（中身は残ります）" aria-label="隠す">－</button>
+  </div>
+  <textarea class="temp-memo-text" id="tempMemoText" placeholder="ここに書いたものは保存されません。SIDE-OPSを閉じると消えます"></textarea>
+  <div class="temp-memo-grip" id="tempMemoGrip" title="ドラッグで大きさを変える"></div>
+</aside>
 
 <!-- fixed nav buttons for the tilted cover flow (outside 3D transform context) -->
 <div class="cf-head-fixed">APPS</div>
@@ -562,6 +582,7 @@
 <script src="js/back-nav.js"></script>
 <script src="apps/sideops-frame.js"></script>
 <script src="js/main.js"></script>
+<script src="js/temp-memo.js"></script>
 <script src="js/sync-onedrive.js"></script>
 <script src="js/sync-gdrive.js"></script>
 <script src="js/sync.js"></script>

@@ -62,6 +62,10 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 | `probe_sample.dart` | 実物の .novel を LIBRARIUM の取り込みの確認に通して、題名・発言の分け方を見る（ファイルは読むだけ） |
 | `runlog_e2e.dart` | 同期のログ：きっかけごとに残るか・内訳・まとめ・2台分の書き出し・結果の「ログを見る」（2026-10-08・10-10） |
 | `conflict_e2e.dart` | 競合の「違いを見る」：差分の部品・結果と帯の入口・項目と行と文字の違い・閉じ方・古い控え・書き出し・控えに戻す・取り消し（2026-10-10） |
+| `memo_e2e.dart` | メモの並び順・Tabの循環・変換中のキー、本体の一時メモ（出し入れ・中身の残し方・動かす・大きさ・画面に収める・消す・Stageの上・モーダルの下・戻る操作・スマホ）（2026-10-10） |
+| `header_fit.dart` | スマホ幅（320〜479px）で本体のヘッダーが横にあふれず、時計がボタンに重ならないか。Google Fontsあり・なしの両方（2026-10-10） |
+
+**ボタンを押すEnter**：`cdp.dart`の`key('Enter')`は文字なし（`rawKeyDown`）で送るので、入力欄の`keydown`には届くが、ボタンは押されない。ボタンを押すときは`key('Enter', text: '\r')`と文字付きで送る（実機のEnterと同じ）。日本語の変換中のキーは、`KeyboardEvent`を`isComposing: true`（`keyCode: 229`）で作って`dispatchEvent`すれば再現できる。
 
 
 Claude Code デスクトップの内蔵ブラウザ（Browser pane）は、画面に表示していない間は`requestAnimationFrame`が止まり、スクリーンショットも画面の一部しか写らない（表示倍率136%の環境で確認）。描画を`requestAnimationFrame`でまとめているアプリの確認には、上のヘッドレスEdgeを使う方が確実。

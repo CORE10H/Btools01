@@ -91,6 +91,15 @@
   .tag-more-list { display: flex; flex-direction: column; gap: 6px; }
   .tag-more-list .chip { width: 100%; text-align: left; box-sizing: border-box; }
 
+  /* 並び順（2026-10-10）。選んだ順は端末ごとに覚える（localStorage。同期しない） */
+  .sort-select {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: var(--bg-alt); border: 1px solid var(--line); padding: 5px 6px; cursor: pointer;
+    flex-shrink: 0; outline: none; max-width: 150px;
+  }
+  .sort-select:hover, .sort-select:focus { border-color: var(--cyan-dim); color: var(--cyan); }
+  .sort-select option { background: var(--panel); color: var(--text); }
+
   .btn {
     font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
     background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
@@ -298,6 +307,8 @@
   .editor-status.is-saved { color: var(--cyan); }
   .editor-close { width: 24px; height: 24px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 12px; cursor: pointer; flex-shrink: 0; }
   .editor-close:hover { border-color: var(--magenta); color: var(--magenta); }
+  /* Tabで来たときに、どこにいるか分かるように（本文→Tab→✕→Enterで一覧へ。2026-10-10） */
+  .editor-close:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-color: var(--cyan); color: var(--cyan); }
 
   .editor-title-input {
     border: none; outline: none; background: transparent; color: var(--text);
@@ -363,6 +374,14 @@
         </div>
         <div class="tag-filter-chips" id="tagChips"></div>
       </div>
+      <select class="sort-select" id="sortSelect" title="並び順" aria-label="並び順">
+        <option value="updated-desc">更新が新しい順</option>
+        <option value="updated-asc">更新が古い順</option>
+        <option value="created-desc">作成が新しい順</option>
+        <option value="created-asc">作成が古い順</option>
+        <option value="title-asc">タイトル順</option>
+        <option value="title-desc">タイトル逆順</option>
+      </select>
       <button class="btn primary" id="addBtn">＋ 新規メモ</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
@@ -391,7 +410,7 @@
   <div class="editor-box">
     <div class="editor-head">
       <span class="editor-status" id="editorStatus">&nbsp;</span>
-      <button class="editor-close" id="editorCloseBtn">✕</button>
+      <button class="editor-close" id="editorCloseBtn" title="一覧へ戻る（Esc）" aria-label="一覧へ戻る">✕</button>
     </div>
     <input type="text" class="editor-title-input" id="editorTitleInput" maxlength="80" placeholder="タイトル（未入力の場合は本文冒頭を使用）">
     <div class="editor-tags-row" id="editorTagsRow">
@@ -400,7 +419,8 @@
     <div class="freq-tag-picker editor-picker" id="freqTagPicker"></div>
     <textarea class="editor-body-input" id="editorBodyInput" placeholder="本文を入力…（入力は自動保存されます）"></textarea>
     <div class="editor-footer">
-      <button class="btn danger" id="editorDeleteBtn">このメモを削除</button>
+      <!-- Tabでは止まらない（本文の次で押し間違えないように。2026-10-10）。クリック・タップでは押せる -->
+      <button class="btn danger" id="editorDeleteBtn" tabindex="-1">このメモを削除</button>
     </div>
   </div>
 </div>
@@ -551,6 +571,16 @@
   let selectMode = false;
   let selectedForDelete = new Set();
 
+  /* 並び順（2026-10-10）。端末ごとの好みなので、同期されるDB（settingsストア）ではなく
+     localStorage に覚える。読めない値・使えない環境では「更新が新しい順」（以前の並び）に戻す */
+  const SORT_KEY = 'sideops_memo_sort';
+  const SORT_ORDERS = ['updated-desc', 'updated-asc', 'created-desc', 'created-asc', 'title-asc', 'title-desc'];
+  let sortOrder = 'updated-desc';
+  try {
+    const saved = localStorage.getItem(SORT_KEY);
+    if (SORT_ORDERS.includes(saved)) sortOrder = saved;
+  } catch (err) { /* 覚えられない環境では既定の順 */ }
+
   // 自動保存まわりの状態
   let saveTimer = null;
   const SAVE_DEBOUNCE_MS = 600;
@@ -561,6 +591,7 @@
   const grid = document.getElementById('grid');
   const searchInput = document.getElementById('searchInput');
   const tagChips = document.getElementById('tagChips');
+  const sortSelect = document.getElementById('sortSelect');
   const addBtn = document.getElementById('addBtn');
 
   const editorOverlay = document.getElementById('editorOverlay');
@@ -781,8 +812,30 @@
     return firstLine ? firstLine.trim().slice(0, 40) : '(無題のメモ)';
   }
 
+  // タイトル順：表示しているタイトル（未入力なら本文の冒頭）で比べる。数字は数として（メモ2 → メモ10）
+  const titleCollator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' });
+  function compareEntries(a, b) {
+    const [key, dir] = sortOrder.split('-');
+    const sign = dir === 'asc' ? 1 : -1;
+    let diff;
+    if (key === 'title') diff = titleCollator.compare(displayTitle(a), displayTitle(b));
+    else if (key === 'created') diff = (a.createdAt || 0) - (b.createdAt || 0);
+    else diff = (a.updatedAt || 0) - (b.updatedAt || 0);
+    if (diff !== 0) return sign * diff;
+    // 同じ値どうしは更新が新しい順、それでも同じならidで（並びが理由もなく入れ替わらないように）
+    return ((b.updatedAt || 0) - (a.updatedAt || 0)) || String(a.id).localeCompare(String(b.id));
+  }
+
+  sortSelect.value = sortOrder;
+  sortSelect.addEventListener('change', () => {
+    if (!SORT_ORDERS.includes(sortSelect.value)) { sortSelect.value = sortOrder; return; }
+    sortOrder = sortSelect.value;
+    try { localStorage.setItem(SORT_KEY, sortOrder); } catch (err) { /* 覚えられなくても並びは変える */ }
+    renderGrid();
+  });
+
   function renderGrid() {
-    const list = entries.filter(matchesFilter);
+    const list = entries.filter(matchesFilter).sort(compareEntries);
     const bodyEl = grid.parentElement;
     const existingEmpty = bodyEl.querySelector('.empty-state');
     if (existingEmpty) existingEmpty.remove();
@@ -950,7 +1003,8 @@
   }
 
   editorTagInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
+    // 歯止め：日本語の変換を確定するEnterでは追加しない（変換前の文字がタグになってしまうため。2026-10-10）
+    if (e.key === 'Enter' && !isComposingKey(e)) {
       e.preventDefault();
       const val = editorTagInput.value.trim();
       if (val && !editTags.includes(val)) {
@@ -1104,8 +1158,32 @@
     }
   });
 
+  /* Tabの移動（2026-10-10）：メモの中だけを回る。
+       タイトル → タグ（✕・入力欄・よく使うタグ）→ 本文 → ✕（一覧へ戻る）→ タイトル → …
+     以前は本文の次が「このメモを削除」で、その先はメモの外（後ろの一覧の検索欄など）へ抜けていた。
+     削除ボタンは tabindex="-1" でTabでは止まらない。Shift+Tabは逆回り。
+     歯止め：日本語の変換中（MS-IMEは変換中のTabで予測候補を選ぶ）は何もしない／削除の確認を出している間も何もしない */
+  function isComposingKey(e) { return e.isComposing || e.keyCode === 229; }
+  editorOverlay.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || isComposingKey(e) || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (confirmOverlay.classList.contains('is-open')) return;
+    const a = document.activeElement;
+    let next = null;
+    if (!e.shiftKey && a === editorBodyInput) next = editorCloseBtn;
+    else if (!e.shiftKey && a === editorCloseBtn) next = editorTitleInput;
+    else if (e.shiftKey && a === editorTitleInput) next = editorCloseBtn;
+    else if (e.shiftKey && a === editorCloseBtn) next = editorBodyInput;
+    if (next) { e.preventDefault(); next.focus(); }
+  });
+  // 歯止め：それでもメモの外（後ろの一覧）へフォーカスが行ったら、タイトルに戻す
+  document.addEventListener('focusin', (e) => {
+    if (!editorOverlay.classList.contains('is-open') || confirmOverlay.classList.contains('is-open')) return;
+    if (!editorOverlay.contains(e.target)) editorTitleInput.focus();
+  });
+
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+    // 歯止め：日本語の変換を Esc で取り消したときに、メモまで閉じないように（2026-10-10）
+    if (e.key === 'Escape' && !isComposingKey(e)) {
       if (confirmOverlay.classList.contains('is-open')) closeConfirmDelete();
       else if (editorOverlay.classList.contains('is-open')) closeEditor();
       else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
@@ -1190,7 +1268,7 @@
   }
   freqTagAddBtn.addEventListener('click', addFrequentTag);
   freqTagAddInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addFrequentTag(); }
+    if (e.key === 'Enter' && !isComposingKey(e)) { e.preventDefault(); addFrequentTag(); }
   });
 
   /* ===================== メニュー項目：タグの色 ===================== */

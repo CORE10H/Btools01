@@ -15,6 +15,7 @@ GitHub Pages で公開：https://core10h.github.io/Btools01/
 - 本体：`index.html` / `style.css` / `js/main.js`
 - 同期（複数端末）：`js/sync.js`（本体）・`js/sync-onedrive.js`（OneDrive）・`js/sync-gdrive.js`（Googleドライブ）。設計は `docs/planning/claude_クラウド同期_仕様書.md`
 - 戻る操作（モーダル・Stageを1つずつ閉じる）：`js/back-nav.js`。ホーム画面に追加したときの設定：`manifest.webmanifest`・`icons/`
+- 一時メモ（画面に浮かぶ書き付け。保存・同期しない）：`js/temp-memo.js`（`docs/core/claude_一時メモ_仕様書.md`）
 - 個別アプリ：`apps/*.html`（Stage に iframe で読み込む）。カバー画像は `apps/img/`
 - 本体テーマをアプリに伝える仕組み：`apps/sideops-theme-bridge.js`（postMessage）
 - 永続化はすべて IndexedDB（DB名は `sideops_*`）

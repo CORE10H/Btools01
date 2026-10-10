@@ -622,6 +622,70 @@
   }
   .stage.is-open .stage-close { display: flex; }
   .stage-close:hover { border-color: var(--magenta); color: var(--magenta); }
+  /* 一時メモの出し入れ（表示範囲の切り替えボタンの左。2026-10-10） */
+  .stage-temp-memo-btn {
+    position: absolute;
+    top: 10px; right: 100px;
+    width: 24px; height: 24px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-faint);
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 5;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .stage.is-open .stage-temp-memo-btn { display: flex; }
+  .stage-temp-memo-btn:hover { border-color: var(--cyan-dim); color: var(--text-dim); }
+  .stage-temp-memo-btn.is-active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+
+  /* ===================== 一時メモ（2026-10-10。js/temp-memo.js） =====================
+     画面に浮かぶ小さなメモ。Stage（190）より手前、本体のモーダル（200〜）より奥。
+     モーダルを開いている間は、その覆いの下になる（モーダルの操作を邪魔しない）。
+     位置と大きさはJSが画面の中に収めて left/top/width/height で決める */
+  .temp-memo {
+    position: fixed; left: 0; top: 0; z-index: 195;
+    width: 300px; height: 220px;
+    display: none; flex-direction: column;
+    background: rgba(var(--panel-rgb), .97);
+    border: 1px solid var(--cyan-dim);
+    box-shadow: 0 8px 28px rgba(var(--shadow-rgb), .55);
+  }
+  .temp-memo.is-shown { display: flex; }
+  .temp-memo-bar {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    padding: 5px 6px 5px 10px; border-bottom: 1px solid var(--line-soft);
+    cursor: move; user-select: none; -webkit-user-select: none;
+    touch-action: none; /* 指でつまんで動かすとき、画面がスクロールしないように */
+  }
+  .temp-memo-title { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .temp-memo-hint {
+    flex: 1 1 auto; min-width: 0; font-size: 9.5px; color: var(--text-faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .temp-memo-hint.is-flash { color: var(--cyan); }
+  .temp-memo-btn {
+    flex-shrink: 0; background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 10.5px; line-height: 1.4; padding: 2px 7px; cursor: pointer; font-family: var(--font-body);
+  }
+  .temp-memo-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .temp-memo-btn.danger:hover, .temp-memo-btn.is-armed { border-color: var(--magenta); color: var(--magenta); }
+  .temp-memo-text {
+    flex: 1 1 auto; min-height: 0; width: 100%; resize: none;
+    border: none; outline: none; background: transparent; color: var(--text);
+    font-family: var(--font-body); font-size: 13px; line-height: 1.7; padding: 8px 12px 16px 10px;
+  }
+  .temp-memo-text::placeholder { color: var(--text-faint); }
+  .temp-memo-grip {
+    position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
+    cursor: nwse-resize; touch-action: none;
+    background: linear-gradient(135deg, transparent 55%, var(--cyan-dim) 55%);
+  }
+  /* 動かしている間は、Stageの中のアプリ（iframe）にポインタを取られないように */
+  body.temp-memo-dragging iframe { pointer-events: none; }
+  body.temp-memo-dragging { user-select: none; -webkit-user-select: none; }
   .stage-bar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
@@ -1227,9 +1291,40 @@
     .header-date { display: none; }
     .brand-block { gap: 14px; }
     .header-icon-btn { min-width: 36px; min-height: 36px; }
+    .brand-block { overflow-x: clip; }
+  }
+  /* 幅の狭いスマホ（420px未満）：ヘッダーのボタンが4つ（✎ 一時メモが増えた。2026-10-10）でも1行に収まるよう、
+     間隔とロゴ・時計の文字を少し詰める。詰めないと 393px 以下で横にあふれ、画面全体が横に広がっていた。
+     393〜419px は間隔と文字を少し、360〜392px はもう一段（時計の点を隠し、ボタンを34pxに）。
+     350px未満では時計を隠す（端末の時計で足りる）。
+     歯止め：フォントの読み込み前（代わりの太い文字）などで入りきらないときは、ロゴ・時計の欄からはみ出した分を
+     横だけ切る（ボタンに重ねない。縦は切らないので文字の縁取りは残る） */
+  @media (max-width: 419px) {
+    header.top { gap: 8px; }
+    .brand-block { gap: 10px; }
+    .brand-block .mark { font-size: 20px; }
+    .clock { font-size: 19px; gap: 6px; }
+    .header-icons { gap: 6px; }
+  }
+  @media (max-width: 392px) {
+    .brand-block .mark { font-size: 19px; }
+    .clock { font-size: 17px; }
+    .clock .dot { display: none; }
+    #clockText { min-width: 4.2em; }
+    .header-icon-btn { min-width: 34px; min-height: 34px; }
+  }
+  @media (max-width: 349px) {
+    .clock { display: none; }
+  }
+  @media (max-width: 479px), (max-height: 500px) {
 
     /* Stage：スマホでは常に四方いっぱい（JS側で強制）なので切替ボタンは不要。
        閉じるボタンは指で押せる大きさに */
     .stage.is-open .stage-size-toggle { display: none; }
     .stage-close { width: 36px; height: 36px; font-size: 16px; top: 6px; right: 6px; }
+    /* 一時メモ：切り替えボタンは ✕ の左。指で扱う部分（ボタン・つまみ・角）は大きめに */
+    .stage-temp-memo-btn { width: 36px; height: 36px; font-size: 15px; top: 6px; right: 48px; }
+    .temp-memo-bar { padding: 4px 4px 4px 10px; }
+    .temp-memo-btn { min-height: 30px; padding: 2px 9px; font-size: 11px; }
+    .temp-memo-grip { width: 24px; height: 24px; }
   }
