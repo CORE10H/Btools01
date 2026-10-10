@@ -1052,6 +1052,9 @@
   .sync-conflict-sub { line-height: 1.6; color: var(--text-faint); }
   .sync-banner.is-conflict { border-color: var(--amber); }
   .sync-diff { z-index: 266; }
+  .sync-diff .btn[hidden] { display: none; }
+  .sync-diff .launcher-confirm-actions { flex-wrap: wrap; }
+  .sync-diff-restored { color: var(--amber); }
   .sync-diff .launcher-confirm-box { border-color: var(--cyan-dim); max-width: 760px; max-height: 88vh; display: flex; flex-direction: column; }
   .sync-diff-meta { font-size: 11px; color: var(--text-dim); line-height: 1.7; margin-bottom: 8px; }
   .sync-diff-head { color: var(--text); margin-bottom: 4px; }

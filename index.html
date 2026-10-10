@@ -491,13 +491,13 @@
 
     <div class="settings-row settings-row-col">
       <div class="settings-row-label">同期の記録（受け取った変更を戻す）</div>
-      <div class="settings-row-hint">ほかの端末の変更を受け取るたびに、受け取る前の中身を30日間残しています。間違って上書きされたときは、ここから戻せます。</div>
+      <div class="settings-row-hint">ほかの端末の変更を受け取るたびに、受け取る前の中身を30日間残しています。競合の控えに戻したときも、戻す前の中身を残します。間違って上書きされたときは、ここから戻せます。</div>
       <div class="sync-journal" id="syncJournal"></div>
     </div>
 
     <div class="settings-row settings-row-col">
       <div class="settings-row-label">競合の控え（両方の端末で変えていたデータ）</div>
-      <div class="settings-row-hint">同じデータを両方の端末で変えていたときは、新しい方（あとから同期した方）を採用し、もう一方をここに30日間残します。「違いを見る」で、どこが違うかを見比べられます（見るだけで、データは変えません）。</div>
+      <div class="settings-row-hint">同じデータを両方の端末で変えていたときは、新しい方（あとから同期した方）を採用し、もう一方をここに30日間残します。「違いを見る」で、どこが違うかを見比べられます。控えの方がよければ、そこから「控えに戻す」で戻せます（戻す前の中身は「同期の記録」に残り、取り消せます）。</div>
       <div class="sync-journal" id="syncConflictList"></div>
       <div class="sync-actions">
         <button class="btn" id="syncConflictsBtn" data-sync-action>競合の控えを書き出す</button>
@@ -533,6 +533,7 @@
     <div class="sync-diff-meta" id="syncDiffMeta"></div>
     <div class="sync-diff-body" id="syncDiffBody"></div>
     <div class="launcher-confirm-actions">
+      <button class="btn danger" id="syncDiffRestore" hidden>控えに戻す</button>
       <button class="btn primary" id="syncDiffClose">閉じる</button>
     </div>
   </div>

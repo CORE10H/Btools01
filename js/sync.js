@@ -1663,12 +1663,85 @@
         entry.items = entry.items.filter((it) => !dbs.includes(it.db));
         Object.keys(entry.counts || {}).forEach((k) => { if (dbs.includes(k)) delete entry.counts[k]; });
       }
-      const tx = d.transaction('journal', 'readwrite');
+      const tx = d.transaction(['journal', 'conflicts'], 'readwrite');
       tx.objectStore('journal').put(entry);
+      // 「控えに戻す」を取り消したら、控えの側にも残す（一覧・違いの画面に「取り消した」と出す）
+      if (entry.undone && entry.kind === 'conflict' && entry.conflictId) {
+        const cr = tx.objectStore('conflicts').get(entry.conflictId);
+        cr.onsuccess = () => { if (cr.result) tx.objectStore('conflicts').put({ ...cr.result, restoreUndoneAt: Date.now() }); };
+      }
       await txDone(tx);
       await addLog('info', `同期の記録から戻しました：${out.restored}件（${out.dbs.map(ruleLabel).join('・')}）`);
     }
     return out;
+  }
+
+  // 競合の控えの中身に戻す（2026-10-10）。
+  //   mode：'check'（調べるだけ）/ 'apply'（戻す）
+  //   戻り値：{ already（もう控えと同じ中身）, missing（今はデータがない）, changedSince（競合の後に変わった。古い控えは null＝分からない） }
+  // 戻す前の中身は、先に「同期の記録」（kind: 'conflict'）に残す（そこから取り消せる。残せなければ戻さない）。
+  // 書き込みは通常の put なので「変えたよ」の印が付き、次の同期でほかの端末にも届く
+  async function restoreConflict(id, { mode = 'check' } = {}) {
+    const d = await syncDb();
+    const c = await reqP(d.transaction('conflicts').objectStore('conflicts').get(id));
+    if (!c) throw new SyncError('競合の控えが見つかりません（30日たつと自動で消えます）');
+    const rule = RULE_BY_NAME.get(c.db);
+    if (!rule) throw new SyncError('このアプリは、今は同期の対象ではありません');
+    if (!(await localDbVersions()).has(c.db)) throw new SyncError(`${rule.label}のデータがこの端末にありません（アプリを一度開いてから、もう一度試してください）`);
+    const keys = await getKeys();
+    const hash = keys ? (b) => hmacHex(keys.nameKey, b) : sha256Hex; // 指紋は同期の時と同じ作り方にする（取り消しの判定に使う）
+    const db = await openExistingDb(c.db);
+    try {
+      if (!db.objectStoreNames.contains(c.store)) throw new SyncError(`${rule.label}に、戻す先の場所（${c.store}）がありません`);
+      const rtx = db.transaction(c.store);
+      const kp = rtx.objectStore(c.store).keyPath;
+      const cur = await reqP(rtx.objectStore(c.store).get(c.key));
+      const fpOf = async (v) => (v === undefined ? null : fingerprint(await encodeValue(project(rule, c.store, c.key, v, kp), { hash, blobs: new Map() })));
+      const fpNow = await fpOf(cur);
+      const legacy = !Object.prototype.hasOwnProperty.call(c, 'winnerDeleted');
+      let changedSince = null;
+      if (!legacy) changedSince = c.winnerDeleted ? cur !== undefined : (cur === undefined || fpNow !== await fpOf(c.winner));
+      // 書き込む中身。端末ごとの項目（壁紙など）は今のまま残し、同期する項目だけを控えに戻す
+      let v;
+      if (rule.only) {
+        const fields = rule.only[c.store] && rule.only[c.store][c.key];
+        if (!fields) throw new SyncError('このデータは戻せません（同期する項目がありません）');
+        v = isPlainObject(cur) ? { ...cur } : (typeof kp === 'string' ? { [kp]: c.key } : {});
+        fields.forEach((f) => { if (isPlainObject(c.value) && c.value[f] !== undefined) v[f] = c.value[f]; else delete v[f]; });
+      } else {
+        v = c.value;
+        if (typeof kp === 'string' && isPlainObject(v) && v[kp] === undefined) v = { ...v, [kp]: c.key };
+      }
+      const afterFp = await fpOf(v);
+      const already = fpNow !== null && fpNow === afterFp;
+      const info = { already, missing: cur === undefined, changedSince };
+      if (mode === 'check' || already) return info;
+      // 先に、戻す前の中身を同期の記録に残す（残せなければ、ここで止まる）
+      const item = { db: c.db, store: c.store, key: c.key, kp, before: cur, op: 'put', afterFp };
+      const jtx = d.transaction('journal', 'readwrite');
+      const jreq = jtx.objectStore('journal').add({ at: Date.now(), kind: 'conflict', items: [item], counts: { [c.db]: 1 }, size: estimateSize(cur), undone: false, conflictId: c.id });
+      await txDone(jtx);
+      const journalId = jreq.result;
+      try {
+        const wtx = db.transaction(c.store, 'readwrite');
+        const done = txDone(wtx);
+        if (kp === null) wtx.objectStore(c.store).put(v, c.key);
+        else wtx.objectStore(c.store).put(v);
+        await done;
+      } catch (err) {
+        // 書き込めなかったら、残した記録も消す（取り消すものがない記録を残さない）
+        try { const t = d.transaction('journal', 'readwrite'); t.objectStore('journal').delete(journalId); await txDone(t); } catch (e) { /* 消せなくても害はない */ }
+        throw err;
+      }
+      const ctx2 = d.transaction('conflicts', 'readwrite');
+      ctx2.objectStore('conflicts').put({ ...c, restoredAt: Date.now(), restoredJournal: journalId });
+      await txDone(ctx2);
+      await pruneJournal();
+      await addLog('info', `競合の控えに戻しました：${rule.label}（${c.store}）`);
+      return { ...info, journalId };
+    } finally {
+      db.close();
+    }
   }
 
   // 重複の候補：IDと日時を除いた中身が同じで、IDが違うレコード（ストアごと）
@@ -2970,6 +3043,7 @@
     const diffEl = $('syncDiff');
     const diffMeta = $('syncDiffMeta');
     const diffBody = $('syncDiffBody');
+    const diffRestoreBtn = $('syncDiffRestore');
     const CONFLICT_SHOW = 20;
     const DIFF_CONTEXT = 2; // 変わった行の前後に出す、同じ行の数
     const FIELD_LABEL = {
@@ -3121,11 +3195,13 @@
       closeDiff();
       diffMeta.textContent = '';
       diffBody.textContent = '読み込んでいます…';
+      if (diffRestoreBtn) { diffRestoreBtn.hidden = true; diffRestoreBtn.dataset.conflictId = ''; } // 戻すボタンは、控えを読めたときだけ出す
       diffEl.classList.add('is-open');
       try {
         const c = await getConflict(id);
         diffBody.textContent = '';
         if (!c) { diffBody.appendChild(mk('div', 'sync-diff-note', 'この控えは見つかりません（30日たって消えたか、この端末の同期を解除しました）')); return; }
+        if (diffRestoreBtn) { diffRestoreBtn.hidden = false; diffRestoreBtn.dataset.conflictId = c.id; }
         const myId = (await getDevice()).id;
         const who = (by, ver) => by || (typeof ver === 'string' && ver.slice(19) === myId ? 'この端末' : 'ほかの端末');
         const when = (ver) => (typeof ver === 'string' && VER_RE.test(ver) ? `（${fmt(verTime(ver))}に同期）` : ''); // 版の時刻＝その変更を同期で見つけた時刻
@@ -3149,6 +3225,9 @@
         legend.appendChild(l2);
         diffMeta.appendChild(legend);
         if (legacy) diffMeta.appendChild(mk('div', 'sync-diff-note', 'この控えは、採用された方の中身を残す前（2026-10-10より前）のものなので、今のデータと見比べています'));
+        if (c.restoredAt) diffMeta.appendChild(mk('div', 'sync-diff-note sync-diff-restored', c.restoreUndoneAt
+          ? `${fmt(c.restoredAt)}にこの控えの中身に戻し、${fmt(c.restoreUndoneAt)}に取り消しました`
+          : `${fmt(c.restoredAt)}に、この控えの中身に戻しました（取り消すときは「同期の記録」から）`));
         if (winnerDeleted) diffMeta.appendChild(mk('div', 'sync-diff-note', legacy ? '今は、このデータはありません（消されています）' : '採用された方では、このデータは消されていました（消した方があとだったため）'));
         const lv = c.value;
         const wv = winnerDeleted ? undefined : winner;
@@ -3175,6 +3254,7 @@
         }
       } catch (err) {
         console.error(err);
+        if (diffRestoreBtn) diffRestoreBtn.hidden = true; // 違いを見られないまま戻さない
         diffBody.textContent = '';
         diffBody.appendChild(mk('div', 'sync-diff-note', '違いを出せませんでした：' + (err && err.message)));
       }
@@ -3190,7 +3270,7 @@
         const row = mk('div', 'sync-journal-row sync-conflict-row');
         row.dataset.conflictId = c.id;
         row.appendChild(mk('div', 'sync-journal-head', `${fmt(c.at)}　${ruleLabel(c.db)}：${recordName(c.value, c.key)}`));
-        row.appendChild(mk('div', 'sync-conflict-sub', `採用：${who(c.winnerBy, c.winnerVer)}${c.winnerDeleted ? '（消した）' : ''}／控え：${who(c.loserBy, c.loserVer)}`));
+        row.appendChild(mk('div', 'sync-conflict-sub', `採用：${who(c.winnerBy, c.winnerVer)}${c.winnerDeleted ? '（消した）' : ''}／控え：${who(c.loserBy, c.loserVer)}${c.restoredAt ? `　${fmt(c.restoredAt)}に控えに戻した${c.restoreUndoneAt ? '（取り消した）' : ''}` : ''}`));
         const acts = mk('div', 'sync-journal-actions');
         const b = mk('button', 'btn sync-conflict-diff', '違いを見る');
         b.addEventListener('click', () => openDiff(c.id));
@@ -3214,6 +3294,34 @@
     if (diffEl) {
       $('syncDiffClose').addEventListener('click', closeDiff);
       diffEl.addEventListener('click', (e) => { if (e.target === diffEl) closeDiff(); });
+      if (diffRestoreBtn) diffRestoreBtn.addEventListener('click', () => { if (diffRestoreBtn.dataset.conflictId) restoreFlow(diffRestoreBtn.dataset.conflictId); });
+    }
+    // 「控えに戻す」（2026-10-10）：確認してから、今のデータを控えの中身で置き換える。
+    // 歯止め：アプリ・ほかのタブを閉じているか確かめる／競合の後に変わっていたら知らせる／戻す前の中身を同期の記録に残す（取り消せる）
+    function restoreFlow(id) {
+      closeDiff(); // 進み具合・確認のダイアログを、違いの画面の下に隠さないように
+      run(() => withLock(async () => {
+        await precheck();
+        const c = await getConflict(id);
+        if (!c) throw new SyncError('競合の控えが見つかりません（30日たつと自動で消えます）');
+        const name = `${ruleLabel(c.db)}：${recordName(c.value, c.key)}`;
+        const same = () => showResult([`「${name}」は、もう控えと同じ中身です（戻す必要はありません）`], '');
+        const chk = await restoreConflict(id, { mode: 'check' });
+        if (chk.already) { same(); return; }
+        const lines = [`「${name}」を、競合の控え（採用されなかった方）の中身に戻します。`];
+        if (chk.missing) lines.push('今は、このデータはありません（消されています）。控えの中身で作り直します。');
+        if (chk.changedSince) lines.push('※競合の後に、このデータは変わっています。その変更も、控えの中身で置き換わります（「違いを見る」は、競合のときの中身と比べています）。');
+        lines.push('戻す前の中身は「同期の記録」に残すので、そこから取り消せます。戻したことは、次の同期でほかの端末にも届きます。');
+        const ok = await dialog({ message: lines.join('\n'), okLabel: '控えに戻す', danger: true });
+        if (!ok) { showResult(['やめました'], ''); return; }
+        const out = await restoreConflict(id, { mode: 'apply' });
+        if (out.already) { same(); return; }
+        if (touchesMain([c.db])) needReload = true;
+        const res = [`控えの中身に戻しました（${name}）`, '戻す前の中身は「同期の記録」に残しました。取り消すときは、そこの「取り消す」を押してください', '戻したことは、次の同期でほかの端末にも届きます'];
+        res.push(needReload ? 'ランチャー・本体の設定の表示を最新にするため、閉じると再読み込みします' : 'アプリを開くと反映されています');
+        showResult(res, 'ok');
+        await refresh();
+      }), { title: '競合の控えに戻しています' });
     }
 
     // ===================== 同期の記録（受け取った変更を戻す） =====================
@@ -3228,7 +3336,8 @@
         const head = document.createElement('div');
         head.className = 'sync-journal-head';
         const apps = Object.entries(e.counts).map(([db, n]) => `${ruleLabel(db)}${n}件`).join('・');
-        head.textContent = `${fmt(e.at)}　${apps || '（なし）'}${e.undone ? '　（取り消し済み）' : ''}`;
+        const what = e.kind === 'conflict' ? '競合の控えに戻した：' : ''; // 「控えに戻す」で残した記録（2026-10-10）
+        head.textContent = `${fmt(e.at)}　${what}${apps || '（なし）'}${e.undone ? '　（取り消し済み）' : ''}`;
         row.appendChild(head);
         if (!e.undone && Object.keys(e.counts).length) {
           const acts = document.createElement('div');
@@ -3236,7 +3345,7 @@
           const all = document.createElement('button');
           all.className = 'btn';
           all.dataset.syncAction = 'undo';
-          all.textContent = 'すべて戻す';
+          all.textContent = e.kind === 'conflict' ? '取り消す' : 'すべて戻す';
           all.addEventListener('click', () => undoFlow(e, null));
           acts.appendChild(all);
           if (Object.keys(e.counts).length > 1) {
@@ -3258,13 +3367,18 @@
       run(() => withLock(async () => {
         await precheck();
         const target = dbs ? dbs.map(ruleLabel).join('・') : Object.keys(entry.counts).map(ruleLabel).join('・');
-        const ok = await dialog({ message: `${fmt(entry.at)}の同期で受け取った変更（${target}）を、受け取る前の中身に戻します。\n戻したことは、次の同期でほかの端末にも届きます。`, okLabel: '戻す', danger: true });
+        const isConflict = entry.kind === 'conflict';
+        const ok = await dialog({
+          message: (isConflict ? `${fmt(entry.at)}に競合の控えに戻した${target}のデータを、戻す前の中身にします。` : `${fmt(entry.at)}の同期で受け取った変更（${target}）を、受け取る前の中身に戻します。`)
+            + '\n戻したことは、次の同期でほかの端末にも届きます。',
+          okLabel: isConflict ? '取り消す' : '戻す', danger: true,
+        });
         if (!ok) { showResult(['やめました'], ''); return; }
         const check = await undoJournal(entry.id, { dbs, mode: 'check' });
         let mode = 'unchangedOnly';
         if (check.modified) {
           const all = await dialog({
-            message: `そのうち${check.modified}件は、同期の後にこの端末で変更しています。\n変更した分も、受け取る前の中身に戻しますか？`,
+            message: isConflict ? '控えに戻した後に、このデータを変更しています。\n変更した分も、戻す前の中身にしますか？' : `そのうち${check.modified}件は、同期の後にこの端末で変更しています。\n変更した分も、受け取る前の中身に戻しますか？`,
             okLabel: '変更した分も戻す', cancelLabel: '変更していないものだけ戻す', danger: true,
           });
           mode = all ? 'all' : 'unchangedOnly';
