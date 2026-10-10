@@ -97,21 +97,27 @@
   .empty-state .small { font-size: 11px; max-width: 380px; line-height: 1.8; }
 
   /* ===================== ネタ帳 ===================== */
-  .neta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
-  .neta-card { background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 12px 14px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 7px; min-height: 128px; text-align: left; }
+  /* ネタの一覧は1列の横長のカード（2026-10-10。それまでは幅230pxからの段組みで、PCでは3列）。
+     左にタイトル・まん中に本文の書き出し（2行）・右にジャンル・タグ・日時。幅640px以下では縦に積む */
+  .neta-grid { display: flex; flex-direction: column; gap: 6px; }
+  .neta-card { width: 100%; background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 10px 14px; cursor: pointer; display: grid; grid-template-columns: minmax(100px, 220px) minmax(0, 1fr) auto; grid-template-areas: "title body foot"; align-items: center; column-gap: 16px; row-gap: 5px; text-align: left; }
   .neta-card:hover { border-color: var(--cyan-dim); background: var(--panel-hi); }
-  .nc-title { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nc-body { font-size: 11.5px; color: var(--text-dim); line-height: 1.7; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
-  .nc-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-faint); }
+  .nc-title { grid-area: title; min-width: 0; font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nc-body { grid-area: body; min-width: 0; font-size: 11.5px; color: var(--text-dim); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; }
+  .nc-foot { grid-area: foot; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; max-width: 260px; font-size: 10.5px; color: var(--text-faint); }
+  @media (max-width: 860px) { /* 中くらいの幅では、タイトルとタグの幅を詰めて本文の幅を残す */
+    .neta-card { grid-template-columns: minmax(90px, 170px) minmax(0, 1fr) auto; }
+    .nc-foot { max-width: 180px; }
+  }
   .tag-pill { font-size: 10px; border: 1px solid var(--line); color: var(--text-dim); padding: 1px 7px; }
   .used-mark { color: var(--cyan); margin-left: auto; }
   /* 選んで削除：選択中は右上にチェック欄を出し、選んだカードを赤くする */
   .select-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--magenta-dim); background: rgba(var(--magenta-dim-rgb), .35); font-size: 11.5px; color: var(--text); flex-shrink: 0; }
   .select-bar .sb-text { margin-right: auto; line-height: 1.6; }
   .select-bar strong { color: var(--magenta); font-family: var(--font-display); font-size: 13px; }
-  .neta-card.is-selectable { position: relative; }
-  .neta-card.is-selectable .nc-title { padding-right: 22px; }
-  .neta-card.is-selectable::after { content: ''; position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; border: 1px solid var(--line); background: var(--bg); box-sizing: border-box; }
+  /* 横長のカードなので、チェック欄は左端の縦まん中に出す */
+  .neta-card.is-selectable { position: relative; padding-left: 40px; }
+  .neta-card.is-selectable::after { content: ''; position: absolute; top: 50%; left: 13px; margin-top: -8px; width: 16px; height: 16px; border: 1px solid var(--line); background: var(--bg); box-sizing: border-box; }
   .neta-card.is-picked { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .45); }
   .neta-card.is-picked:hover { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .6); }
   .neta-card.is-picked::after { content: '✓'; border-color: var(--magenta); background: var(--magenta); color: var(--bg); font-size: 12px; line-height: 14px; text-align: center; font-weight: 700; }
@@ -186,6 +192,16 @@
 
   .group-title { font-size: 12px; font-weight: 600; color: var(--text-dim); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
   .group-title::after { content: ''; flex: 1; border-top: 1px solid var(--line-soft); }
+  /* 見出しを押してたたむ（2026-10-10）。たたんでいる間は、見出しに中身の進み具合を出す */
+  .group-toggle { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 4px 2px 0; background: transparent; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; flex-wrap: wrap; }
+  .group-toggle:hover { color: var(--cyan); }
+  .gt-arrow { display: inline-block; width: 12px; font-size: 9px; color: var(--cyan); transition: transform .15s ease; }
+  .group-toggle[aria-expanded="false"] .gt-arrow { transform: rotate(-90deg); }
+  .gt-sum { display: none; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
+  .group-toggle[aria-expanded="false"] .gt-sum { display: inline-flex; }
+  .gt-dot { font-family: var(--font-display); font-size: 10px; min-width: 17px; height: 17px; padding: 0 3px; border: 1px solid var(--line); border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
+  .gt-dot.is-done { border-color: var(--cyan-dim); background: var(--cyan-dim); color: var(--cyan); }
+  .fold-body.is-folded { display: none; }
 
   .step-block { border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 14px; }
   .step-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
@@ -281,6 +297,8 @@
   .reader-hero img { max-width: 100%; max-height: 52vh; display: block; border: 1px solid var(--line); }
   .reader-title { font-family: var(--font-book); font-size: 26px; font-weight: 600; line-height: 1.45; letter-spacing: .04em; text-align: center; }
   .reader-meta { font-size: 11px; color: var(--text-faint); text-align: center; margin: 10px 0 26px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .reader-synopsis { font-family: var(--font-book); font-size: 14px; line-height: 1.95; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; border-left: 2px solid var(--cyan-dim); padding: 2px 0 2px 16px; margin: 0 0 30px; }
+  .reader-synopsis:empty { display: none; }
   .reader-toc { border: 1px solid var(--line-soft); padding: 12px 16px; margin-bottom: 30px; display: flex; flex-direction: column; gap: 6px; }
   .reader-toc:empty { display: none; }
   .reader-toc button { background: transparent; border: none; text-align: left; font-family: var(--font-book); font-size: 13.5px; color: var(--text-dim); cursor: pointer; padding: 2px 0; }
@@ -358,13 +376,15 @@
     .scroll-area, #workView .scroll-area { padding: 12px; }
     .wr-thumb { width: 72px; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
+    .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "body" "foot"; align-items: start; }
+    .nc-foot { justify-content: flex-start; max-width: none; }
     .step-hint { display: none; }
     .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
     .reader-inner { padding: 20px 16px 48px; }
     .reader-title { font-size: 21px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .book-cover, .toast { transition: none; }
+    .book-cover, .toast, .gt-arrow { transition: none; }
   }
 </style>
 <script src="sideops-theme-bridge.js"></script>
@@ -465,7 +485,8 @@
           <datalist id="penList"></datalist>
           <datalist id="seriesList"></datalist>
 
-          <h2 class="group-title">作品の土台</h2>
+          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="base" aria-expanded="true" aria-controls="foldBase"><span class="gt-arrow" aria-hidden="true">▼</span>作品の土台<span class="gt-sum" id="foldSumBase"></span></button></h2>
+          <div class="fold-body" id="foldBase">
 
           <div class="step-block" id="stepNeta">
             <div class="step-head"><span class="step-num">1</span><span class="step-title">元になるネタ</span><span class="step-hint">複数選べます</span></div>
@@ -522,7 +543,26 @@
             </div>
           </div>
 
-          <h2 class="group-title">章</h2>
+          <div class="step-block" id="stepSynopsis">
+            <div class="step-head"><span class="step-num">5</span><span class="step-title">作品の概要</span><span class="step-hint">宣伝・紹介に使う文章。{{概要}} で差し込めます</span></div>
+            <div class="step-body">
+              <div class="compose-row">
+                <select class="field-select" id="tplSel_synopsis" aria-label="作品の概要用テンプレート"></select>
+                <button type="button" class="btn primary" data-compose="synopsis">プロンプトを作る</button>
+              </div>
+              <div class="prompt-wrap" id="out_synopsis_wrap"><textarea class="field-textarea" id="out_synopsis" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="synopsis">コピー</button></div>
+              <div class="divider">
+                <div class="field-label"><span class="grow">作品の概要（AIの出力を貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="synopsis"></button><span id="cnt_synopsis"></span></div>
+                <textarea class="field-textarea" id="wSynopsis" rows="6" placeholder="作品の紹介文。販売ページの説明・SNSの投稿・あらすじ欄などに使います"></textarea>
+              </div>
+              <div><button type="button" class="btn small" id="copySynopsisBtn">概要をコピー</button></div>
+            </div>
+          </div>
+
+          </div><!-- /foldBase -->
+
+          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="chapter" aria-expanded="true" aria-controls="foldChapter"><span class="gt-arrow" aria-hidden="true">▼</span>章<span class="gt-sum" id="foldSumChapter"></span></button></h2>
+          <div class="fold-body" id="foldChapter">
           <div class="ch-tabs" id="chTabs"></div>
           <div class="ch-head">
             <span class="ch-label" id="chLabel">第1章</span>
@@ -533,7 +573,7 @@
           </div>
 
           <div class="step-block" id="stepBody">
-            <div class="step-head"><span class="step-num">5</span><span class="step-title">本文</span><span class="step-hint">プロット・設定集・前章までの要約から</span></div>
+            <div class="step-head"><span class="step-num">6</span><span class="step-title">本文</span><span class="step-hint">プロット・設定集・前章までの要約から</span></div>
             <div class="step-body">
               <div>
                 <div class="field-label"><span>この章の筋（任意・{{章の筋}}）</span></div>
@@ -552,7 +592,7 @@
           </div>
 
           <div class="step-block" id="stepSummary">
-            <div class="step-head"><span class="step-num">6</span><span class="step-title">この章の要約</span><span class="step-hint">次の章の {{前章まで}} に使われます</span></div>
+            <div class="step-head"><span class="step-num">7</span><span class="step-title">この章の要約</span><span class="step-hint">次の章の {{前章まで}} に使われます</span></div>
             <div class="step-body">
               <div class="compose-row">
                 <select class="field-select" id="tplSel_summary" aria-label="要約用テンプレート"></select>
@@ -567,7 +607,7 @@
           </div>
 
           <div class="step-block" id="stepFinal">
-            <div class="step-head"><span class="step-num">7</span><span class="step-title">推敲・完成稿</span><span class="step-hint">公開したものと同じ本文を貼る</span></div>
+            <div class="step-head"><span class="step-num">8</span><span class="step-title">推敲・完成稿</span><span class="step-hint">公開したものと同じ本文を貼る</span></div>
             <div class="step-body">
               <div class="compose-row">
                 <select class="field-select" id="tplSel_polish" aria-label="推敲用テンプレート"></select>
@@ -583,7 +623,7 @@
           </div>
 
           <div class="step-block" id="stepChImg">
-            <div class="step-head"><span class="step-num">8</span><span class="step-title">章の画像</span><span class="step-hint">挿絵・PV用（横16:9）</span></div>
+            <div class="step-head"><span class="step-num">9</span><span class="step-title">章の画像</span><span class="step-hint">挿絵・PV用（横16:9）</span></div>
             <div class="step-body">
               <div class="compose-row">
                 <select class="field-select" id="tplSel_chimg" aria-label="章の画像用テンプレート"></select>
@@ -598,7 +638,7 @@
           </div>
 
           <div class="step-block" id="stepPub">
-            <div class="step-head"><span class="step-num">9</span><span class="step-title">この章の公開</span><span class="step-hint">note等で公開したら記録</span></div>
+            <div class="step-head"><span class="step-num">10</span><span class="step-title">この章の公開</span><span class="step-hint">note等で公開したら記録</span></div>
             <div class="step-body">
               <div class="pub-row">
                 <div>
@@ -616,7 +656,10 @@
             </div>
           </div>
 
-          <h2 class="group-title">本棚・書き出し</h2>
+          </div><!-- /foldChapter -->
+
+          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="book" aria-expanded="true" aria-controls="foldBook"><span class="gt-arrow" aria-hidden="true">▼</span>本棚・書き出し<span class="gt-sum" id="foldSumBook"></span></button></h2>
+          <div class="fold-body" id="foldBook">
           <div class="step-block" id="stepBook">
             <div class="step-body">
               <div class="book-row">
@@ -632,6 +675,7 @@
             <span class="spacer"></span>
             <button type="button" class="btn danger" id="deleteWorkBtn">作品を削除</button>
           </div>
+          </div><!-- /foldBook -->
         </div>
       </div>
     </section>
@@ -650,6 +694,7 @@
           <div class="reader-hero" id="readerHero"></div>
           <h1 class="reader-title" id="readerTitle"></h1>
           <div class="reader-meta" id="readerMeta"></div>
+          <div class="reader-synopsis" id="readerSynopsis"></div>
           <nav class="reader-toc" id="readerToc" aria-label="目次"></nav>
           <div class="reader-text" id="readerText"></div>
         </article>
@@ -814,7 +859,7 @@
      IndexedDB（IndexedDB実装パターン_仕様書 に準拠）
      DB: sideops_manuscript（v2）
        neta      : { id(nt_), title, body, tags[], createdAt, updatedAt }
-       works     : { id(ms_), title, penName, series, netaIds[], plot, tpl{}, isBook, bookAt, undo{}, createdAt, updatedAt }
+       works     : { id(ms_), title, penName, series, netaIds[], plot, synopsis（作品の概要。2026-10-10〜）, tpl{}, isBook, bookAt, undo{}, createdAt, updatedAt }
        chapters  : { id(ch_), workId, order, title, outline, body, summary, final, publishUrl, noteId, publishedAt, undo{}, createdAt, updatedAt }
        lore      : { id(lr_), workId, kind, name, body, createdAt, updatedAt }
        images    : { id(<所有者ID>:<枠>), ownerId, workId, slot(kv|cover|img), blob, type, name, w, h, updatedAt }
@@ -843,15 +888,16 @@
   const KINDS = {
     plot:    { label: '設定プロット',                 required: '{{ネタ}}' },
     kv:      { label: '作品ビジュアル（表紙・カバー）', required: '{{プロット}}' },
+    synopsis: { label: '作品の概要',                  required: '{{プロット}}' },
     body:    { label: '章の本文',                     required: '{{プロット}}' },
     summary: { label: '章の要約',                     required: '{{本文}}' },
     polish:  { label: '推敲',                         required: '{{本文}}' },
     chimg:   { label: '章の画像',                     required: '{{本文}}' },
     loreimg: { label: '設定画像',                     required: '{{設定項目}}' },
   };
-  const KIND_ORDER = ['plot', 'kv', 'body', 'summary', 'polish', 'chimg', 'loreimg'];
-  const PLACEHOLDERS = ['{{タイトル}}', '{{名義}}', '{{ネタ}}', '{{設定}}', '{{プロット}}', '{{章番号}}', '{{章タイトル}}', '{{章の筋}}', '{{前章まで}}', '{{本文}}', '{{設定項目}}'];
-  const PH_REGEX = /\{\{(タイトル|名義|ネタ|設定項目|設定|プロット|章番号|章タイトル|章の筋|前章まで|本文)\}\}/g;
+  const KIND_ORDER = ['plot', 'kv', 'synopsis', 'body', 'summary', 'polish', 'chimg', 'loreimg'];
+  const PLACEHOLDERS = ['{{タイトル}}', '{{名義}}', '{{ネタ}}', '{{設定}}', '{{プロット}}', '{{概要}}', '{{章番号}}', '{{章タイトル}}', '{{章の筋}}', '{{前章まで}}', '{{本文}}', '{{設定項目}}'];
+  const PH_REGEX = /\{\{(タイトル|名義|ネタ|設定項目|設定|プロット|概要|章番号|章タイトル|章の筋|前章まで|本文)\}\}/g;
   const LORE_KINDS = { person: '人物', place: '場所・施設', item: 'アイテム', term: '用語', other: 'その他' };
   const LORE_ORDER = ['person', 'place', 'item', 'term', 'other'];
   const STAGE_LABEL = { idea: '構想', plot: 'プロット', draft: '執筆', polish: '推敲', book: '本' };
@@ -862,6 +908,7 @@
     loreimg: { name: 'img',   label: '設定画像',   ratio: null },
     genrecover: { name: 'cover', label: 'ジャンルの表紙', ratio: 16 / 9 },
   };
+  const WORK_UNDO = ['plot', 'synopsis']; // 1世代退避のうち、作品が持つ欄（ほかは章が持つ）
   const UNCAT = '__uncat'; // ネタ帳で「未分類」を開いている状態
   const NETA_IMPORT_MAX = 500;
   const BULK_DELETE_TWICE = 20; // この件数以上をまとめて消すときは、削除ボタンを2回押させる
@@ -905,6 +952,25 @@
 - 横長 16:9 の構図
 - 画像の中に文字は入れない
 - 物語の世界観が一目で伝わる広い画角
+
+# 作品タイトル
+{{タイトル}}
+
+# 設定集
+{{設定}}
+
+# 設定プロット
+{{プロット}}` },
+    // 2026-10-10 に足した用途。IDと日時を固定にして、どの端末で初めて開いても同じ中身のテンプレートができるようにする
+    // （端末ごとに乱数のIDで作ると、同期で同じテンプレートが2つになる。同期は中身が同じなら1つにまとめる）
+    { kind: 'synopsis', name: '宣伝・紹介用の概要', fixedId: 'tp_20261010_000000_syn1', fixedAt: Date.UTC(2026, 9, 9, 15), body:
+`以下の小説の「作品の概要」を書いてください。作品の宣伝や紹介（販売ページの説明・SNSの投稿・あらすじ欄など）に使います。
+
+# 条件
+- 300字程度
+- 読みたくなるように、物語の導入・主人公・見どころを伝える
+- 結末や大きなどんでん返しは明かさない
+- 概要の文章だけを出力し、前置きや解説は書かない
 
 # 作品タイトル
 {{タイトル}}
@@ -1062,7 +1128,7 @@
   const templatesListEl = $('templatesList');
 
   const wTitle = $('wTitle'), wStage = $('wStage'), wIdChip = $('wIdChip'), wCreated = $('wCreated'), wSaveInd = $('wSaveInd');
-  const wPen = $('wPen'), wSeries = $('wSeries'), wPlot = $('wPlot');
+  const wPen = $('wPen'), wSeries = $('wSeries'), wPlot = $('wPlot'), wSynopsis = $('wSynopsis');
   const wNetaList = $('wNetaList'), wNetaAddSelect = $('wNetaAddSelect'), wNetaAddBtn = $('wNetaAddBtn');
   const loreListEl = $('loreList');
   const chTabs = $('chTabs'), chLabel = $('chLabel'), chTitle = $('chTitle'), chOutline = $('chOutline');
@@ -1353,9 +1419,9 @@
     return {
       id: x.id, title: str(x.title, 200), penName: str(x.penName, 60).trim(), series: str(x.series, 100).trim(),
       netaIds: Array.isArray(x.netaIds) ? Array.from(new Set(x.netaIds.filter(validId))).slice(0, 50) : [],
-      plot: str(x.plot, 500000), tpl,
+      plot: str(x.plot, 500000), synopsis: str(x.synopsis, 100000), tpl,
       isBook: x.isBook === true, bookAt: typeof x.bookAt === 'number' ? x.bookAt : null,
-      undo: normalizeUndo(x.undo, ['plot']),
+      undo: normalizeUndo(x.undo, WORK_UNDO),
       createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
     };
   }
@@ -1457,8 +1523,8 @@
     const missing = KIND_ORDER.filter((k) => tplsOf(k).length === 0);
     for (const def of DEFAULT_TEMPLATES) {
       if (!missing.includes(def.kind)) continue;
-      const now = Date.now();
-      const t = { id: genId('tp'), kind: def.kind, name: def.name, body: def.body, createdAt: now, updatedAt: now };
+      const now = def.fixedAt || Date.now();
+      const t = { id: def.fixedId || genId('tp'), kind: def.kind, name: def.name, body: def.body, createdAt: now, updatedAt: now };
       try { await put(S.tpl, t); templates.push(t); } catch (err) { console.error('初期テンプレートの作成に失敗しました', err); }
     }
   }
@@ -2035,12 +2101,13 @@
   }
   async function createWork(netaIds) {
     const now = Date.now();
-    const w = { id: genId('ms'), title: '', penName: '', series: '', netaIds: netaIds.slice(), plot: '', tpl: {}, isBook: false, bookAt: null, undo: {}, createdAt: now, updatedAt: now };
+    const w = { id: genId('ms'), title: '', penName: '', series: '', netaIds: netaIds.slice(), plot: '', synopsis: '', tpl: {}, isBook: false, bookAt: null, undo: {}, createdAt: now, updatedAt: now };
     const ch = newChapter(w.id, 1);
     try {
       await put(S.works, w);
       await put(S.chapters, ch);
       works.unshift(w); chapters.push(ch);
+      if (folded.base) setFold('base', false); // 新しい作品は土台から作るので、たたんであれば開く
       openWork(w.id, 'works');
     } catch (err) {
       console.error('作品の作成に失敗しました', err);
@@ -2102,6 +2169,7 @@
     w.penName = wPen.value.trim().slice(0, 60);
     w.series = wSeries.value.trim().slice(0, 100);
     w.plot = wPlot.value;
+    w.synopsis = wSynopsis.value;
     KIND_ORDER.forEach((k) => { const sel = $('tplSel_' + k); if (sel && sel.value) w.tpl[k] = sel.value; });
     const ch = getChapter(currentChapterId);
     if (ch && ch.workId === w.id) {
@@ -2130,13 +2198,13 @@
     if (!w) { showToast('作品が見つかりません', true); return; }
     currentWorkId = id;
     workReturnTab = returnTab || (w.isBook ? 'shelf' : 'works');
-    wTitle.value = w.title; wPen.value = w.penName; wSeries.value = w.series; wPlot.value = w.plot;
+    wTitle.value = w.title; wPen.value = w.penName; wSeries.value = w.series; wPlot.value = w.plot; wSynopsis.value = w.synopsis;
     wIdChip.textContent = w.id;
     wCreated.textContent = '作成 ' + formatDateTime(w.createdAt);
     wSaveInd.textContent = '';
     fillDatalists();
     KIND_ORDER.forEach((k) => populateTplSelect(k, w.tpl[k]));
-    ['plot', 'kv'].forEach(clearOut);
+    ['plot', 'kv', 'synopsis'].forEach(clearOut);
     renderWorkNeta(w);
     renderLore();
     const chs = chaptersOf(w.id);
@@ -2155,7 +2223,7 @@
     updateBackupAlert();
   }
   function isWorkBlank(w) {
-    if (w.title.trim() || w.plot.trim() || w.penName || w.series || w.netaIds.length || w.isBook) return false;
+    if (w.title.trim() || w.plot.trim() || w.synopsis.trim() || w.penName || w.series || w.netaIds.length || w.isBook) return false;
     if (loreOf(w.id).length) return false;
     if (Array.from(images.values()).some((r) => r.workId === w.id)) return false;
     return chaptersOf(w.id).every((c) => !c.title.trim() && !c.outline.trim() && !c.body.trim() && !c.summary.trim() && !c.final.trim() && !c.publishUrl);
@@ -2183,7 +2251,7 @@
   });
   wIdChip.addEventListener('click', () => copyText(wIdChip.textContent));
 
-  [wTitle, wPen, wSeries, wPlot, chTitle, chOutline, chBody, chSummary, chFinal, chUrl, chPubDate].forEach((el) => {
+  [wTitle, wPen, wSeries, wPlot, wSynopsis, chTitle, chOutline, chBody, chSummary, chFinal, chUrl, chPubDate].forEach((el) => {
     el.addEventListener('input', () => { workSaver.schedule(); updateWorkState(); });
     el.addEventListener('change', () => { workSaver.flush(); });
   });
@@ -2211,12 +2279,13 @@
     const st = stageOf(w);
     wStage.dataset.stage = st; wStage.textContent = STAGE_LABEL[st];
     const cnt = (id, v) => { $(id).textContent = v ? countChars(v).toLocaleString() + '字' : ''; };
-    cnt('cnt_plot', w.plot);
+    cnt('cnt_plot', w.plot); cnt('cnt_synopsis', w.synopsis);
     cnt('cnt_body', ch ? ch.body : ''); cnt('cnt_summary', ch ? ch.summary : ''); cnt('cnt_final', ch ? ch.final : '');
     $('stepNeta').classList.toggle('is-done', w.netaIds.length > 0);
     $('stepPlot').classList.toggle('is-done', !!w.plot.trim());
     $('stepLore').classList.toggle('is-done', loreOf(w.id).length > 0);
     $('stepVisual').classList.toggle('is-done', images.has(imgId(w.id, 'kv')) || images.has(imgId(w.id, 'cover')));
+    $('stepSynopsis').classList.toggle('is-done', !!w.synopsis.trim());
     $('stepBody').classList.toggle('is-done', !!(ch && ch.body.trim()));
     $('stepSummary').classList.toggle('is-done', !!(ch && ch.summary.trim()));
     $('stepFinal').classList.toggle('is-done', !!(ch && ch.final.trim()));
@@ -2230,7 +2299,7 @@
     // 1世代退避の「戻す」ボタン
     document.querySelectorAll('[data-undo]').forEach((b) => {
       const f = b.dataset.undo;
-      const target = f === 'plot' ? w : ch;
+      const target = WORK_UNDO.includes(f) ? w : ch;
       const u = target && target.undo && target.undo[f];
       b.classList.toggle('is-hidden', !u);
       if (u) b.textContent = `直前の上書きを戻す（${formatTime(u.at)}）`;
@@ -2240,8 +2309,51 @@
     bookBtn.textContent = w.isBook ? '本棚から外す' : '本棚に登録';
     bookBtn.className = 'btn ' + (w.isBook ? 'danger' : 'primary');
     readBookBtn.classList.toggle('is-hidden', !w.isBook);
+    updateFoldSums(w);
     updateCounts();
   }
+
+  /* ---- 見出しでたたむ（作品の土台・章・本棚と書き出し。2026-10-10） ----
+     たたんだかどうかは作品ごとではなく、端末ごとに覚える（localStorage。同期しない。使えない環境ではその場だけ）。
+     たたんでいる間も、見出しに中身の進み具合を出す（たたんだのを忘れても、何が済んでいるか分かるように） */
+  const FOLD_KEY = 'sideops_manuscript_fold';
+  const FOLD_GROUPS = { base: '作品の土台', chapter: '章', book: '本棚・書き出し' };
+  const folded = {};
+  try {
+    const v = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}');
+    if (v && typeof v === 'object') Object.keys(FOLD_GROUPS).forEach((g) => { if (v[g] === true) folded[g] = true; });
+  } catch (e) { /* 読めなければ全部開いた状態 */ }
+  function applyFold() {
+    document.querySelectorAll('[data-fold]').forEach((b) => {
+      const on = !!folded[b.dataset.fold];
+      b.setAttribute('aria-expanded', String(!on));
+      b.title = on ? '押すと開きます' : '押すとたたみます';
+      $(b.getAttribute('aria-controls')).classList.toggle('is-folded', on);
+    });
+  }
+  function setFold(group, on) {
+    if (on) folded[group] = true; else delete folded[group];
+    applyFold();
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded)); } catch (e) { /* 覚えられなくても、たたむ・開くはできる */ }
+  }
+  document.querySelectorAll('[data-fold]').forEach((b) => b.addEventListener('click', () => setFold(b.dataset.fold, !folded[b.dataset.fold])));
+  applyFold();
+  function updateFoldSums(w) {
+    // 作品の土台：①〜⑤のうち済んだものを塗る
+    const base = $('foldSumBase');
+    base.innerHTML = '';
+    viewEls.work.querySelectorAll('#foldBase .step-block').forEach((s) => {
+      const d = document.createElement('span');
+      d.className = 'gt-dot' + (s.classList.contains('is-done') ? ' is-done' : '');
+      d.textContent = s.querySelector('.step-num').textContent;
+      base.appendChild(d);
+    });
+    const chs = chaptersOf(w.id);
+    const fin = chs.filter((c) => c.final.trim()).length;
+    $('foldSumChapter').textContent = `全${chs.length}章・完成稿 ${fin}章`;
+    $('foldSumBook').textContent = w.isBook ? '本棚に登録済み' : '本棚には未登録';
+  }
+  const foldNote = (group) => (folded[group] ? `\n（「${FOLD_GROUPS[group]}」はたたんであります。見出しを押すと開きます）` : '');
 
   // ---- 1 ネタ ----
   function renderWorkNeta(w) {
@@ -2447,7 +2559,7 @@
   });
 
   // ---- 1世代退避（上書き前の内容を1つだけ残す） ----
-  const UNDO_FIELDS = { plot: { el: () => wPlot, target: () => getWork(currentWorkId) }, body: { el: () => chBody, target: () => getChapter(currentChapterId) }, summary: { el: () => chSummary, target: () => getChapter(currentChapterId) }, final: { el: () => chFinal, target: () => getChapter(currentChapterId) } };
+  const UNDO_FIELDS = { plot: { el: () => wPlot, target: () => getWork(currentWorkId) }, synopsis: { el: () => wSynopsis, target: () => getWork(currentWorkId) }, body: { el: () => chBody, target: () => getChapter(currentChapterId) }, summary: { el: () => chSummary, target: () => getChapter(currentChapterId) }, final: { el: () => chFinal, target: () => getChapter(currentChapterId) } };
   function backupField(field, oldValue) {
     const t = UNDO_FIELDS[field].target();
     if (!t || !oldValue.trim()) return;
@@ -2473,6 +2585,11 @@
     workSaver.schedule(); updateWorkState(); renderChapterTabs();
     showToast('直前の内容に戻しました（もう一度押すとやり直せます）');
   }));
+  $('copySynopsisBtn').addEventListener('click', (e) => {
+    const v = wSynopsis.value.trim();
+    if (!v) { showToast('作品の概要が空です', true); return; }
+    copyText(v, e.currentTarget);
+  });
   $('copyBodyToFinalBtn').addEventListener('click', () => {
     if (!chBody.value.trim()) { showToast('本文が空です', true); return; }
     if (chFinal.value.trim()) backupField('final', chFinal.value);
@@ -2510,16 +2627,18 @@
     let lore = null;
     if (kind === 'loreimg') { lore = editingLore; if (lore) readLoreForm(lore); }
     // 素材が空なら合成しない（どこを先に埋めるかを案内）
+    // 3つ目は、埋める欄がある見出し（たたんであれば、トーストでそう伝える）
     const need = {
-      plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください'],
-      kv: [() => w.plot, '先に「2 設定プロット」を入力してください'],
-      body: [() => w.plot + (ch ? ch.outline : ''), '先に「2 設定プロット」か「この章の筋」を入力してください'],
-      summary: [() => (ch ? ch.body : ''), '先にこの章の「5 本文」を入力してください'],
-      polish: [() => (ch ? ch.body : ''), '先にこの章の「5 本文」を入力してください'],
-      chimg: [() => (ch ? ch.body : ''), '先にこの章の「5 本文」を入力してください'],
-      loreimg: [() => (lore ? lore.name + lore.body : ''), '先に名前か説明を入力してください'],
+      plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください', 'base'],
+      kv: [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'],
+      synopsis: [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'],
+      body: [() => w.plot + (ch ? ch.outline : ''), '先に「2 設定プロット」か「この章の筋」を入力してください', 'base'],
+      summary: [() => (ch ? ch.body : ''), '先にこの章の「6 本文」を入力してください', 'chapter'],
+      polish: [() => (ch ? ch.body : ''), '先にこの章の「6 本文」を入力してください', 'chapter'],
+      chimg: [() => (ch ? ch.body : ''), '先にこの章の「6 本文」を入力してください', 'chapter'],
+      loreimg: [() => (lore ? lore.name + lore.body : ''), '先に名前か説明を入力してください', null],
     }[kind];
-    if (!need[0]().trim()) { showToast(need[1], true); return; }
+    if (!need[0]().trim()) { showToast(need[1] + (need[2] ? foldNote(need[2]) : ''), true); return; }
     const prev = ch ? prevSummaries(ch) : { text: '', missing: [] };
     const vars = {
       'タイトル': w.title.trim() || '（未定）',
@@ -2528,11 +2647,13 @@
       '設定': loreText(w.id) || NONE,
       '設定項目': lore ? loreItemText(lore) : NONE,
       'プロット': w.plot.trim() || NONE,
+      '概要': w.synopsis.trim() || NONE,
       '章番号': ch ? chapterNumLabel(ch) : NONE,
       '章タイトル': ch && ch.title.trim() ? ch.title.trim() : '（無題）',
       '章の筋': ch && ch.outline.trim() ? ch.outline.trim() : NONE,
       '前章まで': prev.text || '（最初の章です）',
-      '本文': kind === 'kv' ? (chaptersOf(w.id).map((c) => c.body.trim()).filter(Boolean).join('\n\n') || NONE) : (ch && ch.body.trim() ? ch.body.trim() : NONE),
+      // 作品全体の用途（作品ビジュアル・作品の概要）では、全章の本文をつなげたもの
+      '本文': kind === 'kv' || kind === 'synopsis' ? (chaptersOf(w.id).map((c) => c.body.trim()).filter(Boolean).join('\n\n') || NONE) : (ch && ch.body.trim() ? ch.body.trim() : NONE),
     };
     $('out_' + kind).value = tpl.body.replace(PH_REGEX, (m, k) => vars[k]);
     $('out_' + kind + '_wrap').classList.add('is-shown');
@@ -2808,6 +2929,7 @@
     if (pub) addMeta(formatDay(pub) + ' 公開');
     addMeta(bookChars(w).toLocaleString() + '字');
     addMeta(w.id);
+    $('readerSynopsis').textContent = w.synopsis.trim(); // 作品の概要（空なら出さない）
 
     const all = chaptersOf(w.id);
     const shown = all.filter((c) => c.final.trim());
