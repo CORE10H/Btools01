@@ -198,6 +198,22 @@
   .gt-dot { font-family: var(--font-display); font-size: 10px; min-width: 17px; height: 17px; padding: 0 3px; border: 1px solid var(--line); border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
   .gt-dot.is-done { border-color: var(--cyan-dim); background: var(--cyan-dim); color: var(--cyan); }
   .fold-body.is-folded { display: none; }
+  /* 段ごとにたたむ（2026-10-12。いまは「要約」だけ）。見出し全体がボタン */
+  .step-toggle { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--line-soft); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .step-toggle:hover .step-title { color: var(--cyan); }
+  .step-toggle[aria-expanded="false"] { border-bottom-color: transparent; }
+  .step-toggle .gt-arrow { margin-left: 4px; }
+  .step-toggle[aria-expanded="false"] .gt-arrow { transform: rotate(-90deg); }
+  .step-block.is-legacy { border-style: dashed; border-color: var(--amber-dim); }
+  .step-block.is-legacy .step-num { border-color: var(--amber-dim); color: var(--amber); font-size: 10px; }
+  /* 素材の振り分けの確認 */
+  .as-table th, .as-table td { text-align: left !important; vertical-align: top; }
+  .as-table td { line-height: 1.6; }
+  .as-table .as-snip { display: block; font-size: 10.5px; color: var(--text-faint); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .as-table .as-st { white-space: nowrap; }
+  .as-table .as-st.is-over { color: var(--amber); }
+  .as-table .as-st.is-new { color: var(--cyan); }
+  .as-table .as-st.is-same { color: var(--text-faint); }
 
   .step-block { border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 14px; }
   .step-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
@@ -244,6 +260,7 @@
   .lore-card:hover { border-color: var(--cyan-dim); }
   .lore-thumb { position: relative; aspect-ratio: 1 / 1; background: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-faint); overflow: hidden; }
   .lore-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .lore-noimg { text-align: center; line-height: 1.6; }
   .lore-info { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 2px; }
   .lore-kind { font-size: 9.5px; color: var(--cyan); }
   .lore-name { font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -509,19 +526,38 @@
             </div>
           </div>
 
+          <div class="step-block" id="stepAssets">
+            <div class="step-head"><span class="step-num">3</span><span class="step-title">素材をまとめて作る</span><span class="step-hint">画像生成プロンプト（人物・キービジュアル・各章）と作品紹介</span></div>
+            <div class="step-body">
+              <div class="compose-row">
+                <select class="field-select" id="tplSel_assets" aria-label="素材用テンプレート"></select>
+                <button type="button" class="btn primary" data-compose="assets">プロンプトを作る</button>
+              </div>
+              <div class="prompt-wrap" id="out_assets_wrap"><textarea class="field-textarea" id="out_assets" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="assets">コピー</button></div>
+              <div class="divider">
+                <div class="field-hint">AIの出力を貼り付けると、見出しごとに振り分けます。【作品紹介】→ 6 作品の概要／【キービジュアル】→ 5 作品ビジュアル／【人物：名前】→ 4 設定集の人物（なければ作ります）／【第1章：章タイトル】→ その章の 9 章の画像（章がなければ作ります）</div>
+                <div style="margin-top:8px"><button type="button" class="btn primary" id="assetsPasteBtn">AIの出力を貼り付けて振り分ける</button></div>
+              </div>
+            </div>
+          </div>
+
           <div class="step-block" id="stepLore">
-            <div class="step-head"><span class="step-num">3</span><span class="step-title">設定集</span><span class="step-hint">人物・場所・アイテムなど。{{設定}} で本文プロンプトに差し込まれます</span></div>
+            <div class="step-head"><span class="step-num">4</span><span class="step-title">設定集</span><span class="step-hint">人物・場所・アイテムなど。人物ごとに画像生成プロンプトと画像</span></div>
             <div class="step-body">
               <div class="lore-grid" id="loreList"></div>
             </div>
           </div>
 
           <div class="step-block" id="stepVisual">
-            <div class="step-head"><span class="step-num">4</span><span class="step-title">作品ビジュアル</span><span class="step-hint">表紙（縦）とカバー（横16:9）</span></div>
+            <div class="step-head"><span class="step-num">5</span><span class="step-title">作品ビジュアル</span><span class="step-hint">キービジュアルの画像生成プロンプト・表紙（縦）・カバー（横16:9）</span></div>
             <div class="step-body">
+              <div>
+                <div class="field-label"><span class="grow">キービジュアルの画像生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="kvPrompt"></button><button type="button" class="btn small" data-copy-el="wKvPrompt" data-copy-label="キービジュアルの画像生成プロンプト">コピー</button></div>
+                <textarea class="field-textarea" id="wKvPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
+              </div>
               <div class="compose-row">
                 <select class="field-select" id="tplSel_kv" aria-label="作品ビジュアル用テンプレート"></select>
-                <button type="button" class="btn primary" data-compose="kv">プロンプトを作る</button>
+                <button type="button" class="btn" data-compose="kv">画像を頼むプロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_kv_wrap"><textarea class="field-textarea" id="out_kv" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="kv">コピー</button></div>
               <div class="slot-row">
@@ -539,7 +575,7 @@
           </div>
 
           <div class="step-block" id="stepSynopsis">
-            <div class="step-head"><span class="step-num">5</span><span class="step-title">作品の概要</span><span class="step-hint">宣伝・紹介に使う文章。{{概要}} で差し込めます</span></div>
+            <div class="step-head"><span class="step-num">6</span><span class="step-title">作品の概要</span><span class="step-hint">宣伝・紹介に使う文章。{{概要}} で差し込めます</span></div>
             <div class="step-body">
               <div class="compose-row">
                 <select class="field-select" id="tplSel_synopsis" aria-label="作品の概要用テンプレート"></select>
@@ -550,7 +586,7 @@
                 <div class="field-label"><span class="grow">作品の概要（AIの出力を貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="synopsis"></button><span id="cnt_synopsis"></span></div>
                 <textarea class="field-textarea" id="wSynopsis" rows="6" placeholder="作品の紹介文。販売ページの説明・SNSの投稿・あらすじ欄などに使います"></textarea>
               </div>
-              <div><button type="button" class="btn small" id="copySynopsisBtn">概要をコピー</button></div>
+              <div><button type="button" class="btn small" id="copySynopsisBtn" data-copy-el="wSynopsis" data-copy-label="作品の概要">概要をコピー</button></div>
             </div>
           </div>
 
@@ -558,6 +594,17 @@
 
           <h2 class="group-title"><button type="button" class="group-toggle" data-fold="chapter" aria-expanded="true" aria-controls="foldChapter"><span class="gt-arrow" aria-hidden="true">▼</span>章<span class="gt-sum" id="foldSumChapter"></span></button></h2>
           <div class="fold-body" id="foldChapter">
+          <div class="step-block" id="stepSerial">
+            <div class="step-head"><span class="step-num">7</span><span class="step-title">本文を通しで頼む</span><span class="step-hint">作品に1回。AIには「次の章もお願い」と続けて頼みます</span></div>
+            <div class="step-body">
+              <div class="compose-row">
+                <select class="field-select" id="tplSel_serial" aria-label="本文用テンプレート"></select>
+                <button type="button" class="btn primary" data-compose="serial">プロンプトを作る</button>
+              </div>
+              <div class="prompt-wrap" id="out_serial_wrap"><textarea class="field-textarea" id="out_serial" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="serial">コピー</button></div>
+              <div class="field-hint">AIが書いた本文は、下の章のタブを選んで「8 完成稿」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
+            </div>
+          </div>
           <div class="ch-tabs" id="chTabs"></div>
           <div class="ch-head">
             <span class="ch-label" id="chLabel">第1章</span>
@@ -567,62 +614,50 @@
             <button type="button" class="btn small danger" id="chDeleteBtn">この章を削除</button>
           </div>
 
-          <div class="step-block" id="stepBody">
-            <div class="step-head"><span class="step-num">6</span><span class="step-title">本文</span><span class="step-hint">プロット・設定集・前章までの要約から</span></div>
+          <!-- 以前の本文（初稿）：2026-10-12 に「本文」の段をなくした。本文か章の筋が残っている章だけに出す -->
+          <div class="step-block is-legacy is-hidden" id="stepBody">
+            <div class="step-head"><span class="step-num">旧</span><span class="step-title">以前の本文（初稿）</span><span class="step-hint">今の流れでは使いません。完成稿に写すか、消してください</span></div>
             <div class="step-body">
               <div>
-                <div class="field-label"><span>この章の筋（任意・{{章の筋}}）</span></div>
-                <textarea class="field-textarea" id="chOutline" rows="3" placeholder="この章で起きることを短く。プロットの該当部分を貼ってもOK"></textarea>
+                <div class="field-label"><span>この章の筋（以前の入力）</span></div>
+                <textarea class="field-textarea" id="chOutline" rows="3"></textarea>
               </div>
-              <div class="compose-row">
-                <select class="field-select" id="tplSel_body" aria-label="本文用テンプレート"></select>
-                <button type="button" class="btn primary" data-compose="body">プロンプトを作る</button>
+              <div>
+                <div class="field-label"><span class="grow">本文（以前の初稿）</span><button type="button" class="undo-btn is-hidden" data-undo="body"></button><span id="cnt_body"></span></div>
+                <textarea class="field-textarea is-book" id="chBody" rows="10"></textarea>
               </div>
-              <div class="prompt-wrap" id="out_body_wrap"><textarea class="field-textarea" id="out_body" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="body">コピー</button></div>
-              <div class="divider">
-                <div class="field-label"><span class="grow">本文（生成された初稿）</span><button type="button" class="undo-btn is-hidden" data-undo="body"></button><span id="cnt_body"></span></div>
-                <textarea class="field-textarea is-book" id="chBody" rows="16" placeholder="AIが出力した本文を貼り付け"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="step-block" id="stepSummary">
-            <div class="step-head"><span class="step-num">7</span><span class="step-title">この章の要約</span><span class="step-hint">次の章の {{前章まで}} に使われます</span></div>
-            <div class="step-body">
-              <div class="compose-row">
-                <select class="field-select" id="tplSel_summary" aria-label="要約用テンプレート"></select>
-                <button type="button" class="btn primary" data-compose="summary">プロンプトを作る</button>
-              </div>
-              <div class="prompt-wrap" id="out_summary_wrap"><textarea class="field-textarea" id="out_summary" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="summary">コピー</button></div>
-              <div class="divider">
-                <div class="field-label"><span class="grow">要約</span><button type="button" class="undo-btn is-hidden" data-undo="summary"></button><span id="cnt_summary"></span></div>
-                <textarea class="field-textarea" id="chSummary" rows="5" placeholder="この章で起きたこと・人物の変化・未回収の伏線など"></textarea>
-              </div>
+              <div class="compose-row"><button type="button" class="btn small" id="copyBodyToFinalBtn">本文を完成稿に写す</button><button type="button" class="btn small danger" id="clearLegacyBtn">以前の本文と章の筋を消す</button></div>
             </div>
           </div>
 
           <div class="step-block" id="stepFinal">
-            <div class="step-head"><span class="step-num">8</span><span class="step-title">推敲・完成稿</span><span class="step-hint">公開したものと同じ本文を貼る</span></div>
+            <div class="step-head"><span class="step-num">8</span><span class="step-title">完成稿（本文）</span><span class="step-hint">AIが書いたこの章の本文を貼る。編集・推敲もここで</span></div>
             <div class="step-body">
-              <div class="compose-row">
-                <select class="field-select" id="tplSel_polish" aria-label="推敲用テンプレート"></select>
-                <button type="button" class="btn primary" data-compose="polish">プロンプトを作る</button>
+              <div>
+                <div class="field-label"><span class="grow">完成稿（貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="final"></button><span id="cnt_final"></span></div>
+                <textarea class="field-textarea is-book" id="chFinal" rows="16" placeholder="AIが書いたこの章の本文を貼り付け"></textarea>
+              </div>
+              <div class="divider">
+                <div class="field-label"><span>推敲を頼むとき（完成稿の中身を差し込みます）</span></div>
+                <div class="compose-row">
+                  <select class="field-select" id="tplSel_polish" aria-label="推敲用テンプレート"></select>
+                  <button type="button" class="btn" data-compose="polish">推敲のプロンプトを作る</button>
+                </div>
               </div>
               <div class="prompt-wrap" id="out_polish_wrap"><textarea class="field-textarea" id="out_polish" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="polish">コピー</button></div>
-              <div class="divider">
-                <div class="field-label"><span class="grow">完成稿</span><button type="button" class="undo-btn is-hidden" data-undo="final"></button><span id="cnt_final"></span></div>
-                <textarea class="field-textarea is-book" id="chFinal" rows="16" placeholder="推敲・公開した完成稿を貼り付け"></textarea>
-              </div>
-              <div><button type="button" class="btn small" id="copyBodyToFinalBtn">本文をそのまま完成稿に写す</button></div>
             </div>
           </div>
 
           <div class="step-block" id="stepChImg">
-            <div class="step-head"><span class="step-num">9</span><span class="step-title">章の画像</span><span class="step-hint">挿絵・PV用（横16:9）</span></div>
+            <div class="step-head"><span class="step-num">9</span><span class="step-title">章の画像</span><span class="step-hint">タイトル画像・挿絵（横16:9）</span></div>
             <div class="step-body">
+              <div>
+                <div class="field-label"><span class="grow">この章のタイトル画像の生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="chImgPrompt"></button><button type="button" class="btn small" data-copy-el="chImgPrompt" data-copy-label="章のタイトル画像の生成プロンプト">コピー</button></div>
+                <textarea class="field-textarea" id="chImgPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
+              </div>
               <div class="compose-row">
                 <select class="field-select" id="tplSel_chimg" aria-label="章の画像用テンプレート"></select>
-                <button type="button" class="btn primary" data-compose="chimg">プロンプトを作る</button>
+                <button type="button" class="btn" data-compose="chimg">挿絵を頼むプロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_chimg_wrap"><textarea class="field-textarea" id="out_chimg" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="chimg">コピー</button></div>
               <div class="img-slot" data-slot="chimg" style="max-width:520px">
@@ -648,6 +683,22 @@
                 </div>
               </div>
               <div><button type="button" class="btn small" id="chMdBtn">この章の完成稿を .md で書き出す</button></div>
+            </div>
+          </div>
+
+          <!-- 要約：2026-10-12 から予備（今の流れでは使わない。AIのべりすと等で使うかもしれないので残す）。はじめはたたんである -->
+          <div class="step-block" id="stepSummary">
+            <button type="button" class="step-head step-toggle" data-fold="summary" aria-expanded="false" aria-controls="foldSummary"><span class="step-num">11</span><span class="step-title">この章の要約（予備）</span><span class="step-hint">今の流れでは使いません。{{前章まで}} に使われます</span><span class="gt-arrow" aria-hidden="true">▼</span></button>
+            <div class="step-body fold-body" id="foldSummary">
+              <div class="compose-row">
+                <select class="field-select" id="tplSel_summary" aria-label="要約用テンプレート"></select>
+                <button type="button" class="btn primary" data-compose="summary">プロンプトを作る</button>
+              </div>
+              <div class="prompt-wrap" id="out_summary_wrap"><textarea class="field-textarea" id="out_summary" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="summary">コピー</button></div>
+              <div class="divider">
+                <div class="field-label"><span class="grow">要約</span><button type="button" class="undo-btn is-hidden" data-undo="summary"></button><span id="cnt_summary"></span></div>
+                <textarea class="field-textarea" id="chSummary" rows="5" placeholder="この章で起きたこと・人物の変化・未回収の伏線など"></textarea>
+              </div>
             </div>
           </div>
 
@@ -726,9 +777,13 @@
         <input type="text" class="field-input" id="loreName" maxlength="100" placeholder="名前（人物名・場所名・アイテム名など）">
       </div>
       <textarea class="field-textarea" id="loreBody" rows="8" placeholder="説明（外見・性格・役割・由来など）"></textarea>
+      <div>
+        <div class="field-label"><span class="grow">画像生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="loreImgPrompt"></button><button type="button" class="btn small" data-copy-el="loreImgPrompt" data-copy-label="画像生成プロンプト">コピー</button></div>
+        <textarea class="field-textarea" id="loreImgPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
+      </div>
       <div class="compose-row">
         <select class="field-select" id="tplSel_loreimg" aria-label="設定画像用テンプレート"></select>
-        <button type="button" class="btn primary" data-compose="loreimg">画像用プロンプトを作る</button>
+        <button type="button" class="btn" data-compose="loreimg">画像を頼むプロンプトを作る</button>
       </div>
       <div class="prompt-wrap" id="out_loreimg_wrap"><textarea class="field-textarea" id="out_loreimg" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="loreimg">コピー</button></div>
       <div class="img-slot" data-slot="loreimg">
@@ -740,6 +795,23 @@
       <span class="left" id="loreSaveInd">入力は自動で保存されます</span>
       <button type="button" class="btn danger" id="loreDeleteBtn">削除</button>
       <button type="button" class="btn primary" id="loreDoneBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 素材の振り分け（2026-10-12） -->
+<div class="modal-overlay" id="asModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="asModalTitle">
+    <div class="modal-head"><span class="modal-title" id="asModalTitle">AIの出力を振り分ける</span><button type="button" class="modal-close" id="asCloseBtn" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="field-hint">【作品紹介】【キービジュアル】【人物：名前】【第1章：章タイトル】の見出しで区切られた文章を、見出しごとにそれぞれの欄へ入れます。見出しは行の頭に書かれている必要があります。</div>
+      <textarea class="field-textarea" id="asText" rows="10" placeholder="AIの出力をそのまま貼り付け"></textarea>
+      <div class="import-stats" id="asStats"></div>
+      <table class="import-table as-table" id="asPreview"></table>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" id="asCancelBtn">キャンセル</button>
+      <button type="button" class="btn primary" id="asRunBtn">振り分ける</button>
     </div>
   </div>
 </div>
@@ -852,9 +924,9 @@
      IndexedDB（IndexedDB実装パターン_仕様書 に準拠）
      DB: sideops_manuscript（v2）
        neta      : { id(nt_), body, tags[], genreId, createdAt, updatedAt }  … タイトルは 2026-10-10 になくした（あれば本文の1行目へ）
-       works     : { id(ms_), title, penName, series, netaIds[], plot, synopsis（作品の概要。2026-10-10〜）, tpl{}, isBook, bookAt, undo{}, createdAt, updatedAt }
-       chapters  : { id(ch_), workId, order, title, outline, body, summary, final, publishUrl, noteId, publishedAt, undo{}, createdAt, updatedAt }
-       lore      : { id(lr_), workId, kind, name, body, createdAt, updatedAt }
+       works     : { id(ms_), title, penName, series, netaIds[], plot, synopsis（作品の概要。2026-10-10〜）, kvPrompt（キービジュアルの画像生成プロンプト。2026-10-12〜）, tpl{}, isBook, bookAt, undo{}, createdAt, updatedAt }
+       chapters  : { id(ch_), workId, order, title, outline, body（以前の初稿。2026-10-12〜 画面からは外した）, summary, final, imgPrompt（タイトル画像の生成プロンプト。2026-10-12〜）, publishUrl, noteId, publishedAt, undo{}, createdAt, updatedAt }
+       lore      : { id(lr_), workId, kind, name, body, imgPrompt（画像生成プロンプト。2026-10-12〜）, undo{}, createdAt, updatedAt }
        images    : { id(<所有者ID>:<枠>), ownerId, workId, slot(kv|cover|img), blob, type, name, w, h, updatedAt }
        templates : { id(tp_), kind, name, body, createdAt, updatedAt }
        meta      : { id, value }  … lastFullExportAt など
@@ -880,17 +952,23 @@
 
   const KINDS = {
     plot:    { label: '設定プロット',                 required: '{{ネタ}}' },
-    kv:      { label: '作品ビジュアル（表紙・カバー）', required: '{{プロット}}' },
+    assets:  { label: '素材をまとめて（画像生成プロンプト・作品紹介）', required: '{{プロット}}' },
+    kv:      { label: '作品ビジュアル（画像を頼む）',  required: '{{プロット}}' },
     synopsis: { label: '作品の概要',                  required: '{{プロット}}' },
-    body:    { label: '章の本文',                     required: '{{プロット}}' },
-    summary: { label: '章の要約',                     required: '{{本文}}' },
+    serial:  { label: '本文を通しで頼む',             required: '{{プロット}}' },
+    // 2026-10-12 に「本文」の段をなくしたので、章ごとの本文のテンプレートは使わない。
+    // 以前に作ったものは消さずに持っておく（テンプレートの画面には出さない。KIND_ORDER に入れない）
+    body:    { label: '章の本文（1章ずつ・今は使っていない）', required: '{{プロット}}' },
+    summary: { label: '章の要約（予備）',             required: '{{本文}}' },
     polish:  { label: '推敲',                         required: '{{本文}}' },
-    chimg:   { label: '章の画像',                     required: '{{本文}}' },
-    loreimg: { label: '設定画像',                     required: '{{設定項目}}' },
+    chimg:   { label: '章の画像（挿絵を頼む）',       required: '{{本文}}' },
+    loreimg: { label: '設定画像（画像を頼む）',       required: '{{設定項目}}' },
   };
-  const KIND_ORDER = ['plot', 'kv', 'synopsis', 'body', 'summary', 'polish', 'chimg', 'loreimg'];
-  const PLACEHOLDERS = ['{{タイトル}}', '{{名義}}', '{{ネタ}}', '{{設定}}', '{{プロット}}', '{{概要}}', '{{章番号}}', '{{章タイトル}}', '{{章の筋}}', '{{前章まで}}', '{{本文}}', '{{設定項目}}'];
-  const PH_REGEX = /\{\{(タイトル|名義|ネタ|設定項目|設定|プロット|概要|章番号|章タイトル|章の筋|前章まで|本文)\}\}/g;
+  // テンプレートの画面に出す用途（作品エディタの上からの順）
+  const KIND_ORDER = ['plot', 'assets', 'loreimg', 'kv', 'synopsis', 'serial', 'polish', 'chimg', 'summary'];
+  const ALL_KINDS = Object.keys(KINDS); // 作品が覚える選択（tpl）は、画面に出さない用途の分も持ち運ぶ
+  const PLACEHOLDERS = ['{{タイトル}}', '{{名義}}', '{{ネタ}}', '{{設定}}', '{{プロット}}', '{{概要}}', '{{章の一覧}}', '{{章番号}}', '{{章タイトル}}', '{{章の筋}}', '{{前章まで}}', '{{本文}}', '{{設定項目}}'];
+  const PH_REGEX = /\{\{(タイトル|名義|ネタ|設定項目|設定|プロット|概要|章の一覧|章番号|章タイトル|章の筋|前章まで|本文)\}\}/g;
   const LORE_KINDS = { person: '人物', place: '場所・施設', item: 'アイテム', term: '用語', other: 'その他' };
   const LORE_ORDER = ['person', 'place', 'item', 'term', 'other'];
   const STAGE_LABEL = { idea: '構想', plot: 'プロット', draft: '執筆', polish: '推敲', book: '本' };
@@ -901,7 +979,9 @@
     loreimg: { name: 'img',   label: '設定画像',   ratio: null },
     genrecover: { name: 'cover', label: 'ジャンルの表紙', ratio: 16 / 9 },
   };
-  const WORK_UNDO = ['plot', 'synopsis']; // 1世代退避のうち、作品が持つ欄（ほかは章が持つ）
+  const WORK_UNDO = ['plot', 'synopsis', 'kvPrompt']; // 1世代退避のうち、作品が持つ欄
+  const CHAPTER_UNDO = ['body', 'summary', 'final', 'imgPrompt']; // 章が持つ欄（設定集の項目は imgPrompt だけ）
+  const AS_MAX_CHAPTER = 100; // 振り分けで作れる章の番号の上限
   const UNCAT = '__uncat'; // ネタ帳で「未分類」を開いている状態
   const NETA_IMPORT_MAX = 500;
   const BULK_DELETE_TWICE = 20; // この件数以上をまとめて消すときは、削除ボタンを2回押させる
@@ -973,29 +1053,64 @@
 
 # 設定プロット
 {{プロット}}` },
-    { kind: 'body', name: '章の本文（三人称）', body:
-`以下の設定に沿って、小説の{{章番号}}「{{章タイトル}}」の本文を書いてください。
+    // 2026-10-12 に足した用途（3 素材をまとめて作る・7 本文を通しで頼む）。概要と同じく、IDと日時を固定にして同期で2つにならないようにする。
+    // 「素材」の見出しの形（【作品紹介】【キービジュアル】【人物：名前】【第n章：章タイトル】）は、振り分け（parseAssets）が読む形と合わせてある
+    { kind: 'assets', name: '画像生成プロンプトと作品紹介（振り分け用）', fixedId: 'tp_20261012_000000_ast1', fixedAt: Date.UTC(2026, 9, 11, 15), body:
+`以下の小説の設定とプロットをもとに、画像生成AIに渡すプロンプトと、作品紹介を書いてください。
 
-# 条件
-- 三人称・過去形
-- 4,000〜8,000字程度
-- 前の章からの流れと、登場人物・設定を崩さない
-- 本文だけを出力し、前置きや解説は書かない
+# 書くもの
+- 作品紹介：作品の宣伝や紹介に使う文章（300字程度。結末は明かさない）
+- キービジュアル：作品のメインビジュアル1枚分の画像生成プロンプト
+- 人物：主な登場人物ひとりずつの画像生成プロンプト（全身の立ち絵）
+- 各章：章ごとのタイトル画像の画像生成プロンプト（横長16:9）
+
+# 出力の形（この形を必ず守る）
+- 見出しは【】で囲んで1行に書き、次の行から中身を書く
+- 見出しと中身のほかに、前置き・解説・区切り線は書かない
+- 画像生成プロンプトは、そのまま画像生成AIに貼れる文章にする。画像の中に文字は入れない
+- 人物の見出しは登場人物の数だけ、章の見出しは章の数だけ繰り返す
+
+【作品紹介】
+ここに作品紹介
+【キービジュアル】
+ここに画像生成プロンプト
+【人物：登場人物の名前】
+ここに画像生成プロンプト
+【第1章：章タイトル】
+ここに画像生成プロンプト
 
 # 作品タイトル
 {{タイトル}}
 
-# 設定プロット
-{{プロット}}
+# 設定集
+{{設定}}
+
+# 設定とプロット
+{{プロット}}` },
+    { kind: 'serial', name: '本文を1章ずつ（「次の章もお願い」で続ける）', fixedId: 'tp_20261012_000000_ser1', fixedAt: Date.UTC(2026, 9, 11, 15), body:
+`以下の設定とプロットに沿って、小説の本文を書いてください。
+
+# 進め方
+- 章の一覧の順に、1回に1章ずつ書いてください。まず第1章だけを書いてください
+- 私が「次の章もお願い」と言ったら、続けて次の章を書いてください
+- 章の見出しは付けず、その章の本文だけを出力してください。前置きや解説も書かないでください
+
+# 条件
+- 三人称・過去形
+- 1章あたり4,000〜8,000字程度
+- 登場人物・設定を崩さず、前の章からの流れをつなげる
+
+# 作品タイトル
+{{タイトル}}
+
+# 章の一覧
+{{章の一覧}}
 
 # 設定集
 {{設定}}
 
-# 前の章までの要約
-{{前章まで}}
-
-# この章の筋
-{{章の筋}}` },
+# 設定とプロット
+{{プロット}}` },
     { kind: 'summary', name: '引き継ぎ用の要約', body:
 `以下は小説の{{章番号}}の本文です。次の章を書くときの引き継ぎ資料として要約を作ってください。
 
@@ -1121,7 +1236,7 @@
   const templatesListEl = $('templatesList');
 
   const wTitle = $('wTitle'), wStage = $('wStage'), wIdChip = $('wIdChip'), wCreated = $('wCreated'), wSaveInd = $('wSaveInd');
-  const wPen = $('wPen'), wSeries = $('wSeries'), wPlot = $('wPlot'), wSynopsis = $('wSynopsis');
+  const wPen = $('wPen'), wSeries = $('wSeries'), wPlot = $('wPlot'), wSynopsis = $('wSynopsis'), wKvPrompt = $('wKvPrompt'), chImgPrompt = $('chImgPrompt');
   const wNetaList = $('wNetaList'), wNetaAddSelect = $('wNetaAddSelect'), wNetaAddBtn = $('wNetaAddBtn');
   const loreListEl = $('loreList');
   const chTabs = $('chTabs'), chLabel = $('chLabel'), chTitle = $('chTitle'), chOutline = $('chOutline');
@@ -1130,7 +1245,7 @@
   const bookBtn = $('bookBtn'), bookState = $('bookState'), readBookBtn = $('readBookBtn');
 
   const netaModal = $('netaModal'), netaBody = $('netaBody'), netaTags = $('netaTags'), netaUsage = $('netaUsage'), netaSaveInd = $('netaSaveInd');
-  const loreModal = $('loreModal'), loreKind = $('loreKind'), loreName = $('loreName'), loreBody = $('loreBody'), loreSaveInd = $('loreSaveInd');
+  const loreModal = $('loreModal'), loreKind = $('loreKind'), loreName = $('loreName'), loreBody = $('loreBody'), loreImgPrompt = $('loreImgPrompt'), loreSaveInd = $('loreSaveInd');
   const tplModal = $('tplModal'), tplKind = $('tplKind'), tplName = $('tplName'), tplBody = $('tplBody'), tplError = $('tplError'), tplReqHint = $('tplReqHint'), tplPhButtons = $('tplPhButtons'), tplModalTitle = $('tplModalTitle');
   const importModal = $('importModal'), importFile = $('importFile'), imgFile = $('imgFile');
   const confirmOverlay = $('confirmOverlay'), confirmBox = $('confirmBox'), confirmMsg = $('confirmMsg'), confirmOkBtn = $('confirmOkBtn'), confirmCancelBtn = $('confirmCancelBtn');
@@ -1231,9 +1346,11 @@
   function chapterFullLabel(ch) { return chapterNumLabel(ch) + (ch.title.trim() ? ' ' + ch.title.trim() : ''); }
   function stageOf(w) {
     if (w.isBook) return 'book';
+    // 2026-10-12〜 本文は章ごとに完成稿へ貼るので、全部の章に完成稿があれば「推敲」、1章でもあれば「執筆」
+    // （以前の初稿＝本文だけの章も「執筆」に数える）
     const chs = chaptersOf(w.id);
-    if (chs.some((c) => c.final.trim())) return 'polish';
-    if (chs.some((c) => c.body.trim())) return 'draft';
+    if (chs.length && chs.every((c) => c.final.trim())) return 'polish';
+    if (chs.some((c) => c.final.trim() || c.body.trim())) return 'draft';
     if (w.plot.trim()) return 'plot';
     return 'idea';
   }
@@ -1418,11 +1535,11 @@
   function normalizeWork(x) {
     if (!x || !validId(x.id)) return null;
     const tpl = {};
-    if (x.tpl && typeof x.tpl === 'object') KIND_ORDER.forEach((k) => { if (validId(x.tpl[k])) tpl[k] = x.tpl[k]; });
+    if (x.tpl && typeof x.tpl === 'object') ALL_KINDS.forEach((k) => { if (validId(x.tpl[k])) tpl[k] = x.tpl[k]; });
     return {
       id: x.id, title: str(x.title, 200), penName: str(x.penName, 60).trim(), series: str(x.series, 100).trim(),
       netaIds: Array.isArray(x.netaIds) ? Array.from(new Set(x.netaIds.filter(validId))).slice(0, 50) : [],
-      plot: str(x.plot, 500000), synopsis: str(x.synopsis, 100000), tpl,
+      plot: str(x.plot, 500000), synopsis: str(x.synopsis, 100000), kvPrompt: str(x.kvPrompt, 100000), tpl,
       isBook: x.isBook === true, bookAt: typeof x.bookAt === 'number' ? x.bookAt : null,
       undo: normalizeUndo(x.undo, WORK_UNDO),
       createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
@@ -1434,9 +1551,9 @@
     return {
       id: x.id, workId: x.workId, order: typeof x.order === 'number' && isFinite(x.order) ? x.order : 0,
       title: str(x.title, 200), outline: str(x.outline, 100000), body: str(x.body, 2000000),
-      summary: str(x.summary, 100000), final: str(x.final, 2000000),
+      summary: str(x.summary, 100000), final: str(x.final, 2000000), imgPrompt: str(x.imgPrompt, 100000),
       publishUrl: url, noteId: extractNoteId(url), publishedAt: dateOnly(x.publishedAt),
-      undo: normalizeUndo(x.undo, ['body', 'summary', 'final']),
+      undo: normalizeUndo(x.undo, CHAPTER_UNDO),
       createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
     };
   }
@@ -1444,7 +1561,7 @@
     if (!x || !validId(x.id) || !validId(x.workId)) return null;
     return {
       id: x.id, workId: x.workId, kind: LORE_KINDS[x.kind] ? x.kind : 'other',
-      name: str(x.name, 100), body: str(x.body, 100000), createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
+      name: str(x.name, 100), body: str(x.body, 100000), imgPrompt: str(x.imgPrompt, 100000), undo: normalizeUndo(x.undo, ['imgPrompt']), createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
     };
   }
   function normalizeTpl(x) {
@@ -2101,17 +2218,17 @@
 
   function newChapter(workId, order) {
     const now = Date.now();
-    return { id: genId('ch'), workId, order, title: '', outline: '', body: '', summary: '', final: '', publishUrl: '', noteId: '', publishedAt: '', undo: {}, createdAt: now, updatedAt: now };
+    return { id: genId('ch'), workId, order, title: '', outline: '', body: '', summary: '', final: '', imgPrompt: '', publishUrl: '', noteId: '', publishedAt: '', undo: {}, createdAt: now, updatedAt: now };
   }
   async function createWork(netaIds) {
     const now = Date.now();
-    const w = { id: genId('ms'), title: '', penName: '', series: '', netaIds: netaIds.slice(), plot: '', synopsis: '', tpl: {}, isBook: false, bookAt: null, undo: {}, createdAt: now, updatedAt: now };
+    const w = { id: genId('ms'), title: '', penName: '', series: '', netaIds: netaIds.slice(), plot: '', synopsis: '', kvPrompt: '', tpl: {}, isBook: false, bookAt: null, undo: {}, createdAt: now, updatedAt: now };
     const ch = newChapter(w.id, 1);
     try {
       await put(S.works, w);
       await put(S.chapters, ch);
       works.unshift(w); chapters.push(ch);
-      if (folded.base) setFold('base', false); // 新しい作品は土台から作るので、たたんであれば開く
+      if (isFolded('base')) setFold('base', false); // 新しい作品は土台から作るので、たたんであれば開く
       openWork(w.id, 'works');
     } catch (err) {
       console.error('作品の作成に失敗しました', err);
@@ -2174,6 +2291,7 @@
     w.series = wSeries.value.trim().slice(0, 100);
     w.plot = wPlot.value;
     w.synopsis = wSynopsis.value;
+    w.kvPrompt = wKvPrompt.value;
     KIND_ORDER.forEach((k) => { const sel = $('tplSel_' + k); if (sel && sel.value) w.tpl[k] = sel.value; });
     const ch = getChapter(currentChapterId);
     if (ch && ch.workId === w.id) {
@@ -2182,6 +2300,7 @@
       ch.body = chBody.value;
       ch.summary = chSummary.value;
       ch.final = chFinal.value;
+      ch.imgPrompt = chImgPrompt.value;
       ch.publishUrl = chUrl.value.trim().slice(0, 2000);
       ch.noteId = extractNoteId(ch.publishUrl);
       ch.publishedAt = dateOnly(chPubDate.value);
@@ -2202,13 +2321,13 @@
     if (!w) { showToast('作品が見つかりません', true); return; }
     currentWorkId = id;
     workReturnTab = returnTab || (w.isBook ? 'shelf' : 'works');
-    wTitle.value = w.title; wPen.value = w.penName; wSeries.value = w.series; wPlot.value = w.plot; wSynopsis.value = w.synopsis;
+    wTitle.value = w.title; wPen.value = w.penName; wSeries.value = w.series; wPlot.value = w.plot; wSynopsis.value = w.synopsis; wKvPrompt.value = w.kvPrompt;
     wIdChip.textContent = w.id;
     wCreated.textContent = '作成 ' + formatDateTime(w.createdAt);
     wSaveInd.textContent = '';
     fillDatalists();
     KIND_ORDER.forEach((k) => populateTplSelect(k, w.tpl[k]));
-    ['plot', 'kv', 'synopsis'].forEach(clearOut);
+    ['plot', 'assets', 'kv', 'synopsis', 'serial'].forEach(clearOut);
     renderWorkNeta(w);
     renderLore();
     const chs = chaptersOf(w.id);
@@ -2227,10 +2346,10 @@
     updateBackupAlert();
   }
   function isWorkBlank(w) {
-    if (w.title.trim() || w.plot.trim() || w.synopsis.trim() || w.penName || w.series || w.netaIds.length || w.isBook) return false;
+    if (w.title.trim() || w.plot.trim() || w.synopsis.trim() || w.kvPrompt.trim() || w.penName || w.series || w.netaIds.length || w.isBook) return false;
     if (loreOf(w.id).length) return false;
     if (Array.from(images.values()).some((r) => r.workId === w.id)) return false;
-    return chaptersOf(w.id).every((c) => !c.title.trim() && !c.outline.trim() && !c.body.trim() && !c.summary.trim() && !c.final.trim() && !c.publishUrl);
+    return chaptersOf(w.id).every((c) => !c.title.trim() && !c.outline.trim() && !c.body.trim() && !c.summary.trim() && !c.final.trim() && !c.imgPrompt.trim() && !c.publishUrl);
   }
   async function deleteWorkCascade(w) {
     let ok = true;
@@ -2255,7 +2374,7 @@
   });
   wIdChip.addEventListener('click', () => copyText(wIdChip.textContent));
 
-  [wTitle, wPen, wSeries, wPlot, wSynopsis, chTitle, chOutline, chBody, chSummary, chFinal, chUrl, chPubDate].forEach((el) => {
+  [wTitle, wPen, wSeries, wPlot, wSynopsis, wKvPrompt, chTitle, chOutline, chBody, chSummary, chFinal, chImgPrompt, chUrl, chPubDate].forEach((el) => {
     el.addEventListener('input', () => { workSaver.schedule(); updateWorkState(); });
     el.addEventListener('change', () => { workSaver.flush(); });
   });
@@ -2290,7 +2409,10 @@
     $('stepLore').classList.toggle('is-done', loreOf(w.id).length > 0);
     $('stepVisual').classList.toggle('is-done', images.has(imgId(w.id, 'kv')) || images.has(imgId(w.id, 'cover')));
     $('stepSynopsis').classList.toggle('is-done', !!w.synopsis.trim());
-    $('stepBody').classList.toggle('is-done', !!(ch && ch.body.trim()));
+    const chs = chaptersOf(w.id);
+    // 3 素材：振り分け先（キービジュアル・人物・章の画像生成プロンプト）のどれかが入っていれば済み
+    $('stepAssets').classList.toggle('is-done', !!w.kvPrompt.trim() || chs.some((c) => c.imgPrompt.trim()) || loreOf(w.id).some((l) => l.imgPrompt.trim()));
+    $('stepSerial').classList.toggle('is-done', chs.some((c) => c.final.trim()));
     $('stepSummary').classList.toggle('is-done', !!(ch && ch.summary.trim()));
     $('stepFinal').classList.toggle('is-done', !!(ch && ch.final.trim()));
     $('stepChImg').classList.toggle('is-done', !!(ch && images.has(imgId(ch.id, 'img'))));
@@ -2300,14 +2422,7 @@
       chUrlErr.classList.toggle('is-shown', !!ch.publishUrl && !isValidUrl(ch.publishUrl));
       chNoteId.textContent = ch.noteId ? `note記事ID：${ch.noteId}` : (ch.publishUrl && isValidUrl(ch.publishUrl) ? 'note記事のURLではないため、記事IDは記録されません' : '');
     }
-    // 1世代退避の「戻す」ボタン
-    document.querySelectorAll('[data-undo]').forEach((b) => {
-      const f = b.dataset.undo;
-      const target = WORK_UNDO.includes(f) ? w : ch;
-      const u = target && target.undo && target.undo[f];
-      b.classList.toggle('is-hidden', !u);
-      if (u) b.textContent = `直前の上書きを戻す（${formatTime(u.at)}）`;
-    });
+    refreshUndoButtons();
     bookState.classList.toggle('is-book', w.isBook);
     bookState.textContent = w.isBook ? `本棚に登録済み（${formatDateTime(w.bookAt)}）` : '';
     bookBtn.textContent = w.isBook ? '本棚から外す' : '本棚に登録';
@@ -2321,26 +2436,29 @@
      たたんだかどうかは作品ごとではなく、端末ごとに覚える（localStorage。同期しない。使えない環境ではその場だけ）。
      たたんでいる間も、見出しに中身の進み具合を出す（たたんだのを忘れても、何が済んでいるか分かるように） */
   const FOLD_KEY = 'sideops_manuscript_fold';
-  const FOLD_GROUPS = { base: '作品の土台', chapter: '章', book: '本棚・書き出し' };
-  const folded = {};
+  const FOLD_GROUPS = { base: '作品の土台', chapter: '章', book: '本棚・書き出し', summary: 'この章の要約' };
+  // はじめからたたんでおくもの（要約は 2026-10-12 から予備。今の流れでは使わない）
+  const FOLD_DEFAULT = { summary: true };
+  const foldSet = {}; // 端末に覚えた値（既定と違うものだけ）
   try {
     const v = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}');
-    if (v && typeof v === 'object') Object.keys(FOLD_GROUPS).forEach((g) => { if (v[g] === true) folded[g] = true; });
-  } catch (e) { /* 読めなければ全部開いた状態 */ }
+    if (v && typeof v === 'object') Object.keys(FOLD_GROUPS).forEach((g) => { if (typeof v[g] === 'boolean' && v[g] !== !!FOLD_DEFAULT[g]) foldSet[g] = v[g]; });
+  } catch (e) { /* 読めなければ既定の状態 */ }
+  const isFolded = (g) => (g in foldSet ? foldSet[g] : !!FOLD_DEFAULT[g]);
   function applyFold() {
     document.querySelectorAll('[data-fold]').forEach((b) => {
-      const on = !!folded[b.dataset.fold];
+      const on = isFolded(b.dataset.fold);
       b.setAttribute('aria-expanded', String(!on));
       b.title = on ? '押すと開きます' : '押すとたたみます';
       $(b.getAttribute('aria-controls')).classList.toggle('is-folded', on);
     });
   }
   function setFold(group, on) {
-    if (on) folded[group] = true; else delete folded[group];
+    if (on === !!FOLD_DEFAULT[group]) delete foldSet[group]; else foldSet[group] = on;
     applyFold();
-    try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded)); } catch (e) { /* 覚えられなくても、たたむ・開くはできる */ }
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(foldSet)); } catch (e) { /* 覚えられなくても、たたむ・開くはできる */ }
   }
-  document.querySelectorAll('[data-fold]').forEach((b) => b.addEventListener('click', () => setFold(b.dataset.fold, !folded[b.dataset.fold])));
+  document.querySelectorAll('[data-fold]').forEach((b) => b.addEventListener('click', () => setFold(b.dataset.fold, !isFolded(b.dataset.fold))));
   applyFold();
   function updateFoldSums(w) {
     // 作品の土台：①〜⑤のうち済んだものを塗る
@@ -2357,7 +2475,7 @@
     $('foldSumChapter').textContent = `全${chs.length}章・完成稿 ${fin}章`;
     $('foldSumBook').textContent = w.isBook ? '本棚に登録済み' : '本棚には未登録';
   }
-  const foldNote = (group) => (folded[group] ? `\n（「${FOLD_GROUPS[group]}」はたたんであります。見出しを押すと開きます）` : '');
+  const foldNote = (group) => (isFolded(group) ? `\n（「${FOLD_GROUPS[group]}」はたたんであります。見出しを押すと開きます）` : '');
 
   // ---- 1 ネタ ----
   function renderWorkNeta(w) {
@@ -2404,7 +2522,7 @@
     loreListEl.innerHTML = loreOf(w.id).map((l) => {
       const thumbImg = framedImg(imgId(l.id, 'img'), 1);
       return `<button type="button" class="lore-card" data-id="${escapeHtml(l.id)}">
-        <span class="lore-thumb">${thumbImg || '画像なし'}</span>
+        <span class="lore-thumb">${thumbImg || (l.imgPrompt.trim() ? '<span class="lore-noimg">画像なし<br>（プロンプトあり）</span>' : '画像なし')}</span>
         <span class="lore-info"><span class="lore-kind">${LORE_KINDS[l.kind]}</span><span class="lore-name">${escapeHtml(l.name || '（名前なし）')}</span></span>
       </button>`;
     }).join('') + '<button type="button" class="lore-card lore-add" data-add="1">＋ 設定を追加</button>';
@@ -2430,16 +2548,17 @@
     const w = getWork(l.workId);
     if (w) { const sel = $('tplSel_loreimg'); if (sel.value) { w.tpl.loreimg = sel.value; } }
   }, (s) => { loreSaveInd.textContent = saveStateText(s); });
-  function readLoreForm(l) { l.kind = LORE_KINDS[loreKind.value] ? loreKind.value : 'other'; l.name = loreName.value.slice(0, 100); l.body = loreBody.value; }
-  const isLoreEmpty = (l) => !l.name.trim() && !l.body.trim() && !images.has(imgId(l.id, 'img'));
+  function readLoreForm(l) { l.kind = LORE_KINDS[loreKind.value] ? loreKind.value : 'other'; l.name = loreName.value.slice(0, 100); l.body = loreBody.value; l.imgPrompt = loreImgPrompt.value; }
+  const isLoreEmpty = (l) => !l.name.trim() && !l.body.trim() && !l.imgPrompt.trim() && !images.has(imgId(l.id, 'img'));
 
   async function openLoreModal(l) {
     const w = getWork(currentWorkId);
     if (!w) return;
     await workSaver.flush();
-    if (!l) { const now = Date.now(); l = { id: genId('lr'), workId: w.id, kind: 'person', name: '', body: '', createdAt: now, updatedAt: now }; }
+    if (!l) { const now = Date.now(); l = { id: genId('lr'), workId: w.id, kind: 'person', name: '', body: '', imgPrompt: '', undo: {}, createdAt: now, updatedAt: now }; }
     editingLore = l;
-    loreKind.value = l.kind; loreName.value = l.name; loreBody.value = l.body;
+    loreKind.value = l.kind; loreName.value = l.name; loreBody.value = l.body; loreImgPrompt.value = l.imgPrompt;
+    refreshUndoButtons();
     populateTplSelect('loreimg', w.tpl.loreimg);
     clearOut('loreimg');
     loreSaveInd.textContent = '入力は自動で保存されます';
@@ -2447,7 +2566,7 @@
     loreModal.classList.add('is-open');
     setTimeout(() => loreName.focus(), 0);
   }
-  [loreKind, loreName, loreBody].forEach((el) => { el.addEventListener('input', () => loreSaver.schedule()); el.addEventListener('change', () => loreSaver.schedule()); });
+  [loreKind, loreName, loreBody, loreImgPrompt].forEach((el) => { el.addEventListener('input', () => loreSaver.schedule()); el.addEventListener('change', () => loreSaver.schedule()); });
   async function closeLoreModal() {
     if (!editingLore) { loreModal.classList.remove('is-open'); return; }
     await loreSaver.flush();
@@ -2498,8 +2617,11 @@
       currentChapterId = ch ? ch.id : null;
       chTitle.value = ch ? ch.title : ''; chOutline.value = ch ? ch.outline : '';
       chBody.value = ch ? ch.body : ''; chSummary.value = ch ? ch.summary : ''; chFinal.value = ch ? ch.final : '';
+      chImgPrompt.value = ch ? ch.imgPrompt : '';
       chUrl.value = ch ? ch.publishUrl : ''; chPubDate.value = ch ? ch.publishedAt : '';
-      ['body', 'summary', 'polish', 'chimg'].forEach(clearOut);
+      ['summary', 'polish', 'chimg'].forEach(clearOut);
+      // 以前の本文（初稿）・章の筋が残っている章だけ、その欄を出す（章を開いたときに決める。消している途中で消えないように）
+      $('stepBody').classList.toggle('is-hidden', !(ch && (ch.body.trim() || ch.outline.trim())));
       renderChapterTabs();
       renderAllSlots();
       updateWorkState();
@@ -2550,7 +2672,7 @@
     if (chs.length <= 1) { showToast('最後の1章は削除できません', true); return; }
     await workSaver.flush();
     const label = chapterFullLabel(ch);
-    if (!(await ask(`${label} を削除します。\n本文・要約・完成稿・章の画像がすべて消え、元に戻せません。`, { ok: '削除する', danger: true }))) return;
+    if (!(await ask(`${label} を削除します。\n完成稿・章の画像と画像生成プロンプト・要約などがすべて消え、元に戻せません。`, { ok: '削除する', danger: true }))) return;
     const idx = chs.findIndex((c) => c.id === ch.id);
     const iid = imgId(ch.id, 'img');
     if (images.has(iid) && await delSafe(S.images, iid)) { images.delete(iid); dropUrl(iid); }
@@ -2563,43 +2685,78 @@
   });
 
   // ---- 1世代退避（上書き前の内容を1つだけ残す） ----
-  const UNDO_FIELDS = { plot: { el: () => wPlot, target: () => getWork(currentWorkId) }, synopsis: { el: () => wSynopsis, target: () => getWork(currentWorkId) }, body: { el: () => chBody, target: () => getChapter(currentChapterId) }, summary: { el: () => chSummary, target: () => getChapter(currentChapterId) }, final: { el: () => chFinal, target: () => getChapter(currentChapterId) } };
-  function backupField(field, oldValue) {
-    const t = UNDO_FIELDS[field].target();
-    if (!t || !oldValue.trim()) return;
+  // キー（data-undo の値）→ { field：記録の項目名, el：入力欄, target：持ち主（作品・章・設定集の項目）, saver }
+  const curWork = () => getWork(currentWorkId), curChapter = () => getChapter(currentChapterId);
+  const UNDO_FIELDS = {
+    plot: { field: 'plot', el: () => wPlot, target: curWork },
+    synopsis: { field: 'synopsis', el: () => wSynopsis, target: curWork },
+    kvPrompt: { field: 'kvPrompt', el: () => wKvPrompt, target: curWork },
+    body: { field: 'body', el: () => chBody, target: curChapter },
+    summary: { field: 'summary', el: () => chSummary, target: curChapter },
+    final: { field: 'final', el: () => chFinal, target: curChapter },
+    chImgPrompt: { field: 'imgPrompt', el: () => chImgPrompt, target: curChapter },
+    loreImgPrompt: { field: 'imgPrompt', el: () => loreImgPrompt, target: () => editingLore, saver: () => loreSaver },
+  };
+  // 上書きする前の中身を、その記録の undo に1つだけ残す（振り分けからも使う）
+  function backupInto(t, field, oldValue) {
+    if (!t || !String(oldValue || '').trim()) return;
     t.undo = t.undo || {};
     t.undo[field] = { value: oldValue, at: Date.now() };
   }
-  Object.keys(UNDO_FIELDS).forEach((f) => {
-    const el = UNDO_FIELDS[f].el();
+  function backupField(key, oldValue) { const def = UNDO_FIELDS[key]; backupInto(def.target(), def.field, oldValue); }
+  function refreshUndoButtons() {
+    document.querySelectorAll('[data-undo]').forEach((b) => {
+      const def = UNDO_FIELDS[b.dataset.undo], t = def && def.target();
+      const u = t && t.undo && t.undo[def.field];
+      b.classList.toggle('is-hidden', !u);
+      if (u) b.textContent = `直前の上書きを戻す（${formatTime(u.at)}）`;
+    });
+  }
+  Object.keys(UNDO_FIELDS).forEach((key) => {
+    const el = UNDO_FIELDS[key].el();
     el.addEventListener('paste', () => {
       // 中身の半分以上を選択した状態での貼り付け＝「貼り直し」とみなして退避する
       const old = el.value;
       const sel = el.selectionEnd - el.selectionStart;
-      if (old.trim() && sel >= old.length * 0.5) backupField(f, old);
+      if (old.trim() && sel >= old.length * 0.5) { backupField(key, old); setTimeout(refreshUndoButtons, 0); }
     });
   });
   document.querySelectorAll('[data-undo]').forEach((b) => b.addEventListener('click', () => {
-    const f = b.dataset.undo, def = UNDO_FIELDS[f], t = def.target();
-    if (!t || !t.undo || !t.undo[f]) return;
+    const def = UNDO_FIELDS[b.dataset.undo], t = def.target();
+    if (!t || !t.undo || !t.undo[def.field]) return;
     const el = def.el();
     const cur = el.value;
-    el.value = t.undo[f].value;
-    t.undo[f] = { value: cur, at: Date.now() }; // 入れ替えるので、もう一度押せばやり直せる
-    workSaver.schedule(); updateWorkState(); renderChapterTabs();
+    el.value = t.undo[def.field].value;
+    t.undo[def.field] = { value: cur, at: Date.now() }; // 入れ替えるので、もう一度押せばやり直せる
+    (def.saver ? def.saver() : workSaver).schedule();
+    if (def.saver) refreshUndoButtons(); else { updateWorkState(); renderChapterTabs(); }
     showToast('直前の内容に戻しました（もう一度押すとやり直せます）');
   }));
-  $('copySynopsisBtn').addEventListener('click', (e) => {
-    const v = wSynopsis.value.trim();
-    if (!v) { showToast('作品の概要が空です', true); return; }
-    copyText(v, e.currentTarget);
-  });
+  // 欄の中身をコピーする（作品の概要・各画像生成プロンプト）。空ならコピーせずに知らせる
+  document.querySelectorAll('[data-copy-el]').forEach((b) => b.addEventListener('click', () => {
+    const v = $(b.dataset.copyEl).value.trim();
+    if (!v) { showToast(`${b.dataset.copyLabel || '中身'}が空です`, true); return; }
+    copyText(v, b);
+  }));
+  // 以前の本文（初稿）：完成稿に写す・消す（2026-10-12 に「本文」の段をなくした）
   $('copyBodyToFinalBtn').addEventListener('click', () => {
-    if (!chBody.value.trim()) { showToast('本文が空です', true); return; }
-    if (chFinal.value.trim()) backupField('final', chFinal.value);
+    if (!chBody.value.trim()) { showToast('以前の本文が空です', true); return; }
+    const had = !!chFinal.value.trim();
+    if (had) backupField('final', chFinal.value);
     chFinal.value = chBody.value;
     workSaver.schedule(); updateWorkState(); renderChapterTabs();
-    showToast('本文を完成稿に写しました');
+    showToast('以前の本文を完成稿に写しました' + (had ? '（前の完成稿は「直前の上書きを戻す」で戻せます）' : ''));
+  });
+  $('clearLegacyBtn').addEventListener('click', async () => {
+    const ch = getChapter(currentChapterId);
+    if (!ch) return;
+    const msg = '以前の本文（初稿）と章の筋を消します。元に戻せません。' + (chBody.value.trim() && !chFinal.value.trim() ? '\nこの章の完成稿は空です。先に「本文を完成稿に写す」を押さなくてよいですか？' : '');
+    if (!(await ask(msg, { ok: '消す', danger: true }))) return;
+    chBody.value = ''; chOutline.value = '';
+    workSaver.schedule(); await workSaver.flush();
+    $('stepBody').classList.add('is-hidden');
+    updateWorkState(); renderChapterTabs();
+    showToast('以前の本文と章の筋を消しました');
   });
 
   // ---- プロンプト合成（1回の走査で置き換え、差し込んだ文章中の {{…}} は再置換しない） ----
@@ -2632,18 +2789,20 @@
     if (kind === 'loreimg') { lore = editingLore; if (lore) readLoreForm(lore); }
     // 素材が空なら合成しない（どこを先に埋めるかを案内）
     // 3つ目は、埋める欄がある見出し（たたんであれば、トーストでそう伝える）
+    // 2026-10-12〜 章の本文は「8 完成稿」に貼るので、章の用途の素材は完成稿（なければ以前の初稿）
+    const chText = (c) => (c ? (c.final.trim() || c.body.trim()) : '');
+    const needFinal = [() => chText(ch), '先にこの章の「8 完成稿」に本文を貼ってください', 'chapter'];
+    const needPlot = [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'];
     const need = {
       plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください', 'base'],
-      kv: [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'],
-      synopsis: [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'],
-      body: [() => w.plot + (ch ? ch.outline : ''), '先に「2 設定プロット」か「この章の筋」を入力してください', 'base'],
-      summary: [() => (ch ? ch.body : ''), '先にこの章の「6 本文」を入力してください', 'chapter'],
-      polish: [() => (ch ? ch.body : ''), '先にこの章の「6 本文」を入力してください', 'chapter'],
-      chimg: [() => (ch ? ch.body : ''), '先にこの章の「6 本文」を入力してください', 'chapter'],
+      assets: needPlot, kv: needPlot, synopsis: needPlot, serial: needPlot,
+      summary: needFinal, polish: needFinal, chimg: needFinal,
       loreimg: [() => (lore ? lore.name + lore.body : ''), '先に名前か説明を入力してください', null],
     }[kind];
+    if (!need) { showToast('この用途のプロンプトは作れません', true); return; }
     if (!need[0]().trim()) { showToast(need[1] + (need[2] ? foldNote(need[2]) : ''), true); return; }
     const prev = ch ? prevSummaries(ch) : { text: '', missing: [] };
+    const WORK_WIDE = ['kv', 'synopsis', 'assets', 'serial'];
     const vars = {
       'タイトル': w.title.trim() || '（未定）',
       '名義': w.penName || NONE,
@@ -2652,25 +2811,250 @@
       '設定項目': lore ? loreItemText(lore) : NONE,
       'プロット': w.plot.trim() || NONE,
       '概要': w.synopsis.trim() || NONE,
+      '章の一覧': chapterListText(w),
       '章番号': ch ? chapterNumLabel(ch) : NONE,
       '章タイトル': ch && ch.title.trim() ? ch.title.trim() : '（無題）',
       '章の筋': ch && ch.outline.trim() ? ch.outline.trim() : NONE,
       '前章まで': prev.text || '（最初の章です）',
-      // 作品全体の用途（作品ビジュアル・作品の概要）では、全章の本文をつなげたもの
-      '本文': kind === 'kv' || kind === 'synopsis' ? (chaptersOf(w.id).map((c) => c.body.trim()).filter(Boolean).join('\n\n') || NONE) : (ch && ch.body.trim() ? ch.body.trim() : NONE),
+      // 作品全体の用途では、全章の本文（完成稿）をつなげたもの。章の用途では、その章の完成稿
+      '本文': WORK_WIDE.includes(kind) ? (chaptersOf(w.id).map(chText).filter(Boolean).join('\n\n') || NONE) : (chText(ch) || NONE),
     };
     $('out_' + kind).value = tpl.body.replace(PH_REGEX, (m, k) => vars[k]);
     $('out_' + kind + '_wrap').classList.add('is-shown');
     if (kind === 'loreimg') loreSaver.schedule(); else workSaver.schedule();
-    if (kind === 'body' && prev.missing.length && tpl.body.includes('{{前章まで}}')) {
-      showToast(`第${prev.missing.join('・')}章の要約が未入力です。つながりが弱くなる可能性があります`, 'warn');
-    }
+  }
+  // {{章の一覧}}：「第1章「タイトル」」を1行ずつ。章がまだ決まっていなければ、プロットの章立てに従うよう頼む
+  function chapterListText(w) {
+    const chs = chaptersOf(w.id);
+    if (!chs.some((c) => c.title.trim()) && chs.length <= 1) return '（章はまだ決めていません。設定とプロットの章立てに従ってください）';
+    return chs.map((c, i) => `第${i + 1}章${c.title.trim() ? '「' + c.title.trim() + '」' : ''}`).join('\n');
   }
   document.addEventListener('click', (e) => {
     const c = e.target.closest('[data-compose]');
     if (c) { composePrompt(c.dataset.compose); return; }
     const cp = e.target.closest('[data-copy]');
     if (cp) { const v = $('out_' + cp.dataset.copy).value; if (v) copyText(v, cp); }
+  });
+
+  /* =====================================================================
+     3 素材をまとめて作る：AIの出力を見出しで振り分ける（2026-10-12）
+     【作品紹介】→ 作品の概要／【キービジュアル】→ 作品のキービジュアルの画像生成プロンプト／
+     【人物：名前】→ 設定集の人物（同じ名前があればそこへ、なければ作る）の画像生成プロンプト／
+     【第n章：章タイトル】→ n番目の章（なければ作る）のタイトル画像の生成プロンプトと、空なら章タイトル
+     見出しは行の頭に書く（# や ** で飾られていてもよい）。§取り込みと同じく「目印で区切る」方式
+  ===================================================================== */
+  const asModal = $('asModal'), asText = $('asText'), asStats = $('asStats'), asPreview = $('asPreview'), asRunBtn = $('asRunBtn');
+  const AS_MARK = /^[\s#＃*>\-・]*(?:\d+[.．)）]\s*)?【([^】\n]{1,120})】[\s*]*(.*)$/; // 「## 」「**」「- 」「1. 」で飾られた見出しも読む
+  const AS_SAMPLE = /^ここに(作品紹介|画像生成プロンプト)$/; // テンプレートの見本の行
+  const AS_PROMPT_ITSELF = '出力の形（この形を必ず守る）'; // AIに渡すプロンプトそのものを貼ったときの目印
+  function kanjiNum(s) {
+    const d = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+    if (!s.includes('十')) return s.length === 1 ? (d[s] || 0) : 0;
+    const [a, b] = s.split('十');
+    if (a.length > 1 || b.length > 1) return 0;
+    return (a ? d[a] || 0 : 1) * 10 + (b ? d[b] || 0 : 0);
+  }
+  const cleanLabel = (s, max) => String(s || '').trim().replace(/^[「『"“]+|[」』"”]+$/g, '').replace(/[\s*]+$/, '').trim().slice(0, max);
+  const sameName = (a, b) => a.replace(/[\s　]/g, '') === b.replace(/[\s　]/g, '');
+  function classifyHead(head) {
+    const s = head.replace(/\s+/g, ' ').trim(), flat = s.replace(/[\s　]/g, '');
+    if (/^(作品紹介|作品の紹介|紹介文|作品の概要|概要|あらすじ)$/.test(flat)) return { kind: 'synopsis' };
+    let m = s.match(/^(?:人物|登場人物|キャラクター|キャラ)\s*[：:]\s*(.+)$/);
+    if (m) {
+      const name = cleanLabel(cleanLabel(m[1], 120).replace(/\s*[（(][^）)]*[）)]$/, ''), 100); // 「アリサ（主人公）」は「アリサ」
+      return name ? { kind: 'person', name } : { kind: null };
+    }
+    m = s.match(/^第\s*([0-9０-９]+|[一二三四五六七八九十]+)\s*章\s*[：:]?\s*(.*)$/);
+    if (m) {
+      const n = /^[0-9０-９]+$/.test(m[1]) ? Number(m[1].replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : kanjiNum(m[1]);
+      if (n >= 1) return { kind: 'chapter', num: n, title: cleanLabel(m[2], 200) };
+    }
+    if (/キービジュアル|^メインビジュアル$|^KV$/i.test(flat)) return { kind: 'kv' };
+    return { kind: null };
+  }
+  // 中身の前後の空行・区切り線を除き、全体を囲む ``` があれば外す
+  function cleanSection(lines) {
+    let ls = lines.slice();
+    const isRule = (l) => /^\s*([-*_=＝ー]\s*){3,}$/.test(l);
+    while (ls.length && (!ls[0].trim() || isRule(ls[0]))) ls.shift();
+    while (ls.length && (!ls[ls.length - 1].trim() || isRule(ls[ls.length - 1]))) ls.pop();
+    if (ls.length >= 2 && /^\s*```/.test(ls[0]) && /^\s*```\s*$/.test(ls[ls.length - 1])) ls = ls.slice(1, -1);
+    return ls.join('\n').trim();
+  }
+  function parseAssets(text) {
+    const src = String(text || '').replace(/\r\n?/g, '\n');
+    const out = { sections: [], unknown: [], before: false, empty: [], samples: 0, promptItself: src.includes(AS_PROMPT_ITSELF) };
+    let cur = null;
+    for (const line of src.split('\n')) {
+      const m = line.match(AS_MARK);
+      // 見出しだけの行は、知らない見出しでも区切りにする（中身を前の見出しに混ぜない）。
+      // 見出しの後ろに文字が続く行は、知っている見出しのときだけ区切りにする（中身の行頭の【】を見出しと取り違えない）
+      if (m && (!m[2].trim() || classifyHead(m[1]).kind)) {
+        cur = { head: m[1].trim(), info: classifyHead(m[1]), lines: m[2].trim() ? [m[2].replace(/^[：:]\s*/, '')] : [] };
+        out.sections.push(cur);
+      } else if (cur) cur.lines.push(line);
+      else if (line.trim()) out.before = true;
+    }
+    out.sections.forEach((s) => { s.body = cleanSection(s.lines); });
+    out.unknown = out.sections.filter((s) => !s.info.kind).map((s) => s.head);
+    out.empty = out.sections.filter((s) => s.info.kind && !s.body).map((s) => s.head);
+    out.samples = out.sections.filter((s) => s.info.kind && AS_SAMPLE.test(s.body)).length;
+    return out;
+  }
+  // 振り分けの計画：どの欄に何が入るか（同じ見出しが2つあれば後の方）。まだ何も書き換えない
+  function planAssets(parsed, w) {
+    const rows = [], warn = [];
+    const chs = chaptersOf(w.id);
+    const lores = loreOf(w.id);
+    const byKey = new Map();
+    let dups = 0, overMax = 0;
+    for (const s of parsed.sections) {
+      if (!s.info.kind || !s.body || AS_SAMPLE.test(s.body)) continue;
+      const i = s.info;
+      if (i.kind === 'chapter' && i.num > AS_MAX_CHAPTER) { overMax++; continue; }
+      const key = i.kind === 'person' ? 'p:' + i.name.replace(/[\s　]/g, '') : i.kind === 'chapter' ? 'c:' + i.num : i.kind;
+      if (byKey.has(key)) dups++;
+      byKey.set(key, s);
+    }
+    for (const s of byKey.values()) {
+      const i = s.info, v = s.body;
+      const row = { head: s.head, value: v, kind: i.kind, notes: [] };
+      const stateOf = (cur) => (!cur.trim() ? 'new' : cur === v ? 'same' : 'over');
+      if (i.kind === 'synopsis') { row.dest = '6 作品の概要'; row.status = stateOf(w.synopsis); }
+      else if (i.kind === 'kv') { row.dest = '5 キービジュアルの画像生成プロンプト'; row.status = stateOf(w.kvPrompt); }
+      else if (i.kind === 'person') {
+        const l = lores.find((x) => x.kind === 'person' && sameName(x.name, i.name)) || lores.find((x) => sameName(x.name, i.name));
+        row.name = i.name; row.lore = l || null;
+        row.dest = `4 設定集「${i.name}」の画像生成プロンプト`;
+        row.status = l ? stateOf(l.imgPrompt) : 'create';
+        if (!l) row.notes.push('設定集に人物を作ります');
+      } else if (i.kind === 'chapter') {
+        const ch = chs[i.num - 1] || null;
+        row.num = i.num; row.title = i.title; row.ch = ch;
+        row.dest = `第${i.num}章のタイトル画像の生成プロンプト`;
+        row.status = ch ? stateOf(ch.imgPrompt) : 'create';
+        if (!ch) row.notes.push('章を作ります' + (i.title ? `（「${i.title}」）` : ''));
+        else if (i.title && !ch.title.trim()) row.notes.push(`章タイトルを「${i.title}」にします`);
+        else if (i.title && ch.title.trim() !== i.title) { row.notes.push(`章タイトルを「${ch.title.trim()}」から「${i.title}」に変えます`); row.titleOver = true; }
+      }
+      rows.push(row);
+    }
+    const order = { synopsis: 0, kv: 1, person: 2, chapter: 3 };
+    rows.sort((a, b) => order[a.kind] - order[b.kind] || (a.num || 0) - (b.num || 0));
+    const maxNum = Math.max(0, ...rows.filter((r) => r.kind === 'chapter').map((r) => r.num));
+    const newChapters = Math.max(0, maxNum - chs.length);
+    if (parsed.promptItself) warn.push('AIに渡すプロンプトそのものを貼っていませんか？（「' + AS_PROMPT_ITSELF + '」が含まれています）AIの出力を貼ってください');
+    if (parsed.before) warn.push('最初の見出しより前の文章は入れません');
+    if (parsed.unknown.length) warn.push(`振り分け先のない見出し（${parsed.unknown.slice(0, 5).map((h) => '【' + h + '】').join('')}${parsed.unknown.length > 5 ? ' ほか' : ''}）は入れません`);
+    if (parsed.empty.length) warn.push(`中身が空の見出し ${parsed.empty.length}件は入れません`);
+    if (parsed.samples) warn.push(`見本のまま（「ここに…」）の見出し ${parsed.samples}件は入れません`);
+    if (dups) warn.push(`同じ見出しが ${dups}件重なっています（後の方を入れます）`);
+    if (overMax) warn.push(`第${AS_MAX_CHAPTER}章より後の見出し ${overMax}件は入れません`);
+    const gaps = rows.filter((r) => r.kind === 'chapter' && !r.ch).length;
+    if (newChapters > gaps) warn.push(`間の番号の章も空の章として作ります（全部で${newChapters}章を足します）`);
+    return { rows, warn, newChapters, blocked: parsed.promptItself };
+  }
+  let asPlan = null, asTimer = 0;
+  const AS_STATUS = { new: ['新しく入る', 'is-new'], create: ['新しく作る', 'is-new'], over: ['上書き', 'is-over'], same: ['同じ（変わらない）', 'is-same'] };
+  function updateAssetsPreview() {
+    const w = getWork(currentWorkId);
+    if (!w) return;
+    syncFromForm();
+    const text = asText.value;
+    if (!text.trim()) { asPlan = null; asStats.innerHTML = ''; asPreview.innerHTML = ''; asRunBtn.disabled = true; return; }
+    asPlan = planAssets(parseAssets(text), w);
+    const work = asPlan.rows.filter((r) => r.status !== 'same' || r.titleOver || (r.kind === 'chapter' && r.notes.length));
+    const n = (k) => asPlan.rows.filter((r) => r.kind === k).length;
+    const head = asPlan.rows.length
+      ? `振り分ける見出し：<strong>${asPlan.rows.length}件</strong>（作品紹介 ${n('synopsis')}・キービジュアル ${n('kv')}・人物 ${n('person')}・章 ${n('chapter')}）`
+      : '<strong>振り分けられる見出しがありません。</strong>【作品紹介】【キービジュアル】【人物：名前】【第1章：章タイトル】の形の見出しを、行の頭に書いてください';
+    asStats.innerHTML = head + asPlan.warn.map((x) => `<span class="warn">・${escapeHtml(x)}</span>`).join('');
+    asPreview.innerHTML = asPlan.rows.length ? '<tr><th>見出し</th><th>入る先</th><th>状態</th></tr>' + asPlan.rows.map((r) => {
+      const st = AS_STATUS[r.status];
+      return `<tr><td>【${escapeHtml(r.head)}】<span class="as-snip">${escapeHtml(r.value.replace(/\s+/g, ' ').slice(0, 60))}</span></td>
+        <td>${escapeHtml(r.dest)}${r.notes.map((x) => `<span class="as-snip">${escapeHtml(x)}</span>`).join('')}</td>
+        <td class="as-st ${r.titleOver && r.status === 'same' ? 'is-over' : st[1]}">${r.titleOver && r.status === 'same' ? '章タイトルだけ変わる' : st[0]}</td></tr>`;
+    }).join('') : '';
+    asRunBtn.disabled = asPlan.blocked || work.length === 0;
+  }
+  function openAssetsModal() {
+    if (!getWork(currentWorkId)) return;
+    asText.value = '';
+    updateAssetsPreview();
+    asModal.classList.add('is-open');
+    setTimeout(() => asText.focus(), 0);
+  }
+  function closeAssetsModal() { asModal.classList.remove('is-open'); clearTimeout(asTimer); }
+  $('assetsPasteBtn').addEventListener('click', openAssetsModal);
+  $('asCloseBtn').addEventListener('click', closeAssetsModal);
+  $('asCancelBtn').addEventListener('click', closeAssetsModal);
+  asModal.addEventListener('click', (e) => { if (e.target === asModal) closeAssetsModal(); });
+  asText.addEventListener('input', () => { clearTimeout(asTimer); asTimer = setTimeout(updateAssetsPreview, 200); });
+  // 作品・章・設定集の書き込みを1つのトランザクションで行う（途中で失敗したら何も変わらない）
+  function putMany(items) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(Array.from(new Set(items.map((x) => x.store))), 'readwrite');
+      items.forEach((x) => tx.objectStore(x.store).put(x.value));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('書き込みを中止しました'));
+    });
+  }
+  asRunBtn.addEventListener('click', async () => {
+    const w = getWork(currentWorkId);
+    if (!w) return;
+    await workSaver.flush();
+    updateAssetsPreview(); // 入力の直後に押しても、最新の中身で計画し直す
+    if (!asPlan || asRunBtn.disabled) return;
+    const overs = asPlan.rows.filter((r) => r.status === 'over').length + asPlan.rows.filter((r) => r.titleOver).length;
+    if (overs && !(await ask(`${overs}件の欄を上書きします。\n上書きする前の中身は、各欄の「直前の上書きを戻す」で1回だけ戻せます（章タイトルは戻せません）。`, { ok: '上書きして振り分ける' }))) return;
+    // 写しに書き込んでから保存し、保存できたら画面の記録に反映する
+    const now = Date.now();
+    const wc = JSON.parse(JSON.stringify(w));
+    const chs = chaptersOf(w.id);
+    const chCopies = new Map(), loreCopies = new Map(), newChs = [], newLores = [];
+    let lastOrder = chs.length ? chs[chs.length - 1].order : 0;
+    const allChs = chs.slice();
+    for (let n = chs.length + 1; n <= asPlan.newChapters + chs.length; n++) { const c = newChapter(w.id, ++lastOrder); newChs.push(c); allChs.push(c); }
+    const chCopy = (c) => { if (newChs.includes(c)) return c; if (!chCopies.has(c.id)) chCopies.set(c.id, JSON.parse(JSON.stringify(c))); return chCopies.get(c.id); };
+    const set = (t, field, v) => { if (t[field] === v) return; backupInto(t, field, t[field]); t[field] = v; };
+    for (const r of asPlan.rows) {
+      if (r.kind === 'synopsis') set(wc, 'synopsis', r.value);
+      else if (r.kind === 'kv') set(wc, 'kvPrompt', r.value);
+      else if (r.kind === 'person') {
+        let l = r.lore ? (loreCopies.get(r.lore.id) || JSON.parse(JSON.stringify(r.lore))) : null;
+        if (!l) { l = { id: genId('lr'), workId: w.id, kind: 'person', name: r.name, body: '', imgPrompt: '', undo: {}, createdAt: now, updatedAt: now }; newLores.push(l); }
+        else loreCopies.set(l.id, l);
+        set(l, 'imgPrompt', r.value); l.updatedAt = now;
+      } else if (r.kind === 'chapter') {
+        const c = chCopy(allChs[r.num - 1]);
+        set(c, 'imgPrompt', r.value);
+        if (r.title && c.title.trim() !== r.title) c.title = r.title;
+        c.updatedAt = now;
+      }
+    }
+    wc.updatedAt = now;
+    const items = [{ store: S.works, value: wc }]
+      .concat(Array.from(chCopies.values()).concat(newChs).map((value) => ({ store: S.chapters, value })))
+      .concat(Array.from(loreCopies.values()).concat(newLores).map((value) => ({ store: S.lore, value })));
+    try { await putMany(items); }
+    catch (err) { console.error('振り分けの保存に失敗しました', err); showToast('保存できなかったため、何も変えていません', true); return; }
+    Object.assign(w, wc);
+    chCopies.forEach((c, id) => Object.assign(getChapter(id), c));
+    newChs.forEach((c) => chapters.push(c));
+    loreCopies.forEach((l, id) => Object.assign(getLore(id), l));
+    newLores.forEach((l) => loreList.push(l));
+    closeAssetsModal();
+    wSynopsis.value = w.synopsis; wKvPrompt.value = w.kvPrompt;
+    renderLore();
+    selectChapter(currentChapterId, true); // 章の欄・タブ・済みの印を、書き込んだ中身で出し直す
+    const n = (k) => asPlan.rows.filter((r) => r.kind === k).length;
+    const parts = [];
+    if (n('synopsis')) parts.push('作品紹介');
+    if (n('kv')) parts.push('キービジュアル');
+    if (n('person')) parts.push(`人物${n('person')}件` + (newLores.length ? `（新しく${newLores.length}件）` : ''));
+    if (n('chapter')) parts.push(`章${n('chapter')}件` + (newChs.length ? `（新しく${newChs.length}章）` : ''));
+    showToast('振り分けました：' + parts.join('・'));
   });
 
   /* =====================================================================
@@ -3026,7 +3410,7 @@
       templates = templates.filter((x) => x !== t);
       for (const w of works) {
         let changed = false;
-        KIND_ORDER.forEach((k) => { if (w.tpl[k] === t.id) { delete w.tpl[k]; changed = true; } });
+        ALL_KINDS.forEach((k) => { if (w.tpl[k] === t.id) { delete w.tpl[k]; changed = true; } });
         if (changed) { try { await put(S.works, w); } catch (err) { console.error(err); } }
       }
       renderTemplates();
@@ -3261,7 +3645,7 @@
         netaIds: w0.netaIds.map((id) => idMap.get(id) || id),
         tpl: {},
       });
-      KIND_ORDER.forEach((k) => { if (w0.tpl[k]) w.tpl[k] = idMap.get(w0.tpl[k]) || w0.tpl[k]; });
+      ALL_KINDS.forEach((k) => { if (w0.tpl[k]) w.tpl[k] = idMap.get(w0.tpl[k]) || w0.tpl[k]; });
       if (isDup) w.title = suffix(w.title, 200);
       try {
         // 上書きの場合は作品単位で丸ごと入れ替える（手元にだけある章・設定・画像を消す）
@@ -3331,6 +3715,7 @@
     if (confirmOverlay.classList.contains('is-open')) { closeConfirm(false); return; }
     if (tplModal.classList.contains('is-open')) { closeTplModal(); return; }
     if (importModal.classList.contains('is-open')) { closeImportModal(); return; }
+    if (asModal.classList.contains('is-open')) { closeAssetsModal(); return; }
     if (loreModal.classList.contains('is-open')) { closeLoreModal(); return; }
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
     if (niModal.classList.contains('is-open')) { closeNetaImport(); return; }
