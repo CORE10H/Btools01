@@ -206,6 +206,28 @@
   .step-toggle[aria-expanded="false"] .gt-arrow { transform: rotate(-90deg); }
   .step-block.is-legacy { border-style: dashed; border-color: var(--amber-dim); }
   .step-block.is-legacy .step-num { border-color: var(--amber-dim); color: var(--amber); font-size: 10px; }
+  /* 注釈の強調（2026-10-13）：入力欄の下に同じ文字組みの層を敷き、[…]・〔〔…〕〕 の所だけ色を塗る。
+     入力欄の文字はそのまま上に見える（日本語の変換中の文字も見える）。注釈がなければ何も塗らない */
+  .hl-wrap { position: relative; }
+  .hl-wrap > textarea { position: relative; z-index: 1; display: block; background: transparent !important; }
+  .hl-back { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border: 1px solid transparent; box-sizing: border-box; background: var(--bg); }
+  .modal-body .hl-back { background: var(--bg-alt); }
+  .hl-back mark { color: transparent; border-radius: 2px; }
+  .hl-back mark.an-sq, .rt-an-sq { background: var(--amber-dim); background: color-mix(in srgb, var(--amber) 48%, transparent); box-shadow: 0 0 0 1px var(--amber); }
+  .hl-back mark.an-dk, .rt-an-dk { background: var(--magenta-dim); background: color-mix(in srgb, var(--magenta) 48%, transparent); box-shadow: 0 0 0 1px var(--magenta); }
+  .rt-an-sq, .rt-an-dk { color: var(--text); border-radius: 2px; }
+  /* 検索・置換 */
+  .find-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .find-list { display: flex; flex-direction: column; gap: 8px; }
+  .find-list:empty { display: none; }
+  .fd-group { border: 1px solid var(--line-soft); background: var(--bg); padding: 6px 8px; }
+  .fd-head { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+  .fd-label { flex: 1; min-width: 0; font-weight: 600; }
+  .fd-count { font-family: var(--font-display); font-size: 12px; color: var(--cyan); flex-shrink: 0; }
+  .fd-hit { display: block; width: 100%; text-align: left; background: transparent; border: none; border-top: 1px dashed var(--line-soft); margin-top: 4px; padding: 4px 2px 2px 24px; font-size: 11.5px; color: var(--text-dim); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fd-hit:hover { color: var(--cyan); }
+  .fd-hit mark { background: var(--cyan-dim); color: var(--text); padding: 0 1px; }
+  .fd-more { font-size: 10.5px; color: var(--text-faint); padding: 4px 0 0 24px; }
   /* 素材の振り分けの確認 */
   .as-table th, .as-table td { text-align: left !important; vertical-align: top; }
   .as-table td { line-height: 1.6; }
@@ -389,6 +411,7 @@
     .wr-thumb { width: 72px; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
     .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "body" "foot"; align-items: start; }
+    .find-row { grid-template-columns: 1fr; }
     .nc-foot { justify-content: flex-start; max-width: none; }
     .step-hint { display: none; }
     .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
@@ -477,6 +500,7 @@
             <button type="button" class="btn" id="workBackBtn">← 戻る</button>
             <input type="text" class="edit-title-input" id="wTitle" placeholder="作品タイトル（未定なら空欄のまま）" maxlength="200">
             <span class="stage-badge" id="wStage" data-stage="idea">構想</span>
+            <button type="button" class="btn small" id="findBtn" title="この作品の中の文字を検索・置換">検索・置換</button>
           </div>
           <div class="edit-sub">
             <span>作品ID</span>
@@ -795,6 +819,28 @@
       <span class="left" id="loreSaveInd">入力は自動で保存されます</span>
       <button type="button" class="btn danger" id="loreDeleteBtn">削除</button>
       <button type="button" class="btn primary" id="loreDoneBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- この作品の中を検索・置換（2026-10-13） -->
+<div class="modal-overlay" id="findModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="findModalTitle">
+    <div class="modal-head"><span class="modal-title" id="findModalTitle">この作品の中を検索・置換</span><button type="button" class="modal-close" id="findCloseBtn" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="find-row">
+        <input type="text" class="field-input" id="findQ" maxlength="200" placeholder="検索する文字" aria-label="検索する文字">
+        <input type="text" class="field-input" id="findR" maxlength="2000" placeholder="置き換える文字（空なら削除）" aria-label="置き換える文字">
+      </div>
+      <label class="check-row"><input type="checkbox" id="findCi">英字の大文字・小文字を区別しない</label>
+      <div class="field-hint">対象：作品タイトル・設定プロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章（章タイトル・完成稿・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません。結果を押すと、その場所を開きます。</div>
+      <div class="import-stats" id="findStats"></div>
+      <div class="find-list" id="findList"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn small is-hidden" id="findUndoBtn" style="margin-right:auto">直前の置換を元に戻す</button>
+      <button type="button" class="btn" id="findDoneBtn">閉じる</button>
+      <button type="button" class="btn primary" id="findReplaceBtn">選んだ欄を置換</button>
     </div>
   </div>
 </div>
@@ -2341,6 +2387,7 @@
     const w = getWork(currentWorkId);
     await workSaver.flush();
     if (w && isWorkBlank(w)) await deleteWorkCascade(w); // 何も入力しないまま離れた作品は残さない
+    findUndo = null; // 置換の取り消しは、その作品を開いている間だけ
     currentWorkId = null; currentChapterId = null;
     works.sort((a, b) => b.updatedAt - a.updatedAt);
     updateBackupAlert();
@@ -3057,6 +3104,311 @@
     showToast('振り分けました：' + parts.join('・'));
   });
 
+
+  /* =====================================================================
+     注釈の強調（2026-10-13）：[…] と 〔〔…〕〕 を、記号ごと色で強調する
+     入力欄（textarea）の文字には色を付けられないので、同じ文字組みの層（.hl-back）を入力欄の下に敷き、
+     注釈の所だけ <mark> で色を塗る（よく使われる「textarea の中を強調する」方法）。入力欄の文字はそのまま上に見える
+     - [ ] は1行の中だけ（閉じていない [ で、その先が全部塗られないように）。〔〔 〕〕 は複数行でもよい（2000字まで）
+  ===================================================================== */
+  const ANNOT_RE = /\[[^\[\]\n]{0,200}\]|〔〔[\s\S]{0,2000}?〕〕/g;
+  const annotList = (text) => String(text || '').match(ANNOT_RE) || [];
+  function annotHtml(text) {
+    let out = '', last = 0, m, found = false;
+    ANNOT_RE.lastIndex = 0;
+    while ((m = ANNOT_RE.exec(text))) {
+      found = true;
+      out += escapeHtml(text.slice(last, m.index)) + `<mark class="${m[0][0] === '[' ? 'an-sq' : 'an-dk'}">${escapeHtml(m[0])}</mark>`;
+      last = m.index + m[0].length;
+    }
+    // 末尾が改行のとき、入力欄には空の行が1つあるので、層にも行を作る
+    return found ? out + escapeHtml(text.slice(last)) + (text.endsWith('\n') ? ' ' : '') : '';
+  }
+  // 文字組みに関わる見た目を写す（強調の層・カーソル位置の計測で使う）
+  const TEXT_STYLE_PROPS = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'wordSpacing', 'tabSize', 'textIndent', 'textTransform', 'fontFeatureSettings', 'fontKerning', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'];
+  function copyTextStyles(src, dst) {
+    const cs = getComputedStyle(src);
+    TEXT_STYLE_PROPS.forEach((p) => { dst.style[p] = cs[p]; });
+    return cs;
+  }
+  const hlDesc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+  const hlAll = [];
+  function hlRender(h) {
+    h.queued = false;
+    const v = h.ta.value;
+    const html = annotHtml(v);
+    if (html === h.last && !h.force) { h.back.scrollTop = h.ta.scrollTop; return; }
+    h.force = false; h.last = html;
+    h.back.innerHTML = html;
+    if (!html) return;
+    const cs = copyTextStyles(h.ta, h.back);
+    // 入力欄にスクロールバーが出ていれば、その幅だけ層の右の余白を広げる（折り返しの位置をそろえる）
+    const sb = h.ta.offsetWidth - h.ta.clientWidth - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth);
+    h.back.style.paddingRight = (parseFloat(cs.paddingRight) + Math.max(0, sb)) + 'px';
+    h.back.scrollTop = h.ta.scrollTop; h.back.scrollLeft = h.ta.scrollLeft;
+  }
+  function hlSchedule(h, force) {
+    if (force) h.force = true;
+    if (h.queued) return;
+    h.queued = true;
+    (window.requestAnimationFrame || ((f) => setTimeout(f, 16)))(() => hlRender(h));
+  }
+  function setupHighlight(ta) {
+    const wrap = document.createElement('div');
+    wrap.className = 'hl-wrap';
+    const back = document.createElement('div');
+    back.className = 'hl-back'; back.setAttribute('aria-hidden', 'true');
+    ta.parentNode.insertBefore(wrap, ta);
+    wrap.appendChild(back); wrap.appendChild(ta);
+    const h = { ta, back, last: null, queued: false, force: false };
+    hlAll.push(h);
+    // 行の高さを整数のpxにそろえる（1.95倍などで端数が出ると、入力欄と層で行の位置の丸め方が違い、1〜2pxずれるため）
+    const cs = getComputedStyle(ta), fs = parseFloat(cs.fontSize);
+    const lh = /px$/.test(cs.lineHeight) ? parseFloat(cs.lineHeight) : parseFloat(cs.lineHeight) * fs;
+    if (lh > 0) ta.style.lineHeight = Math.round(lh) + 'px';
+    // プログラムから value を入れたとき（章の切り替え・戻す・置換など）も描き直す
+    Object.defineProperty(ta, 'value', { configurable: true, get() { return hlDesc.get.call(this); }, set(v) { hlDesc.set.call(this, v); hlSchedule(h); } });
+    ta.addEventListener('input', () => hlSchedule(h));
+    ta.addEventListener('scroll', () => { back.scrollTop = ta.scrollTop; back.scrollLeft = ta.scrollLeft; });
+    if (window.ResizeObserver) new ResizeObserver(() => hlSchedule(h, true)).observe(ta); // 幅・高さが変わると折り返しが変わる
+    hlSchedule(h, true);
+  }
+  ['wPlot', 'wSynopsis', 'wKvPrompt', 'chFinal', 'chImgPrompt', 'chSummary', 'chBody', 'chOutline', 'loreBody', 'loreImgPrompt', 'netaBody'].forEach((id) => setupHighlight($(id)));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => hlAll.forEach((h) => hlSchedule(h, true))); // 字体が読み込まれると幅が変わる
+  // 閲覧の画面：文字を注釈とそれ以外に分けて入れる（textContent と span だけで組む）
+  function appendAnnotated(el, text) {
+    let last = 0, m;
+    ANNOT_RE.lastIndex = 0;
+    while ((m = ANNOT_RE.exec(text))) {
+      if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const s = document.createElement('span');
+      s.className = m[0][0] === '[' ? 'rt-an-sq' : 'rt-an-dk';
+      s.textContent = m[0];
+      el.appendChild(s);
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+  }
+  // 完成稿に注釈が残ったまま書き出す・登録する・コピーするときの確認（止めはしない）
+  async function confirmAnnotations(w, chs, question, okLabel) {
+    const all = chaptersOf(w.id);
+    const per = chs.map((c) => ({ c, list: annotList(c.final) })).filter((x) => x.list.length);
+    if (!per.length) return true;
+    const total = per.reduce((s, x) => s + x.list.length, 0);
+    const lines = per.slice(0, 8).map((x) => `第${all.indexOf(x.c) + 1}章：${x.list.length}か所（${x.list[0].replace(/\s+/g, ' ').slice(0, 24)}${x.list.length > 1 ? ' ほか' : ''}）`);
+    return ask(`完成稿に注釈（[…] や 〔〔…〕〕）が ${total}か所残っています。\n${lines.join('\n')}${per.length > 8 ? '\nほか' : ''}\n\n${question}`, { ok: okLabel });
+  }
+
+  /* =====================================================================
+     この作品の中を検索・置換（2026-10-13）
+     対象は作品の文字の欄すべて（ネタはほかの作品と共有なので含まない）。検索は文字そのまま（正規表現にはしない）。
+     置換は欄ごとに選べ、作品・章・設定集を1つのトランザクションで書く。「直前の置換を元に戻す」は、
+     置換の後に書き換えた欄は戻さない（その後の編集を消さないように）
+  ===================================================================== */
+  const findModal = $('findModal'), findQ = $('findQ'), findR = $('findR'), findCi = $('findCi'), findStats = $('findStats'), findList = $('findList'), findReplaceBtn = $('findReplaceBtn'), findUndoBtn = $('findUndoBtn');
+  const FIND_HITS_SHOWN = 5;      // 1つの欄に出す結果の数
+  const FIND_MAX_PER_FIELD = 5000; // 1つの欄で数える上限（重くしない）
+  let findResult = null, findTimer = 0, findUndo = null;
+  const findPicked = new Map(); // 欄のキー → 置換するか（検索をやり直しても選んだ状態を残す）
+  function findTargets(w) {
+    const t = [];
+    const add = (kind, rec, field, label, max) => t.push({ key: `${kind}:${rec.id}:${field}`, kind, rec, field, label, max });
+    add('w', w, 'title', '作品タイトル', 200);
+    add('w', w, 'plot', '2 設定プロット', 500000);
+    loreOf(w.id).forEach((l) => {
+      const nm = `4 設定集「${l.name.trim() || '（名前なし）'}」`;
+      add('l', l, 'name', nm + 'の名前', 100); add('l', l, 'body', nm + 'の説明', 100000); add('l', l, 'imgPrompt', nm + 'の画像生成プロンプト', 100000);
+    });
+    add('w', w, 'kvPrompt', '5 キービジュアルの画像生成プロンプト', 100000);
+    add('w', w, 'synopsis', '6 作品の概要', 100000);
+    chaptersOf(w.id).forEach((c, i) => {
+      const n = `第${i + 1}章`;
+      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'final', n + ' 8 完成稿', 2000000); add('c', c, 'imgPrompt', n + ' 9 タイトル画像の生成プロンプト', 100000);
+      add('c', c, 'summary', n + ' 11 要約', 100000); add('c', c, 'body', n + ' 以前の初稿', 2000000); add('c', c, 'outline', n + ' 以前の章の筋', 100000);
+    });
+    return t;
+  }
+  function findRegex(q, ci) { return new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), ci ? 'giu' : 'gu'); }
+  function runFind() {
+    const w = getWork(currentWorkId);
+    const q = findQ.value;
+    if (!w || !q) { findResult = null; findStats.innerHTML = q ? '' : '検索する文字を入れてください'; findList.innerHTML = ''; updateFindButtons(); return; }
+    syncFromForm();
+    if (!findResult || findResult.q !== q || findResult.ci !== findCi.checked) findPicked.clear(); // 検索をやり直したら、欄の選択は全部に戻す
+    const re = findRegex(q, findCi.checked);
+    const groups = [];
+    for (const t of findTargets(w)) {
+      const v = String(t.rec[t.field] || '');
+      if (!v) continue;
+      const hits = [];
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(v)) && hits.length < FIND_MAX_PER_FIELD) hits.push({ pos: m.index, len: m[0].length });
+      if (hits.length) groups.push(Object.assign({}, t, { value: v, hits }));
+    }
+    findResult = { q, ci: findCi.checked, groups };
+    const total = groups.reduce((s, g) => s + g.hits.length, 0);
+    findStats.innerHTML = total ? `<strong>${total}件</strong>（${groups.length}欄）見つかりました` : `「${escapeHtml(q)}」は見つかりません`;
+    findList.innerHTML = groups.map((g) => {
+      const on = findPicked.has(g.key) ? findPicked.get(g.key) : true;
+      const hitsHtml = g.hits.slice(0, FIND_HITS_SHOWN).map((h) => {
+        const a = Math.max(0, h.pos - 24), b = Math.min(g.value.length, h.pos + h.len + 36);
+        const snip = (a ? '…' : '') + escapeHtml(g.value.slice(a, h.pos).replace(/\s+/g, ' ')) + '<mark>' + escapeHtml(g.value.slice(h.pos, h.pos + h.len)) + '</mark>' + escapeHtml(g.value.slice(h.pos + h.len, b).replace(/\s+/g, ' ')) + (b < g.value.length ? '…' : '');
+        return `<button type="button" class="fd-hit" data-fkey="${escapeHtml(g.key)}" data-pos="${h.pos}" data-len="${h.len}">${snip}</button>`;
+      }).join('');
+      return `<div class="fd-group"><label class="fd-head"><input type="checkbox" data-fpick="${escapeHtml(g.key)}"${on ? ' checked' : ''}><span class="fd-label">${escapeHtml(g.label)}</span><span class="fd-count">${g.hits.length}件</span></label>${hitsHtml}${g.hits.length > FIND_HITS_SHOWN ? `<div class="fd-more">ほか ${g.hits.length - FIND_HITS_SHOWN}件</div>` : ''}</div>`;
+    }).join('');
+    updateFindButtons();
+  }
+  const pickedGroups = () => (findResult ? findResult.groups.filter((g) => (findPicked.has(g.key) ? findPicked.get(g.key) : true)) : []);
+  function updateFindButtons() {
+    const gs = pickedGroups();
+    const n = gs.reduce((s, g) => s + g.hits.length, 0);
+    findReplaceBtn.disabled = n === 0;
+    findReplaceBtn.textContent = n ? `選んだ欄の ${n}件を置換` : '選んだ欄を置換';
+    findUndoBtn.classList.toggle('is-hidden', !(findUndo && findUndo.workId === currentWorkId));
+  }
+  async function openFindModal() {
+    if (!getWork(currentWorkId)) return;
+    await workSaver.flush();
+    findModal.classList.add('is-open');
+    runFind();
+    setTimeout(() => { findQ.focus(); findQ.select(); }, 0);
+  }
+  function closeFindModal() { findModal.classList.remove('is-open'); clearTimeout(findTimer); }
+  $('findBtn').addEventListener('click', openFindModal);
+  $('findCloseBtn').addEventListener('click', closeFindModal);
+  $('findDoneBtn').addEventListener('click', closeFindModal);
+  findModal.addEventListener('click', (e) => { if (e.target === findModal) closeFindModal(); });
+  findQ.addEventListener('input', () => { clearTimeout(findTimer); findTimer = setTimeout(runFind, 200); });
+  findCi.addEventListener('change', runFind);
+  findQ.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); clearTimeout(findTimer); runFind(); } });
+  findList.addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-fpick]');
+    if (cb) { findPicked.set(cb.dataset.fpick, cb.checked); updateFindButtons(); }
+  });
+  // 結果を押すと、その場所を開いて一致した文字を選ぶ（たたんでいれば開く）
+  findList.addEventListener('click', async (e) => {
+    const b = e.target.closest('.fd-hit');
+    if (!b || !findResult) return;
+    const g = findResult.groups.find((x) => x.key === b.dataset.fkey);
+    if (!g) return;
+    const pos = Number(b.dataset.pos), len = Number(b.dataset.len);
+    closeFindModal();
+    let el = null;
+    if (g.kind === 'w') {
+      if (g.field !== 'title' && isFolded('base')) setFold('base', false);
+      el = { title: wTitle, plot: wPlot, synopsis: wSynopsis, kvPrompt: wKvPrompt }[g.field];
+    } else if (g.kind === 'c') {
+      if (isFolded('chapter')) setFold('chapter', false);
+      if (g.field === 'summary' && isFolded('summary')) setFold('summary', false);
+      if (currentChapterId !== g.rec.id) await selectChapter(g.rec.id);
+      el = { title: chTitle, final: chFinal, imgPrompt: chImgPrompt, summary: chSummary, body: chBody, outline: chOutline }[g.field];
+    } else if (g.kind === 'l') {
+      if (isFolded('base')) setFold('base', false);
+      await openLoreModal(g.rec);
+      el = { name: loreName, body: loreBody, imgPrompt: loreImgPrompt }[g.field];
+    }
+    if (el) focusMatch(el, pos, len);
+  });
+  // 入力欄の中で pos の文字が何pxの高さにあるか（同じ文字組みの見えない箱で測る）
+  function caretTop(ta, pos) {
+    const m = document.createElement('div');
+    copyTextStyles(ta, m);
+    Object.assign(m.style, { position: 'absolute', visibility: 'hidden', left: '-9999px', top: '0', boxSizing: 'border-box', borderStyle: 'solid', borderColor: 'transparent', width: ta.offsetWidth + 'px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' });
+    const sb = ta.offsetWidth - ta.clientWidth - parseFloat(m.style.borderLeftWidth) - parseFloat(m.style.borderRightWidth);
+    m.style.paddingRight = (parseFloat(m.style.paddingRight) + Math.max(0, sb)) + 'px';
+    m.textContent = ta.value.slice(0, pos);
+    const s = document.createElement('span');
+    s.textContent = '​';
+    m.appendChild(s);
+    document.body.appendChild(m);
+    const top = s.offsetTop;
+    m.remove();
+    return top;
+  }
+  function focusMatch(el, pos, len) {
+    setTimeout(() => {
+      el.scrollIntoView({ block: 'center' });
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(pos, pos + len);
+      if (el.tagName === 'TEXTAREA') el.scrollTop = Math.max(0, caretTop(el, pos) - el.clientHeight / 3);
+    }, 0);
+  }
+  findReplaceBtn.addEventListener('click', async () => {
+    const w = getWork(currentWorkId);
+    if (!w) return;
+    await workSaver.flush();
+    runFind(); // 押した時点の中身で数え直す
+    const gs = pickedGroups();
+    const n = gs.reduce((s, g) => s + g.hits.length, 0);
+    if (!n) return;
+    const q = findResult.q, r = findR.value;
+    const re = findRegex(q, findResult.ci);
+    const plan = [], tooLong = [];
+    for (const g of gs) {
+      re.lastIndex = 0;
+      const after = g.value.replace(re, () => r); // $& などの特別な書き方は使わない（そのままの文字に置き換える）
+      if (after.length > g.max) tooLong.push(g.label); else plan.push({ g, after });
+    }
+    const cnt = plan.reduce((s, p) => s + p.g.hits.length, 0);
+    if (!plan.length) { showToast(`置き換えると長すぎる欄しかないため、置換しませんでした（${tooLong.join('・')}）`, true); return; }
+    const what = r ? `「${q}」を「${r}」に置き換えます` : `「${q}」を消します（空の文字に置き換えます）`;
+    const msg = `${what}。\n${cnt}件（${plan.length}欄）が変わります。` + (tooLong.length ? `\n置き換えると長すぎる欄（${tooLong.join('・')}）は置換しません。` : '')
+      + '\n「直前の置換を元に戻す」で元に戻せます（この作品を開いている間）。';
+    if (!(await ask(msg, { ok: r ? '置き換える' : '消す', danger: !r }))) return;
+    // 写しに書いて保存し、保存できてから画面の記録に反映する（失敗したら何も変えない）
+    const now = Date.now();
+    const copies = new Map();
+    const copyOf = (g) => {
+      const id = g.kind + ':' + g.rec.id;
+      if (!copies.has(id)) copies.set(id, { kind: g.kind, rec: g.rec, value: JSON.parse(JSON.stringify(g.rec)) });
+      return copies.get(id).value;
+    };
+    const entries = [];
+    plan.forEach(({ g, after }) => { const c = copyOf(g); entries.push({ kind: g.kind, id: g.rec.id, field: g.field, before: g.value, after }); c[g.field] = after; c.updatedAt = now; });
+    const storeOf = { w: S.works, c: S.chapters, l: S.lore };
+    try { await putMany(Array.from(copies.values()).map((x) => ({ store: storeOf[x.kind], value: x.value }))); }
+    catch (err) { console.error('置換の保存に失敗しました', err); showToast('保存できなかったため、何も変えていません', true); return; }
+    copies.forEach((x) => Object.assign(x.rec, x.value));
+    findUndo = { workId: w.id, q, r, entries };
+    refreshEditorAfterBulk(w);
+    runFind();
+    showToast(`${cnt}件を置き換えました`);
+  });
+  findUndoBtn.addEventListener('click', async () => {
+    const w = getWork(currentWorkId);
+    if (!w || !findUndo || findUndo.workId !== w.id) return;
+    await workSaver.flush();
+    syncFromForm();
+    const recOf = (e) => (e.kind === 'w' ? getWork(e.id) : e.kind === 'c' ? getChapter(e.id) : getLore(e.id));
+    const ok = findUndo.entries.filter((e) => { const rec = recOf(e); return rec && String(rec[e.field] || '') === e.after; });
+    const skipped = findUndo.entries.length - ok.length;
+    if (!(await ask(`直前の置換（「${findUndo.q}」→「${findUndo.r}」）を元に戻します。${ok.length}欄が戻ります。` + (skipped ? `\n置換の後に書き換えた（または消した）${skipped}欄は戻しません。` : ''), { ok: '元に戻す' }))) return;
+    const now = Date.now();
+    const copies = new Map();
+    ok.forEach((e) => {
+      const rec = recOf(e), id = e.kind + ':' + e.id;
+      if (!copies.has(id)) copies.set(id, { kind: e.kind, rec, value: JSON.parse(JSON.stringify(rec)) });
+      const c = copies.get(id).value;
+      c[e.field] = e.before; c.updatedAt = now;
+    });
+    const storeOf = { w: S.works, c: S.chapters, l: S.lore };
+    try { await putMany(Array.from(copies.values()).map((x) => ({ store: storeOf[x.kind], value: x.value }))); }
+    catch (err) { console.error('置換の取り消しに失敗しました', err); showToast('保存できなかったため、元に戻せませんでした', true); return; }
+    copies.forEach((x) => Object.assign(x.rec, x.value));
+    findUndo = null;
+    refreshEditorAfterBulk(w);
+    runFind();
+    showToast(`置換を元に戻しました（${ok.length}欄）` + (skipped ? `。${skipped}欄は置換の後に書き換えていたので、そのままです` : ''));
+  });
+  // まとめて書き換えた後に、作品エディタの欄・章のタブ・設定集を出し直す
+  function refreshEditorAfterBulk(w) {
+    wTitle.value = w.title; wPlot.value = w.plot; wSynopsis.value = w.synopsis; wKvPrompt.value = w.kvPrompt;
+    renderLore();
+    selectChapter(currentChapterId, true);
+  }
+
   /* =====================================================================
      画像スロット（表紙・カバー・章の画像・設定画像）
   ===================================================================== */
@@ -3232,6 +3584,7 @@
       if (badUrl) { showToast(`${chapterNumLabel(badUrl)}の公開URLの形式を確認してください`, true); return; }
       const lacking = chs.map((c, i) => (c.final.trim() ? null : i + 1)).filter(Boolean);
       if (lacking.length && !(await ask(`第${lacking.join('・')}章には完成稿がありません。\n本棚では完成稿のある章だけが表示されます。登録しますか？`, { ok: '登録する' }))) return;
+      if (!(await confirmAnnotations(w, done, 'このまま本棚に登録しますか？', '登録する'))) return;
       w.isBook = true; w.bookAt = Date.now(); workReturnTab = 'shelf';
     }
     workSaver.schedule();
@@ -3261,6 +3614,7 @@
     await workSaver.flush();
     const md = workMarkdown(w, null);
     if (!md) { showToast('完成稿のある章がありません', true); return; }
+    if (!(await confirmAnnotations(w, chaptersOf(w.id), 'このまま書き出しますか？', '書き出す'))) return;
     downloadText(md, `${safeFileName(w.title, '無題')}_${dateStamp(new Date())}.md`);
     showToast('完成稿を書き出しました');
   });
@@ -3270,6 +3624,7 @@
     await workSaver.flush();
     const md = workMarkdown(w, ch);
     if (!md) { showToast('この章には完成稿がありません', true); return; }
+    if (!(await confirmAnnotations(w, [ch], 'このまま書き出しますか？', '書き出す'))) return;
     downloadText(md, `${safeFileName(w.title, '無題')}_${chapterNumLabel(ch)}_${dateStamp(new Date())}.md`);
     showToast('この章の完成稿を書き出しました');
   });
@@ -3337,7 +3692,7 @@
         const a = document.createElement('a'); a.href = c.publishUrl; a.target = '_blank'; a.rel = 'noopener noreferrer';
         a.textContent = '公開ページを開く'; p.appendChild(a); sec.appendChild(p);
       }
-      const b = document.createElement('div'); b.className = 'rt-body'; b.textContent = c.final; sec.appendChild(b);
+      const b = document.createElement('div'); b.className = 'rt-body'; appendAnnotated(b, c.final); sec.appendChild(b); // 注釈（[…]・〔〔…〕〕）は色で強調
       readerText.appendChild(sec);
       if (shown.length > 1) {
         const t = document.createElement('button'); t.type = 'button'; t.textContent = label;
@@ -3361,11 +3716,13 @@
     if (!readerVertical) return;
     if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); readerText.scrollLeft -= e.deltaY; }
   }, { passive: false });
-  $('readerCopyBtn').addEventListener('click', (e) => {
-    const w = getWork(readerWorkId);
+  $('readerCopyBtn').addEventListener('click', async (e) => {
+    const w = getWork(readerWorkId), btn = e.currentTarget;
     if (!w) return;
     const md = workMarkdown(w, null);
-    if (md) copyText(md.replace(/^#+ /gm, ''), e.currentTarget);
+    if (!md) return;
+    if (!(await confirmAnnotations(w, chaptersOf(w.id), 'このままコピーしますか？', 'コピーする'))) return;
+    copyText(md.replace(/^#+ /gm, ''), btn);
   });
   $('readerEditBtn').addEventListener('click', () => { if (readerWorkId) openWork(readerWorkId, 'shelf'); });
   $('readerBackBtn').addEventListener('click', () => { showView('shelf'); renderAll(); });
@@ -3715,6 +4072,7 @@
     if (confirmOverlay.classList.contains('is-open')) { closeConfirm(false); return; }
     if (tplModal.classList.contains('is-open')) { closeTplModal(); return; }
     if (importModal.classList.contains('is-open')) { closeImportModal(); return; }
+    if (findModal.classList.contains('is-open')) { closeFindModal(); return; }
     if (asModal.classList.contains('is-open')) { closeAssetsModal(); return; }
     if (loreModal.classList.contains('is-open')) { closeLoreModal(); return; }
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
