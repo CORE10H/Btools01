@@ -108,7 +108,13 @@
       refresh = { value: j.refresh_token, expiresAt: expiresAt - 5 * 60 * 1000 };
     }
   }
-  async function refreshGrant() {
+  // 取り直しは同時に1回だけ（同期は通信を同時に行うので、期限切れが重なっても1回にまとめる。2026-10-17）
+  let refreshing = null;
+  function refreshGrant() {
+    if (!refreshing) refreshing = refreshGrantOnce().finally(() => { refreshing = null; });
+    return refreshing;
+  }
+  async function refreshGrantOnce() {
     if (!refresh || Date.now() >= refresh.expiresAt) throw new OneDriveError('OneDriveのログインが必要です', 'login');
     try {
       const j = await tokenRequest({ client_id: clientId, grant_type: 'refresh_token', refresh_token: refresh.value, scope: SCOPE });
@@ -212,12 +218,14 @@
     for (let attempt = 0; ; attempt++) {
       if (!access || Date.now() >= access.expiresAt - 60 * 1000) await refreshGrant();
       let res;
+      const used = access.value;
       try {
-        res = await fetch(url, { method, headers: { Authorization: 'Bearer ' + access.value, ...(headers || {}) }, body });
+        res = await fetch(url, { method, headers: { Authorization: 'Bearer ' + used, ...(headers || {}) }, body });
       } catch (err) {
         throw new OneDriveError('OneDriveにつながりません（ネットワークを確認してください）', 'network');
       }
-      if (res.status === 401 && !refreshed) { refreshed = true; access = null; continue; } // 1回だけ取り直す
+      // 1回だけ取り直す。ほかの通信がもう取り直していれば、その新しいトークンを使う（捨てない）
+      if (res.status === 401 && !refreshed) { refreshed = true; if (access && access.value === used) access = null; continue; }
       if (res.status === 401) throw new OneDriveError('OneDriveのログインが切れました。もう一度「同期する」を押してください', 'login');
       if ((res.status === 429 || res.status === 503 || res.status >= 500) && attempt < RETRY_MAX) {
         const ra = Number(res.headers.get('Retry-After'));

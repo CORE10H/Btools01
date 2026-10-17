@@ -166,8 +166,39 @@
     } catch (err) { /* 読めなければ空（☁を押したときは全部見直すので取りこぼさない） */ }
     return out;
   }
-  // 重い処理の途中で、画面の処理に順番を譲る
-  const yieldUi = () => new Promise((r) => setTimeout(r, 0));
+  // 重い処理の途中で、画面の処理に順番を譲る。
+  // setTimeout は使わない：ブラウザは裏に回ったタブのタイマーを1秒に1回（5分を超えると1分に1回）まで間引くため、
+  // 同期が裏で何分も止まっていた（2026-10-17のログ：作業は1秒未満なのに8分）。MessageChannel の知らせは間引かれない。
+  // 裏にいるときは譲る画面がないので、休まずに進める
+  const yieldPort = (() => {
+    try {
+      const ch = new MessageChannel();
+      const waiting = [];
+      ch.port1.onmessage = () => { const r = waiting.shift(); if (r) r(); };
+      return { post: (r) => { waiting.push(r); ch.port2.postMessage(0); } };
+    } catch (err) { return null; }
+  })();
+  const yieldUi = () => {
+    if (document.visibilityState === 'hidden') return Promise.resolve();
+    if (!yieldPort) return new Promise((r) => setTimeout(r, 0));
+    return new Promise((r) => yieldPort.post(r));
+  };
+  // 通信をいくつか同時に行う（1つずつだと、1回あたりの待ち時間がそのまま足し算になる。2026-10-17）。
+  // 同時に走らせるのは最大 limit 本。どれかが失敗したら、残りは始めずに、走っている分を待ってから最初の失敗を投げる
+  const IO_PARALLEL = 4;
+  async function eachLimit(items, fn, limit = IO_PARALLEL) {
+    const list = Array.from(items);
+    let next = 0;
+    let failed = null;
+    const worker = async () => {
+      while (!failed && next < list.length) {
+        const i = next++;
+        try { await fn(list[i], i); } catch (err) { if (!failed) failed = err; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, list.length) }, worker));
+    if (failed) throw failed;
+  }
 
   // ===================== 小道具 =====================
   const te = new TextEncoder();
@@ -951,15 +982,22 @@
   // 戻り値：{ results: [...], applied, appliedDbs, conflicts, firstTime, pushOnly, stats }
   // 保存先の4操作の時間を測る（中身は変えない）
   function timedBackend(backend, timing) {
-    // 操作の種類ごとに、回数・時間・バイト数も数える（同期のログ用）
+    // 操作の種類ごとに、回数・時間・バイト数も数える（同期のログ用）。
+    // 通信を同時に行うので（2026-10-17）、timing.net は「どれかの通信が走っていた時間」（重なりは1回だけ数える）。
+    // 種類ごとの ms は、1つずつの時間の合計（同時に走った分だけ net より大きくなる）
     timing.ops = timing.ops || {};
+    let inflight = 0;
+    let busySince = 0;
     const wrap = (name, fn) => (typeof fn !== 'function' ? fn : async (...a) => {
       const t = performance.now();
+      if (inflight++ === 0) busySince = t;
       const o = timing.ops[name] || (timing.ops[name] = { n: 0, ms: 0, bytes: 0 });
       let r;
       try { r = await fn(...a); return r; } finally {
-        const dt = performance.now() - t;
-        timing.net += dt; timing.netCount++;
+        const now = performance.now();
+        const dt = now - t;
+        if (--inflight === 0) timing.net += now - busySince;
+        timing.netCount++;
         o.n++; o.ms += dt;
         if (name === 'read' && r && typeof r.length === 'number') o.bytes += r.length;
         if (name === 'write' && a[1] && typeof a[1].length === 'number') o.bytes += a[1].length;
@@ -1005,9 +1043,18 @@
     async function writeIfChanged(name, obj) {
       const rest = { ...obj };
       delete rest.writtenAt;
+      // DBのファイルは、ページの版（appBuild）だけが変わっても書き直さない（2026-10-17。版を上げるたびに全部のDBを
+      // 送り直し、ほかの端末も全部を読み直していた）。版の確かめは端末の目次（d_）の appBuild で行うので、こちらは古いままでよい
+      if (rest.format === 'sideops-sync-db') delete rest.appBuild;
       const digest = written ? await sha256Hex(te.encode(canonical(rest))) : '';
       const prev = written && written.files[name];
       if (prev && prev.digest === digest && prev.stamp === stampOf(name)) return false;
+      // 切り替えの前に書いた控え（appBuild 込みの要約）と同じなら、中身は変わっていない → 要約だけ新しい形に直す
+      if (prev && rest.format === 'sideops-sync-db' && prev.stamp === stampOf(name)
+        && prev.digest === await sha256Hex(te.encode(canonical({ ...rest, appBuild: obj.appBuild })))) {
+        written.files[name] = { digest, stamp: prev.stamp };
+        return false;
+      }
       await writeJsonFile(backend, keys, spaceId, name, obj);
       if (written) written.files[name] = { digest, stamp: stampOf(name) };
       return true;
@@ -1031,16 +1078,15 @@
     const remoteDevices = [];
     let ownPrev = null;
     const devName = await names.device(dev.id);
-    for (const name of listed) {
-      if (!name.startsWith('d_')) continue;
-      if (pushOnly && name !== devName) continue;
-      let info;
-      if (unchanged(name) && isPlainObject(seen.files[name].info)) {
-        info = seen.files[name].info;
-      } else {
-        info = await readJsonFile(backend, keys, spaceId, name);
-        report.stats.downloaded++;
-      }
+    const devFiles = Array.from(listed).filter((name) => name.startsWith('d_') && (!pushOnly || name === devName));
+    // 変わった目次は、先にまとめて（同時に）読む。検査は下で1つずつ行う
+    const fetchedInfo = new Map();
+    await eachLimit(devFiles.filter((name) => !(unchanged(name) && isPlainObject(seen.files[name].info))), async (name) => {
+      fetchedInfo.set(name, await readJsonFile(backend, keys, spaceId, name));
+      report.stats.downloaded++;
+    });
+    for (const name of devFiles) {
+      const info = fetchedInfo.has(name) ? fetchedInfo.get(name) : seen.files[name].info;
       if (!isPlainObject(info) || info.format !== 'sideops-sync-device' || !DEVICE_ID_RE.test(info.device) || !isPlainObject(info.dbs)) {
         throw new SyncError('同期ファイルの中身が壊れています（端末の情報）');
       }
@@ -1076,22 +1122,28 @@
       e.blobs = Array.isArray(f.blobs) ? f.blobs.filter((h) => typeof h === 'string') : [];
       return true;
     }
+    // 目次に載っているDBのファイルを集め、変わったものだけを同時にダウンロードする（並び順は目次の順のまま）
+    const entries = [];
     for (const info of remoteDevices) {
       for (const [dbName, ref] of Object.entries(info.dbs)) {
         const expected = await names.db(info.device, dbName);
         if (!isPlainObject(ref) || ref.file !== expected) throw new SyncError('同期ファイルの中身が壊れています（DBのファイル名が合いません）');
         if (!listed.has(expected)) continue;
-        const e = { info, db: dbName, name: expected, changed: !unchanged(expected), file: null, dbVersion: null, blobs: null };
-        if (e.changed) {
-          if (!(await loadEntry(e))) continue;
-        } else {
-          e.dbVersion = seen.files[expected].dbVersion;
-          e.blobs = Array.isArray(seen.files[expected].blobs) ? seen.files[expected].blobs : [];
-        }
-        e.blobs.forEach((h) => referenced.add(h));
-        if (!remoteFiles.has(dbName)) remoteFiles.set(dbName, []);
-        remoteFiles.get(dbName).push(e);
+        entries.push({ info, db: dbName, name: expected, changed: !unchanged(expected), file: null, dbVersion: null, blobs: null });
       }
+    }
+    const loaded = new Set();
+    await eachLimit(entries.filter((e) => e.changed), async (e) => { if (await loadEntry(e)) loaded.add(e); });
+    for (const e of entries) {
+      if (e.changed) {
+        if (!loaded.has(e)) continue;
+      } else {
+        e.dbVersion = seen.files[e.name].dbVersion;
+        e.blobs = Array.isArray(seen.files[e.name].blobs) ? seen.files[e.name].blobs : [];
+      }
+      e.blobs.forEach((h) => referenced.add(h));
+      if (!remoteFiles.has(e.db)) remoteFiles.set(e.db, []);
+      remoteFiles.get(e.db).push(e);
     }
 
     const localVersions = await localDbVersions();
@@ -1147,9 +1199,10 @@
       const needAll = firstTime || localVersion === undefined;
       const usable = [];
       if (!pushOnly) {
-        for (const e of remotes) {
-          if (!needAll && !e.changed) continue; // 前回取り込み済みで、その後変わっていない
-          if (!e.file && !(await loadEntry(e))) continue;
+        const want = remotes.filter((e) => needAll || e.changed); // 前回取り込み済みで、その後変わっていないものは読まない
+        await eachLimit(want.filter((e) => !e.file), (e) => loadEntry(e));
+        for (const e of want) {
+          if (!e.file) continue; // ファイルがなかった（書き込み途中で止まった等）
           if (localVersion === undefined ? e.dbVersion === rule.version : e.dbVersion === localVersion) usable.push(e);
           else res.note = `「${String(e.info.deviceName || '別の端末').slice(0, 40)}」とDBの版が違うため、その端末の分は取り込みませんでした（古い方の端末で${rule.label}を一度開いてから同期してください）`;
         }
@@ -1283,16 +1336,16 @@
         losers.forEach((l) => { if (l.encoded) blobRefs(l.encoded, need); if (l.winnerEnc) blobRefs(l.winnerEnc, need); });
         const fetched = new Map();
         if (need.size) progress(`${rule.label}の画像を受け取っています`);
-        for (const h of need) {
-          if (!HASH_RE.test(h)) throw new SyncError('同期ファイルの中身が壊れています（画像の参照）');
-          if (scan.blobs.has(h)) { fetched.set(h, await blobBytes(scan.blobs.get(h))); continue; }
+        for (const h of need) if (!HASH_RE.test(h)) throw new SyncError('同期ファイルの中身が壊れています（画像の参照）');
+        await eachLimit(need, async (h) => {
+          if (scan.blobs.has(h)) { fetched.set(h, await blobBytes(scan.blobs.get(h))); return; }
           const name = names.blob(h);
           const bytes = await backend.read(name);
           if (!bytes) throw new SyncError(rule.label + ' の画像が同期ファイルに見つかりません');
           const plain = await unseal(keys.encKey, bytes, 'sideops-sync|' + spaceId + '|' + name);
           if (await hash(plain) !== h) throw new SyncError(rule.label + ' の画像が壊れています');
           fetched.set(h, plain);
-        }
+        });
         const bytesOf = (h) => {
           const b = fetched.get(h);
           if (!b) throw new SyncError(rule.label + ' の画像が見つかりません');
@@ -1389,15 +1442,15 @@
           outStores[s.store].push({ key: s.key, ver: s.ver, value: c.encoded });
         }
         if (changed.size) progress(`${rule.label}を送っています`);
-        for (const h of usedBlobs) {
-          referenced.add(h);
+        // 画像を先に送り終えてから、DBのファイルを書く（読む側が、まだない画像を参照しないように）
+        for (const h of usedBlobs) referenced.add(h);
+        await eachLimit(Array.from(usedBlobs).filter((h) => !listed.has(names.blob(h))), async (h) => {
           const name = names.blob(h);
-          if (listed.has(name)) continue;
           const bytes = scan.blobs.has(h) ? await blobBytes(scan.blobs.get(h)) : null;
           if (!bytes) throw new SyncError(rule.label + ' の画像を読めませんでした');
           await backend.write(name, await seal(keys.encKey, bytes, 'sideops-sync|' + spaceId + '|' + name));
           listed.add(name);
-        }
+        });
         const dbFile = await names.db(dev.id, rule.name);
         if (await writeIfChanged(dbFile, {
           format: 'sideops-sync-db', formatVersion: FORMAT_VERSION, db: rule.name, dbVersion: db.version,
@@ -2124,7 +2177,7 @@
     const hook = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && window.__SIDEOPS_SYNC_TEST__ ? window.__SIDEOPS_SYNC_TEST__ : {};
     const LAST_HIDDEN_KEY = 'sideops_sync_last_hidden'; // 画面を最後に離れた時刻（ページを開き直したときに、離れていた時間をログに残す）
     const AWAY_MS = hook.awayMs || 10 * 60 * 1000;        // これ以上離れてから戻ったら、開いたときと同じ扱い
-    const PUSH_EVERY_MS = hook.pushEveryMs || 30 * 60 * 1000; // アプリを開いたままの作業で「送るだけ」をする間隔
+    const PUSH_EVERY_MS = hook.pushEveryMs || 60 * 60 * 1000; // アプリを開いたままの作業で「送るだけ」をする間隔（2026-10-17に30分から60分へ。スマホの同期の時間の3割がこれだった。閉じたとき・離れるときにも送るので、これは念のため）
     const FULL_SCAN_MS = 24 * 60 * 60 * 1000;            // 1日1回は、印に関係なくすべてを見直す
     let needReload = false;
     let lastPackage = null;
@@ -2675,7 +2728,7 @@
 
     // ===================== 自動の同期（ログイン中だけ。確認が必要な場面では何もしない） =====================
     // いつ：開いたとき／しばらく離れて戻ったとき（受け取り）・アプリを閉じたとき／画面を離れるとき（未送信があれば送る）・
-    //       アプリを開いたまま30分（未送信があれば「送るだけ」）
+    //       アプリを開いたまま60分（未送信があれば「送るだけ」）
     let autoRunning = false;
     let reloadPending = false;
     let hiddenAt = 0;
@@ -2941,7 +2994,8 @@
         wasOpen = nowOpen;
       }).observe(stageEl, { attributes: true, attributeFilter: ['class'] });
     }
-    // アプリを開いたまま長く作業しているとき：30分ごとに「送るだけ」（受け取りはアプリを閉じた後）
+    // アプリを開いたまま長く作業しているとき：60分ごとに「送るだけ」（受け取りはアプリを閉じた後）。
+    // 画面が消えている・裏にあるときはしない（スマホでは通信が止められ、数分かかっていた）
     setInterval(async () => {
       if (document.visibilityState !== 'visible' || stageBusy() !== 'open') return;
       const cp = await connectedProvider();
@@ -2949,12 +3003,13 @@
       const s = (await metaGet('status')) || {};
       if (Date.now() - (s.lastPushAt || 0) < PUSH_EVERY_MS) return;
       if (!(await unsentDbs()).length) return;
+      if (document.visibilityState !== 'visible' || stageBusy() !== 'open') return; // 確かめている間に画面が消えた・アプリを閉じた
       autoRun(cp, { pushOnly: true, showBanner: true, trigger: 'push30' });
     }, hook.pushCheckMs || 60 * 1000);
 
     // ===================== 同期のログ（かかった時間）（2026-10-08） =====================
     const runlogEl = $('syncRunlog');
-    const TRIGGER_LABEL = { open: '開いたとき', return: '戻ったとき', hidden: '離れるとき', stageClose: 'アプリを閉じたとき', push30: '30分ごと', afterLogin: 'ログインの後', manual: '☁を押した' };
+    const TRIGGER_LABEL = { open: '開いたとき', return: '戻ったとき', hidden: '離れるとき', stageClose: 'アプリを閉じたとき', push30: '定期の送信', afterLogin: 'ログインの後', manual: '☁を押した' };
     const sec = (ms) => (Math.max(0, ms || 0) / 1000).toFixed(1);
     // この端末の、ここ24時間のまとめ
     async function refreshRunlog() {
