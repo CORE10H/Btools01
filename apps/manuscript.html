@@ -36,6 +36,9 @@
     --scrim-rgb: 0, 0, 0;
     --shadow-rgb: 0, 0, 0;
     --on-accent: #000000;
+    /* 入力欄の面と枠（2026-10-17）。テーマの色から作るので、テーマを変えても馴染む */
+    --field-bg: var(--panel-hi);
+    --field-line: color-mix(in srgb, var(--text) 16%, var(--line)); /* 入力欄の枠は灰色（ボタンは青緑。見分けるため） */
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
@@ -56,19 +59,22 @@
   .tab-btn .tab-count { font-family: var(--font-display); font-size: 11px; color: var(--text-faint); margin-left: 5px; }
   .bar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-  .btn { font-size: 11px; color: var(--text-dim); background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
-  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
-  .btn.primary:hover { background: var(--cyan-dim); }
-  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
-  .btn.danger:hover { background: var(--magenta-dim); }
+  /* ボタン（2026-10-17）：入力欄（角ばった平らな面）と見分けられるよう、色の付いた面・角丸・下の影・太字にする */
+  .btn { font-size: 11px; font-weight: 600; color: var(--text); background: var(--panel); background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); padding: 6px 12px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); background: color-mix(in srgb, var(--cyan) 16%, var(--panel)); }
+  .btn:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(var(--shadow-rgb), .55); }
+  .btn.primary { color: var(--text); background: var(--cyan-dim); background: color-mix(in srgb, var(--cyan) 30%, var(--panel)); border-color: var(--cyan); }
+  .btn.primary:hover { color: var(--text); background: color-mix(in srgb, var(--cyan) 44%, var(--panel)); }
+  .btn.danger { color: var(--magenta); background: color-mix(in srgb, var(--magenta) 10%, var(--panel)); border-color: var(--magenta-dim); border-color: color-mix(in srgb, var(--magenta) 50%, var(--line)); }
+  .btn.danger:hover { color: var(--magenta); border-color: var(--magenta); background: color-mix(in srgb, var(--magenta) 22%, var(--panel)); }
   .btn.small { font-size: 10.5px; padding: 4px 9px; }
-  .btn:disabled { opacity: .35; cursor: not-allowed; }
-  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; transform: none; }
+  .btn:disabled:hover { color: var(--text); border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); }
+  .btn.danger:disabled:hover { color: var(--magenta); border-color: color-mix(in srgb, var(--magenta) 50%, var(--line)); background: color-mix(in srgb, var(--magenta) 10%, var(--panel)); }
   .is-hidden { display: none !important; }
 
   .menu-wrap { position: relative; flex-shrink: 0; }
-  .hamburger-btn { position: relative; width: 30px; height: 30px; background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .hamburger-btn { position: relative; width: 30px; height: 30px; background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
   .hamburger-btn.has-alert::after { content: ''; position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--amber); border: 2px solid var(--bg); }
   .menu-panel { position: absolute; top: calc(100% + 6px); right: 0; width: 240px; background: var(--panel); border: 1px solid var(--line); z-index: 40; display: none; padding: 6px; }
@@ -87,8 +93,8 @@
   .search-input { flex: 1; min-width: 160px; max-width: 320px; background: var(--bg-alt); border: 1px solid var(--line); padding: 7px 10px; font-size: 12px; color: var(--text); outline: none; }
   .search-input:focus { border-color: var(--cyan-dim); }
   .filter-select { background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px; font-size: 11.5px; color: var(--text-dim); outline: none; max-width: 180px; }
-  .chip { background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 11px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
-  .chip:hover { color: var(--text-dim); }
+  .chip { background: color-mix(in srgb, var(--cyan) 5%, var(--panel)); border: 1px solid var(--line); color: var(--text-dim); font-size: 11px; padding: 5px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .chip:hover { color: var(--text); border-color: var(--cyan-dim); }
   .chip.is-on { border-color: var(--cyan); color: var(--cyan); }
   .scroll-area { flex: 1; overflow-y: auto; min-height: 0; padding: 14px 16px 20px; }
 
@@ -178,8 +184,8 @@
   #workView .scroll-area { padding: 16px 20px 28px; }
   .editor-inner { max-width: 900px; margin: 0 auto; }
   .edit-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-  .edit-title-input { flex: 1; min-width: 200px; background: transparent; border: none; border-bottom: 1px solid var(--line); font-size: 18px; font-family: var(--font-book); font-weight: 600; color: var(--text); padding: 6px 2px; outline: none; }
-  .edit-title-input:focus { border-color: var(--cyan-dim); }
+  .edit-title-input { flex: 1; min-width: 200px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 18px; font-family: var(--font-book); font-weight: 600; color: var(--text); padding: 6px 10px; outline: none; }
+  .edit-title-input:focus { border-color: var(--cyan); }
   .edit-sub { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 10.5px; color: var(--text-faint); flex-wrap: wrap; }
   .id-chip { font-family: var(--font-display); font-size: 12px; letter-spacing: .04em; color: var(--text-dim); background: transparent; border: 1px dashed var(--line); padding: 2px 8px; cursor: pointer; }
   .id-chip:hover { border-color: var(--cyan-dim); color: var(--cyan); }
@@ -210,7 +216,7 @@
      入力欄の文字はそのまま上に見える（日本語の変換中の文字も見える）。注釈がなければ何も塗らない */
   .hl-wrap { position: relative; }
   .hl-wrap > textarea { position: relative; z-index: 1; display: block; background: transparent !important; }
-  .hl-back { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border: 1px solid transparent; box-sizing: border-box; background: var(--bg); }
+  .hl-back { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border: 1px solid transparent; box-sizing: border-box; background: var(--field-bg); }
   .modal-body .hl-back { background: var(--bg-alt); }
   .hl-back mark { color: transparent; border-radius: 2px; }
   .hl-back mark.an-sq, .rt-an-sq { background: var(--amber-dim); background: color-mix(in srgb, var(--amber) 48%, transparent); box-shadow: 0 0 0 1px var(--amber); }
@@ -245,25 +251,31 @@
   .step-hint { font-size: 10.5px; color: var(--text-faint); }
   .step-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 
-  .field-label { font-size: 10.5px; color: var(--text-faint); display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; }
+  /* 項目名と入力欄（2026-10-17。見比べたモックのD案）：項目名は見出し（白・太字・左に色の印）、入力欄は周りより明るい面。
+     AIに渡すプロンプト（読むだけ）は点線で沈め、上に「コピーして使う」と出す。幅が足りなければ「戻す」「コピー」・文字数は次の行へ */
+  .field-label { font-size: 12px; font-weight: 600; color: var(--text); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; margin-bottom: 6px; }
+  .field-label > span:first-child { display: inline-flex; align-items: center; gap: 7px; flex: 1 1 14em; min-width: 0; }
+  .field-label > span:first-child::before { content: ''; width: 3px; height: 13px; background: var(--cyan); flex-shrink: 0; }
+  .field-label span[id^="cnt_"] { font-weight: 400; font-size: 11px; color: var(--text-faint); }
   .field-label .grow { flex: 1; }
-  .field-textarea, .field-select, .field-input { width: 100%; background: var(--bg); border: 1px solid var(--line); padding: 9px 10px; font-size: 12.5px; color: var(--text); outline: none; }
+  .field-textarea, .field-select, .field-input { width: 100%; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); padding: 9px 10px; font-size: 12.5px; color: var(--text); outline: none; }
   .field-textarea { resize: vertical; line-height: 1.75; }
   .field-textarea.is-book { font-family: var(--font-book); font-size: 13.5px; line-height: 1.95; }
-  .field-textarea:focus, .field-select:focus, .field-input:focus { border-color: var(--cyan-dim); }
-  .field-textarea[readonly] { color: var(--text-dim); background: var(--bg-alt); }
+  .field-textarea:focus, .field-select:focus, .field-input:focus { border-color: var(--cyan); }
+  .field-textarea[readonly] { color: var(--text-faint); background: transparent; border-style: dashed; border-color: var(--line); }
+  .prompt-wrap.is-shown::before { content: 'AIに渡すプロンプト（コピーして使う・ここでは直せません）'; display: block; font-size: 10.5px; color: var(--text-faint); margin-bottom: 4px; }
   .field-error { font-size: 10.5px; color: var(--magenta); line-height: 1.6; display: none; }
   .field-error.is-shown { display: block; }
   .field-hint { font-size: 10.5px; color: var(--text-faint); line-height: 1.7; }
-  .undo-btn { background: transparent; border: 1px dashed var(--amber-dim); color: var(--amber); font-size: 10px; padding: 2px 8px; cursor: pointer; }
-  .undo-btn:hover { border-style: solid; }
+  .undo-btn { background: color-mix(in srgb, var(--amber) 10%, var(--panel)); border: 1px solid var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--amber); font-size: 10px; font-weight: 600; padding: 3px 8px; cursor: pointer; }
+  .undo-btn:hover { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 20%, var(--panel)); }
 
   .compose-row { display: flex; align-items: center; gap: 8px; }
   .compose-row .field-select { flex: 1; min-width: 0; }
   .prompt-wrap { position: relative; display: none; }
   .prompt-wrap.is-shown { display: block; }
-  .copy-btn { position: absolute; top: 8px; right: 8px; font-size: 10.5px; background: var(--panel); border: 1px solid var(--line); color: var(--text-dim); padding: 5px 10px; cursor: pointer; }
-  .copy-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .copy-btn { position: absolute; top: 27px; right: 8px; font-size: 10.5px; font-weight: 600; background: color-mix(in srgb, var(--cyan) 14%, var(--panel)); border: 1px solid var(--cyan-dim); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text); padding: 5px 10px; cursor: pointer; }
+  .copy-btn:hover { border-color: var(--cyan); color: var(--cyan); }
   .copy-btn.is-copied { border-color: var(--cyan); color: var(--cyan); }
   .divider { border-top: 1px dashed var(--line-soft); padding-top: 10px; }
 
@@ -271,10 +283,10 @@
   .na-item { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line-soft); background: var(--bg); padding: 8px 10px; }
   .na-text { flex: 1; min-width: 0; }
   .na-body { font-size: 12px; color: var(--text); line-height: 1.6; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .icon-btn { width: 24px; height: 24px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 11px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-  .icon-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .icon-btn { width: 26px; height: 26px; background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text-dim); font-size: 11px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { border-color: var(--cyan); color: var(--cyan); }
   .icon-btn.del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
-  .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .icon-btn:disabled { opacity: .3; cursor: not-allowed; box-shadow: none; }
 
   /* 設定集 */
   .lore-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
@@ -302,17 +314,26 @@
 
   /* 章タブ */
   .ch-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
-  .ch-tab { background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 11.5px; padding: 6px 12px; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ch-tab:hover { color: var(--text-dim); }
+  .ch-tab { background: color-mix(in srgb, var(--cyan) 5%, var(--panel)); border: 1px solid var(--line); border-radius: 4px; color: var(--text-dim); font-size: 11.5px; padding: 6px 12px; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-tab:hover { color: var(--text); border-color: var(--cyan-dim); }
   .ch-tab.is-active { border-color: var(--cyan); color: var(--cyan); background: var(--bg-alt); }
   .ch-tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; background: var(--line); vertical-align: middle; }
   .ch-tab .dot.draft { background: var(--amber); }
   .ch-tab .dot.final { background: var(--cyan); }
   .ch-tab.add { border-style: dashed; }
+  .ch-tab .tab-done { color: var(--cyan); font-weight: 700; margin-right: 5px; } /* 完成にした章 */
   .ch-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
   .ch-label { font-family: var(--font-book); font-size: 14px; font-weight: 600; color: var(--cyan); flex-shrink: 0; }
-  .ch-title-input { flex: 1; min-width: 160px; background: transparent; border: none; border-bottom: 1px solid var(--line); font-size: 14px; font-family: var(--font-book); color: var(--text); padding: 5px 2px; outline: none; }
-  .ch-title-input:focus { border-color: var(--cyan-dim); }
+  .ch-title-input { flex: 1; min-width: 160px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 14px; font-family: var(--font-book); color: var(--text); padding: 5px 10px; outline: none; }
+  .ch-title-input:focus { border-color: var(--cyan); }
+  /* 本文の「推敲中／完成」（2026-10-17）：普段は「推敲中」。押すと「完成」になり、色で強調する */
+  .done-toggle { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 13px; border-radius: 999px; cursor: pointer; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--panel)); border: 1px solid var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); white-space: nowrap; }
+  .done-toggle::before { content: '○ '; }
+  .done-toggle:hover { border-color: var(--amber); }
+  .done-toggle[aria-pressed="true"] { color: var(--on-accent); background: var(--cyan); border-color: var(--cyan); }
+  .done-toggle[aria-pressed="true"]::before { content: '✓ '; }
+  .step-block.is-complete { border-color: var(--cyan); }
+  .step-block.is-complete > .step-head { background: color-mix(in srgb, var(--cyan) 10%, transparent); }
 
   .pub-row { display: grid; grid-template-columns: 1fr 170px; gap: 10px; }
   .book-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
@@ -369,12 +390,12 @@
   .modal.wide { max-width: 760px; }
   .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line-soft); }
   .modal-title { font-size: 13px; font-weight: 600; }
-  .modal-close { width: 22px; height: 22px; background: transparent; border: 1px solid var(--line); color: var(--text-faint); font-size: 12px; cursor: pointer; }
+  .modal-close { width: 26px; height: 26px; background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text-dim); font-size: 12px; cursor: pointer; }
   .modal-close:hover { border-color: var(--magenta-dim); color: var(--magenta); }
   .modal-body { padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
   .modal-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 18px 16px; flex-wrap: wrap; }
   .modal-footer .left { margin-right: auto; font-size: 10.5px; color: var(--text-faint); }
-  .modal-body .field-textarea, .modal-body .field-input, .modal-body .field-select { background: var(--bg-alt); }
+  .modal-body .field-textarea:not([readonly]), .modal-body .field-input, .modal-body .field-select { background: var(--bg-alt); } /* モーダルの面（--panel）より暗くして見分ける */
   .lore-top { display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
 
   .import-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
@@ -626,7 +647,7 @@
                 <button type="button" class="btn primary" data-compose="serial">プロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_serial_wrap"><textarea class="field-textarea" id="out_serial" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="serial">コピー</button></div>
-              <div class="field-hint">AIが書いた本文は、下の章のタブを選んで「8 完成稿」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
+              <div class="field-hint">AIが書いた本文は、下の章のタブを選んで「8 本文」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
             </div>
           </div>
           <div class="ch-tabs" id="chTabs"></div>
@@ -640,7 +661,7 @@
 
           <!-- 以前の本文（初稿）：2026-10-12 に「本文」の段をなくした。本文か章の筋が残っている章だけに出す -->
           <div class="step-block is-legacy is-hidden" id="stepBody">
-            <div class="step-head"><span class="step-num">旧</span><span class="step-title">以前の本文（初稿）</span><span class="step-hint">今の流れでは使いません。完成稿に写すか、消してください</span></div>
+            <div class="step-head"><span class="step-num">旧</span><span class="step-title">以前の本文（初稿）</span><span class="step-hint">今の流れでは使いません。「8 本文」に写すか、消してください</span></div>
             <div class="step-body">
               <div>
                 <div class="field-label"><span>この章の筋（以前の入力）</span></div>
@@ -650,19 +671,19 @@
                 <div class="field-label"><span class="grow">本文（以前の初稿）</span><button type="button" class="undo-btn is-hidden" data-undo="body"></button><span id="cnt_body"></span></div>
                 <textarea class="field-textarea is-book" id="chBody" rows="10"></textarea>
               </div>
-              <div class="compose-row"><button type="button" class="btn small" id="copyBodyToFinalBtn">本文を完成稿に写す</button><button type="button" class="btn small danger" id="clearLegacyBtn">以前の本文と章の筋を消す</button></div>
+              <div class="compose-row"><button type="button" class="btn small" id="copyBodyToFinalBtn">「8 本文」に写す</button><button type="button" class="btn small danger" id="clearLegacyBtn">以前の本文と章の筋を消す</button></div>
             </div>
           </div>
 
           <div class="step-block" id="stepFinal">
-            <div class="step-head"><span class="step-num">8</span><span class="step-title">完成稿（本文）</span><span class="step-hint">AIが書いたこの章の本文を貼る。編集・推敲もここで</span></div>
+            <div class="step-head"><span class="step-num">8</span><span class="step-title">本文</span><span class="step-hint">AIが書いたこの章の本文を貼る。編集・推敲もここで</span><button type="button" class="done-toggle" id="chDoneBtn" aria-pressed="false" title="この章を「完成」にする／「推敲中」に戻す">推敲中</button></div>
             <div class="step-body">
               <div>
-                <div class="field-label"><span class="grow">完成稿（貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="final"></button><span id="cnt_final"></span></div>
+                <div class="field-label"><span class="grow">本文（貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="final"></button><button type="button" class="btn small" id="copyFinalBtn">本文をコピー</button><span id="cnt_final"></span></div>
                 <textarea class="field-textarea is-book" id="chFinal" rows="16" placeholder="AIが書いたこの章の本文を貼り付け"></textarea>
               </div>
               <div class="divider">
-                <div class="field-label"><span>推敲を頼むとき（完成稿の中身を差し込みます）</span></div>
+                <div class="field-label"><span>推敲を頼むとき（本文を差し込みます）</span></div>
                 <div class="compose-row">
                   <select class="field-select" id="tplSel_polish" aria-label="推敲用テンプレート"></select>
                   <button type="button" class="btn" data-compose="polish">推敲のプロンプトを作る</button>
@@ -706,7 +727,7 @@
                   <input type="date" class="field-input" id="chPubDate">
                 </div>
               </div>
-              <div><button type="button" class="btn small" id="chMdBtn">この章の完成稿を .md で書き出す</button></div>
+              <div><button type="button" class="btn small" id="chMdBtn">この章の本文を .md で書き出す</button></div>
             </div>
           </div>
 
@@ -740,7 +761,7 @@
             </div>
           </div>
           <div class="editor-foot">
-            <button type="button" class="btn" id="workMdBtn">全章の完成稿を .md で書き出す</button>
+            <button type="button" class="btn" id="workMdBtn">全章の本文を .md で書き出す</button>
             <button type="button" class="btn" id="exportWorkBtn">この作品をエクスポート（JSON）</button>
             <span class="spacer"></span>
             <button type="button" class="btn danger" id="deleteWorkBtn">作品を削除</button>
@@ -833,7 +854,7 @@
         <input type="text" class="field-input" id="findR" maxlength="2000" placeholder="置き換える文字（空なら削除）" aria-label="置き換える文字">
       </div>
       <label class="check-row"><input type="checkbox" id="findCi">英字の大文字・小文字を区別しない</label>
-      <div class="field-hint">対象：作品タイトル・設定プロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章（章タイトル・完成稿・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません。結果を押すと、その場所を開きます。</div>
+      <div class="field-hint">対象：作品タイトル・設定プロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章（章タイトル・本文・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません。結果を押すと、その場所を開きます。</div>
       <div class="import-stats" id="findStats"></div>
       <div class="find-list" id="findList"></div>
     </div>
@@ -1287,6 +1308,7 @@
   const loreListEl = $('loreList');
   const chTabs = $('chTabs'), chLabel = $('chLabel'), chTitle = $('chTitle'), chOutline = $('chOutline');
   const chBody = $('chBody'), chSummary = $('chSummary'), chFinal = $('chFinal');
+  const chDoneBtn = $('chDoneBtn');
   const chUrl = $('chUrl'), chUrlErr = $('chUrlErr'), chNoteId = $('chNoteId'), chPubDate = $('chPubDate');
   const bookBtn = $('bookBtn'), bookState = $('bookState'), readBookBtn = $('readBookBtn');
 
@@ -1597,7 +1619,7 @@
     return {
       id: x.id, workId: x.workId, order: typeof x.order === 'number' && isFinite(x.order) ? x.order : 0,
       title: str(x.title, 200), outline: str(x.outline, 100000), body: str(x.body, 2000000),
-      summary: str(x.summary, 100000), final: str(x.final, 2000000), imgPrompt: str(x.imgPrompt, 100000),
+      summary: str(x.summary, 100000), final: str(x.final, 2000000), imgPrompt: str(x.imgPrompt, 100000), done: x.done === true,
       publishUrl: url, noteId: extractNoteId(url), publishedAt: dateOnly(x.publishedAt),
       undo: normalizeUndo(x.undo, CHAPTER_UNDO),
       createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
@@ -2264,7 +2286,7 @@
 
   function newChapter(workId, order) {
     const now = Date.now();
-    return { id: genId('ch'), workId, order, title: '', outline: '', body: '', summary: '', final: '', imgPrompt: '', publishUrl: '', noteId: '', publishedAt: '', undo: {}, createdAt: now, updatedAt: now };
+    return { id: genId('ch'), workId, order, title: '', outline: '', body: '', summary: '', final: '', imgPrompt: '', done: false, publishUrl: '', noteId: '', publishedAt: '', undo: {}, createdAt: now, updatedAt: now };
   }
   async function createWork(netaIds) {
     const now = Date.now();
@@ -2293,7 +2315,7 @@
     const list = books.filter((w) => (!pen || w.penName === pen) && workMatches(w, q))
       .sort((a, b) => bookPublishedAt(b).localeCompare(bookPublishedAt(a)) || (b.bookAt || 0) - (a.bookAt || 0));
     if (books.length === 0) {
-      shelfListEl.innerHTML = `<div class="empty-state"><div class="big">本棚はまだ空です</div><div class="small">作品の章に完成稿を貼り付け、「本棚に登録」を押すとここに並びます。</div></div>`;
+      shelfListEl.innerHTML = `<div class="empty-state"><div class="big">本棚はまだ空です</div><div class="small">作品の章に本文を貼り付け、「本棚に登録」を押すとここに並びます。</div></div>`;
       return;
     }
     if (list.length === 0) { shelfListEl.innerHTML = `<div class="empty-state"><div class="big">条件に一致する本はありません</div></div>`; return; }
@@ -2462,6 +2484,11 @@
     $('stepSerial').classList.toggle('is-done', chs.some((c) => c.final.trim()));
     $('stepSummary').classList.toggle('is-done', !!(ch && ch.summary.trim()));
     $('stepFinal').classList.toggle('is-done', !!(ch && ch.final.trim()));
+    // 本文の「推敲中／完成」（2026-10-17）
+    const isDone = !!(ch && ch.done);
+    chDoneBtn.setAttribute('aria-pressed', String(isDone));
+    chDoneBtn.textContent = isDone ? '完成' : '推敲中';
+    $('stepFinal').classList.toggle('is-complete', isDone);
     $('stepChImg').classList.toggle('is-done', !!(ch && images.has(imgId(ch.id, 'img'))));
     $('stepPub').classList.toggle('is-done', !!(ch && ch.publishUrl && isValidUrl(ch.publishUrl)));
 
@@ -2518,8 +2545,8 @@
       base.appendChild(d);
     });
     const chs = chaptersOf(w.id);
-    const fin = chs.filter((c) => c.final.trim()).length;
-    $('foldSumChapter').textContent = `全${chs.length}章・完成稿 ${fin}章`;
+    const fin = chs.filter((c) => c.final.trim()).length, done = chs.filter((c) => c.done).length;
+    $('foldSumChapter').textContent = `全${chs.length}章・本文 ${fin}章・完成 ${done}章`;
     $('foldSumBook').textContent = w.isBook ? '本棚に登録済み' : '本棚には未登録';
   }
   const foldNote = (group) => (isFolded(group) ? `\n（「${FOLD_GROUPS[group]}」はたたんであります。見出しを押すと開きます）` : '');
@@ -2650,7 +2677,8 @@
     chTabs.innerHTML = chs.map((c, i) => {
       const dot = c.final.trim() ? 'final' : c.body.trim() ? 'draft' : '';
       const label = `第${i + 1}章` + (c.id === currentChapterId ? (chTitle.value.trim() ? ' ' + chTitle.value.trim() : '') : (c.title.trim() ? ' ' + c.title.trim() : ''));
-      return `<button type="button" class="ch-tab${c.id === currentChapterId ? ' is-active' : ''}" data-id="${escapeHtml(c.id)}"><span class="dot ${dot}"></span>${escapeHtml(label)}</button>`;
+      const mark = c.done ? '<span class="tab-done" title="完成">✓</span>' : `<span class="dot ${dot}"></span>`; // 完成にした章は ✓
+      return `<button type="button" class="ch-tab${c.id === currentChapterId ? ' is-active' : ''}" data-id="${escapeHtml(c.id)}">${mark}${escapeHtml(label)}</button>`;
     }).join('') + '<button type="button" class="ch-tab add" data-add="1">＋ 章を追加</button>';
     const idx = chs.findIndex((c) => c.id === currentChapterId);
     chLabel.textContent = `第${idx + 1}章`;
@@ -2719,7 +2747,7 @@
     if (chs.length <= 1) { showToast('最後の1章は削除できません', true); return; }
     await workSaver.flush();
     const label = chapterFullLabel(ch);
-    if (!(await ask(`${label} を削除します。\n完成稿・章の画像と画像生成プロンプト・要約などがすべて消え、元に戻せません。`, { ok: '削除する', danger: true }))) return;
+    if (!(await ask(`${label} を削除します。\n本文・章の画像と画像生成プロンプト・要約などがすべて消え、元に戻せません。`, { ok: '削除する', danger: true }))) return;
     const idx = chs.findIndex((c) => c.id === ch.id);
     const iid = imgId(ch.id, 'img');
     if (images.has(iid) && await delSafe(S.images, iid)) { images.delete(iid); dropUrl(iid); }
@@ -2792,18 +2820,40 @@
     if (had) backupField('final', chFinal.value);
     chFinal.value = chBody.value;
     workSaver.schedule(); updateWorkState(); renderChapterTabs();
-    showToast('以前の本文を完成稿に写しました' + (had ? '（前の完成稿は「直前の上書きを戻す」で戻せます）' : ''));
+    showToast('以前の本文を「8 本文」に写しました' + (had ? '（前の本文は「直前の上書きを戻す」で戻せます）' : ''));
   });
   $('clearLegacyBtn').addEventListener('click', async () => {
     const ch = getChapter(currentChapterId);
     if (!ch) return;
-    const msg = '以前の本文（初稿）と章の筋を消します。元に戻せません。' + (chBody.value.trim() && !chFinal.value.trim() ? '\nこの章の完成稿は空です。先に「本文を完成稿に写す」を押さなくてよいですか？' : '');
+    const msg = '以前の本文（初稿）と章の筋を消します。元に戻せません。' + (chBody.value.trim() && !chFinal.value.trim() ? '\nこの章の「8 本文」は空です。先に「「8 本文」に写す」を押さなくてよいですか？' : '');
     if (!(await ask(msg, { ok: '消す', danger: true }))) return;
     chBody.value = ''; chOutline.value = '';
     workSaver.schedule(); await workSaver.flush();
     $('stepBody').classList.add('is-hidden');
     updateWorkState(); renderChapterTabs();
     showToast('以前の本文と章の筋を消しました');
+  });
+  // 本文の「推敲中／完成」（2026-10-17）。普段は推敲中。完成にできるのは本文のある章だけ
+  chDoneBtn.addEventListener('click', async () => {
+    const ch = getChapter(currentChapterId);
+    if (!ch) return;
+    syncFromForm();
+    if (!ch.done && !ch.final.trim()) { showToast('本文が空のままでは「完成」にできません', true); return; }
+    ch.done = !ch.done;
+    workSaver.schedule();
+    await workSaver.flush();
+    updateWorkState(); renderChapterTabs();
+    showToast(ch.done ? `${chapterNumLabel(ch)}を「完成」にしました` : `${chapterNumLabel(ch)}を「推敲中」に戻しました`);
+  });
+  // 本文をまとめてコピー（2026-10-17）。注釈（[…]・〔〔…〕〕）が残っていれば確認する
+  $('copyFinalBtn').addEventListener('click', async (e) => {
+    const w = getWork(currentWorkId), ch = getChapter(currentChapterId), btn = e.currentTarget;
+    if (!w || !ch) return;
+    syncFromForm();
+    const v = ch.final.trim();
+    if (!v) { showToast('本文が空です', true); return; }
+    if (!(await confirmAnnotations(w, [ch], 'このままコピーしますか？', 'コピーする'))) return;
+    copyText(v, btn);
   });
 
   // ---- プロンプト合成（1回の走査で置き換え、差し込んだ文章中の {{…}} は再置換しない） ----
@@ -2838,7 +2888,7 @@
     // 3つ目は、埋める欄がある見出し（たたんであれば、トーストでそう伝える）
     // 2026-10-12〜 章の本文は「8 完成稿」に貼るので、章の用途の素材は完成稿（なければ以前の初稿）
     const chText = (c) => (c ? (c.final.trim() || c.body.trim()) : '');
-    const needFinal = [() => chText(ch), '先にこの章の「8 完成稿」に本文を貼ってください', 'chapter'];
+    const needFinal = [() => chText(ch), '先にこの章の「8 本文」に本文を貼ってください', 'chapter'];
     const needPlot = [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'];
     const need = {
       plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください', 'base'],
@@ -3196,7 +3246,7 @@
     if (!per.length) return true;
     const total = per.reduce((s, x) => s + x.list.length, 0);
     const lines = per.slice(0, 8).map((x) => `第${all.indexOf(x.c) + 1}章：${x.list.length}か所（${x.list[0].replace(/\s+/g, ' ').slice(0, 24)}${x.list.length > 1 ? ' ほか' : ''}）`);
-    return ask(`完成稿に注釈（[…] や 〔〔…〕〕）が ${total}か所残っています。\n${lines.join('\n')}${per.length > 8 ? '\nほか' : ''}\n\n${question}`, { ok: okLabel });
+    return ask(`本文に注釈（[…] や 〔〔…〕〕）が ${total}か所残っています。\n${lines.join('\n')}${per.length > 8 ? '\nほか' : ''}\n\n${question}`, { ok: okLabel });
   }
 
   /* =====================================================================
@@ -3223,7 +3273,7 @@
     add('w', w, 'synopsis', '6 作品の概要', 100000);
     chaptersOf(w.id).forEach((c, i) => {
       const n = `第${i + 1}章`;
-      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'final', n + ' 8 完成稿', 2000000); add('c', c, 'imgPrompt', n + ' 9 タイトル画像の生成プロンプト', 100000);
+      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'final', n + ' 8 本文', 2000000); add('c', c, 'imgPrompt', n + ' 9 タイトル画像の生成プロンプト', 100000);
       add('c', c, 'summary', n + ' 11 要約', 100000); add('c', c, 'body', n + ' 以前の初稿', 2000000); add('c', c, 'outline', n + ' 以前の章の筋', 100000);
     });
     return t;
@@ -3579,11 +3629,11 @@
     } else {
       if (!w.title.trim()) { showToast('作品タイトルを入力してから登録してください', true); wTitle.focus(); return; }
       const done = chs.filter((c) => c.final.trim());
-      if (!done.length) { showToast('完成稿のある章がありません。完成稿を貼ってから登録してください', true); return; }
+      if (!done.length) { showToast('本文のある章がありません。本文を貼ってから登録してください', true); return; }
       const badUrl = chs.find((c) => c.publishUrl && !isValidUrl(c.publishUrl));
       if (badUrl) { showToast(`${chapterNumLabel(badUrl)}の公開URLの形式を確認してください`, true); return; }
       const lacking = chs.map((c, i) => (c.final.trim() ? null : i + 1)).filter(Boolean);
-      if (lacking.length && !(await ask(`第${lacking.join('・')}章には完成稿がありません。\n本棚では完成稿のある章だけが表示されます。登録しますか？`, { ok: '登録する' }))) return;
+      if (lacking.length && !(await ask(`第${lacking.join('・')}章には本文がありません。\n本棚では本文のある章だけが表示されます。登録しますか？`, { ok: '登録する' }))) return;
       if (!(await confirmAnnotations(w, done, 'このまま本棚に登録しますか？', '登録する'))) return;
       w.isBook = true; w.bookAt = Date.now(); workReturnTab = 'shelf';
     }
@@ -3613,20 +3663,20 @@
     if (!w) return;
     await workSaver.flush();
     const md = workMarkdown(w, null);
-    if (!md) { showToast('完成稿のある章がありません', true); return; }
+    if (!md) { showToast('本文のある章がありません', true); return; }
     if (!(await confirmAnnotations(w, chaptersOf(w.id), 'このまま書き出しますか？', '書き出す'))) return;
     downloadText(md, `${safeFileName(w.title, '無題')}_${dateStamp(new Date())}.md`);
-    showToast('完成稿を書き出しました');
+    showToast('本文を書き出しました');
   });
   $('chMdBtn').addEventListener('click', async () => {
     const w = getWork(currentWorkId), ch = getChapter(currentChapterId);
     if (!w || !ch) return;
     await workSaver.flush();
     const md = workMarkdown(w, ch);
-    if (!md) { showToast('この章には完成稿がありません', true); return; }
+    if (!md) { showToast('この章には本文がありません', true); return; }
     if (!(await confirmAnnotations(w, [ch], 'このまま書き出しますか？', '書き出す'))) return;
     downloadText(md, `${safeFileName(w.title, '無題')}_${chapterNumLabel(ch)}_${dateStamp(new Date())}.md`);
-    showToast('この章の完成稿を書き出しました');
+    showToast('この章の本文を書き出しました');
   });
 
   $('deleteWorkBtn').addEventListener('click', async () => {
@@ -3634,7 +3684,7 @@
     if (!w) return;
     await workSaver.flush();
     const nImg = Array.from(images.values()).filter((r) => r.workId === w.id).length;
-    const msg = `「${workDisplayTitle(w)}」（${w.id}）を削除します。\n${chaptersOf(w.id).length}章分の本文・完成稿、設定集${loreOf(w.id).length}件、画像${nImg}枚がすべて消え、元に戻せません。\n元にしたネタは残ります。`;
+    const msg = `「${workDisplayTitle(w)}」（${w.id}）を削除します。\n${chaptersOf(w.id).length}章分の本文、設定集${loreOf(w.id).length}件、画像${nImg}枚がすべて消え、元に戻せません。\n元にしたネタは残ります。`;
     if (!(await ask(msg, { ok: '削除する', danger: true }))) return;
     const back = workReturnTab;
     const ok = await deleteWorkCascade(w);
