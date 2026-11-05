@@ -84,6 +84,8 @@
   .menu-panel-item small { display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
   .menu-panel-item small.is-alert { color: var(--amber); }
   .menu-sep { border-top: 1px solid var(--line-soft); margin: 4px 0; }
+  /* ☰ の見出し（ネタ帳タブでは、ネタ帳の操作を上にまとめて出す。2026-11-05） */
+  .menu-head { font-size: 10px; letter-spacing: .08em; color: var(--text-faint); padding: 6px 10px 2px; }
 
   .app-body { flex: 1; overflow: hidden; min-height: 0; position: relative; display: flex; flex-direction: column; }
   .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
@@ -93,6 +95,7 @@
   .search-input { flex: 1; min-width: 160px; max-width: 320px; background: var(--bg-alt); border: 1px solid var(--line); padding: 7px 10px; font-size: 12px; color: var(--text); outline: none; }
   .search-input:focus { border-color: var(--cyan-dim); }
   .filter-select { background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 8px; font-size: 11.5px; color: var(--text-dim); outline: none; max-width: 180px; }
+  .filter-select option { background: var(--panel); color: var(--text); }
   .chip { background: color-mix(in srgb, var(--cyan) 5%, var(--panel)); border: 1px solid var(--line); color: var(--text-dim); font-size: 11px; padding: 5px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
   .chip:hover { color: var(--text); border-color: var(--cyan-dim); }
   .chip.is-on { border-color: var(--cyan); color: var(--cyan); }
@@ -123,6 +126,14 @@
   .neta-card.is-picked { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .45); }
   .neta-card.is-picked:hover { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .6); }
   .neta-card.is-picked::after { content: '✓'; border-color: var(--magenta); background: var(--magenta); color: var(--bg); font-size: 12px; line-height: 14px; text-align: center; font-weight: 700; }
+
+  /* ネタを開いたときの読む表示（2026-11-05）。書き換えるのは「編集」を押してから。
+     .modal に is-reading が付いている間は編集の部品を隠し、外れたら読む表示の部品を隠す */
+  #netaModal .modal.is-reading .neta-edit-only { display: none !important; }
+  #netaModal .modal:not(.is-reading) .neta-read-only { display: none !important; }
+  .nr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-faint); }
+  .nr-body { font-size: 14px; line-height: 1.9; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+  .nr-body.is-empty { color: var(--text-faint); }
 
   /* ===================== ジャンルカード・ネタの取り込み ===================== */
   .neta-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -461,6 +472,16 @@
       <div class="menu-wrap">
         <button type="button" class="hamburger-btn" id="menuBtn" aria-label="メニュー" aria-expanded="false">☰</button>
         <div class="menu-panel" id="menuPanel">
+          <!-- ネタ帳タブのときだけ出す（以前はネタ帳のツールバーと右上の「＋ 新規ネタ」。2026-11-05） -->
+          <div id="menuNetaGroup" class="is-hidden">
+            <div class="menu-head">ネタ帳</div>
+            <button type="button" class="menu-panel-item" id="menuNetaNew">＋ 新規ネタ<small>ジャンルを開いていれば、そのジャンルに入ります</small></button>
+            <button type="button" class="menu-panel-item" id="netaImportBtn">§ ネタを取り込む<small>§ と § で挟んだ文章をまとめて登録</small></button>
+            <button type="button" class="menu-panel-item" id="genreAddBtn">＋ ジャンルを追加</button>
+            <button type="button" class="menu-panel-item" id="netaSelectBtn">☑ 選んで削除</button>
+            <div class="menu-sep"></div>
+            <div class="menu-head">データ全体</div>
+          </div>
           <button type="button" class="menu-panel-item" id="menuExportAll">すべてをエクスポート（JSON）<small id="menuBackupNote"></small></button>
           <button type="button" class="menu-panel-item" id="menuImport">JSONからインポート</button>
           <div class="menu-sep"></div>
@@ -474,9 +495,14 @@
     <section class="view" id="netaView">
       <div class="toolbar">
         <input type="search" class="search-input" id="netaSearch" placeholder="ネタを検索（全ジャンル・本文・タグ）">
-        <button type="button" class="btn" id="netaImportBtn">§ ネタを取り込む</button>
-        <button type="button" class="btn" id="genreAddBtn">＋ ジャンル</button>
-        <button type="button" class="btn" id="netaSelectBtn">☑ 選んで削除</button>
+        <!-- 並び順（2026-11-05）。ネタのカードの並びだけを変える（ジャンルのカードは変えない）。端末ごとに覚える -->
+        <select class="filter-select" id="netaSort" title="ネタの並び順" aria-label="ネタの並び順">
+          <option value="updated-desc">更新が新しい順</option>
+          <option value="updated-asc">更新が古い順</option>
+          <option value="created-desc">作成が新しい順</option>
+          <option value="created-asc">作成が古い順</option>
+          <option value="used-desc">作品で使っている順</option>
+        </select>
       </div>
       <div class="select-bar is-hidden" id="netaSelectBar" role="region" aria-label="ネタを選んで削除">
         <span class="sb-text"><span class="sb-lead">消すネタを押して選んでください　</span>選択中 <strong id="netaSelCount">0</strong>件</span>
@@ -798,15 +824,24 @@
 <div class="modal-overlay" id="netaModal">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="netaModalTitle">
     <div class="modal-head"><span class="modal-title" id="netaModalTitle">ネタ</span><button type="button" class="modal-close" id="netaCloseBtn" aria-label="閉じる">✕</button></div>
-    <div class="modal-body">
+    <!-- 読む表示（開いたときはこちら。2026-11-05） -->
+    <div class="modal-body neta-read-only">
+      <div class="nr-meta" id="netaReadMeta"></div>
+      <div class="nr-body" id="netaReadBody"></div>
+    </div>
+    <div class="modal-body neta-edit-only">
       <select class="field-select" id="netaGenre" aria-label="ジャンル"></select>
       <textarea class="field-textarea" id="netaBody" rows="12" placeholder="思いついたことを書き溜める"></textarea>
       <input type="text" class="field-input" id="netaTags" placeholder="タグ（カンマ・スペース区切り）" maxlength="600">
       <div class="field-hint" id="netaUsage"></div>
     </div>
     <div class="modal-footer">
-      <span class="left" id="netaSaveInd">入力は自動で保存されます</span>
-      <button type="button" class="btn danger" id="netaDeleteBtn">削除</button>
+      <span class="left neta-edit-only" id="netaSaveInd">入力は自動で保存されます</span>
+      <span class="left neta-read-only" id="netaReadUsage"></span>
+      <button type="button" class="btn neta-read-only" id="netaCopyBtn">本文をコピー</button>
+      <button type="button" class="btn danger neta-edit-only" id="netaDeleteBtn">削除</button>
+      <button type="button" class="btn neta-read-only" id="netaEditBtn">編集</button>
+      <button type="button" class="btn neta-edit-only" id="netaReadBtn">読む表示に戻る</button>
       <button type="button" class="btn primary" id="netaMakeWorkBtn">このネタで作品を作る</button>
     </div>
   </div>
@@ -1751,11 +1786,15 @@
     Object.keys(viewEls).forEach((k) => viewEls[k].classList.toggle('is-active', k === name));
     const tab = name === 'work' ? workReturnTab : TAB_OF_VIEW[name];
     tabsEl.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === tab));
-    const map = { neta: '＋ 新規ネタ', works: '＋ 新規作品', templates: '＋ テンプレートを追加' };
+    // ネタ帳の「＋ 新規ネタ」は ☰ の中（2026-11-05。ネタ帳の操作は ☰ にまとめた）
+    const map = { works: '＋ 新規作品', templates: '＋ テンプレートを追加' };
     const label = map[name] || null;
     primaryActionBtn.classList.toggle('is-hidden', !label);
     if (label) primaryActionBtn.textContent = label;
+    updateMenuGroups();
   }
+  // ☰ のネタ帳の操作は、ネタ帳を開いていて、選んで削除の途中でないときだけ出す
+  function updateMenuGroups() { $('menuNetaGroup').classList.toggle('is-hidden', currentView !== 'neta' || netaSelecting); }
   tabsEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('.tab-btn');
     if (!btn || !dbReady) return;
@@ -1765,8 +1804,7 @@
   });
   primaryActionBtn.addEventListener('click', () => {
     if (!dbReady) return;
-    if (currentView === 'neta') openNetaModal(null);
-    else if (currentView === 'works') createWork([]);
+    if (currentView === 'works') createWork([]);
     else if (currentView === 'templates') openTplModal(null);
   });
   function updateCounts() {
@@ -1807,21 +1845,49 @@
         <span>${escapeHtml(formatDateTime(n.updatedAt))}</span>${used ? `<span class="used-mark">作品 ${used}</span>` : ''}</span>
     </button>`;
   }
-  // いま一覧に並んでいるネタ（ジャンルのカードを並べている間は null）
+  /* ネタの並び順（2026-11-05）。メモアプリと同じく端末ごとの好みなので、同期されるDBではなく localStorage に覚える。
+     読めない値・使えない環境では「更新が新しい順」（以前の並び）に戻す。同じ値どうしは更新が新しい順→IDの順で決める */
+  const NETA_SORT_KEY = 'sideops_manuscript_neta_sort';
+  const NETA_SORTS = ['updated-desc', 'updated-asc', 'created-desc', 'created-asc', 'used-desc'];
+  let netaSort = 'updated-desc';
+  try { const saved = localStorage.getItem(NETA_SORT_KEY); if (NETA_SORTS.includes(saved)) netaSort = saved; } catch (err) { /* 覚えられない環境では既定の順 */ }
+  const netaSortEl = $('netaSort');
+  netaSortEl.value = netaSort;
+  netaSortEl.addEventListener('change', () => {
+    if (!NETA_SORTS.includes(netaSortEl.value)) { netaSortEl.value = netaSort; return; }
+    netaSort = netaSortEl.value;
+    try { localStorage.setItem(NETA_SORT_KEY, netaSort); } catch (err) { /* 覚えられなくても並びは変える */ }
+    renderNeta();
+    netaListEl.scrollTop = 0;
+  });
+  function sortNeta(list) {
+    const t = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
+    const tie = (a, b) => (t(b.updatedAt) - t(a.updatedAt)) || String(a.id).localeCompare(String(b.id));
+    if (netaSort === 'used-desc') {
+      const used = new Map(list.map((n) => [n.id, netaUsageCount(n.id)]));
+      return list.slice().sort((a, b) => (used.get(b.id) - used.get(a.id)) || tie(a, b));
+    }
+    const [key, dir] = netaSort.split('-');
+    const f = key === 'created' ? 'createdAt' : 'updatedAt';
+    return list.slice().sort((a, b) => (dir === 'asc' ? t(a[f]) - t(b[f]) : t(b[f]) - t(a[f])) || tie(a, b));
+  }
+  // いま一覧に並んでいるネタ（選んだ並び順。ジャンルのカードを並べている間は null）
   function shownNeta() {
     const q = netaSearch.value.trim().toLowerCase();
-    if (q) return netaList.filter((n) => (n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q));
-    if (genres.length === 0) return netaList;
+    if (q) return sortNeta(netaList.filter((n) => (n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q)));
+    if (genres.length === 0) return sortNeta(netaList);
     if (netaGenreView === null) return null;
     const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
-    return netaList.filter((n) => n.genreId === (g ? g.id : ''));
+    return sortNeta(netaList.filter((n) => n.genreId === (g ? g.id : '')));
   }
+  // 空のときの案内に置く「＋ 新規ネタ」（☰ の中にもある。はじめて使うときに迷わないように）
+  const NETA_NEW_BTN = '<button type="button" class="btn small" data-act="neta-new">＋ 新規ネタ</button>';
   function renderNeta() {
     const q = netaSearch.value.trim().toLowerCase();
     if (netaGenreView && netaGenreView !== UNCAT && !getGenre(netaGenreView)) netaGenreView = null;
     updateNetaSelectBar();
     if (netaList.length === 0 && genres.length === 0) {
-      netaListEl.innerHTML = `<div class="empty-state"><div class="big">ネタ帳はまだ空です</div><div class="small">「＋ 新規ネタ」で1つずつ書くか、「§ ネタを取り込む」で §〜§ で区切った文章をまとめて取り込めます。「＋ ジャンル」でジャンルごとのカードに分けて管理できます。</div></div>`;
+      netaListEl.innerHTML = `<div class="empty-state"><div class="big">ネタ帳はまだ空です</div><div class="small">右上の ☰ の「＋ 新規ネタ」で1つずつ書くか、「§ ネタを取り込む」で §〜§ で区切った文章をまとめて取り込めます。「＋ ジャンルを追加」でジャンルごとのカードに分けて管理できます。</div>${NETA_NEW_BTN}</div>`;
       return;
     }
     // 検索中は全ジャンルを横断して表示
@@ -1833,7 +1899,7 @@
     }
     // ジャンルを1つも作っていない間は、これまでどおり全ネタを並べる
     if (genres.length === 0) {
-      netaListEl.innerHTML = '<div class="neta-grid">' + netaList.map((n) => netaCardHtml(n, false)).join('') + '</div>';
+      netaListEl.innerHTML = '<div class="neta-grid">' + shownNeta().map((n) => netaCardHtml(n, false)).join('') + '</div>';
       return;
     }
     if (netaGenreView === null) {
@@ -1858,7 +1924,7 @@
         ${g && !netaSelecting ? '<button type="button" class="btn small" data-act="genre-edit">ジャンルを編集</button>' : ''}
         ${g && g.note.trim() ? `<span class="nh-note">${escapeHtml(g.note)}</span>` : ''}
       </div>` + (list.length ? '<div class="neta-grid">' + list.map((n) => netaCardHtml(n, false)).join('') + '</div>'
-      : '<div class="empty-state"><div class="big">このジャンルにはまだネタがありません</div><div class="small">「＋ 新規ネタ」か「§ ネタを取り込む」で追加できます。</div></div>');
+      : `<div class="empty-state"><div class="big">このジャンルにはまだネタがありません</div><div class="small">右上の ☰ の「＋ 新規ネタ」か「§ ネタを取り込む」で追加できます。</div>${netaSelecting ? '' : NETA_NEW_BTN}</div>`);
   }
   netaSearch.addEventListener('input', renderNeta);
   netaListEl.addEventListener('click', (e) => {
@@ -1875,6 +1941,7 @@
     if (!act) return;
     if (act.dataset.act === 'genre-back') { netaGenreView = null; renderNeta(); }
     else if (act.dataset.act === 'genre-edit') { const g = getGenre(netaGenreView); if (g) openGenreModal(g); }
+    else if (act.dataset.act === 'neta-new') { if (dbReady && !netaSelecting) openNetaModal(null); }
   });
   /* ---- 選んで削除（ネタ帳）----
      選んでいる間は、カードを押すと選ぶ／外すになる（開かない）。ジャンルの出入りや検索をしても選択は残す。
@@ -1883,7 +1950,7 @@
   function updateNetaSelectBar() {
     Array.from(netaPicked).forEach((id) => { if (!getNeta(id)) netaPicked.delete(id); });
     netaSelectBar.classList.toggle('is-hidden', !netaSelecting);
-    ['netaImportBtn', 'genreAddBtn', 'netaSelectBtn'].forEach((id) => $(id).classList.toggle('is-hidden', netaSelecting));
+    updateMenuGroups(); // 選んでいる間は ☰ のネタ帳の操作（新規・取り込み・ジャンル追加・選んで削除）を隠す
     primaryActionBtn.disabled = netaSelecting && currentView === 'neta';
     $('netaSelCount').textContent = netaPicked.size;
     $('netaSelDeleteBtn').disabled = netaPicked.size === 0;
@@ -1980,8 +2047,49 @@
     netaSaveInd.textContent = '入力は自動で保存されます';
     $('netaMakeWorkBtn').textContent = currentView === 'work' ? 'この作品に追加' : 'このネタで作品を作る';
     netaModal.classList.add('is-open');
-    setTimeout(() => netaBody.focus(), 0);
+    setNetaReading(netaList.includes(n) && !!n.body.trim());
   }
+  /* ネタを開いたときは読む表示（2026-11-05）。書き換えるのは「編集」を押してから
+     （スマホで開いただけでキーボードが出ない・うっかり書き換えない）。新しいネタと本文の空のネタは、書くために開くので最初から編集。
+     「削除」は編集のときだけ出す（読んでいるときに押し間違えないように） */
+  const netaModalBox = netaModal.querySelector('.modal');
+  function renderNetaRead(n) {
+    const meta = $('netaReadMeta');
+    meta.textContent = '';
+    const add = (cls, text) => { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text; meta.appendChild(s); };
+    const g = n.genreId ? getGenre(n.genreId) : null;
+    add('genre-pill', g ? genreLabel(g) : '未分類');
+    n.tags.forEach((t) => add('tag-pill', t));
+    const made = formatDateTime(n.createdAt), upd = formatDateTime(n.updatedAt);
+    add('', [made && `作成 ${made}`, upd && `更新 ${upd}`].filter(Boolean).join('・'));
+    const body = $('netaReadBody');
+    body.textContent = '';
+    body.classList.toggle('is-empty', !n.body.trim());
+    if (n.body.trim()) appendAnnotated(body, n.body); // 注釈（[…]・〔〔…〕〕）は編集のときと同じ色で強調
+    else body.textContent = '（本文はありません。「編集」で書けます）';
+    const used = netaUsageCount(n.id);
+    $('netaReadUsage').textContent = used ? `作品 ${used}件で使用中` : '';
+  }
+  function setNetaReading(reading) {
+    const n = editingNeta;
+    if (!n) return;
+    netaModalBox.classList.toggle('is-reading', reading);
+    $('netaModalTitle').textContent = reading ? 'ネタ' : 'ネタを編集';
+    if (reading) {
+      readNetaForm(n);
+      renderNetaRead(n);
+      netaModalBox.querySelector('.modal-body.neta-read-only').scrollTop = 0;
+    } else {
+      setTimeout(() => netaBody.focus(), 0);
+    }
+  }
+  $('netaEditBtn').addEventListener('click', () => setNetaReading(false));
+  $('netaReadBtn').addEventListener('click', () => setNetaReading(true));
+  $('netaCopyBtn').addEventListener('click', (e) => {
+    const n = editingNeta;
+    if (!n || !n.body.trim()) { showToast('コピーする本文がありません', true); return; }
+    copyText(n.body, e.currentTarget);
+  });
   [netaBody, netaTags].forEach((el) => el.addEventListener('input', () => netaSaver.schedule()));
   $('netaGenre').addEventListener('change', () => netaSaver.schedule());
   function afterNetaChangeInEditor() { if (currentView === 'work') { const w = getWork(currentWorkId); if (w) { renderWorkNeta(w); updateWorkState(); } } }
@@ -4107,6 +4215,9 @@
     menuBtn.setAttribute('aria-expanded', String(open));
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('.menu-wrap')) closeMenu(); });
+  // ☰ の項目を押したら閉じる（項目ごとの処理のあとで閉じる）
+  menuPanel.addEventListener('click', (e) => { if (e.target.closest('.menu-panel-item')) closeMenu(); });
+  $('menuNetaNew').addEventListener('click', () => { if (dbReady && !netaSelecting) openNetaModal(null); });
   $('menuStorage').addEventListener('click', async () => {
     closeMenu();
     if (!navigator.storage || !navigator.storage.estimate) { showToast('このブラウザでは容量を確認できません', true); return; }
@@ -4132,9 +4243,10 @@
     if (netaSelecting && currentView === 'neta') exitNetaSelect();
   });
   // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：ネタ帳の「選んで削除」の途中も1段として数え、
-  // 戻るで選ぶのをやめる（いちばん手前の層には Esc を送る仕組みなので、上の Esc でやめる）。前半はブリッジの既定と同じ
+  // 戻るで選ぶのをやめる（いちばん手前の層には Esc を送る仕組みなので、上の Esc でやめる）。前半はブリッジの既定と同じ。
+  // 開いた ☰ も1段に数え、戻るで ☰ だけを閉じる（2026-11-05。ネタ帳の操作を ☰ に移したので、開く機会が増えた）
   window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
-    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar';
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #menuPanel.is-open';
   const flushAll = () => { netaSaver.flush(); loreSaver.flush(); genreSaver.flush(); workSaver.flush(); };
   window.addEventListener('beforeunload', (e) => {
     if (netaSaver.pending || loreSaver.pending || genreSaver.pending || workSaver.pending) { flushAll(); e.preventDefault(); e.returnValue = ''; }
