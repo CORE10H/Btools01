@@ -1322,6 +1322,10 @@
   let editingLore = null;
   let editingGenre = null;
   let netaGenreView = null; // null=ジャンル一覧 / UNCAT=未分類 / ジャンルID
+  // 保存を待ってから閉じる画面の「閉じている途中」（2026-11-05）。SIDE-OPSの戻るボタン（テーマブリッジ）は
+  // 「背景のクリック → Esc → ✕」と続けて試し、保存を待つ間は画面がまだ開いて見えるので、閉じる処理が重ねて呼ばれる。
+  // 重なった分は何もしない（以前は2回目以降が空の編集中を読んでエラーになっていた）
+  const closing = { neta: false, genre: false, lore: false };
   let netaSelecting = false;     // ネタ帳の「選んで削除」の途中か
   const netaPicked = new Set(); // 選んだネタのID（ジャンルや検索をまたいで残る）
   let editingTplId = null;
@@ -2095,6 +2099,11 @@
   function afterNetaChangeInEditor() { if (currentView === 'work') { const w = getWork(currentWorkId); if (w) { renderWorkNeta(w); updateWorkState(); } } }
 
   async function closeNetaModal() {
+    if (closing.neta) return; // 閉じている途中に重ねて呼ばれた（上の closing）
+    closing.neta = true;
+    try { await closeNetaModalNow(); } finally { closing.neta = false; }
+  }
+  async function closeNetaModalNow() {
     if (!editingNeta) { netaModal.classList.remove('is-open'); return; }
     await netaSaver.flush();
     const n = editingNeta;
@@ -2191,6 +2200,11 @@
   const genreModalTitle = $('genreModalTitle');
   [genreName, genreNote].forEach((el) => el.addEventListener('input', () => { genreSaver.schedule(); readGenreForm(editingGenre || {}); updateGenreUsage(); }));
   async function closeGenreModal() {
+    if (closing.genre) return; // 閉じている途中に重ねて呼ばれた（上の closing）
+    closing.genre = true;
+    try { await closeGenreModalNow(); } finally { closing.genre = false; }
+  }
+  async function closeGenreModalNow() {
     if (!editingGenre) { genreModal.classList.remove('is-open'); return; }
     await genreSaver.flush();
     const g = editingGenre;
@@ -2750,6 +2764,11 @@
   }
   [loreKind, loreName, loreBody, loreImgPrompt].forEach((el) => { el.addEventListener('input', () => loreSaver.schedule()); el.addEventListener('change', () => loreSaver.schedule()); });
   async function closeLoreModal() {
+    if (closing.lore) return; // 閉じている途中に重ねて呼ばれた（上の closing）
+    closing.lore = true;
+    try { await closeLoreModalNow(); } finally { closing.lore = false; }
+  }
+  async function closeLoreModalNow() {
     if (!editingLore) { loreModal.classList.remove('is-open'); return; }
     await loreSaver.flush();
     const l = editingLore;

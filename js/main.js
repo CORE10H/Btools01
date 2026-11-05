@@ -1612,6 +1612,142 @@
     else if (launcherAddOverlay.classList.contains('is-open')) closeLauncherAddModal();
   });
 
+  /* ---- カバーフローの並び順（2026-11-05）----
+     設定の「カバーフロー」→［並び順を変える］で、設定の上に重ねて開く（設定を閉じてから開くと、閉じた分の履歴の
+     後片付けの間は戻る操作の層を積めず、スマホの戻るボタンでSIDE-OPSから離れてしまうため）。
+     手元の写し（カードIDの並び）を ⤒▲▼ で動かし、［決定］で保存する。
+     歯止め：
+       ・保存は1つの書き込み（トランザクション）。保存の直前にDBのカードを読み直し、並び順（order）と更新日時だけを
+         変えて書き戻す（開いている間に同期がカバー画像などを変えていても、古い中身で上書きしない）。並びが変わらないカードは書かない
+       ・開いている間に消えたカードは飛ばし、増えたカードは後ろに並べる
+       ・並べ替えた後は、背景のクリックでは閉じない（✕・キャンセル・Esc・戻るボタンでは、保存せずに閉じる）
+       ・Esc は自分だけを閉じる（下の設定の Esc まで届くと、1回で2つ閉じてしまう） */
+  const launcherOrderOverlay = document.getElementById('launcherOrderOverlay');
+  const launcherOrderList = document.getElementById('launcherOrderList');
+  const launcherOrderNote = document.getElementById('launcherOrderNote');
+  let orderIds = null;       // 並べ替え中の写し（カードIDの並び）。閉じている間は null
+  let orderStartIds = [];    // 開いたときの並び
+  let orderMovedId = null;   // 最後に動かしたカード（目立たせる）
+  let orderThumbUrls = [];
+  let orderSaving = false;
+
+  const orderChanged = () => !!orderIds && orderIds.join('|') !== orderStartIds.join('|');
+  function revokeOrderThumbs() { orderThumbUrls.forEach((u) => URL.revokeObjectURL(u)); orderThumbUrls = []; }
+  function renderLauncherOrder(focusMove) {
+    revokeOrderThumbs();
+    launcherOrderList.innerHTML = orderIds.length ? '' : '<div class="app-manage-empty">カードはまだありません。</div>';
+    orderIds.forEach((id, i) => {
+      const card = cards.find((c) => c.id === id);
+      if (!card) return;
+      const app = findAppForCard(card);
+      const name = card.overlayText && card.overlayText.trim() ? card.overlayText.trim() : (app ? app.name : '（本体未設定）');
+      const first = i === 0, last = i === orderIds.length - 1;
+      const row = document.createElement('div');
+      row.className = 'launcher-order-row' + (id === orderMovedId ? ' is-moved' : '');
+      row.dataset.id = id;
+      row.innerHTML = `<span class="launcher-order-num">${i + 1}</span><span class="launcher-order-thumb"></span>
+        <span class="launcher-order-name"><b>${escapeHtmlLauncher(name)}</b>${card.cat ? `<small>${escapeHtmlLauncher(card.cat)}</small>` : ''}</span>
+        <button class="launcher-order-btn" type="button" data-move="top" title="いちばん上へ" aria-label="いちばん上へ"${first ? ' disabled' : ''}>⤒</button>
+        <button class="launcher-order-btn" type="button" data-move="up" title="1つ上へ" aria-label="1つ上へ"${first ? ' disabled' : ''}>▲</button>
+        <button class="launcher-order-btn" type="button" data-move="down" title="1つ下へ" aria-label="1つ下へ"${last ? ' disabled' : ''}>▼</button>`;
+      if (card.coverImage instanceof Blob) {
+        const url = URL.createObjectURL(card.coverImage);
+        orderThumbUrls.push(url);
+        const th = row.querySelector('.launcher-order-thumb');
+        const fb = window.SideOpsFrame ? window.SideOpsFrame.bgStyle(card.coverThumb, 16 / 9) : { size: 'cover', position: 'center' };
+        th.style.backgroundImage = `url('${url}')`;
+        th.style.backgroundSize = fb.size;
+        th.style.backgroundPosition = fb.position;
+      }
+      launcherOrderList.appendChild(row);
+    });
+    launcherOrderNote.textContent = orderChanged() ? 'まだ保存していません' : '';
+    const moved = orderMovedId ? [...launcherOrderList.children].find((r) => r.dataset.id === orderMovedId) : null;
+    if (moved) {
+      moved.scrollIntoView({ block: 'nearest' });
+      // 続けて同じボタンを押せるように（キーボードでの操作。押せなくなった向きなら何もしない）
+      const again = focusMove && moved.querySelector(`[data-move="${focusMove}"]`);
+      if (again && !again.disabled) again.focus({ preventScroll: true });
+    }
+  }
+  function openLauncherOrder() {
+    orderStartIds = cards.map((c) => c.id);
+    orderIds = orderStartIds.slice();
+    orderMovedId = null;
+    renderLauncherOrder();
+    launcherOrderOverlay.classList.add('is-open');
+  }
+  function closeLauncherOrder() {
+    launcherOrderOverlay.classList.remove('is-open');
+    orderIds = null;
+    orderMovedId = null;
+    revokeOrderThumbs();
+    launcherOrderList.innerHTML = '';
+  }
+  launcherOrderList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.launcher-order-btn');
+    if (!btn || btn.disabled || !orderIds) return;
+    const id = btn.closest('.launcher-order-row').dataset.id;
+    const i = orderIds.indexOf(id);
+    const to = btn.dataset.move === 'top' ? 0 : btn.dataset.move === 'up' ? i - 1 : i + 1;
+    if (i < 0 || to < 0 || to >= orderIds.length || to === i) return;
+    orderIds.splice(i, 1);
+    orderIds.splice(to, 0, id);
+    orderMovedId = id;
+    renderLauncherOrder(btn.dataset.move);
+  });
+  document.getElementById('launcherOrderSaveBtn').addEventListener('click', async () => {
+    if (!orderIds || orderSaving) return;
+    if (!orderChanged()) { closeLauncherOrder(); return; }
+    orderSaving = true;
+    const want = orderIds.slice();
+    const centerId = cards[centerIndex] ? cards[centerIndex].id : null;
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = launcherDb.transaction(CARDS_STORE, 'readwrite');
+        const os = tx.objectStore(CARDS_STORE);
+        const req = os.getAll();
+        req.onsuccess = () => {
+          const now = Date.now();
+          const all = req.result || [];
+          const byId = new Map(all.map((c) => [c.id, c]));
+          const added = all.filter((c) => !want.includes(c.id)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((c) => c.id);
+          want.filter((id) => byId.has(id)).concat(added).forEach((id, i) => {
+            const c = byId.get(id);
+            if (c.order !== i) os.put(Object.assign({}, c, { order: i, updatedAt: now }));
+          });
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('書き込みが中止されました'));
+      });
+      await loadLauncherData();
+      closeLauncherOrder();
+      const ci = centerId ? cards.findIndex((c) => c.id === centerId) : -1;
+      if (ci >= 0) centerIndex = ci; // 見ていたカードを中央のままにする
+      buildCoverflow();
+      showLauncherToast('並び順を変えました');
+    } catch (err) {
+      console.error('カバーフローの並び順を保存できませんでした', err);
+      showLauncherToast('保存できませんでした（並び順は変わっていません）');
+    } finally {
+      orderSaving = false;
+    }
+  });
+  document.getElementById('launcherOrderCancelBtn').addEventListener('click', closeLauncherOrder);
+  document.getElementById('launcherOrderCloseBtn').addEventListener('click', closeLauncherOrder);
+  launcherOrderOverlay.addEventListener('click', (e) => { if (e.target === launcherOrderOverlay && !orderChanged()) closeLauncherOrder(); });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !launcherOrderOverlay.classList.contains('is-open')) return;
+    e.stopPropagation(); // 下の設定の Esc（document で受けている）まで届かせない
+    e.preventDefault();
+    closeLauncherOrder();
+  }, true);
+  document.getElementById('openLauncherOrderBtn').addEventListener('click', () => {
+    if (!launcherDb) { showLauncherToast('カードを読み込めていません'); return; }
+    openLauncherOrder();
+  });
+
   /* =====================================================================
      アプリ管理（段階③）：インポートした後天的アプリ（type: 'imported'）の
      本体削除機能。先天的アプリ（builtin）は一覧に出さず、削除もできない
@@ -1923,7 +2059,7 @@
   // 本体のモーダル（同期の進み具合・確認のダイアログは、答えを待つものなので戻る操作の対象にしない）
   if (BackNav) {
     ['settingsOverlay', 'customThemeOverlay', 'appManageOverlay', 'appDeleteConfirmOverlay',
-      'launcherAddOverlay', 'launcherDeleteOverlay', 'launcherDupOverlay', 'syncOverlay', 'syncDiff']
+      'launcherAddOverlay', 'launcherDeleteOverlay', 'launcherDupOverlay', 'launcherOrderOverlay', 'syncOverlay', 'syncDiff']
       .forEach((id) => BackNav.watchOverlay(document.getElementById(id)));
   }
 
@@ -2868,6 +3004,32 @@
     initLogSettingsUi();
   });
 
+  /* スマホの画面に浮かぶ戻るボタン・時計（2026-11-05。仕組みは js/float-ui.js）
+     出す／出さないは sideops_settings の main レコードの floatBack・floatClock（false のときだけ出さない）。
+     同期の対象（js/sync.js の DB_RULES の only）に入れていないので端末ごと。置き場所は float-ui.js が localStorage に覚える。
+     float-ui.js がまだ読み込まれていないときに備えて、値は window.SideOpsFloatOptions にも置く（読み込まれたらそれで始める） */
+  const floatBackToggle = document.getElementById('floatBackToggle');
+  const floatClockToggle = document.getElementById('floatClockToggle');
+  function applyFloatOptions(o) {
+    window.SideOpsFloatOptions = { back: o.back, clock: o.clock };
+    if (floatBackToggle) floatBackToggle.checked = o.back;
+    if (floatClockToggle) floatClockToggle.checked = o.clock;
+    if (window.SideOpsFloat) window.SideOpsFloat.setOptions(window.SideOpsFloatOptions);
+  }
+  function onFloatToggle() {
+    const o = { back: !!(floatBackToggle && floatBackToggle.checked), clock: !!(floatClockToggle && floatClockToggle.checked) };
+    applyFloatOptions(o);
+    saveSettingsPatch({ floatBack: o.back, floatClock: o.clock });
+  }
+  if (floatBackToggle) floatBackToggle.addEventListener('change', onFloatToggle);
+  if (floatClockToggle) floatClockToggle.addEventListener('change', onFloatToggle);
+  const floatResetPosBtn = document.getElementById('floatResetPosBtn');
+  if (floatResetPosBtn) floatResetPosBtn.addEventListener('click', () => {
+    if (window.SideOpsFloat) window.SideOpsFloat.resetPositions();
+    floatResetPosBtn.textContent = '元に戻しました';
+    setTimeout(() => { floatResetPosBtn.textContent = '置き場所を元に戻す'; }, 1400);
+  });
+
   // 設定DBの初期化 → 保存済み設定の復元。
   // 失敗時（IndexedDB不可、レコード破損等）は例外を投げず、既存の
   // デフォルト値（透過率100%・壁紙なし・darkテーマ）のまま起動を
@@ -2894,6 +3056,9 @@
       wallpaperUploads = uploadsRecord.uploads;
       buildWallpaperSwatches();
     }
+
+    // スマホの画面に浮かぶ戻るボタン・時計（2026-11-05。端末ごと。保存していなければ出す）
+    applyFloatOptions({ back: !(record && record.floatBack === false), clock: !(record && record.floatClock === false) });
 
     if (!record) return; // 軽量レコードが無い（初回起動等）→残りはデフォルトのまま
 

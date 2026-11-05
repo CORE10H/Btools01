@@ -16,6 +16,7 @@ GitHub Pages で公開：https://core10h.github.io/Btools01/
 - 同期（複数端末）：`js/sync.js`（本体）・`js/sync-onedrive.js`（OneDrive）・`js/sync-gdrive.js`（Googleドライブ）。設計は `docs/planning/claude_クラウド同期_仕様書.md`
 - 戻る操作（モーダル・Stageを1つずつ閉じる）：`js/back-nav.js`。ホーム画面に追加したときの設定：`manifest.webmanifest`・`icons/`
 - 一時メモ（画面に浮かぶ書き付け。保存・同期しない）：`js/temp-memo.js`（`docs/core/claude_一時メモ_仕様書.md`）
+- 画面に浮かぶ戻るボタンと時計（スマホの画面でアプリを開いている間）：`js/float-ui.js`（`docs/core/claude_メインステージ_仕様書.md`）
 - 個別アプリ：`apps/*.html`（Stage に iframe で読み込む）。カバー画像は `apps/img/`
 - 本体テーマをアプリに伝える仕組み：`apps/sideops-theme-bridge.js`（postMessage）
 - 永続化はすべて IndexedDB（DB名は `sideops_*`）
@@ -31,4 +32,4 @@ GitHub Pages で公開：https://core10h.github.io/Btools01/
 - PROMPTGALLERY RED（`apps/prompt-gallery-red.html`）は手で直さず、本家を直してから `D:\dev\sideops_sync_verify\mkred.pl` で作り直す
 - よく変わる小さなデータ（読んだ位置など）は、大きなデータ（本文など）と別のDBにする。同期はDBごとに1つのファイルを丸ごと送るため、同じDBだと小さな変更のたびに全部を送り直す（`docs/platform/claude_IndexedDB実装パターン_仕様書.md`）
 - 画像を決まった比率の枠に入れて出すとき（カバー・表紙など）は、`apps/sideops-frame.js`（見え方の共通部品）を使い、見え方（`{ ar, z, cx, cy }`）をレコードに保存する。値の意味は変えない（保存済みの見え方がずれる）
-- 同期の決まり：アプリの `DB_VERSION` を上げたら `js/sync.js` の `DB_RULES` の `version` と `SYNC_APP_BUILD` も上げる。レコードの項目を変えたら `SYNC_APP_BUILD` を上げる。新しいアプリ（DB）を足したら `DB_RULES` に足す。同期まわりを変えたら `D:\dev\sideops_sync_verify\` の `sync_e2e.dart`（同期ファイル）・`onedrive_e2e.dart`（OneDrive。偽のMicrosoftを使う）・`drive_e2e.dart`（Googleドライブ。偽のドライブを使う）で確認する。戻る操作・全画面まわり（`js/back-nav.js`・`js/main.js`・テーマブリッジ）を変えたら `backnav_e2e.dart`・`backsweep.dart` で確認する（ほかの道具は `docs/platform/claude_動作確認の注意点_仕様書.md`）
+- 同期の決まり：アプリの `DB_VERSION` を上げたら `js/sync.js` の `DB_RULES` の `version` と `SYNC_APP_BUILD` も上げる。レコードの項目を変えたら `SYNC_APP_BUILD` を上げる。新しいアプリ（DB）を足したら `DB_RULES` に足す。同期まわりを変えたら `D:\dev\sideops_sync_verify\` の `sync_e2e.dart`（同期ファイル）・`onedrive_e2e.dart`（OneDrive。偽のMicrosoftを使う）・`drive_e2e.dart`（Googleドライブ。偽のドライブを使う）で確認する。戻る操作・全画面まわり（`js/back-nav.js`・`js/main.js`・`js/float-ui.js`・テーマブリッジ）を変えたら `backnav_e2e.dart`・`backsweep.dart`・`floatui_e2e.dart` で確認する（ほかの道具は `docs/platform/claude_動作確認の注意点_仕様書.md`）

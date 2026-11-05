@@ -284,6 +284,24 @@
       </div>
     </div>
 
+    <!-- スマホの画面に浮かぶ戻るボタン・時計（2026-11-05。この端末だけの設定。js/float-ui.js） -->
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">スマホの画面（アプリを開いている間）</div>
+      <div class="settings-row-hint">画面に浮かぶ戻るボタンと時計です。戻るボタンは、開いているものを1つずつ閉じます（全画面のまま使えます）。どちらも指でずらして置き場所を変えられます。この端末だけの設定です。</div>
+      <div class="float-setting-checks">
+        <label class="float-setting-check"><input type="checkbox" id="floatBackToggle" checked> 戻るボタンを出す</label>
+        <label class="float-setting-check"><input type="checkbox" id="floatClockToggle" checked> 時計を出す</label>
+      </div>
+      <div><button class="btn" id="floatResetPosBtn" type="button">置き場所を元に戻す</button></div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">カバーフロー</div>
+      <div class="app-manage-control">
+        <button class="btn" id="openLauncherOrderBtn" type="button">並び順を変える</button>
+      </div>
+    </div>
+
     <div class="settings-row">
       <div class="settings-row-label">アプリ管理</div>
       <div class="app-manage-control">
@@ -365,6 +383,15 @@
   <div class="temp-memo-grip" id="tempMemoGrip" title="ドラッグで大きさを変える"></div>
 </aside>
 
+<!-- ===== 画面に浮かぶ戻るボタンと時計（2026-11-05）=====
+     スマホの画面でアプリ（Stage）を開いている間だけ出す。指でずらして置き場所を変えられる（端末ごとに覚える）。
+     戻るボタンは、スマホの戻るボタンと同じく「いちばん上に開いているもの」を1つ閉じる（ブラウザの「戻る」を使わないので、
+     全画面が解除されない）。仕組みは js/float-ui.js。Stageと同じ理由で .shell の外に置く -->
+<button class="float-back" id="floatBackBtn" type="button" title="戻る（指でずらせます）" aria-label="戻る">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+</button>
+<div class="float-clock" id="floatClock" role="timer" aria-label="時計" title="時計（指でずらせます）">--:--</div>
+
 <!-- fixed nav buttons for the tilted cover flow (outside 3D transform context) -->
 <div class="cf-head-fixed">APPS</div>
 <button class="cf-nav-fixed prev" id="cfPrev">▲</button>
@@ -424,6 +451,25 @@
     <div class="launcher-modal-footer">
       <button class="btn" id="launcherAddCancelBtn">キャンセル</button>
       <button class="btn primary" id="launcherAddSaveBtn">作成する</button>
+    </div>
+  </div>
+</div>
+
+<!-- カバーフロー：並び順（2026-11-05。設定の「カバーフロー」から開く）。
+     ▲▼で並べ替え、［決定］で保存する。［キャンセル］・✕・Esc・戻るボタンでは保存しない。
+     並べ替えた後は、背景のクリックでは閉じない（うっかり触れて捨てないように） -->
+<div class="launcher-modal-overlay" id="launcherOrderOverlay">
+  <div class="launcher-modal launcher-order-modal">
+    <div class="launcher-modal-head">
+      <span class="launcher-modal-title">カバーフローの並び順</span>
+      <button class="launcher-modal-close" id="launcherOrderCloseBtn" type="button" aria-label="閉じる">✕</button>
+    </div>
+    <div class="launcher-field-hint" style="margin-bottom:10px;">上から順にカバーフローに並びます。▲▼で1つずつ、⤒でいちばん上へ動かします。［決定］を押すまで保存しません。</div>
+    <div class="launcher-order-list" id="launcherOrderList"><!-- JSで生成 --></div>
+    <div class="launcher-modal-footer">
+      <span class="launcher-order-note" id="launcherOrderNote"></span>
+      <button class="btn" id="launcherOrderCancelBtn" type="button">キャンセル</button>
+      <button class="btn primary" id="launcherOrderSaveBtn" type="button">決定</button>
     </div>
   </div>
 </div>
@@ -583,6 +629,7 @@
 <script src="apps/sideops-frame.js"></script>
 <script src="js/main.js"></script>
 <script src="js/temp-memo.js"></script>
+<script src="js/float-ui.js"></script>
 <script src="js/sync-onedrive.js"></script>
 <script src="js/sync-gdrive.js"></script>
 <script src="js/sync.js"></script>

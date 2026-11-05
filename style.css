@@ -728,6 +728,40 @@
   .stage-placeholder .big { font-family: var(--font-display); font-size: 13px; letter-spacing: .06em; color: var(--text-dim); }
   .stage-placeholder .small { font-size: 11px; max-width: 300px; line-height: 1.8; color: var(--text-faint); }
 
+  /* ===================== 画面に浮かぶ戻るボタンと時計（2026-11-05。js/float-ui.js） =====================
+     スマホの画面でアプリ（Stage）を開いている間だけ出す。Stage（190）と一時メモ（195）より手前、
+     本体のモーダル（250〜）より奥（モーダルの覆いの下になり、モーダルの操作を邪魔しない）。
+     位置はJSが画面の中に収めて left/top で決める。指でずらせる（touch-action: none でスクロールにしない） */
+  .float-back, .float-clock {
+    position: fixed; left: 0; top: 0; z-index: 197;
+    display: none;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    background: rgba(var(--panel-rgb), .78);
+    border: 1px solid var(--cyan-dim);
+    box-shadow: 0 4px 14px rgba(var(--shadow-rgb), .45);
+  }
+  .float-back.is-shown, .float-clock.is-shown { display: flex; }
+  .float-back {
+    width: 46px; height: 46px; border-radius: 50%; padding: 0;
+    align-items: center; justify-content: center;
+    color: var(--cyan); cursor: pointer;
+  }
+  .float-back svg { width: 22px; height: 22px; pointer-events: none; }
+  .float-back:active, .float-back.is-pressed { background: rgba(var(--cyan-rgb), .28); }
+  .float-back:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .float-clock {
+    align-items: center; height: 26px; padding: 0 10px; border-radius: 13px;
+    font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: .06em;
+    color: var(--text); cursor: grab; font-variant-numeric: tabular-nums;
+  }
+  .float-back.is-dragging, .float-clock.is-dragging { cursor: grabbing; opacity: .9; box-shadow: 0 8px 22px rgba(var(--shadow-rgb), .6); }
+
+  /* 設定モーダル：スマホの画面に浮かぶもの */
+  .float-setting-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 10px; }
+  .float-setting-check { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-dim); cursor: pointer; }
+  .float-setting-check input { width: 16px; height: 16px; accent-color: var(--cyan); cursor: pointer; }
+
   /* ===================== BOTTOM: schedule + tasks (below stage) ===================== */
   /* ---- timeline (below stage, width matches stage) ---- */
   .timeline-panel {
@@ -1199,6 +1233,31 @@
     font-size: 10.5px; padding: 5px 10px; cursor: pointer; font-family: var(--font-body);
   }
   .app-manage-delete-btn:hover { background: var(--magenta-dim); }
+
+  /* ---- カバーフローの並び順（2026-11-05） ---- */
+  #launcherOrderOverlay { z-index: 252; } /* 設定（250）の上に重ねて開く。同期の確認（260〜）よりは奥 */
+  .launcher-order-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .launcher-order-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 4px;
+    border: 1px solid var(--line-soft); background: rgba(var(--panel-rgb), .6);
+  }
+  .launcher-order-row.is-moved { border-color: var(--cyan); background: rgba(var(--cyan-rgb), .1); }
+  .launcher-order-num { width: 20px; flex-shrink: 0; text-align: right; font-family: var(--font-display); font-size: 12px; color: var(--text-faint); }
+  .launcher-order-thumb {
+    width: 56px; height: 32px; flex-shrink: 0; border: 1px solid var(--line-soft);
+    background-color: rgba(var(--bg-rgb), .8); background-repeat: no-repeat; background-size: cover; background-position: center;
+  }
+  .launcher-order-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .launcher-order-name b { font-size: 12px; color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .launcher-order-name small { font-size: 10px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .launcher-order-btn {
+    flex-shrink: 0; width: 34px; height: 34px; padding: 0;
+    background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .launcher-order-btn:hover:not(:disabled) { border-color: var(--cyan-dim); color: var(--cyan); }
+  .launcher-order-btn:disabled { opacity: .3; cursor: default; }
+  .launcher-order-note { margin-right: auto; align-self: center; font-size: 10.5px; color: var(--amber); }
 
   /* ---- トースト ---- */
   .launcher-toast {

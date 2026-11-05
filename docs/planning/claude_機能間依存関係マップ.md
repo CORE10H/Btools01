@@ -103,13 +103,16 @@ STAMPWORKSは、プロンプトを作る（アプリ内）→ ChatGPT・Gemini �
 ### 一時メモ（js/temp-memo.js） → ヘッダー・メインステージ（2026-10-10〜）
 ヘッダーの ✎（`#tempMemoBtn`）と Stage の ✎（`#stageTempMemoBtn`）を出し入れのボタンとして使う。重なりは Stage（190）より手前・本体のモーダル（200〜）より奥の 195 なので、Stage やモーダルの z-index を変えるときは合わせて見直す。モーダルではないので戻る操作（`js/back-nav.js`）の層にはしない。DB に入れないので同期とは無関係。ヘッダーのボタンが増えたため、スマホのヘッダーの詰め方（`ヘッダーと設定モーダル_仕様書.md`）もこれに合わせている。ヘッダーにボタンを足すときは `header_fit.dart` で確かめる
 
+### 画面に浮かぶ戻るボタンと時計（js/float-ui.js） → 戻る操作・メインステージ・設定（2026-11-05〜）
+戻るボタンは`js/back-nav.js`の`SideOpsBackNav.backOne()`・`busy()`を使う（戻る操作の決まりを変えるときは`floatui_e2e.dart`でも確かめる）。出す時は`#stageEl`の`is-open`と、`MOBILE_LAYOUT_QUERY`（`js/main.js`・`style.css`と同じ値を`float-ui.js`にも書いている。変えるときは3か所）で決める。重なりは197（Stage 190・一時メモ 195 より手前、本体のモーダル 250〜 より奥）。設定は`sideops_settings`の`main`の`floatBack`・`floatClock`（同期しない）で、`js/main.js`が`SideOpsFloat.setOptions`で知らせる
+
 ### 同期（js/sync.js） → 各アプリのDB・本体の設定・メインステージ
 同期は、許可リスト（`DB_RULES`）にある各アプリのDBを直接読み書きする（DBを機能ごとに独立させる原則の唯一の例外）。そのため、アプリ側の次の変更は同期に影響する（`planning/claude_クラウド同期_仕様書.md`の「開発時の決まり」）。
 - `DB_VERSION`を上げる → `DB_RULES`の`version`と`SYNC_APP_BUILD`も上げる
 - レコードの項目を変える → `SYNC_APP_BUILD`を上げる
 - 新しいアプリ・DBを足す → `DB_RULES`に足す
 - 同期しない大きなデータは、`DB_RULES`に入れない別のDBにする（2026-10-10〜：STAMPWORKSの企画`sideops_stampworks`は同期、作業中の画像`sideops_stampworks_work`は同期しない）
-- 本体の設定（`sideops_settings`の`main`）は項目ごとに分けて同期する（テーマは同期、壁紙・透過率は端末ごと）。設定に項目を足したら、どちらにするか決める
+- 本体の設定（`sideops_settings`の`main`）は項目ごとに分けて同期する（テーマは同期、壁紙・透過率・浮かぶ戻るボタンと時計は端末ごと）。設定に項目を足したら、どちらにするか決める
 - Stageでアプリを開いているかどうかを、`#stageEl`の`is-open`と、`#stageBody`内のiframe（閉じた直後の保存の猶予中）で判定している。Stageの作りを変えるときは、この判定も合わせる
 - （2026-10-06〜）`main.js`の`openStage`は、同期の`window.SideOpsSyncGate`を呼ぶ（開いた直後の同期の間は、アプリを開くのを預ける）
 - （2026-10-06〜）テーマブリッジ（`apps/sideops-theme-bridge.js`）は、アプリのIndexedDBへの書き込みに「変えたよ」の印（`localStorage`の`sideops_sync_dirty:<DB名>|<ストア名>`）を付ける。同期はこの印で、見直すDBを決める。テーマブリッジを読み込まないアプリは、☁を押したとき（または1日1回の見直し）まで同期されない
