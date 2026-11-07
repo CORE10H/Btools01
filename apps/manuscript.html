@@ -228,7 +228,7 @@
 
   /* 作品の顔（2026-11 改善2段目）：表紙・題名・名義・進み具合・次にやることを、作品エディタの一番上の1つの枠に。
      PCは2列（左に表紙300px）、スマホは1列（表紙を幅いっぱい） */
-  .ms-hero { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px 22px; align-items: start; padding: 16px; margin-bottom: 10px;
+  .ms-hero { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px 22px; align-items: start; padding: 16px; margin-bottom: 10px;
     background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 9%, var(--panel)), var(--panel) 60%);
     border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 30%, var(--line)); }
   .hero-cover { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); background: var(--bg-alt); box-shadow: 6px 6px 0 rgba(var(--shadow-rgb), .45); }
@@ -245,40 +245,49 @@
   .ms-hero .edit-title-input { width: 100%; font-size: 24px; padding: 6px 10px; }
   .ms-hero .edit-sub { margin: 0; }
   .ms-hero .meta-row { margin: 0; }
-  .hero-row2 { grid-column: 1 / -1; display: flex; gap: 14px 22px; align-items: center; flex-wrap: wrap; }
-  /* 進み具合：ネタ → プロット → 素材 → 本文 → 完成 → 本棚。丸を押すとその工程へ移る（移るだけ） */
-  .hero-prog { flex: 1.3 1 340px; display: flex; align-items: flex-start; }
-  .hp-step { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; font-size: 10.5px; color: var(--text-faint); text-align: center; background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
-  .hp-step::before { content: ''; position: absolute; top: 10px; left: calc(-50% + 13px); right: calc(50% + 13px); height: 2px; background: var(--line); }
-  .hp-step:first-child::before { display: none; }
-  .hp-step.is-done::before, .hp-step.is-cur::before { background: color-mix(in srgb, var(--cyan) 70%, var(--line)); }
-  .hp-step:hover .hp-name, .hp-step:focus-visible .hp-name { text-decoration: underline; }
-  .hp-dot { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg-alt); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 12px; font-weight: 700; color: var(--text-faint); position: relative; z-index: 1; }
-  .hp-step.is-done { color: var(--text-dim); }
-  .hp-step.is-done .hp-dot { background: var(--cyan); border-color: var(--cyan); color: var(--on-accent); }
-  .hp-step.is-skip .hp-dot { border-style: dashed; } /* 飛ばした工程（ネタ・素材は飛ばしてよい）。せかさない */
-  .hp-step.is-cur { color: var(--amber); font-weight: 700; }
-  .hp-step.is-cur .hp-dot { border: 2px solid var(--amber); color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, var(--bg-alt)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 18%, transparent); }
-  .hp-part { font-family: var(--font-display); font-size: 11px; }
+  /* 進み具合の線（2段目）は、3段目で工程タブに置き換えた（タブが済み・いまここを出す） */
   /* 次にやること：画面でいちばん目立つボタン（琥珀色＝「ここ」） */
-  .hero-next { flex: 1 1 260px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 12px; border: 1px solid var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, var(--panel)); }
+  .hero-next { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 12px; border: 1px solid var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, var(--panel)); }
   .hn-label { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; color: var(--amber); }
   .hn-text { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; min-width: 10em; }
   .btn.go { color: var(--on-accent); background: var(--amber); border-color: var(--amber); }
   .btn.go:hover { color: var(--on-accent); background: color-mix(in srgb, var(--amber) 85%, var(--text)); border-color: var(--amber); }
 
-  /* 見出しの段差（2026-11-06）：大きい段＝番号つきの帯 ＞ 工程＝カード ＞ 欄の名前。大きい段がいちばん強く見えるように */
-  .group-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 40px 0 14px; display: flex; align-items: center; }
-  /* 見出しを押してたたむ（2026-10-10）。たたんでいる間は、見出しに中身の進み具合を出す */
-  .group-toggle { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 10px 16px; background: color-mix(in srgb, var(--cyan) 10%, var(--panel)); border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 32%, var(--line)); border-left: 4px solid var(--cyan); font: inherit; color: inherit; cursor: pointer; text-align: left; }
-  .group-toggle:hover { background: color-mix(in srgb, var(--cyan) 15%, var(--panel)); }
-  .gt-num { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1; color: var(--cyan); flex-shrink: 0; }
-  .group-toggle .gt-arrow { order: 10; margin-left: 4px; font-size: 11px; } /* 開閉の印は右端へ */
+  /* 工程タブ（2026-11 改善3段目）：01 設計／02 素材／03 本文／04 仕上げ。1画面に出すのは選んだタブの中身だけ。
+     タブ＝進み具合（済み・いまここ・まだ）。スクロールしても上に残す（.scroll-area の上の余白の分だけ上へ） */
+  .ms-tabs { position: sticky; top: -16px; z-index: 6; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 4px 0 16px;
+    background: var(--bg); border: 1px solid var(--line); box-shadow: 0 8px 14px rgba(var(--shadow-rgb), .35); }
+  .mt-tab { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 14px 11px; background: var(--panel); border: none; border-right: 1px solid var(--line); color: var(--text-dim); cursor: pointer; text-align: left; font-family: inherit; }
+  .mt-tab:last-child { border-right: none; }
+  .mt-tab:hover { color: var(--text); background: color-mix(in srgb, var(--cyan) 6%, var(--panel)); }
+  .mt-tab:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+  .mt-num { font-family: var(--font-display); font-size: 24px; font-weight: 700; line-height: 1; color: var(--text-faint); flex-shrink: 0; }
+  .mt-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .mt-name { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .mt-sub { font-size: 10.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mt-state { margin-left: auto; flex-shrink: 0; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-faint); white-space: nowrap; }
+  .mt-tab.is-done .mt-num { color: var(--cyan); }
+  .mt-tab.is-done .mt-state { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 50%, var(--line)); }
+  .mt-tab.is-cur .mt-num { color: var(--amber); }
+  .mt-tab.is-cur .mt-state { color: var(--on-accent); background: var(--amber); border-color: var(--amber); }
+  .mt-tab[aria-selected="true"] { color: var(--text); background: color-mix(in srgb, var(--cyan) 12%, var(--panel)); }
+  .mt-tab[aria-selected="true"]::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--cyan); }
+  .ms-pane { display: none; }
+  .ms-pane.is-active { display: block; }
+  /* 本文タブ：PCでは左に章の一覧（状態つき・上に残す）、右にその章（.ch-frame）。選んでいる章は右の枠とつなげる */
+  .ch-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); align-items: start; margin-top: 4px; }
+  .ch-layout .ch-tabs { flex-direction: column; flex-wrap: nowrap; gap: 0; margin: 0; position: sticky; top: 64px; }
+  .ch-layout .ch-tab { max-width: none; width: 100%; text-align: left; border-radius: 0; border-width: 1px 0 1px 1px; margin: 0 0 -1px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; white-space: normal; }
+  .ch-layout .ch-tab.is-active { background: color-mix(in srgb, var(--cyan) 5%, var(--bg-alt)); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); border-right: none; margin-right: -1px; padding: 10px 13px 10px 12px; position: relative; z-index: 2; }
+  .ch-layout .ch-tab.add { border-style: dashed; border-width: 1px; margin-top: 8px; align-items: center; }
+  .ch-layout .ch-frame { min-height: 100%; }
+  .ct-name { font-size: 12.5px; font-weight: 600; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .ct-state { font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
+  .ct-state.is-done { color: var(--cyan); }
+  .ct-state.is-text { color: var(--text-dim); }
+  .ct-state.is-next { color: var(--amber); font-weight: 700; }
+  /* 開閉の印（11 要約のたたむ。2026-10-10〜。大きい段のたたむは 2026-11 にタブへ置き換えた） */
   .gt-arrow { display: inline-block; width: 12px; font-size: 9px; color: var(--cyan); transition: transform .15s ease; }
-  .group-toggle[aria-expanded="false"] .gt-arrow { transform: rotate(-90deg); }
-  .gt-sum { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 11.5px; font-weight: 500; color: var(--text-dim); } /* PCでは開いていても出す（スマホはたたんだときだけ） */
-  .gt-dot { font-family: var(--font-display); font-size: 11px; min-width: 20px; height: 20px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
-  .gt-dot.is-done { border-color: var(--cyan-dim); background: var(--cyan-dim); color: var(--cyan); }
   .fold-body.is-folded { display: none; }
   /* 段ごとにたたむ（2026-10-12。いまは「要約」だけ）。見出し全体がボタン */
   .step-toggle { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--line-soft); font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -403,11 +412,7 @@
   /* 選んでいる章のタブは下の枠とつなげる */
   .ch-tab.is-active { border-color: var(--cyan-dim); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); border-bottom-color: transparent; color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--cyan) 5%, var(--bg-alt)); margin-bottom: -1px; padding-bottom: 9px; }
   .ch-frame { border: 1px solid var(--cyan-dim); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); background: color-mix(in srgb, var(--cyan) 5%, var(--bg-alt)); padding: 0 14px 2px; margin-bottom: 14px; }
-  .ch-tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; background: var(--line); vertical-align: middle; }
-  .ch-tab .dot.draft { background: var(--amber); }
-  .ch-tab .dot.final { background: var(--cyan); }
   .ch-tab.add { border-style: dashed; }
-  .ch-tab .tab-done { color: var(--cyan); font-weight: 700; margin-right: 5px; } /* 完成にした章 */
   .ch-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; padding: 14px 0 12px; border-bottom: 1px solid var(--line-soft); }
   .ch-label { font-family: var(--font-book); font-size: 22px; font-weight: 600; letter-spacing: .04em; color: var(--cyan); flex-shrink: 0; }
   .ch-title-input { flex: 1; min-width: 160px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 17px; font-family: var(--font-book); color: var(--text); padding: 7px 10px; outline: none; }
@@ -522,19 +527,26 @@
     /* 作品の顔：1列。表紙を幅いっぱい → 題名など → 進み具合 → 次にやること */
     .ms-hero { grid-template-columns: 1fr; gap: 12px; padding: 0 0 12px; background: var(--panel); }
     .hero-cover { box-shadow: none; border-width: 0 0 1px; }
-    .hero-main, .hero-row2 { padding: 0 12px; }
+    .hero-main { padding: 0 12px; }
     .ms-hero .edit-title-input { font-size: 20px; }
-    .hp-step { font-size: 9.5px; }
     .hn-label { flex-basis: 100%; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
     #workView .meta-row { grid-template-columns: auto minmax(0, 1fr); }
-    .group-toggle { padding: 10px 12px; gap: 10px; }
-    .gt-num { font-size: 22px; }
-    .group-toggle[aria-expanded="true"] .gt-sum { display: none; } /* 狭い画面では段の名前を優先。たたんだときは今までどおり出す */
+    /* 工程タブ：縦に 番号・名前・札。小さな文字は出さない */
+    .ms-tabs { top: -12px; }
+    .mt-tab { flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px 9px; text-align: center; }
+    .mt-num { font-size: 18px; }
+    .mt-name { font-size: 12px; }
+    .mt-sub { display: none; }
+    .mt-state { margin: 0; font-size: 9.5px; padding: 0 6px; }
     .ch-frame { padding: 0 10px 2px; }
-    .ch-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } /* 章のタブは横にすべらせる（2段にすると枠から離れる） */
+    /* 本文タブの章：1列。章の一覧は横にすべるタブ（2段にすると枠から離れる）に、状態の1行を足す */
+    .ch-layout { grid-template-columns: 1fr; }
+    .ch-layout .ch-tabs { position: static; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 3px; }
     .ch-tabs::-webkit-scrollbar { display: none; }
-    .ch-tab { flex-shrink: 0; }
+    .ch-layout .ch-tab { flex-shrink: 0; width: auto; max-width: 180px; border-width: 1px 1px 0; border-radius: 4px 4px 0 0; margin: 0; }
+    .ch-layout .ch-tab.is-active { border-right: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); border-bottom-color: transparent; margin: 0 0 -1px; padding-right: 12px; }
+    .ch-layout .ch-tab.add { margin: 0; border-width: 1px 1px 0; }
     .compose-row.ai-row::before { flex-basis: 100%; } /* 「AIに頼む」を上の行に */
     .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "body" "foot"; align-items: start; }
     .find-row { grid-template-columns: 1fr; }
@@ -667,9 +679,7 @@
                   <input type="text" class="field-input" id="wSeries" list="seriesList" maxlength="100" placeholder="任意">
                 </div>
               </div>
-            </div>
-            <div class="hero-row2">
-              <div class="hero-prog" id="heroProg" aria-label="進み具合"></div>
+              <!-- 次にやること（2段目）。3段目から顔の右の列に入れた（進み具合の線は工程タブに置き換えた） -->
               <div class="hero-next" id="heroNext">
                 <span class="hn-label">次にやること</span>
                 <span class="hn-text" id="heroNextText"></span>
@@ -680,8 +690,16 @@
           <datalist id="penList"></datalist>
           <datalist id="seriesList"></datalist>
 
-          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="base" aria-expanded="true" aria-controls="foldBase"><span class="gt-num" aria-hidden="true">01</span><span class="gt-arrow" aria-hidden="true">▼</span>作品の土台<span class="gt-sum" id="foldSumBase"></span></button></h2>
-          <div class="fold-body" id="foldBase">
+          <!-- 工程タブ（2026-11 改善3段目）：1画面に出すのは選んだタブの中身だけ。工程の番号 1〜11 はそのまま。
+               それまでの大きい段（作品の土台・章・本棚と書き出し）の帯とたたむは、このタブに置き換えた。履歴（pushState・#）は使わない -->
+          <div class="ms-tabs" id="msTabs" role="tablist" aria-label="工程">
+            <button type="button" class="mt-tab" role="tab" id="tabDesign" data-pane="design" aria-controls="paneDesign" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">01</span><span class="mt-txt"><span class="mt-name">設計</span><span class="mt-sub">ネタ・設定プロット</span></span><span class="mt-state" id="tabStateDesign">まだ</span></button>
+            <button type="button" class="mt-tab" role="tab" id="tabAssets" data-pane="assets" aria-controls="paneAssets" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">02</span><span class="mt-txt"><span class="mt-name">素材</span><span class="mt-sub">設定集・画像・概要</span></span><span class="mt-state" id="tabStateAssets">まだ</span></button>
+            <button type="button" class="mt-tab" role="tab" id="tabText" data-pane="text" aria-controls="paneText" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">03</span><span class="mt-txt"><span class="mt-name">本文</span><span class="mt-sub" id="tabSubText">本文・完成</span></span><span class="mt-state" id="tabStateText">まだ</span></button>
+            <button type="button" class="mt-tab" role="tab" id="tabFinish" data-pane="finish" aria-controls="paneFinish" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">04</span><span class="mt-txt"><span class="mt-name">仕上げ</span><span class="mt-sub">本棚・書き出し</span></span><span class="mt-state" id="tabStateFinish">まだ</span></button>
+          </div>
+
+          <div class="ms-pane" id="paneDesign" data-pane="design" role="tabpanel" aria-labelledby="tabDesign">
 
           <div class="step-block" id="stepNeta">
             <div class="step-head"><span class="step-num">1</span><span class="step-title">元になるネタ</span><span class="step-hint">複数選べます</span></div>
@@ -709,6 +727,9 @@
             </div>
           </div>
 
+          </div><!-- /paneDesign -->
+
+          <div class="ms-pane" id="paneAssets" data-pane="assets" role="tabpanel" aria-labelledby="tabAssets">
           <div class="step-block" id="stepAssets">
             <div class="step-head"><span class="step-num">3</span><span class="step-title">素材をまとめて作る</span><span class="step-hint">画像生成プロンプト（人物・キービジュアル・各章）と作品紹介</span></div>
             <div class="step-body">
@@ -773,10 +794,9 @@
             </div>
           </div>
 
-          </div><!-- /foldBase -->
+          </div><!-- /paneAssets -->
 
-          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="chapter" aria-expanded="true" aria-controls="foldChapter"><span class="gt-num" aria-hidden="true">02</span><span class="gt-arrow" aria-hidden="true">▼</span>章<span class="gt-sum" id="foldSumChapter"></span></button></h2>
-          <div class="fold-body" id="foldChapter">
+          <div class="ms-pane" id="paneText" data-pane="text" role="tabpanel" aria-labelledby="tabText">
           <div class="step-block" id="stepSerial">
             <div class="step-head"><span class="step-num">7</span><span class="step-title">本文を通しで頼む</span><span class="step-hint">作品に1回。AIには「次の章もお願い」と続けて頼みます</span></div>
             <div class="step-body">
@@ -785,10 +805,11 @@
                 <button type="button" class="btn primary" data-compose="serial">プロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_serial_wrap"><textarea class="field-textarea" id="out_serial" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="serial">コピー</button></div>
-              <div class="field-hint">AIが書いた本文は、下の章のタブを選んで「8 本文」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
+              <div class="field-hint">AIが書いた本文は、章の一覧で章を選んで「8 本文」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
             </div>
           </div>
-          <div class="ch-tabs" id="chTabs"></div>
+          <div class="ch-layout"><!-- PCでは左に章の一覧・右にその章（2026-11 改善3段目） -->
+          <div class="ch-tabs" id="chTabs" aria-label="章"></div>
           <div class="ch-frame"><!-- 選んでいる章の中身（章の見出し・旧・8〜11）。章のタブとつなげて見せる（2026-11-06） -->
           <div class="ch-head">
             <span class="ch-label" id="chLabel">第1章</span>
@@ -887,10 +908,10 @@
           </div>
 
           </div><!-- /ch-frame -->
-          </div><!-- /foldChapter -->
+          </div><!-- /ch-layout -->
+          </div><!-- /paneText -->
 
-          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="book" aria-expanded="true" aria-controls="foldBook"><span class="gt-num" aria-hidden="true">03</span><span class="gt-arrow" aria-hidden="true">▼</span>本棚・書き出し<span class="gt-sum" id="foldSumBook"></span></button></h2>
-          <div class="fold-body" id="foldBook">
+          <div class="ms-pane" id="paneFinish" data-pane="finish" role="tabpanel" aria-labelledby="tabFinish">
           <div class="step-block" id="stepBook">
             <div class="step-body">
               <div class="book-row">
@@ -906,7 +927,7 @@
             <span class="spacer"></span>
             <button type="button" class="btn danger" id="deleteWorkBtn">作品を削除</button>
           </div>
-          </div><!-- /foldBook -->
+          </div><!-- /paneFinish -->
         </div>
       </div>
     </section>
@@ -2608,8 +2629,7 @@
       await put(S.works, w);
       await put(S.chapters, ch);
       works.unshift(w); chapters.push(ch);
-      if (isFolded('base')) setFold('base', false); // 新しい作品は土台から作るので、たたんであれば開く
-      openWork(w.id, 'works');
+      openWork(w.id, 'works'); // 新しい作品は「次にやること」がネタなので「01 設計」のタブで開く
     } catch (err) {
       console.error('作品の作成に失敗しました', err);
       showToast('作品を作成できませんでした', true);
@@ -2712,6 +2732,9 @@
     renderLore();
     const chs = chaptersOf(w.id);
     selectChapter(chs.length ? chs[0].id : null, true);
+    // 開くタブ（2026-11 改善3段目）：このページで前に開いていればそのタブ、なければ「次にやること」があるタブ（本棚の本は本文）
+    const p = progressOf(w);
+    showTab(lastTabOf.get(w.id) || (p.next && tabOfEl($(p.next.step))) || 'text', { noFlush: true, scroll: false });
     showView('work');
     viewEls.work.querySelector('.scroll-area').scrollTop = 0;
   }
@@ -2814,15 +2837,15 @@
     bookBtn.textContent = w.isBook ? '本棚から外す' : '本棚に登録';
     bookBtn.className = 'btn ' + (w.isBook ? 'danger' : 'primary');
     readBookBtn.classList.toggle('is-hidden', !w.isBook);
-    updateFoldSums(w);
     renderHero(w);
+    renderChapterTabs(); // 章の一覧の状態（本文あり・完成・次はここ）も、入力に合わせて変える
     updateCounts();
   }
 
-  /* ---- 作品の顔（2026-11 改善2段目）：表紙・進み具合・次にやること ----
-     updateWorkState() のたびに描き直す（入力すると、その場で「次にやること」と丸が変わる）。
-     中身が変わらないときは描き直さない（打つたびに画像や丸のボタンを作り直さない。丸にフォーカスがあっても外れない） */
-  let heroCoverSig = '', heroProgSig = '', heroNextTarget = null;
+  /* ---- 作品の顔（2026-11 改善2段目）：表紙・次にやること。3段目から、進み具合は工程タブが出す ----
+     updateWorkState() のたびに描き直す（入力すると、その場で「次にやること」とタブの札が変わる）。
+     表紙は中身が変わらないときは描き直さない（打つたびに画像を作り直さない） */
+  let heroCoverSig = '', heroNextTarget = null;
   function renderHero(w) {
     // 表紙：一覧の小さな画像と同じもの（カバー16:9、なければキービジュアル。見え方は保存した値どおり）
     const tid = workThumbId(w);
@@ -2839,23 +2862,80 @@
     }
     const p = progressOf(w);
     heroNextTarget = p.next;
-    const sig = JSON.stringify([p.steps.map((s) => [s.done, s.part, s.skip]), p.cur, p.next && p.next.text]);
-    if (sig === heroProgSig) return;
-    heroProgSig = sig;
-    $('heroProg').innerHTML = p.steps.map((s, i) => {
-      const cur = i === p.cur;
-      const state = s.done ? '済み' : cur ? 'いまここ' : s.skip ? '飛ばした' : 'まだ';
-      const cls = 'hp-step' + (s.done ? ' is-done' : '') + (cur ? ' is-cur' : '') + (s.skip ? ' is-skip' : '');
-      return `<button type="button" class="${cls}" data-key="${s.key}" title="${s.label}へ移る" aria-label="${s.label}：${state}${s.part ? ' ' + s.part : ''}（押すとそこへ移ります）">`
-        + `<span class="hp-dot" aria-hidden="true">${s.done ? '✓' : i + 1}</span>`
-        + `<span class="hp-name" aria-hidden="true">${s.label}${s.part ? ` <span class="hp-part">${s.part}</span>` : ''}</span></button>`;
-    }).join('');
     // 本棚に登録した作品は「次にやること」の枠ごと隠す
     $('heroNext').classList.toggle('is-hidden', !p.next);
     $('heroNextText').textContent = p.next ? p.next.text : '';
+    renderTabStates(w, p);
   }
-  /* 「次にやること」・進み具合の丸・「カバーを変える」から、その工程へ移る。**移るだけで、何も書き換えない**（押し間違えても無害）。
-     保存待ちを書き込んでから、たたんだ見出しなら開き、別の章なら selectChapter() で切り替え（保存の順番は今のまま）、
+
+  /* ---- 工程タブ（2026-11 改善3段目）：01 設計／02 素材／03 本文／04 仕上げ ----
+     1画面に出すのは選んだタブの中身だけ（中身は隠すだけで消さないので、切り替えても入力は失われない）。
+     開いたときは「次にやること」があるタブ。ページを開いている間は、作品ごとに最後に見ていたタブを覚える
+     （メモリだけ。localStorage・同期には残さない＝端末の間で食い違わない）。履歴（pushState・#）は使わない */
+  const TABS = ['design', 'assets', 'text', 'finish'];
+  const TAB_NAME = { design: '01 設計', assets: '02 素材', text: '03 本文', finish: '04 仕上げ' };
+  const TAB_ID = { design: 'Design', assets: 'Assets', text: 'Text', finish: 'Finish' };
+  let currentTab = 'design';
+  const lastTabOf = new Map(); // 作品ID → 最後に見ていたタブ
+  const tabOfEl = (el) => { const p = el && el.closest('.ms-pane'); return p ? p.dataset.pane : null; };
+  // タブの札：✓ 済み／いまここ（琥珀）／まだ。「いまここ」は「次にやること」の工程があるタブ
+  function renderTabStates(w, p) {
+    const chs = chaptersOf(w.id);
+    const fin = chs.filter((c) => c.final.trim()).length, done = chs.filter((c) => c.done).length;
+    const curKey = p.cur >= 0 ? p.steps[p.cur].key : null;
+    const st = {
+      design: [!!w.plot.trim(), curKey === 'neta' || curKey === 'plot'],
+      assets: [p.steps[2].done, curKey === 'assets'],
+      text: [p.steps[4].done, curKey === 'final' || curKey === 'done'],
+      finish: [!!w.isBook, curKey === 'book'],
+    };
+    TABS.forEach((k) => {
+      const [isDone, isCur] = st[k];
+      const b = $('tab' + TAB_ID[k]);
+      b.classList.toggle('is-done', isDone);
+      b.classList.toggle('is-cur', !isDone && isCur);
+      $('tabState' + TAB_ID[k]).textContent = isDone ? '✓ 済み' : isCur ? 'いまここ' : 'まだ';
+    });
+    $('tabSubText').textContent = `本文 ${fin}/${chs.length}・完成 ${done}`;
+  }
+  // タブを出す。保存待ちを書き込んでから（opts.noFlush：開いた直後など、待つものがないとき）
+  async function showTab(key, opts = {}) {
+    if (!TABS.includes(key)) return;
+    if (!opts.noFlush) await workSaver.flush();
+    currentTab = key;
+    if (currentWorkId) lastTabOf.set(currentWorkId, key);
+    TABS.forEach((k) => {
+      const on = k === key;
+      const b = $('tab' + TAB_ID[k]);
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+      $('pane' + TAB_ID[k]).classList.toggle('is-active', on);
+    });
+    // 中身の一番上が見えるように：顔より下までスクロールしていたら、顔のすぐ下へ戻す（顔が見えている間は動かさない）
+    if (opts.scroll !== false) {
+      const sc = viewEls.work.querySelector('.scroll-area');
+      const heroBottom = sc.scrollTop + $('workHero').getBoundingClientRect().bottom - sc.getBoundingClientRect().top;
+      if (sc.scrollTop > heroBottom) sc.scrollTop = heroBottom;
+    }
+  }
+  $('msTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('.mt-tab');
+    if (b && currentWorkId) showTab(b.dataset.pane);
+  });
+  // キーボード：←・→ で隣のタブへ（端では反対側へ回る）、Home・End で端へ
+  $('msTabs').addEventListener('keydown', async (e) => {
+    const i = TABS.indexOf(currentTab);
+    const to = { ArrowRight: (i + 1) % TABS.length, ArrowLeft: (i + TABS.length - 1) % TABS.length, Home: 0, End: TABS.length - 1 }[e.key];
+    if (to === undefined || !currentWorkId) return;
+    e.preventDefault();
+    await showTab(TABS[to]);
+    $('tab' + TAB_ID[TABS[to]]).focus();
+  });
+  // その欄が今と別のタブにあれば、トーストに添える「（「01 設計」のタブにあります）」
+  const tabNote = (key) => (key && key !== currentTab ? `\n（「${TAB_NAME[key]}」のタブにあります）` : '');
+
+  /* 「次にやること」・タブ・「カバーを変える」から、その工程へ移る。**移るだけで、何も書き換えない**（押し間違えても無害）。
+     保存待ちを書き込んでから、その工程のタブを出し、別の章なら selectChapter() で切り替え（保存の順番は今のまま）、
      その工程を画面の上の方へ出して、最初に操作するものにフォーカスする */
   async function goToStep(t) {
     const w = getWork(currentWorkId);
@@ -2864,27 +2944,24 @@
     if (currentWorkId !== w.id) return; // 待っている間に作品を閉じた
     const el = $(t.step);
     if (!el) return;
-    const body = el.closest('#foldBase, #foldChapter, #foldBook');
-    const group = body ? { foldBase: 'base', foldChapter: 'chapter', foldBook: 'book' }[body.id] : null;
-    if (group && isFolded(group)) setFold(group, false);
+    const tab = tabOfEl(el);
+    if (tab && tab !== currentTab) await showTab(tab, { noFlush: true, scroll: false });
     if (t.chapterId && t.chapterId !== currentChapterId && getChapter(t.chapterId)) await selectChapter(t.chapterId);
     const sc = viewEls.work.querySelector('.scroll-area');
-    sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 12;
+    const tabsH = $('msTabs').getBoundingClientRect().height; // 上に残るタブの下に出す
+    sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - tabsH - 12;
     const f = (t.focus && $(t.focus)) || (t.focusSel && el.querySelector(t.focusSel)) || el.querySelector('[data-compose]') || el.querySelector('textarea, input, select, button');
     if (f) f.focus({ preventScroll: true });
   }
   $('heroNextBtn').addEventListener('click', () => goToStep(heroNextTarget));
-  $('heroProg').addEventListener('click', (e) => {
-    const b = e.target.closest('.hp-step'), w = getWork(currentWorkId);
-    if (b && w) goToStep(stepTarget(b.dataset.key, w));
-  });
   $('heroCoverBtn').addEventListener('click', () => goToStep({ step: 'stepVisual', focusSel: '.img-slot[data-slot="cover"] [data-img-act="pick"]' }));
 
-  /* ---- 見出しでたたむ（作品の土台・章・本棚と書き出し。2026-10-10） ----
+  /* ---- たたむ（2026-10-10。いまは「11 要約」だけ） ----
      たたんだかどうかは作品ごとではなく、端末ごとに覚える（localStorage。同期しない。使えない環境ではその場だけ）。
-     たたんでいる間も、見出しに中身の進み具合を出す（たたんだのを忘れても、何が済んでいるか分かるように） */
+     大きい段（作品の土台・章・本棚と書き出し）のたたむは、2026-11 に工程タブへ置き換えた。以前に覚えた base・chapter・book の値は
+     「知らない見出し」として読み飛ばす（消さなくてよい） */
   const FOLD_KEY = 'sideops_manuscript_fold';
-  const FOLD_GROUPS = { base: '作品の土台', chapter: '章', book: '本棚・書き出し', summary: 'この章の要約' };
+  const FOLD_GROUPS = { summary: 'この章の要約' };
   // はじめからたたんでおくもの（要約は 2026-10-12 から予備。今の流れでは使わない）
   const FOLD_DEFAULT = { summary: true };
   const foldSet = {}; // 端末に覚えた値（既定と違うものだけ）
@@ -2908,22 +2985,6 @@
   }
   document.querySelectorAll('[data-fold]').forEach((b) => b.addEventListener('click', () => setFold(b.dataset.fold, !isFolded(b.dataset.fold))));
   applyFold();
-  function updateFoldSums(w) {
-    // 作品の土台：①〜⑤のうち済んだものを塗る
-    const base = $('foldSumBase');
-    base.innerHTML = '';
-    viewEls.work.querySelectorAll('#foldBase .step-block').forEach((s) => {
-      const d = document.createElement('span');
-      d.className = 'gt-dot' + (s.classList.contains('is-done') ? ' is-done' : '');
-      d.textContent = s.querySelector('.step-num').textContent;
-      base.appendChild(d);
-    });
-    const chs = chaptersOf(w.id);
-    const fin = chs.filter((c) => c.final.trim()).length, done = chs.filter((c) => c.done).length;
-    $('foldSumChapter').textContent = `全${chs.length}章・本文 ${fin}章・完成 ${done}章`;
-    $('foldSumBook').textContent = w.isBook ? '本棚に登録済み' : '本棚には未登録';
-  }
-  const foldNote = (group) => (isFolded(group) ? `\n（「${FOLD_GROUPS[group]}」はたたんであります。見出しを押すと開きます）` : '');
 
   // ---- 1 ネタ ----
   function renderWorkNeta(w) {
@@ -3049,16 +3110,26 @@
   });
 
   // ---- 章 ----
+  // 章の一覧（2026-11 改善3段目）：「第n章 タイトル」と状態の1行（✓ 完成／● 本文あり・推敲中／▶ 次はここ＝本文のない最初の章／○ まだ）。
+  // 入力のたびに呼ばれるので、中身が変わらないときは作り直さない（章のボタンにフォーカスがあっても外れない）
+  let chTabsSig = '';
   function renderChapterTabs() {
     const w = getWork(currentWorkId);
     if (!w) return;
     const chs = chaptersOf(w.id);
-    chTabs.innerHTML = chs.map((c, i) => {
-      const dot = c.final.trim() ? 'final' : c.body.trim() ? 'draft' : '';
-      const label = `第${i + 1}章` + (c.id === currentChapterId ? (chTitle.value.trim() ? ' ' + chTitle.value.trim() : '') : (c.title.trim() ? ' ' + c.title.trim() : ''));
-      const mark = c.done ? '<span class="tab-done" title="完成">✓</span>' : `<span class="dot ${dot}"></span>`; // 完成にした章は ✓
-      return `<button type="button" class="ch-tab${c.id === currentChapterId ? ' is-active' : ''}" data-id="${escapeHtml(c.id)}">${mark}${escapeHtml(label)}</button>`;
-    }).join('') + '<button type="button" class="ch-tab add" data-add="1">＋ 章を追加</button>';
+    const nextCh = chs.find((c) => !c.final.trim());
+    const items = chs.map((c, i) => {
+      const title = c.id === currentChapterId ? chTitle.value.trim() : c.title.trim();
+      const st = c.done ? ['is-done', '✓ 完成'] : c.final.trim() ? ['is-text', '● 本文あり・推敲中'] : nextCh && nextCh.id === c.id ? ['is-next', '▶ 次はここ'] : ['', '○ まだ'];
+      return [c.id, `第${i + 1}章` + (title ? ' ' + title : ''), st];
+    });
+    const sig = JSON.stringify([items, currentChapterId]);
+    if (sig !== chTabsSig) {
+      chTabsSig = sig;
+      chTabs.innerHTML = items.map(([id, label, st]) => `<button type="button" class="ch-tab${id === currentChapterId ? ' is-active' : ''}" data-id="${escapeHtml(id)}" aria-current="${id === currentChapterId}">`
+        + `<span class="ct-name">${escapeHtml(label)}</span><span class="ct-state ${st[0]}">${st[1]}</span></button>`).join('')
+        + '<button type="button" class="ch-tab add" data-add="1">＋ 章を追加</button>';
+    }
     const idx = chs.findIndex((c) => c.id === currentChapterId);
     chLabel.textContent = `第${idx + 1}章`;
     $('chMoveUp').disabled = idx <= 0;
@@ -3264,19 +3335,19 @@
     let lore = null;
     if (kind === 'loreimg') { lore = editingLore; if (lore) readLoreForm(lore); }
     // 素材が空なら合成しない（どこを先に埋めるかを案内）
-    // 3つ目は、埋める欄がある見出し（たたんであれば、トーストでそう伝える）
+    // 3つ目は、埋める欄があるタブ（今と別のタブなら、トーストでそのタブの名前を言う。2026-11 改善3段目）
     // 2026-10-12〜 章の本文は「8 完成稿」に貼るので、章の用途の素材は完成稿（なければ以前の初稿）
     const chText = (c) => (c ? (c.final.trim() || c.body.trim()) : '');
-    const needFinal = [() => chText(ch), '先にこの章の「8 本文」に本文を貼ってください', 'chapter'];
-    const needPlot = [() => w.plot, '先に「2 設定プロット」を入力してください', 'base'];
+    const needFinal = [() => chText(ch), '先にこの章の「8 本文」に本文を貼ってください', 'text'];
+    const needPlot = [() => w.plot, '先に「2 設定プロット」を入力してください', 'design'];
     const need = {
-      plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください', 'base'],
+      plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください', 'design'],
       assets: needPlot, kv: needPlot, synopsis: needPlot, serial: needPlot,
       summary: needFinal, polish: needFinal, chimg: needFinal,
       loreimg: [() => (lore ? lore.name + lore.body : ''), '先に名前か説明を入力してください', null],
     }[kind];
     if (!need) { showToast('この用途のプロンプトは作れません', true); return; }
-    if (!need[0]().trim()) { showToast(need[1] + (need[2] ? foldNote(need[2]) : ''), true); return; }
+    if (!need[0]().trim()) { showToast(need[1] + tabNote(need[2]), true); return; }
     const prev = ch ? prevSummaries(ch) : { text: '', missing: [] };
     const WORK_WIDE = ['kv', 'synopsis', 'assets', 'serial'];
     const vars = {
@@ -3716,7 +3787,8 @@
     const cb = e.target.closest('[data-fpick]');
     if (cb) { findPicked.set(cb.dataset.fpick, cb.checked); updateFindButtons(); }
   });
-  // 結果を押すと、その場所を開いて一致した文字を選ぶ（たたんでいれば開く）
+  // 結果を押すと、その欄のあるタブを出してから、その場所を開いて一致した文字を選ぶ（隠れた欄を選んで何も見えない、を防ぐ。
+  // 題名は顔にあるのでタブは変えない。要約はたたんでいれば開く。設定集は素材のタブを出してからモーダル＝閉じたとき素材のタブにいる）
   findList.addEventListener('click', async (e) => {
     const b = e.target.closest('.fd-hit');
     if (!b || !findResult) return;
@@ -3726,15 +3798,16 @@
     closeFindModal();
     let el = null;
     if (g.kind === 'w') {
-      if (g.field !== 'title' && isFolded('base')) setFold('base', false);
       el = { title: wTitle, plot: wPlot, synopsis: wSynopsis, kvPrompt: wKvPrompt }[g.field];
+      const tab = tabOfEl(el);
+      if (tab && tab !== currentTab) await showTab(tab, { scroll: false });
     } else if (g.kind === 'c') {
-      if (isFolded('chapter')) setFold('chapter', false);
+      if (currentTab !== 'text') await showTab('text', { scroll: false });
       if (g.field === 'summary' && isFolded('summary')) setFold('summary', false);
       if (currentChapterId !== g.rec.id) await selectChapter(g.rec.id);
       el = { title: chTitle, final: chFinal, imgPrompt: chImgPrompt, summary: chSummary, body: chBody, outline: chOutline }[g.field];
     } else if (g.kind === 'l') {
-      if (isFolded('base')) setFold('base', false);
+      if (currentTab !== 'assets') await showTab('assets', { scroll: false });
       await openLoreModal(g.rec);
       el = { name: loreName, body: loreBody, imgPrompt: loreImgPrompt }[g.field];
     }
