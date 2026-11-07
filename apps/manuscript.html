@@ -167,10 +167,10 @@
   .wr-thumb { position: relative; width: 112px; aspect-ratio: 16 / 9; flex-shrink: 0; background: var(--panel); border: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 10px; color: var(--text-faint); }
   .wr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .wr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-  .wr-title { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wr-title { font-family: var(--font-book); font-size: 15.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wr-title.is-untitled { color: var(--text-faint); font-weight: 400; }
   .wr-meta { font-size: 10.5px; color: var(--text-faint); display: flex; gap: 12px; flex-wrap: wrap; }
-  .wr-id { font-family: var(--font-display); letter-spacing: .03em; }
+  .wr-id { display: none; } /* 一覧には出さない。検索（ID）では今までどおり引ける（2026-11-06） */
   .stage-badge { font-size: 10px; padding: 3px 9px; border: 1px solid var(--line); color: var(--text-dim); flex-shrink: 0; white-space: nowrap; }
   .stage-badge[data-stage="idea"] { color: var(--text-faint); }
   .stage-badge[data-stage="plot"] { border-color: var(--amber-dim); color: var(--amber); }
@@ -202,17 +202,24 @@
   .id-chip:hover { border-color: var(--cyan-dim); color: var(--cyan); }
   .save-indicator { margin-left: auto; }
   .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  /* 作品エディタの名義・シリーズは作品の属性なので、題名の下に「名前 欄 名前 欄」の1行で小さく（2026-11-06） */
+  #workView .meta-row { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px 10px; margin-bottom: 4px; }
+  #workView .meta-row > div { display: contents; }
+  #workView .meta-row .field-label { margin: 0; font-size: 11px; font-weight: 500; color: var(--text-faint); }
+  #workView .meta-row .field-label > span:first-child::before { display: none; }
+  #workView .meta-row .field-input { padding: 5px 9px; font-size: 12.5px; }
 
-  .group-title { font-size: 12px; font-weight: 600; color: var(--text-dim); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
-  .group-title::after { content: ''; flex: 1; border-top: 1px solid var(--line-soft); }
+  /* 見出しの段差（2026-11-06）：大きい段＝番号つきの帯 ＞ 工程＝カード ＞ 欄の名前。大きい段がいちばん強く見えるように */
+  .group-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 40px 0 14px; display: flex; align-items: center; }
   /* 見出しを押してたたむ（2026-10-10）。たたんでいる間は、見出しに中身の進み具合を出す */
-  .group-toggle { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 4px 2px 0; background: transparent; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; flex-wrap: wrap; }
-  .group-toggle:hover { color: var(--cyan); }
+  .group-toggle { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 10px 16px; background: color-mix(in srgb, var(--cyan) 10%, var(--panel)); border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 32%, var(--line)); border-left: 4px solid var(--cyan); font: inherit; color: inherit; cursor: pointer; text-align: left; }
+  .group-toggle:hover { background: color-mix(in srgb, var(--cyan) 15%, var(--panel)); }
+  .gt-num { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1; color: var(--cyan); flex-shrink: 0; }
+  .group-toggle .gt-arrow { order: 10; margin-left: 4px; font-size: 11px; } /* 開閉の印は右端へ */
   .gt-arrow { display: inline-block; width: 12px; font-size: 9px; color: var(--cyan); transition: transform .15s ease; }
   .group-toggle[aria-expanded="false"] .gt-arrow { transform: rotate(-90deg); }
-  .gt-sum { display: none; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
-  .group-toggle[aria-expanded="false"] .gt-sum { display: inline-flex; }
-  .gt-dot { font-family: var(--font-display); font-size: 10px; min-width: 17px; height: 17px; padding: 0 3px; border: 1px solid var(--line); border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
+  .gt-sum { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 11.5px; font-weight: 500; color: var(--text-dim); } /* PCでは開いていても出す（スマホはたたんだときだけ） */
+  .gt-dot { font-family: var(--font-display); font-size: 11px; min-width: 20px; height: 20px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
   .gt-dot.is-done { border-color: var(--cyan-dim); background: var(--cyan-dim); color: var(--cyan); }
   .fold-body.is-folded { display: none; }
   /* 段ごとにたたむ（2026-10-12。いまは「要約」だけ）。見出し全体がボタン */
@@ -254,12 +261,15 @@
   .as-table .as-st.is-new { color: var(--cyan); }
   .as-table .as-st.is-same { color: var(--text-faint); }
 
-  .step-block { border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 14px; }
-  .step-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
-  .step-num { font-family: var(--font-display); font-size: 12px; color: var(--cyan); flex-shrink: 0; width: 20px; height: 20px; border: 1px solid var(--cyan-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-  .step-block.is-done .step-num { background: var(--cyan-dim); }
-  .step-title { font-size: 12.5px; font-weight: 600; flex: 1; }
-  .step-hint { font-size: 10.5px; color: var(--text-faint); }
+  .step-block { border: 1px solid var(--line); background: var(--panel); margin-bottom: 14px; }
+  .step-head { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; padding: 13px 16px 12px; border-bottom: 1px solid var(--line-soft); }
+  .step-num { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--cyan); flex-shrink: 0; width: 28px; height: 28px; border: 1.5px solid var(--cyan-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .step-block.is-done .step-num { background: var(--cyan); border-color: var(--cyan); color: var(--on-accent); }
+  .step-title { font-size: 15px; font-weight: 700; letter-spacing: .02em; flex: 0 1 auto; }
+  /* 済んだ工程は名前の右に「✓ 済み」。8 本文は「推敲中／完成」の切り替えがあるので出さない */
+  .step-block.is-done:not(#stepFinal) .step-title::after { content: '✓ 済み'; margin-left: 10px; padding: 1px 8px; border: 1px solid var(--cyan-dim); border-color: color-mix(in srgb, var(--cyan) 50%, var(--line)); border-radius: 999px; font-size: 10.5px; font-weight: 600; color: var(--cyan); vertical-align: 2px; white-space: nowrap; }
+  .step-hint { order: 5; flex: 1 1 100%; padding-left: 40px; font-size: 11px; line-height: 1.6; color: var(--text-dim); } /* 名前の下の行へ */
+  .step-head > .done-toggle, .step-toggle .gt-arrow { margin-left: auto; }
   .step-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 
   /* 項目名と入力欄（2026-10-17。見比べたモックのD案）：項目名は見出し（白・太字・左に色の印）、入力欄は周りより明るい面。
@@ -269,6 +279,8 @@
   .field-label > span:first-child::before { content: ''; width: 3px; height: 13px; background: var(--cyan); flex-shrink: 0; }
   .field-label span[id^="cnt_"] { font-weight: 400; font-size: 11px; color: var(--text-faint); }
   .field-label .grow { flex: 1; }
+  #workView .field-label { color: color-mix(in srgb, var(--text) 80%, var(--bg)); }
+  #workView .field-label > span:first-child::before { width: 2px; height: 11px; background: var(--text-faint); }
   .field-textarea, .field-select, .field-input { width: 100%; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); padding: 9px 10px; font-size: 12.5px; color: var(--text); outline: none; }
   .field-textarea { resize: vertical; line-height: 1.75; }
   .field-textarea.is-book { font-family: var(--font-book); font-size: 13.5px; line-height: 1.95; }
@@ -283,12 +295,15 @@
 
   .compose-row { display: flex; align-items: center; gap: 8px; }
   .compose-row .field-select { flex: 1; min-width: 0; }
+  /* AIに頼む行（2026-11-06）：点線の枠で「結果」の欄と分ける */
+  .compose-row.ai-row { flex-wrap: wrap; padding: 8px 10px; background: color-mix(in srgb, var(--cyan) 6%, var(--bg-alt)); border: 1px dashed var(--line); border-color: color-mix(in srgb, var(--cyan) 38%, var(--line)); }
+  .compose-row.ai-row::before { content: 'AIに頼む'; flex-shrink: 0; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; color: var(--cyan); padding-right: 2px; }
   .prompt-wrap { position: relative; display: none; }
   .prompt-wrap.is-shown { display: block; }
   .copy-btn { position: absolute; top: 27px; right: 8px; font-size: 10.5px; font-weight: 600; background: color-mix(in srgb, var(--cyan) 14%, var(--panel)); border: 1px solid var(--cyan-dim); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text); padding: 5px 10px; cursor: pointer; }
   .copy-btn:hover { border-color: var(--cyan); color: var(--cyan); }
   .copy-btn.is-copied { border-color: var(--cyan); color: var(--cyan); }
-  .divider { border-top: 1px dashed var(--line-soft); padding-top: 10px; }
+  .divider { padding-top: 4px; } /* 区切りの点線はやめ、「AIに頼む」の枠で分ける（2026-11-06） */
 
   .neta-attached { display: flex; flex-direction: column; gap: 6px; }
   .na-item { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line-soft); background: var(--bg); padding: 8px 10px; }
@@ -324,18 +339,20 @@
   .slot-label { font-size: 10.5px; color: var(--text-faint); flex: 1; min-width: 0; }
 
   /* 章タブ */
-  .ch-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
-  .ch-tab { background: color-mix(in srgb, var(--cyan) 5%, var(--panel)); border: 1px solid var(--line); border-radius: 4px; color: var(--text-dim); font-size: 11.5px; padding: 6px 12px; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-tabs { display: flex; gap: 3px; flex-wrap: wrap; margin: 22px 0 0; position: relative; z-index: 1; }
+  .ch-tab { background: color-mix(in srgb, var(--cyan) 5%, var(--panel)); border: 1px solid var(--line); border-radius: 4px 4px 0 0; color: var(--text-dim); font-size: 12px; padding: 8px 14px; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ch-tab:hover { color: var(--text); border-color: var(--cyan-dim); }
-  .ch-tab.is-active { border-color: var(--cyan); color: var(--cyan); background: var(--bg-alt); }
+  /* 選んでいる章のタブは下の枠とつなげる */
+  .ch-tab.is-active { border-color: var(--cyan-dim); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); border-bottom-color: transparent; color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--cyan) 5%, var(--bg-alt)); margin-bottom: -1px; padding-bottom: 9px; }
+  .ch-frame { border: 1px solid var(--cyan-dim); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); background: color-mix(in srgb, var(--cyan) 5%, var(--bg-alt)); padding: 0 14px 2px; margin-bottom: 14px; }
   .ch-tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; background: var(--line); vertical-align: middle; }
   .ch-tab .dot.draft { background: var(--amber); }
   .ch-tab .dot.final { background: var(--cyan); }
   .ch-tab.add { border-style: dashed; }
   .ch-tab .tab-done { color: var(--cyan); font-weight: 700; margin-right: 5px; } /* 完成にした章 */
-  .ch-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-  .ch-label { font-family: var(--font-book); font-size: 14px; font-weight: 600; color: var(--cyan); flex-shrink: 0; }
-  .ch-title-input { flex: 1; min-width: 160px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 14px; font-family: var(--font-book); color: var(--text); padding: 5px 10px; outline: none; }
+  .ch-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; padding: 14px 0 12px; border-bottom: 1px solid var(--line-soft); }
+  .ch-label { font-family: var(--font-book); font-size: 22px; font-weight: 600; letter-spacing: .04em; color: var(--cyan); flex-shrink: 0; }
+  .ch-title-input { flex: 1; min-width: 160px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 17px; font-family: var(--font-book); color: var(--text); padding: 7px 10px; outline: none; }
   .ch-title-input:focus { border-color: var(--cyan); }
   /* 本文の「推敲中／完成」（2026-10-17）：普段は「推敲中」。押すと「完成」になり、色で強調する */
   .done-toggle { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 13px; border-radius: 999px; cursor: pointer; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--panel)); border: 1px solid var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); white-space: nowrap; }
@@ -442,10 +459,19 @@
     .scroll-area, #workView .scroll-area { padding: 12px; }
     .wr-thumb { width: 72px; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
+    #workView .meta-row { grid-template-columns: auto minmax(0, 1fr); }
+    .group-toggle { padding: 10px 12px; gap: 10px; }
+    .gt-num { font-size: 22px; }
+    .group-toggle[aria-expanded="true"] .gt-sum { display: none; } /* 狭い画面では段の名前を優先。たたんだときは今までどおり出す */
+    .ch-frame { padding: 0 10px 2px; }
+    .ch-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } /* 章のタブは横にすべらせる（2段にすると枠から離れる） */
+    .ch-tabs::-webkit-scrollbar { display: none; }
+    .ch-tab { flex-shrink: 0; }
+    .compose-row.ai-row::before { flex-basis: 100%; } /* 「AIに頼む」を上の行に */
     .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "body" "foot"; align-items: start; }
     .find-row { grid-template-columns: 1fr; }
     .nc-foot { justify-content: flex-start; max-width: none; }
-    .step-hint { display: none; }
+    .step-hint { padding-left: 40px; } /* 工程の説明はスマホでも出す（何をする工程かが導線になる。2026-11-06） */
     .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
     .reader-inner { padding: 20px 16px 48px; }
     .reader-title { font-size: 21px; }
@@ -568,7 +594,7 @@
           <datalist id="penList"></datalist>
           <datalist id="seriesList"></datalist>
 
-          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="base" aria-expanded="true" aria-controls="foldBase"><span class="gt-arrow" aria-hidden="true">▼</span>作品の土台<span class="gt-sum" id="foldSumBase"></span></button></h2>
+          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="base" aria-expanded="true" aria-controls="foldBase"><span class="gt-num" aria-hidden="true">01</span><span class="gt-arrow" aria-hidden="true">▼</span>作品の土台<span class="gt-sum" id="foldSumBase"></span></button></h2>
           <div class="fold-body" id="foldBase">
 
           <div class="step-block" id="stepNeta">
@@ -585,7 +611,7 @@
           <div class="step-block" id="stepPlot">
             <div class="step-head"><span class="step-num">2</span><span class="step-title">設定プロット</span><span class="step-hint">作品全体の設計図</span></div>
             <div class="step-body">
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_plot" aria-label="プロット用テンプレート"></select>
                 <button type="button" class="btn primary" data-compose="plot">プロンプトを作る</button>
               </div>
@@ -600,7 +626,7 @@
           <div class="step-block" id="stepAssets">
             <div class="step-head"><span class="step-num">3</span><span class="step-title">素材をまとめて作る</span><span class="step-hint">画像生成プロンプト（人物・キービジュアル・各章）と作品紹介</span></div>
             <div class="step-body">
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_assets" aria-label="素材用テンプレート"></select>
                 <button type="button" class="btn primary" data-compose="assets">プロンプトを作る</button>
               </div>
@@ -626,7 +652,7 @@
                 <div class="field-label"><span class="grow">キービジュアルの画像生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="kvPrompt"></button><button type="button" class="btn small" data-copy-el="wKvPrompt" data-copy-label="キービジュアルの画像生成プロンプト">コピー</button></div>
                 <textarea class="field-textarea" id="wKvPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
               </div>
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_kv" aria-label="作品ビジュアル用テンプレート"></select>
                 <button type="button" class="btn" data-compose="kv">画像を頼むプロンプトを作る</button>
               </div>
@@ -648,7 +674,7 @@
           <div class="step-block" id="stepSynopsis">
             <div class="step-head"><span class="step-num">6</span><span class="step-title">作品の概要</span><span class="step-hint">宣伝・紹介に使う文章。{{概要}} で差し込めます</span></div>
             <div class="step-body">
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_synopsis" aria-label="作品の概要用テンプレート"></select>
                 <button type="button" class="btn primary" data-compose="synopsis">プロンプトを作る</button>
               </div>
@@ -663,12 +689,12 @@
 
           </div><!-- /foldBase -->
 
-          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="chapter" aria-expanded="true" aria-controls="foldChapter"><span class="gt-arrow" aria-hidden="true">▼</span>章<span class="gt-sum" id="foldSumChapter"></span></button></h2>
+          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="chapter" aria-expanded="true" aria-controls="foldChapter"><span class="gt-num" aria-hidden="true">02</span><span class="gt-arrow" aria-hidden="true">▼</span>章<span class="gt-sum" id="foldSumChapter"></span></button></h2>
           <div class="fold-body" id="foldChapter">
           <div class="step-block" id="stepSerial">
             <div class="step-head"><span class="step-num">7</span><span class="step-title">本文を通しで頼む</span><span class="step-hint">作品に1回。AIには「次の章もお願い」と続けて頼みます</span></div>
             <div class="step-body">
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_serial" aria-label="本文用テンプレート"></select>
                 <button type="button" class="btn primary" data-compose="serial">プロンプトを作る</button>
               </div>
@@ -677,6 +703,7 @@
             </div>
           </div>
           <div class="ch-tabs" id="chTabs"></div>
+          <div class="ch-frame"><!-- 選んでいる章の中身（章の見出し・旧・8〜11）。章のタブとつなげて見せる（2026-11-06） -->
           <div class="ch-head">
             <span class="ch-label" id="chLabel">第1章</span>
             <input type="text" class="ch-title-input" id="chTitle" placeholder="章タイトル（任意）" maxlength="200">
@@ -710,7 +737,7 @@
               </div>
               <div class="divider">
                 <div class="field-label"><span>推敲を頼むとき（本文を差し込みます）</span></div>
-                <div class="compose-row">
+                <div class="compose-row ai-row">
                   <select class="field-select" id="tplSel_polish" aria-label="推敲用テンプレート"></select>
                   <button type="button" class="btn" data-compose="polish">推敲のプロンプトを作る</button>
                 </div>
@@ -726,7 +753,7 @@
                 <div class="field-label"><span class="grow">この章のタイトル画像の生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="chImgPrompt"></button><button type="button" class="btn small" data-copy-el="chImgPrompt" data-copy-label="章のタイトル画像の生成プロンプト">コピー</button></div>
                 <textarea class="field-textarea" id="chImgPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
               </div>
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_chimg" aria-label="章の画像用テンプレート"></select>
                 <button type="button" class="btn" data-compose="chimg">挿絵を頼むプロンプトを作る</button>
               </div>
@@ -761,7 +788,7 @@
           <div class="step-block" id="stepSummary">
             <button type="button" class="step-head step-toggle" data-fold="summary" aria-expanded="false" aria-controls="foldSummary"><span class="step-num">11</span><span class="step-title">この章の要約（予備）</span><span class="step-hint">今の流れでは使いません。{{前章まで}} に使われます</span><span class="gt-arrow" aria-hidden="true">▼</span></button>
             <div class="step-body fold-body" id="foldSummary">
-              <div class="compose-row">
+              <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_summary" aria-label="要約用テンプレート"></select>
                 <button type="button" class="btn primary" data-compose="summary">プロンプトを作る</button>
               </div>
@@ -773,9 +800,10 @@
             </div>
           </div>
 
+          </div><!-- /ch-frame -->
           </div><!-- /foldChapter -->
 
-          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="book" aria-expanded="true" aria-controls="foldBook"><span class="gt-arrow" aria-hidden="true">▼</span>本棚・書き出し<span class="gt-sum" id="foldSumBook"></span></button></h2>
+          <h2 class="group-title"><button type="button" class="group-toggle" data-fold="book" aria-expanded="true" aria-controls="foldBook"><span class="gt-num" aria-hidden="true">03</span><span class="gt-arrow" aria-hidden="true">▼</span>本棚・書き出し<span class="gt-sum" id="foldSumBook"></span></button></h2>
           <div class="fold-body" id="foldBook">
           <div class="step-block" id="stepBook">
             <div class="step-body">
@@ -861,7 +889,7 @@
         <div class="field-label"><span class="grow">画像生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="loreImgPrompt"></button><button type="button" class="btn small" data-copy-el="loreImgPrompt" data-copy-label="画像生成プロンプト">コピー</button></div>
         <textarea class="field-textarea" id="loreImgPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
       </div>
-      <div class="compose-row">
+      <div class="compose-row ai-row">
         <select class="field-select" id="tplSel_loreimg" aria-label="設定画像用テンプレート"></select>
         <button type="button" class="btn" data-compose="loreimg">画像を頼むプロンプトを作る</button>
       </div>
