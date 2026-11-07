@@ -164,8 +164,9 @@
   /* ===================== 作品一覧 ===================== */
   /* 一覧のカード（2026-11 改善2段目）：PCは2列・狭ければ1列。左端に段階の色の線、進み具合の帯と「次」。
      作品IDは出さない（DOMにも入れない。検索は記録を見る workMatches() なのでIDでも引ける） */
-  #worksList { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr)); gap: 12px; align-content: start; }
-  #worksList > .empty-state { grid-column: 1 / -1; }
+  /* 並べる格子は、スクロールする箱（#worksList）の内側に置く（2026-11-07 直した）。箱そのものを格子にすると、
+     作品が多いときに行の高さが箱の高さに押し込まれ、カードが細い帯につぶれた（カードは overflow: hidden なので、縮めてよいと扱われる） */
+  .works-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr)); gap: 12px; }
   .work-row { position: relative; overflow: hidden; display: flex; align-items: stretch; gap: 0; padding: 0; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); cursor: pointer; }
   .work-row:hover { background: var(--panel-hi); border-color: var(--cyan-dim); }
   .work-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line); }
@@ -2559,7 +2560,7 @@
     }
     if (list.length === 0) { worksListEl.innerHTML = `<div class="empty-state"><div class="big">条件に一致する作品はありません</div></div>`; return; }
     // カード（2026-11 改善2段目）：画像（なければ題名の1文字目）・題名・名義・シリーズ・章の数・進み具合の帯・次にやること・更新
-    worksListEl.innerHTML = list.map((w) => {
+    worksListEl.innerHTML = '<div class="works-grid">' + list.map((w) => {
       const thumbImg = framedImg(workThumbId(w), 16 / 9);
       const st = stageOf(w);
       const untitled = !w.title.trim();
@@ -2581,7 +2582,7 @@
         </span>
         <span class="stage-badge" data-stage="${st}">${STAGE_LABEL[st]}</span>
       </button>`;
-    }).join('');
+    }).join('') + '</div>';
     applyFrames(worksListEl);
   }
   worksSearch.addEventListener('input', renderWorks);
