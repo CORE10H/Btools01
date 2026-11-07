@@ -189,6 +189,11 @@
   .wr-next::before { content: '▶ 次：'; color: color-mix(in srgb, var(--amber) 70%, var(--text-faint)); font-weight: 500; }
   .wr-upd { font-size: 10.5px; color: var(--text-faint); }
   .work-row > .stage-badge { position: absolute; top: 10px; right: 10px; }
+  /* 制作中の「選んで削除」（2026-11-07）：選んでいる間はカードの左上に四角を出し、選んだカードを赤くする（ネタ帳と同じ色） */
+  .work-row.is-selectable::after { content: ''; position: absolute; top: 12px; left: 16px; z-index: 2; width: 20px; height: 20px; border: 1px solid var(--line); background: var(--bg); box-sizing: border-box; }
+  .work-row.is-picked { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .45); }
+  .work-row.is-picked:hover { border-color: var(--magenta); background: rgba(var(--magenta-dim-rgb), .6); }
+  .work-row.is-picked::after { content: '✓'; border-color: var(--magenta); background: var(--magenta); color: var(--bg); font-size: 13px; line-height: 18px; text-align: center; font-weight: 700; }
   .stage-badge { font-size: 10px; padding: 3px 9px; border: 1px solid var(--line); color: var(--text-dim); flex-shrink: 0; white-space: nowrap; }
   .stage-badge[data-stage="idea"] { color: var(--text-faint); }
   .stage-badge[data-stage="plot"] { border-color: var(--amber-dim); color: var(--amber); }
@@ -257,7 +262,13 @@
      タブ＝進み具合（済み・いまここ・まだ）。スクロールしても上に残す（.scroll-area の上の余白の分だけ上へ） */
   .ms-tabs { position: sticky; top: -16px; z-index: 6; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 4px 0 16px;
     background: var(--bg); border: 1px solid var(--line); box-shadow: 0 8px 14px rgba(var(--shadow-rgb), .35); }
-  .mt-tab { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 14px 11px; background: var(--panel); border: none; border-right: 1px solid var(--line); color: var(--text-dim); cursor: pointer; text-align: left; font-family: inherit; }
+  /* 番号は2行ぶん、1行目に名前と札、2行目の小さな文字は札の下まで使う（2026-11-07。「ネタ・設定とプロット」が切れないように） */
+  .mt-tab { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "num name state" "num sub sub"; align-items: center; column-gap: 10px; row-gap: 2px; min-width: 0; padding: 10px 14px 11px; background: var(--panel); border: none; border-right: 1px solid var(--line); color: var(--text-dim); cursor: pointer; text-align: left; font-family: inherit; }
+  .mt-tab > .mt-num { grid-area: num; }
+  .mt-tab > .mt-txt { display: contents; }
+  .mt-tab .mt-name { grid-area: name; min-width: 0; }
+  .mt-tab .mt-sub { grid-area: sub; min-width: 0; }
+  .mt-tab > .mt-state { grid-area: state; justify-self: end; }
   .mt-tab:last-child { border-right: none; }
   .mt-tab:hover { color: var(--text); background: color-mix(in srgb, var(--cyan) 6%, var(--panel)); }
   .mt-tab:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
@@ -331,7 +342,7 @@
   .step-block { border: 1px solid var(--line); background: var(--panel); margin-bottom: 14px; }
   .step-head { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; padding: 13px 16px 12px; border-bottom: 1px solid var(--line-soft); }
   .step-num { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--cyan); flex-shrink: 0; width: 28px; height: 28px; border: 1.5px solid var(--cyan-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-  .step-block.is-done .step-num { background: var(--cyan); border-color: var(--cyan); color: var(--on-accent); }
+  /* 済んだ工程の番号を塗るのはやめた（2026-11-07。①〜⑪の見た目をそろえる）。済んだかどうかは名前の右の「✓ 済み」と工程タブの札で見る */
   .step-title { font-size: 15px; font-weight: 700; letter-spacing: .02em; flex: 0 1 auto; }
   /* 済んだ工程は名前の右に「✓ 済み」。8 本文は「推敲中／完成」の切り替えがあるので出さない */
   .step-block.is-done:not(#stepFinal) .step-title::after { content: '✓ 済み'; margin-left: 10px; padding: 1px 8px; border: 1px solid var(--cyan-dim); border-color: color-mix(in srgb, var(--cyan) 50%, var(--line)); border-radius: 999px; font-size: 10.5px; font-weight: 600; color: var(--cyan); vertical-align: 2px; white-space: nowrap; }
@@ -362,20 +373,29 @@
 
   .compose-row { display: flex; align-items: center; gap: 8px; }
   .compose-row .field-select { flex: 1; min-width: 0; }
-  /* AIに頼む行（2026-11-06）：点線の枠で「結果」の欄と分ける */
+  /* AI連携の行（2026-11-06。2026-11-07 に「AIに頼む」から改名）：点線の枠で「結果」の欄と分ける */
   .compose-row.ai-row { flex-wrap: wrap; padding: 8px 10px; background: color-mix(in srgb, var(--cyan) 6%, var(--bg-alt)); border: 1px dashed var(--line); border-color: color-mix(in srgb, var(--cyan) 38%, var(--line)); }
-  .compose-row.ai-row::before { content: 'AIに頼む'; flex-shrink: 0; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; color: var(--cyan); padding-right: 2px; }
+  .compose-row.ai-row::before { content: 'AI連携'; flex-shrink: 0; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; color: var(--cyan); padding-right: 2px; }
   .prompt-wrap { position: relative; display: none; }
   .prompt-wrap.is-shown { display: block; }
   .copy-btn { position: absolute; top: 27px; right: 8px; font-size: 10.5px; font-weight: 600; background: color-mix(in srgb, var(--cyan) 14%, var(--panel)); border: 1px solid var(--cyan-dim); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text); padding: 5px 10px; cursor: pointer; }
   .copy-btn:hover { border-color: var(--cyan); color: var(--cyan); }
   .copy-btn.is-copied { border-color: var(--cyan); color: var(--cyan); }
-  .divider { padding-top: 4px; } /* 区切りの点線はやめ、「AIに頼む」の枠で分ける（2026-11-06） */
+  .divider { padding-top: 4px; } /* 区切りの点線はやめ、「AI連携」の枠で分ける（2026-11-06） */
 
   .neta-attached { display: flex; flex-direction: column; gap: 6px; }
   .na-item { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line-soft); background: var(--bg); padding: 8px 10px; }
   .na-text { flex: 1; min-width: 0; }
   .na-body { font-size: 12px; color: var(--text); line-height: 1.6; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* ネタをのぞく（2026-11-07）：① の一覧のネタにマウスを重ねると、全文を浮かべて見せる。見るだけ（押せない・文字も選べない。
+     マウスが下を通っても邪魔しない）。長いネタは下を薄くして「続きは ✎ で」と出す。タッチの端末では出さない（✎ で読む表示を開く） */
+  .neta-peek { position: fixed; z-index: 45; width: min(520px, calc(100vw - 24px)); max-height: min(60vh, 460px); overflow: hidden; background: var(--panel); border: 1px solid var(--cyan-dim); box-shadow: 0 10px 28px rgba(var(--shadow-rgb), .5); padding: 10px 14px 12px; pointer-events: none; user-select: none; display: none; }
+  .neta-peek.is-open { display: block; }
+  .np-meta { font-size: 10.5px; color: var(--text-faint); margin-bottom: 6px; }
+  .np-meta:empty { display: none; }
+  .np-body { font-size: 12.5px; line-height: 1.8; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .np-more { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 14px 8px; font-size: 10.5px; color: var(--cyan); text-align: right; background: linear-gradient(to bottom, transparent, var(--panel) 55%); }
+  .neta-peek.is-more .np-more { display: block; }
   .icon-btn { width: 26px; height: 26px; background: color-mix(in srgb, var(--cyan) 13%, var(--panel)); border: 1px solid var(--line); border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); border-radius: 4px; box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); color: var(--text-dim); font-size: 11px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .icon-btn:hover { border-color: var(--cyan); color: var(--cyan); }
   .icon-btn.del:hover { border-color: var(--magenta-dim); color: var(--magenta); }
@@ -417,6 +437,17 @@
   .ch-label { font-family: var(--font-book); font-size: 22px; font-weight: 600; letter-spacing: .04em; color: var(--cyan); flex-shrink: 0; }
   .ch-title-input { flex: 1; min-width: 160px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 17px; font-family: var(--font-book); color: var(--text); padding: 7px 10px; outline: none; }
   .ch-title-input:focus { border-color: var(--cyan); }
+  /* 章の操作の歯車（2026-11-07）：前へ・後ろへ・この章を削除は、歯車を押して出るメニューの中（ワンタッチでは動かない） */
+  .gear-wrap { position: relative; flex-shrink: 0; }
+  .gear-btn { width: 32px; height: 32px; }
+  .gear-btn[aria-expanded="true"] { border-color: var(--cyan); color: var(--cyan); }
+  .gear-menu { position: absolute; top: calc(100% + 6px); right: 0; width: 200px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(var(--shadow-rgb), .45); z-index: 20; display: none; padding: 6px; }
+  .gear-menu.is-open { display: block; }
+  .menu-panel-item:disabled { opacity: .35; cursor: not-allowed; }
+  .menu-panel-item:disabled:hover { background: transparent; color: var(--text-dim); }
+  .menu-panel-item.is-danger { color: var(--magenta); }
+  .menu-panel-item.is-danger:hover { background: rgba(var(--magenta-dim-rgb), .35); color: var(--magenta); }
+  .menu-panel-item.is-danger:disabled:hover { background: transparent; color: var(--magenta); }
   /* 本文の「推敲中／完成」（2026-10-17）：普段は「推敲中」。押すと「完成」になり、色で強調する */
   .done-toggle { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 13px; border-radius: 999px; cursor: pointer; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--panel)); border: 1px solid var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); box-shadow: 0 2px 0 rgba(var(--shadow-rgb), .55); white-space: nowrap; }
   .done-toggle::before { content: '○ '; }
@@ -487,7 +518,12 @@
   .modal-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 18px 16px; flex-wrap: wrap; }
   .modal-footer .left { margin-right: auto; font-size: 10.5px; color: var(--text-faint); }
   .modal-body .field-textarea:not([readonly]), .modal-body .field-input, .modal-body .field-select { background: var(--bg-alt); } /* モーダルの面（--panel）より暗くして見分ける */
-  .lore-top { display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+  /* 設定集の項目の頭（2026-11-07）：左の列に設定画像、右の列に上から カテゴリ・名称・説明 */
+  .lore-top { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .lore-img-col { min-width: 0; }
+  .lore-img-col .img-drop.r11 { max-width: none; }
+  .lore-fields { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .lore-fields .field-label { margin-bottom: 5px; }
 
   .import-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
   .import-table th, .import-table td { border-bottom: 1px solid var(--line-soft); padding: 6px 4px; text-align: right; }
@@ -531,10 +567,11 @@
     .ms-hero .edit-title-input { font-size: 20px; }
     .hn-label { flex-basis: 100%; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
+    .lore-img-col .img-slot { max-width: 220px; } /* 狭い画面では画像を上に置き、幅いっぱいには広げない */
     #workView .meta-row { grid-template-columns: auto minmax(0, 1fr); }
     /* 工程タブ：縦に 番号・名前・札。小さな文字は出さない */
     .ms-tabs { top: -12px; }
-    .mt-tab { flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px 9px; text-align: center; }
+    .mt-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px 9px; text-align: center; }
     .mt-num { font-size: 18px; }
     .mt-name { font-size: 12px; }
     .mt-sub { display: none; }
@@ -547,7 +584,7 @@
     .ch-layout .ch-tab { flex-shrink: 0; width: auto; max-width: 180px; border-width: 1px 1px 0; border-radius: 4px 4px 0 0; margin: 0; }
     .ch-layout .ch-tab.is-active { border-right: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); border-bottom-color: transparent; margin: 0 0 -1px; padding-right: 12px; }
     .ch-layout .ch-tab.add { margin: 0; border-width: 1px 1px 0; }
-    .compose-row.ai-row::before { flex-basis: 100%; } /* 「AIに頼む」を上の行に */
+    .compose-row.ai-row::before { flex-basis: 100%; } /* 「AI連携」を上の行に */
     .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "body" "foot"; align-items: start; }
     .find-row { grid-template-columns: 1fr; }
     .nc-foot { justify-content: flex-start; max-width: none; }
@@ -586,8 +623,20 @@
             <button type="button" class="menu-panel-item" id="genreAddBtn">＋ ジャンルを追加</button>
             <button type="button" class="menu-panel-item" id="netaSelectBtn">☑ 選んで削除</button>
             <div class="menu-sep"></div>
-            <div class="menu-head">データ全体</div>
           </div>
+          <!-- 制作中の一覧のときだけ出す（2026-11-07） -->
+          <div id="menuWorksGroup" class="is-hidden">
+            <div class="menu-head">制作中</div>
+            <button type="button" class="menu-panel-item" id="worksSelectBtn">☑ 選んで削除<small>作品を選んで、まとめて削除します</small></button>
+            <div class="menu-sep"></div>
+          </div>
+          <!-- 作品を開いているときだけ出す（2026-11-07。以前は「04 仕上げ」のタブの「作品を削除」） -->
+          <div id="menuWorkGroup" class="is-hidden">
+            <div class="menu-head">この作品</div>
+            <button type="button" class="menu-panel-item is-danger" id="menuWorkDelete">この作品を削除<small id="menuWorkDeleteNote"></small></button>
+            <div class="menu-sep"></div>
+          </div>
+          <div class="menu-head is-hidden" id="menuDataHead">データ全体</div>
           <button type="button" class="menu-panel-item" id="menuExportAll">すべてをエクスポート（JSON）<small id="menuBackupNote"></small></button>
           <button type="button" class="menu-panel-item" id="menuImport">JSONからインポート</button>
           <div class="menu-sep"></div>
@@ -630,6 +679,13 @@
         <button type="button" class="chip" data-stage="draft">執筆</button>
         <button type="button" class="chip" data-stage="polish">推敲</button>
       </div>
+      <div class="select-bar is-hidden" id="worksSelectBar" role="region" aria-label="作品を選んで削除">
+        <span class="sb-text"><span class="sb-lead">消す作品を押して選んでください　</span>選択中 <strong id="worksSelCount">0</strong>件</span>
+        <button type="button" class="btn small" id="worksSelAllBtn">表示中をすべて選ぶ</button>
+        <button type="button" class="btn small" id="worksSelClearBtn">選択を外す</button>
+        <button type="button" class="btn small danger" id="worksSelDeleteBtn">選んだ作品を削除</button>
+        <button type="button" class="btn small" id="worksSelExitBtn">やめる</button>
+      </div>
       <div class="scroll-area" id="worksList"></div>
     </section>
 
@@ -653,7 +709,7 @@
           <section class="ms-hero" id="workHero" aria-label="作品">
             <div class="hero-cover" id="heroCover">
               <div class="hc-img" id="heroCoverImg"></div>
-              <button type="button" class="hc-edit" id="heroCoverBtn" title="「5 作品ビジュアル」のカバーへ移ります">カバーを変える</button>
+              <button type="button" class="hc-edit" id="heroCoverBtn" title="「⑤ 作品ビジュアル」のカバーへ移ります">カバーを変える</button>
             </div>
             <div class="hero-main">
               <div class="hero-top">
@@ -693,7 +749,7 @@
           <!-- 工程タブ（2026-11 改善3段目）：1画面に出すのは選んだタブの中身だけ。工程の番号 1〜11 はそのまま。
                それまでの大きい段（作品の土台・章・本棚と書き出し）の帯とたたむは、このタブに置き換えた。履歴（pushState・#）は使わない -->
           <div class="ms-tabs" id="msTabs" role="tablist" aria-label="工程">
-            <button type="button" class="mt-tab" role="tab" id="tabDesign" data-pane="design" aria-controls="paneDesign" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">01</span><span class="mt-txt"><span class="mt-name">設計</span><span class="mt-sub">ネタ・設定プロット</span></span><span class="mt-state" id="tabStateDesign">まだ</span></button>
+            <button type="button" class="mt-tab" role="tab" id="tabDesign" data-pane="design" aria-controls="paneDesign" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">01</span><span class="mt-txt"><span class="mt-name">設計</span><span class="mt-sub">ネタ・設定とプロット</span></span><span class="mt-state" id="tabStateDesign">まだ</span></button>
             <button type="button" class="mt-tab" role="tab" id="tabAssets" data-pane="assets" aria-controls="paneAssets" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">02</span><span class="mt-txt"><span class="mt-name">素材</span><span class="mt-sub">設定集・画像・概要</span></span><span class="mt-state" id="tabStateAssets">まだ</span></button>
             <button type="button" class="mt-tab" role="tab" id="tabText" data-pane="text" aria-controls="paneText" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">03</span><span class="mt-txt"><span class="mt-name">本文</span><span class="mt-sub" id="tabSubText">本文・完成</span></span><span class="mt-state" id="tabStateText">まだ</span></button>
             <button type="button" class="mt-tab" role="tab" id="tabFinish" data-pane="finish" aria-controls="paneFinish" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">04</span><span class="mt-txt"><span class="mt-name">仕上げ</span><span class="mt-sub">本棚・書き出し</span></span><span class="mt-state" id="tabStateFinish">まだ</span></button>
@@ -713,7 +769,7 @@
           </div>
 
           <div class="step-block" id="stepPlot">
-            <div class="step-head"><span class="step-num">2</span><span class="step-title">設定プロット</span><span class="step-hint">作品全体の設計図</span></div>
+            <div class="step-head"><span class="step-num">2</span><span class="step-title">設定とプロット</span><span class="step-hint">作品全体の設計図</span></div>
             <div class="step-body">
               <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_plot" aria-label="プロット用テンプレート"></select>
@@ -721,8 +777,8 @@
               </div>
               <div class="prompt-wrap" id="out_plot_wrap"><textarea class="field-textarea" id="out_plot" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="plot">コピー</button></div>
               <div class="divider">
-                <div class="field-label"><span class="grow">設定プロット（AIの出力を貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="plot"></button><span id="cnt_plot"></span></div>
-                <textarea class="field-textarea" id="wPlot" rows="10" placeholder="AIが出力した設定プロットを貼り付け"></textarea>
+                <div class="field-label"><span class="grow">設定とプロット（AIの出力を貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="plot"></button><span id="cnt_plot"></span></div>
+                <textarea class="field-textarea" id="wPlot" rows="10" placeholder="AIが出力した設定とプロットを貼り付け"></textarea>
               </div>
             </div>
           </div>
@@ -739,7 +795,7 @@
               </div>
               <div class="prompt-wrap" id="out_assets_wrap"><textarea class="field-textarea" id="out_assets" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="assets">コピー</button></div>
               <div class="divider">
-                <div class="field-hint">AIの出力を貼り付けると、見出しごとに振り分けます。【作品紹介】→ 6 作品の概要／【キービジュアル】→ 5 作品ビジュアル／【人物：名前】→ 4 設定集の人物（なければ作ります）／【第1章：章タイトル】→ その章の 9 章の画像（章がなければ作ります）</div>
+                <div class="field-hint">AIの出力を貼り付けると、見出しごとに振り分けます。【作品紹介】→ ⑥ 作品の概要／【キービジュアル】→ ⑤ 作品ビジュアル／【人物：名前】→ ④ 設定集の人物（なければ作ります）／【第1章：章タイトル】→ その章の⑨章の画像（章がなければ作ります）</div>
                 <div style="margin-top:8px"><button type="button" class="btn primary" id="assetsPasteBtn">AIの出力を貼り付けて振り分ける</button></div>
               </div>
             </div>
@@ -756,12 +812,12 @@
             <div class="step-head"><span class="step-num">5</span><span class="step-title">作品ビジュアル</span><span class="step-hint">キービジュアルの画像生成プロンプト・表紙（縦）・カバー（横16:9）</span></div>
             <div class="step-body">
               <div>
-                <div class="field-label"><span class="grow">キービジュアルの画像生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="kvPrompt"></button><button type="button" class="btn small" data-copy-el="wKvPrompt" data-copy-label="キービジュアルの画像生成プロンプト">コピー</button></div>
+                <div class="field-label"><span class="grow">キービジュアルの画像生成プロンプト（③ で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="kvPrompt"></button><button type="button" class="btn small" data-copy-el="wKvPrompt" data-copy-label="キービジュアルの画像生成プロンプト">コピー</button></div>
                 <textarea class="field-textarea" id="wKvPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
               </div>
               <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_kv" aria-label="作品ビジュアル用テンプレート"></select>
-                <button type="button" class="btn" data-compose="kv">画像を頼むプロンプトを作る</button>
+                <button type="button" class="btn" data-compose="kv">プロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_kv_wrap"><textarea class="field-textarea" id="out_kv" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="kv">コピー</button></div>
               <div class="slot-row">
@@ -798,14 +854,14 @@
 
           <div class="ms-pane" id="paneText" data-pane="text" role="tabpanel" aria-labelledby="tabText">
           <div class="step-block" id="stepSerial">
-            <div class="step-head"><span class="step-num">7</span><span class="step-title">本文を通しで頼む</span><span class="step-hint">作品に1回。AIには「次の章もお願い」と続けて頼みます</span></div>
+            <div class="step-head"><span class="step-num">7</span><span class="step-title">本文を用意する</span><span class="step-hint">AIに依頼して本文を生成する</span></div>
             <div class="step-body">
               <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_serial" aria-label="本文用テンプレート"></select>
                 <button type="button" class="btn primary" data-compose="serial">プロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_serial_wrap"><textarea class="field-textarea" id="out_serial" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="serial">コピー</button></div>
-              <div class="field-hint">AIが書いた本文は、章の一覧で章を選んで「8 本文」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
+              <div class="field-hint">AIが書いた本文は、章の一覧で章を選んで「⑧ 本文」に1章ずつ貼ってください。章が足りなければ「＋ 章を追加」で足せます。</div>
             </div>
           </div>
           <div class="ch-layout"><!-- PCでは左に章の一覧・右にその章（2026-11 改善3段目） -->
@@ -814,14 +870,22 @@
           <div class="ch-head">
             <span class="ch-label" id="chLabel">第1章</span>
             <input type="text" class="ch-title-input" id="chTitle" placeholder="章タイトル（任意）" maxlength="200">
-            <button type="button" class="icon-btn" id="chMoveUp" title="前へ移動" aria-label="前へ移動">←</button>
-            <button type="button" class="icon-btn" id="chMoveDown" title="後ろへ移動" aria-label="後ろへ移動">→</button>
-            <button type="button" class="btn small danger" id="chDeleteBtn">この章を削除</button>
+            <!-- 章の操作（2026-11-07）：めったに使わず、ワンタッチで動いてほしくないので、歯車の中のメニューに入れた -->
+            <div class="gear-wrap" id="chGearWrap">
+              <button type="button" class="icon-btn gear-btn" id="chGearBtn" title="この章の操作（並べ替え・削除）" aria-label="この章の操作" aria-haspopup="menu" aria-expanded="false" aria-controls="chGearMenu"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a7.4 7.4 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6a.5.5 0 0 0-.1.6l2 3.5a.5.5 0 0 0 .6.2l2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.7a.5.5 0 0 0 .5.4h4a.5.5 0 0 0 .5-.4l.4-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1a.5.5 0 0 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>
+              <div class="gear-menu" id="chGearMenu" role="menu" aria-label="この章の操作">
+                <div class="menu-head" id="chGearHead">第1章</div>
+                <button type="button" class="menu-panel-item" role="menuitem" id="chMoveUp">← 前へ移動</button>
+                <button type="button" class="menu-panel-item" role="menuitem" id="chMoveDown">→ 後ろへ移動</button>
+                <div class="menu-sep"></div>
+                <button type="button" class="menu-panel-item is-danger" role="menuitem" id="chDeleteBtn">この章を削除</button>
+              </div>
+            </div>
           </div>
 
           <!-- 以前の本文（初稿）：2026-10-12 に「本文」の段をなくした。本文か章の筋が残っている章だけに出す -->
           <div class="step-block is-legacy is-hidden" id="stepBody">
-            <div class="step-head"><span class="step-num">旧</span><span class="step-title">以前の本文（初稿）</span><span class="step-hint">今の流れでは使いません。「8 本文」に写すか、消してください</span></div>
+            <div class="step-head"><span class="step-num">旧</span><span class="step-title">以前の本文（初稿）</span><span class="step-hint">今の流れでは使いません。「⑧ 本文」に写すか、消してください</span></div>
             <div class="step-body">
               <div>
                 <div class="field-label"><span>この章の筋（以前の入力）</span></div>
@@ -831,22 +895,22 @@
                 <div class="field-label"><span class="grow">本文（以前の初稿）</span><button type="button" class="undo-btn is-hidden" data-undo="body"></button><span id="cnt_body"></span></div>
                 <textarea class="field-textarea is-book" id="chBody" rows="10"></textarea>
               </div>
-              <div class="compose-row"><button type="button" class="btn small" id="copyBodyToFinalBtn">「8 本文」に写す</button><button type="button" class="btn small danger" id="clearLegacyBtn">以前の本文と章の筋を消す</button></div>
+              <div class="compose-row"><button type="button" class="btn small" id="copyBodyToFinalBtn">「⑧ 本文」に写す</button><button type="button" class="btn small danger" id="clearLegacyBtn">以前の本文と章の筋を消す</button></div>
             </div>
           </div>
 
           <div class="step-block" id="stepFinal">
-            <div class="step-head"><span class="step-num">8</span><span class="step-title">本文</span><span class="step-hint">AIが書いたこの章の本文を貼る。編集・推敲もここで</span><button type="button" class="done-toggle" id="chDoneBtn" aria-pressed="false" title="この章を「完成」にする／「推敲中」に戻す">推敲中</button></div>
+            <div class="step-head"><span class="step-num">8</span><span class="step-title">本文</span><span class="step-hint">AIが書いたこの章の本文を貼る。編集・推敲もここで行う</span><button type="button" class="done-toggle" id="chDoneBtn" aria-pressed="false" title="この章を「完成」にする／「推敲中」に戻す">推敲中</button></div>
             <div class="step-body">
               <div>
                 <div class="field-label"><span class="grow">本文（貼り付け・直接編集も可）</span><button type="button" class="undo-btn is-hidden" data-undo="final"></button><button type="button" class="btn small" id="copyFinalBtn">本文をコピー</button><span id="cnt_final"></span></div>
                 <textarea class="field-textarea is-book" id="chFinal" rows="16" placeholder="AIが書いたこの章の本文を貼り付け"></textarea>
               </div>
               <div class="divider">
-                <div class="field-label"><span>推敲を頼むとき（本文を差し込みます）</span></div>
+                <div class="field-label"><span>AIに推敲を依頼する</span></div>
                 <div class="compose-row ai-row">
                   <select class="field-select" id="tplSel_polish" aria-label="推敲用テンプレート"></select>
-                  <button type="button" class="btn" data-compose="polish">推敲のプロンプトを作る</button>
+                  <button type="button" class="btn" data-compose="polish">プロンプトを作る</button>
                 </div>
               </div>
               <div class="prompt-wrap" id="out_polish_wrap"><textarea class="field-textarea" id="out_polish" rows="6" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="polish">コピー</button></div>
@@ -857,12 +921,12 @@
             <div class="step-head"><span class="step-num">9</span><span class="step-title">章の画像</span><span class="step-hint">タイトル画像・挿絵（横16:9）</span></div>
             <div class="step-body">
               <div>
-                <div class="field-label"><span class="grow">この章のタイトル画像の生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="chImgPrompt"></button><button type="button" class="btn small" data-copy-el="chImgPrompt" data-copy-label="章のタイトル画像の生成プロンプト">コピー</button></div>
+                <div class="field-label"><span class="grow">この章のタイトル画像の生成プロンプト（③ で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="chImgPrompt"></button><button type="button" class="btn small" data-copy-el="chImgPrompt" data-copy-label="章のタイトル画像の生成プロンプト">コピー</button></div>
                 <textarea class="field-textarea" id="chImgPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
               </div>
               <div class="compose-row ai-row">
                 <select class="field-select" id="tplSel_chimg" aria-label="章の画像用テンプレート"></select>
-                <button type="button" class="btn" data-compose="chimg">挿絵を頼むプロンプトを作る</button>
+                <button type="button" class="btn" data-compose="chimg">プロンプトを作る</button>
               </div>
               <div class="prompt-wrap" id="out_chimg_wrap"><textarea class="field-textarea" id="out_chimg" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="chimg">コピー</button></div>
               <div class="img-slot" data-slot="chimg" style="max-width:520px">
@@ -924,8 +988,7 @@
           <div class="editor-foot">
             <button type="button" class="btn" id="workMdBtn">全章の本文を .md で書き出す</button>
             <button type="button" class="btn" id="exportWorkBtn">この作品をエクスポート（JSON）</button>
-            <span class="spacer"></span>
-            <button type="button" class="btn danger" id="deleteWorkBtn">作品を削除</button>
+            <!-- 作品の削除は ☰ の「この作品を削除」へ移した（2026-11-07） -->
           </div>
           </div><!-- /paneFinish -->
         </div>
@@ -987,24 +1050,39 @@
   <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="loreModalTitle">
     <div class="modal-head"><span class="modal-title" id="loreModalTitle">設定</span><button type="button" class="modal-close" id="loreCloseBtn" aria-label="閉じる">✕</button></div>
     <div class="modal-body">
+      <!-- 頭の2列（2026-11-07）：左に設定画像、右に上から「カテゴリ」「名称」「説明」。狭い画面では画像を上に重ねる -->
       <div class="lore-top">
-        <select class="field-select" id="loreKind" aria-label="種類"></select>
-        <input type="text" class="field-input" id="loreName" maxlength="100" placeholder="名前（人物名・場所名・アイテム名など）">
+        <div class="lore-img-col">
+          <div class="field-label"><span>設定画像</span></div>
+          <div class="img-slot" data-slot="loreimg">
+            <div class="img-drop r11" tabindex="0" role="button" aria-label="設定画像を登録"></div>
+            <div class="slot-foot"><span class="slot-label">比率自由</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small" data-img-act="frame">見え方</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
+          </div>
+        </div>
+        <div class="lore-fields">
+          <div>
+            <div class="field-label"><span><label for="loreKind">カテゴリ</label></span></div>
+            <select class="field-select" id="loreKind"></select>
+          </div>
+          <div>
+            <div class="field-label"><span><label for="loreName">名称</label></span></div>
+            <input type="text" class="field-input" id="loreName" maxlength="100" placeholder="人物名・場所名・アイテム名など">
+          </div>
+          <div>
+            <div class="field-label"><span><label for="loreBody">説明</label></span></div>
+            <textarea class="field-textarea" id="loreBody" rows="7" placeholder="外見・性格・役割・由来など"></textarea>
+          </div>
+        </div>
       </div>
-      <textarea class="field-textarea" id="loreBody" rows="8" placeholder="説明（外見・性格・役割・由来など）"></textarea>
       <div>
-        <div class="field-label"><span class="grow">画像生成プロンプト（3 で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="loreImgPrompt"></button><button type="button" class="btn small" data-copy-el="loreImgPrompt" data-copy-label="画像生成プロンプト">コピー</button></div>
+        <div class="field-label"><span class="grow">画像生成プロンプト（③ で入ります・直接書いても可）</span><button type="button" class="undo-btn is-hidden" data-undo="loreImgPrompt"></button><button type="button" class="btn small" data-copy-el="loreImgPrompt" data-copy-label="画像生成プロンプト">コピー</button></div>
         <textarea class="field-textarea" id="loreImgPrompt" rows="4" placeholder="画像生成AIに貼るプロンプト"></textarea>
       </div>
       <div class="compose-row ai-row">
         <select class="field-select" id="tplSel_loreimg" aria-label="設定画像用テンプレート"></select>
-        <button type="button" class="btn" data-compose="loreimg">画像を頼むプロンプトを作る</button>
+        <button type="button" class="btn" data-compose="loreimg">プロンプトを作る</button>
       </div>
       <div class="prompt-wrap" id="out_loreimg_wrap"><textarea class="field-textarea" id="out_loreimg" rows="5" readonly aria-label="作成したプロンプト"></textarea><button type="button" class="copy-btn" data-copy="loreimg">コピー</button></div>
-      <div class="img-slot" data-slot="loreimg">
-        <div class="img-drop r11" tabindex="0" role="button" aria-label="設定画像を登録"></div>
-        <div class="slot-foot"><span class="slot-label">設定画像（比率自由）</span><button type="button" class="btn small" data-img-act="pick">選ぶ</button><button type="button" class="btn small" data-img-act="frame">見え方</button><button type="button" class="btn small danger" data-img-act="remove">外す</button></div>
-      </div>
     </div>
     <div class="modal-footer">
       <span class="left" id="loreSaveInd">入力は自動で保存されます</span>
@@ -1024,7 +1102,7 @@
         <input type="text" class="field-input" id="findR" maxlength="2000" placeholder="置き換える文字（空なら削除）" aria-label="置き換える文字">
       </div>
       <label class="check-row"><input type="checkbox" id="findCi">英字の大文字・小文字を区別しない</label>
-      <div class="field-hint">対象：作品タイトル・設定プロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章（章タイトル・本文・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません。結果を押すと、その場所を開きます。</div>
+      <div class="field-hint">対象：作品タイトル・設定とプロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章（章タイトル・本文・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません。結果を押すと、その場所を開きます。</div>
       <div class="import-stats" id="findStats"></div>
       <div class="find-list" id="findList"></div>
     </div>
@@ -1152,6 +1230,8 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!-- ① のネタをのぞく（マウスを重ねている間だけ。見るだけ） -->
+<div class="neta-peek" id="netaPeek" aria-hidden="true"><div class="np-meta"></div><div class="np-body"></div><div class="np-more">続きは ✎ で開いて読めます</div></div>
 
 <script>
 (function () {
@@ -1188,11 +1268,11 @@
   const DAY_MS = 86400000;
 
   const KINDS = {
-    plot:    { label: '設定プロット',                 required: '{{ネタ}}' },
+    plot:    { label: '設定とプロット',                 required: '{{ネタ}}' },
     assets:  { label: '素材をまとめて（画像生成プロンプト・作品紹介）', required: '{{プロット}}' },
     kv:      { label: '作品ビジュアル（画像を頼む）',  required: '{{プロット}}' },
     synopsis: { label: '作品の概要',                  required: '{{プロット}}' },
-    serial:  { label: '本文を通しで頼む',             required: '{{プロット}}' },
+    serial:  { label: '本文を用意する',               required: '{{プロット}}' },
     // 2026-10-12 に「本文」の段をなくしたので、章ごとの本文のテンプレートは使わない。
     // 以前に作ったものは消さずに持っておく（テンプレートの画面には出さない。KIND_ORDER に入れない）
     body:    { label: '章の本文（1章ずつ・今は使っていない）', required: '{{プロット}}' },
@@ -1463,6 +1543,9 @@
   const closing = { neta: false, genre: false, lore: false };
   let netaSelecting = false;     // ネタ帳の「選んで削除」の途中か
   const netaPicked = new Set(); // 選んだネタのID（ジャンルや検索をまたいで残る）
+  let worksSelecting = false;    // 制作中の一覧の「選んで削除」の途中か（2026-11-07）
+  const worksPicked = new Set(); // 選んだ作品のID（絞り込み・検索をまたいで残る）
+  let shownWorksList = [];       // 制作中の一覧にいま出している作品（「表示中をすべて選ぶ」に使う）
   let editingTplId = null;
   let pendingImport = null;
   let pendingSlot = null;
@@ -1472,7 +1555,7 @@
   const viewEls = { neta: $('netaView'), works: $('worksView'), shelf: $('shelfView'), templates: $('templatesView'), work: $('workView'), reader: $('readerView') };
   const tabsEl = $('tabs'), primaryActionBtn = $('primaryActionBtn'), menuBtn = $('menuBtn'), menuPanel = $('menuPanel'), toastEl = $('toast');
   const netaSearch = $('netaSearch'), netaListEl = $('netaList');
-  const worksSearch = $('worksSearch'), worksPen = $('worksPen'), worksListEl = $('worksList');
+  const worksSearch = $('worksSearch'), worksPen = $('worksPen'), worksListEl = $('worksList'), worksSelectBar = $('worksSelectBar');
   const shelfSearch = $('shelfSearch'), shelfPen = $('shelfPen'), shelfListEl = $('shelfList');
   const templatesListEl = $('templatesList');
 
@@ -1632,7 +1715,7 @@
       const t = stepTarget(s.key, w);
       const no = t.chapterId ? chs.findIndex((c) => c.id === t.chapterId) + 1 : 0;
       const text = {
-        neta: 'ネタを選ぶ（プロットから書いても可）', plot: '設定プロットを作る', assets: '素材をまとめて作る',
+        neta: 'ネタを選ぶ（プロットから書いても可）', plot: '設定とプロットを作る', assets: '素材をまとめて作る',
         final: no ? `第${no}章の本文を貼る` : '章を足して本文を貼る', done: `第${no}章を推敲して「完成」に`, book: '本棚に登録する',
       }[s.key];
       next = { text, ...t };
@@ -1988,6 +2071,7 @@
   function showView(name) {
     currentView = name;
     if (name !== 'neta' && netaSelecting) { netaSelecting = false; netaPicked.clear(); primaryActionBtn.disabled = false; } // ほかの画面へ移ったら選ぶのをやめる
+    if (name !== 'works' && worksSelecting) { worksSelecting = false; worksPicked.clear(); primaryActionBtn.disabled = false; worksSelectBar.classList.add('is-hidden'); }
     Object.keys(viewEls).forEach((k) => viewEls[k].classList.toggle('is-active', k === name));
     const tab = name === 'work' ? workReturnTab : TAB_OF_VIEW[name];
     tabsEl.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === tab));
@@ -1998,8 +2082,20 @@
     if (label) primaryActionBtn.textContent = label;
     updateMenuGroups();
   }
-  // ☰ のネタ帳の操作は、ネタ帳を開いていて、選んで削除の途中でないときだけ出す
-  function updateMenuGroups() { $('menuNetaGroup').classList.toggle('is-hidden', currentView !== 'neta' || netaSelecting); }
+  // ☰ の上の段は、開いている画面の操作だけを出す（2026-11-07〜）。
+  //   ネタ帳 → ネタ帳の操作（選んで削除の途中は隠す）／制作中の一覧 → 選んで削除（途中は隠す）／作品を開いている → この作品を削除。
+  //   どれかを出したときだけ、下の段に「データ全体」の見出しを付ける（取り込みとインポートを取り違えないように）
+  function updateMenuGroups() {
+    const neta = currentView === 'neta' && !netaSelecting;
+    const list = currentView === 'works' && !worksSelecting;
+    const work = currentView === 'work' && !!getWork(currentWorkId);
+    $('menuNetaGroup').classList.toggle('is-hidden', !neta);
+    $('menuWorksGroup').classList.toggle('is-hidden', !list);
+    $('menuWorkGroup').classList.toggle('is-hidden', !work);
+    $('menuDataHead').classList.toggle('is-hidden', !(neta || list || work));
+    const w = work ? getWork(currentWorkId) : null;
+    $('menuWorkDeleteNote').textContent = w ? `「${workDisplayTitle(w)}」` : '';
+  }
   tabsEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('.tab-btn');
     if (!btn || !dbReady) return;
@@ -2575,6 +2671,9 @@
     const q = worksSearch.value.trim().toLowerCase();
     const pen = worksPen.value;
     const list = inProgress.filter((w) => (worksStageFilter === 'all' || stageOf(w) === worksStageFilter) && (!pen || w.penName === pen) && workMatches(w, q));
+    shownWorksList = list;
+    Array.from(worksPicked).forEach((id) => { const w = getWork(id); if (!w || w.isBook) worksPicked.delete(id); }); // 消えた・本棚へ移った作品は選択から外す
+    updateWorksSelectBar();
     if (inProgress.length === 0) {
       worksListEl.innerHTML = `<div class="empty-state"><div class="big">制作中の作品はありません</div><div class="small">ネタ帳のネタを開いて「このネタで作品を作る」を押すか、右上の「＋ 新規作品」から始めてください。本棚に登録した作品は「本棚」タブに移ります。</div></div>`;
       return;
@@ -2592,7 +2691,8 @@
         return `<i class="${cls}"${s.part ? ` style="--p:${Math.round(s.ratio * 100)}%"` : ''}></i>`;
       }).join('');
       const ago = formatAgo(w.updatedAt);
-      return `<button type="button" class="work-row" data-id="${escapeHtml(w.id)}" data-st="${st}">
+      const pick = worksSelecting ? ` is-selectable${worksPicked.has(w.id) ? ' is-picked' : ''}" aria-pressed="${worksPicked.has(w.id)}` : '';
+      return `<button type="button" class="work-row${pick}" data-id="${escapeHtml(w.id)}" data-st="${st}">
         <span class="wr-thumb">${thumbImg || `<span class="wt-type" aria-hidden="true">${escapeHtml(untitled ? '？' : Array.from(w.title.trim())[0])}</span>`}</span>
         <span class="wr-main">
           <span class="wr-title${untitled ? ' is-untitled' : ''}">${escapeHtml(workDisplayTitle(w))}</span>
@@ -2615,7 +2715,104 @@
     $('worksToolbar').querySelectorAll('.chip').forEach((c) => c.classList.toggle('is-on', c === chip));
     renderWorks();
   });
-  worksListEl.addEventListener('click', (e) => { const r = e.target.closest('.work-row'); if (r) openWork(r.dataset.id, 'works'); });
+  worksListEl.addEventListener('click', (e) => {
+    const r = e.target.closest('.work-row');
+    if (!r) return;
+    if (worksSelecting) { toggleWorkPick(r); return; } // 選んでいる間は開かない
+    openWork(r.dataset.id, 'works');
+  });
+
+  /* ---- 選んで削除（制作中の一覧。2026-11-07）----
+     ネタ帳の「選んで削除」と同じ作り。選んでいる間は、カードを押すと選ぶ／外すになる（開かない）。絞り込み・検索をしても選択は残す。
+     消すときは、作品とその章・設定集・画像を1つの書き込みで消す（途中で失敗したら何も消えない）。元にしたネタは残す。
+     本棚の作品は、この一覧に出ないので選べない（本棚の作品は、開いて ☰ の「この作品を削除」で消す） */
+  function updateWorksSelectBar() {
+    worksSelectBar.classList.toggle('is-hidden', !worksSelecting);
+    updateMenuGroups(); // 選んでいる間は ☰ の「選んで削除」を隠す
+    if (currentView === 'works') primaryActionBtn.disabled = worksSelecting; // 選んでいる間は「＋ 新規作品」を押せない
+    $('worksSelCount').textContent = worksPicked.size;
+    $('worksSelDeleteBtn').disabled = worksPicked.size === 0;
+    $('worksSelAllBtn').disabled = shownWorksList.length === 0 || shownWorksList.every((w) => worksPicked.has(w.id));
+    $('worksSelClearBtn').disabled = worksPicked.size === 0;
+  }
+  function toggleWorkPick(card) {
+    const id = card.dataset.id, w = getWork(id);
+    if (!w || w.isBook) return;
+    if (worksPicked.has(id)) worksPicked.delete(id); else worksPicked.add(id);
+    card.classList.toggle('is-picked', worksPicked.has(id));
+    card.setAttribute('aria-pressed', String(worksPicked.has(id)));
+    updateWorksSelectBar();
+  }
+  function enterWorksSelect() {
+    if (!dbReady || currentView !== 'works') return;
+    if (!works.some((w) => !w.isBook)) { showToast('制作中の作品はありません', true); return; }
+    worksSelecting = true;
+    worksPicked.clear();
+    renderWorks();
+  }
+  function exitWorksSelect() {
+    if (!worksSelecting) return;
+    worksSelecting = false;
+    worksPicked.clear();
+    primaryActionBtn.disabled = false;
+    renderWorks();
+  }
+  // 作品をまとめて消す（作品・章・設定集・画像を1つの書き込みで）。失敗したら何も消さずに false
+  async function deleteWorksTx(list) {
+    const ids = new Set(list.map((w) => w.id));
+    const chIds = chapters.filter((c) => ids.has(c.workId)).map((c) => c.id);
+    const lrIds = loreList.filter((l) => ids.has(l.workId)).map((l) => l.id);
+    const imIds = Array.from(images.values()).filter((r) => ids.has(r.workId)).map((r) => r.id);
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([S.works, S.chapters, S.lore, S.images], 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('書き込みが中止されました'));
+        try {
+          ids.forEach((id) => tx.objectStore(S.works).delete(id));
+          chIds.forEach((id) => tx.objectStore(S.chapters).delete(id));
+          lrIds.forEach((id) => tx.objectStore(S.lore).delete(id));
+          imIds.forEach((id) => tx.objectStore(S.images).delete(id));
+        } catch (err) { try { tx.abort(); } catch (e) { /* もう終わっている */ } reject(err); } // 途中で止まったら、積んだ削除も取り消す
+      });
+    } catch (err) {
+      console.error('作品を削除できませんでした', err);
+      return false;
+    }
+    imIds.forEach((id) => { images.delete(id); dropUrl(id); });
+    chapters = chapters.filter((c) => !ids.has(c.workId));
+    loreList = loreList.filter((l) => !ids.has(l.workId));
+    works = works.filter((w) => !ids.has(w.id));
+    return true;
+  }
+  // 確認の文：消える物の数・元に戻せない・同期でほかの端末からも消える・ネタは残る
+  function workDeleteLines(list) {
+    const ids = new Set(list.map((w) => w.id));
+    const nCh = chapters.filter((c) => ids.has(c.workId)).length;
+    const nLore = loreList.filter((l) => ids.has(l.workId)).length;
+    const nImg = Array.from(images.values()).filter((r) => ids.has(r.workId)).length;
+    return [`・${nCh}章分の本文、設定集${nLore}件、画像${nImg}枚もすべて消えます`,
+      '・元に戻せません（ゴミ箱はありません）',
+      '・同期を使っている場合は、次の同期でほかの端末からも消えます',
+      '・元にしたネタは残ります'];
+  }
+  $('worksSelectBtn').addEventListener('click', enterWorksSelect);
+  $('worksSelExitBtn').addEventListener('click', exitWorksSelect);
+  $('worksSelAllBtn').addEventListener('click', () => { shownWorksList.forEach((w) => worksPicked.add(w.id)); renderWorks(); });
+  $('worksSelClearBtn').addEventListener('click', () => { worksPicked.clear(); renderWorks(); });
+  $('worksSelDeleteBtn').addEventListener('click', async () => {
+    const targets = works.filter((w) => worksPicked.has(w.id) && !w.isBook);
+    if (!targets.length) { showToast('消す作品を選んでください', true); return; }
+    const names = targets.slice(0, 5).map((w) => `　「${workDisplayTitle(w)}」`);
+    if (targets.length > 5) names.push(`　ほか${targets.length - 5}件`);
+    const lines = [`選んだ作品${targets.length}件を削除します。`, ...names, '', ...workDeleteLines(targets)];
+    if (!(await ask(lines.join('\n'), { ok: `${targets.length}件を削除する`, danger: true, twice: targets.length >= BULK_DELETE_TWICE }))) return;
+    if (!(await deleteWorksTx(targets))) { showToast('削除できませんでした（何も消していません）', true); return; }
+    exitWorksSelect();
+    renderAll(); updateBackupAlert();
+    showToast(`作品を${targets.length}件削除しました`);
+  });
 
   function newChapter(workId, order) {
     const now = Date.now();
@@ -2741,6 +2938,7 @@
   function clearOut(kind) { const o = $('out_' + kind); if (o) { o.value = ''; $('out_' + kind + '_wrap').classList.remove('is-shown'); } }
 
   async function closeWorkEditor() {
+    setChGear(false); hideNetaPeek();
     const w = getWork(currentWorkId);
     await workSaver.flush();
     if (w && isWorkBlank(w)) await deleteWorkCascade(w); // 何も入力しないまま離れた作品は残さない
@@ -2902,6 +3100,7 @@
   async function showTab(key, opts = {}) {
     if (!TABS.includes(key)) return;
     if (!opts.noFlush) await workSaver.flush();
+    setChGear(false); hideNetaPeek();
     currentTab = key;
     if (currentWorkId) lastTabOf.set(currentWorkId, key);
     TABS.forEach((k) => {
@@ -2988,6 +3187,7 @@
 
   // ---- 1 ネタ ----
   function renderWorkNeta(w) {
+    hideNetaPeek(); // 行を作り直すので、浮かべている全文は閉じる
     const attached = w.netaIds.map(getNeta).filter(Boolean);
     wNetaList.innerHTML = attached.length === 0
       ? '<div class="field-hint">まだネタがありません。下から追加するか、ネタなしでプロットを直接書くこともできます。</div>'
@@ -3023,6 +3223,54 @@
       const n = getNeta(id); if (n) openNetaModal(n);
     }
   });
+
+  // ---- ① ネタをのぞく（2026-11-07）----
+  // マウスを行に 0.25秒重ねると、そのネタの全文（ジャンル・タグ・本文）を行のすぐ下（足りなければ上）に浮かべる。
+  // 行から外れる・押す・スクロール・キー操作・窓を離れる・行を作り直す、のどれでも閉じる。タッチ・ペンでは出さない
+  const netaPeek = $('netaPeek');
+  const PEEK_DELAY_MS = 250;
+  let peekTimer = 0, peekId = null;
+  function hideNetaPeek() {
+    clearTimeout(peekTimer); peekTimer = 0; peekId = null;
+    netaPeek.classList.remove('is-open', 'is-more');
+  }
+  function showNetaPeek(item) {
+    peekTimer = 0;
+    const n = item && item.isConnected ? getNeta(item.dataset.id) : null;
+    if (!n || currentView !== 'work') { hideNetaPeek(); return; }
+    const g = getGenre(n.genreId);
+    const tags = (n.tags || []).filter(Boolean).map((t) => '#' + t).join(' ');
+    netaPeek.querySelector('.np-meta').textContent = [g ? genreLabel(g) : '未分類', tags].filter(Boolean).join('　');
+    netaPeek.querySelector('.np-body').textContent = n.body.trim() || '（本文なし）';
+    netaPeek.classList.remove('is-more');
+    netaPeek.classList.add('is-open');
+    const r = item.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    const pw = netaPeek.offsetWidth, ph = netaPeek.offsetHeight;
+    const left = Math.max(8, Math.min(r.left, vw - pw - 8));
+    let top = r.bottom + 6;
+    if (top + ph > vh - 8) top = r.top - 6 - ph >= 8 ? r.top - 6 - ph : Math.max(8, vh - ph - 8);
+    netaPeek.style.left = left + 'px';
+    netaPeek.style.top = top + 'px';
+    netaPeek.classList.toggle('is-more', netaPeek.scrollHeight > netaPeek.clientHeight + 1);
+    peekId = n.id;
+  }
+  wNetaList.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const item = e.target.closest('.na-item');
+    if (!item) return;
+    if (peekId === item.dataset.id && netaPeek.classList.contains('is-open')) return; // 同じ行の中を動いただけ
+    clearTimeout(peekTimer);
+    peekTimer = setTimeout(() => showNetaPeek(item), PEEK_DELAY_MS);
+  });
+  wNetaList.addEventListener('pointerout', (e) => {
+    const item = e.target.closest('.na-item');
+    if (item && e.relatedTarget && item.contains(e.relatedTarget)) return; // 行の中の ✎・✕ へ移っただけ
+    hideNetaPeek();
+  });
+  document.addEventListener('pointerdown', hideNetaPeek, true);
+  document.addEventListener('keydown', hideNetaPeek, true);
+  document.addEventListener('scroll', hideNetaPeek, true);
+  window.addEventListener('blur', hideNetaPeek);
 
   // ---- 3 設定集 ----
   function renderLore() {
@@ -3132,11 +3380,13 @@
     }
     const idx = chs.findIndex((c) => c.id === currentChapterId);
     chLabel.textContent = `第${idx + 1}章`;
+    $('chGearHead').textContent = `第${idx + 1}章の操作`;
     $('chMoveUp').disabled = idx <= 0;
     $('chMoveDown').disabled = idx < 0 || idx >= chs.length - 1;
     $('chDeleteBtn').disabled = chs.length <= 1;
   }
   function selectChapter(id, skipFlush) {
+    setChGear(false); // 章を替えたら歯車のメニューは閉じる（別の章を動かさないように）
     const apply = () => {
       const ch = getChapter(id);
       currentChapterId = ch ? ch.id : null;
@@ -3188,9 +3438,32 @@
     try { await put(S.chapters, a); await put(S.chapters, b); } catch (err) { console.error(err); showToast('並べ替えを保存できませんでした', true); }
     renderChapterTabs();
   }
+  // ---- 章の操作の歯車（2026-11-07）----
+  // 前へ・後ろへは、押してもメニューを開いたまま（続けて動かせる。見出しの「第n章」が変わるので動いたのが分かる）。
+  // 削除は確認を出す前にメニューを閉じる。外を押す・Esc・戻る・章を替える・タブを替える・作品を閉じる、で閉じる
+  const chGearBtn = $('chGearBtn'), chGearMenu = $('chGearMenu');
+  const gearItems = () => Array.from(chGearMenu.querySelectorAll('.menu-panel-item:not(:disabled)'));
+  function setChGear(open) {
+    chGearMenu.classList.toggle('is-open', !!open);
+    chGearBtn.setAttribute('aria-expanded', String(!!open));
+  }
+  chGearBtn.addEventListener('click', (e) => {
+    const open = !chGearMenu.classList.contains('is-open');
+    setChGear(open);
+    if (open && e.detail === 0) { const f = gearItems()[0]; if (f) f.focus(); } // キーで開いたときは最初の項目へ
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#chGearWrap')) setChGear(false); });
+  chGearMenu.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = gearItems(), i = items.indexOf(document.activeElement);
+    if (!items.length) return;
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+  });
   $('chMoveUp').addEventListener('click', () => moveChapter(-1));
   $('chMoveDown').addEventListener('click', () => moveChapter(1));
   $('chDeleteBtn').addEventListener('click', async () => {
+    setChGear(false);
     const w = getWork(currentWorkId), ch = getChapter(currentChapterId);
     if (!w || !ch) return;
     const chs = chaptersOf(w.id);
@@ -3270,12 +3543,12 @@
     if (had) backupField('final', chFinal.value);
     chFinal.value = chBody.value;
     workSaver.schedule(); updateWorkState(); renderChapterTabs();
-    showToast('以前の本文を「8 本文」に写しました' + (had ? '（前の本文は「直前の上書きを戻す」で戻せます）' : ''));
+    showToast('以前の本文を「⑧ 本文」に写しました' + (had ? '（前の本文は「直前の上書きを戻す」で戻せます）' : ''));
   });
   $('clearLegacyBtn').addEventListener('click', async () => {
     const ch = getChapter(currentChapterId);
     if (!ch) return;
-    const msg = '以前の本文（初稿）と章の筋を消します。元に戻せません。' + (chBody.value.trim() && !chFinal.value.trim() ? '\nこの章の「8 本文」は空です。先に「「8 本文」に写す」を押さなくてよいですか？' : '');
+    const msg = '以前の本文（初稿）と章の筋を消します。元に戻せません。' + (chBody.value.trim() && !chFinal.value.trim() ? '\nこの章の「⑧ 本文」は空です。先に「「⑧ 本文」に写す」を押さなくてよいですか？' : '');
     if (!(await ask(msg, { ok: '消す', danger: true }))) return;
     chBody.value = ''; chOutline.value = '';
     workSaver.schedule(); await workSaver.flush();
@@ -3338,10 +3611,10 @@
     // 3つ目は、埋める欄があるタブ（今と別のタブなら、トーストでそのタブの名前を言う。2026-11 改善3段目）
     // 2026-10-12〜 章の本文は「8 完成稿」に貼るので、章の用途の素材は完成稿（なければ以前の初稿）
     const chText = (c) => (c ? (c.final.trim() || c.body.trim()) : '');
-    const needFinal = [() => chText(ch), '先にこの章の「8 本文」に本文を貼ってください', 'text'];
-    const needPlot = [() => w.plot, '先に「2 設定プロット」を入力してください', 'design'];
+    const needFinal = [() => chText(ch), '先にこの章の「⑧ 本文」に本文を貼ってください', 'text'];
+    const needPlot = [() => w.plot, '先に「② 設定とプロット」を入力してください', 'design'];
     const need = {
-      plot: [() => netaText(w), '先に「1 元になるネタ」を追加してください', 'design'],
+      plot: [() => netaText(w), '先に「① 元になるネタ」を追加してください', 'design'],
       assets: needPlot, kv: needPlot, synopsis: needPlot, serial: needPlot,
       summary: needFinal, polish: needFinal, chimg: needFinal,
       loreimg: [() => (lore ? lore.name + lore.body : ''), '先に名前か説明を入力してください', null],
@@ -3467,12 +3740,12 @@
       const i = s.info, v = s.body;
       const row = { head: s.head, value: v, kind: i.kind, notes: [] };
       const stateOf = (cur) => (!cur.trim() ? 'new' : cur === v ? 'same' : 'over');
-      if (i.kind === 'synopsis') { row.dest = '6 作品の概要'; row.status = stateOf(w.synopsis); }
-      else if (i.kind === 'kv') { row.dest = '5 キービジュアルの画像生成プロンプト'; row.status = stateOf(w.kvPrompt); }
+      if (i.kind === 'synopsis') { row.dest = '⑥ 作品の概要'; row.status = stateOf(w.synopsis); }
+      else if (i.kind === 'kv') { row.dest = '⑤ キービジュアルの画像生成プロンプト'; row.status = stateOf(w.kvPrompt); }
       else if (i.kind === 'person') {
         const l = lores.find((x) => x.kind === 'person' && sameName(x.name, i.name)) || lores.find((x) => sameName(x.name, i.name));
         row.name = i.name; row.lore = l || null;
-        row.dest = `4 設定集「${i.name}」の画像生成プロンプト`;
+        row.dest = `④ 設定集「${i.name}」の画像生成プロンプト`;
         row.status = l ? stateOf(l.imgPrompt) : 'create';
         if (!l) row.notes.push('設定集に人物を作ります');
       } else if (i.kind === 'chapter') {
@@ -3714,17 +3987,17 @@
     const t = [];
     const add = (kind, rec, field, label, max) => t.push({ key: `${kind}:${rec.id}:${field}`, kind, rec, field, label, max });
     add('w', w, 'title', '作品タイトル', 200);
-    add('w', w, 'plot', '2 設定プロット', 500000);
+    add('w', w, 'plot', '② 設定とプロット', 500000);
     loreOf(w.id).forEach((l) => {
-      const nm = `4 設定集「${l.name.trim() || '（名前なし）'}」`;
+      const nm = `④ 設定集「${l.name.trim() || '（名前なし）'}」`;
       add('l', l, 'name', nm + 'の名前', 100); add('l', l, 'body', nm + 'の説明', 100000); add('l', l, 'imgPrompt', nm + 'の画像生成プロンプト', 100000);
     });
-    add('w', w, 'kvPrompt', '5 キービジュアルの画像生成プロンプト', 100000);
-    add('w', w, 'synopsis', '6 作品の概要', 100000);
+    add('w', w, 'kvPrompt', '⑤ キービジュアルの画像生成プロンプト', 100000);
+    add('w', w, 'synopsis', '⑥ 作品の概要', 100000);
     chaptersOf(w.id).forEach((c, i) => {
       const n = `第${i + 1}章`;
-      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'final', n + ' 8 本文', 2000000); add('c', c, 'imgPrompt', n + ' 9 タイトル画像の生成プロンプト', 100000);
-      add('c', c, 'summary', n + ' 11 要約', 100000); add('c', c, 'body', n + ' 以前の初稿', 2000000); add('c', c, 'outline', n + ' 以前の章の筋', 100000);
+      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'final', n + ' ⑧ 本文', 2000000); add('c', c, 'imgPrompt', n + ' ⑨ タイトル画像の生成プロンプト', 100000);
+      add('c', c, 'summary', n + ' ⑪ 要約', 100000); add('c', c, 'body', n + ' 以前の初稿', 2000000); add('c', c, 'outline', n + ' 以前の章の筋', 100000);
     });
     return t;
   }
@@ -4131,18 +4404,22 @@
     showToast('この章の本文を書き出しました');
   });
 
-  $('deleteWorkBtn').addEventListener('click', async () => {
-    const w = getWork(currentWorkId);
+  // この作品を削除（2026-11-07〜 ☰ の中。以前は「04 仕上げ」のタブのボタン）。作品・章・設定集・画像を1つの書き込みで消す
+  $('menuWorkDelete').addEventListener('click', async () => {
+    closeMenu();
+    const w = currentView === 'work' ? getWork(currentWorkId) : null;
     if (!w) return;
     await workSaver.flush();
-    const nImg = Array.from(images.values()).filter((r) => r.workId === w.id).length;
-    const msg = `「${workDisplayTitle(w)}」（${w.id}）を削除します。\n${chaptersOf(w.id).length}章分の本文、設定集${loreOf(w.id).length}件、画像${nImg}枚がすべて消え、元に戻せません。\n元にしたネタは残ります。`;
+    const msg = [`「${workDisplayTitle(w)}」（${w.id}）を削除します。`, '', ...workDeleteLines([w])].join('\n');
     if (!(await ask(msg, { ok: '削除する', danger: true }))) return;
+    if (getWork(currentWorkId) !== w) return; // 確認の間に別の作品へ移っていたら消さない
+    if (!(await deleteWorksTx([w]))) { showToast('削除できませんでした（何も消していません）', true); return; }
     const back = workReturnTab;
-    const ok = await deleteWorkCascade(w);
+    setChGear(false); hideNetaPeek();
+    findUndo = null;
     currentWorkId = null; currentChapterId = null;
     showView(back); renderAll(); updateBackupAlert();
-    showToast(ok ? '作品を削除しました' : '一部のデータを削除できませんでした', !ok);
+    showToast('作品を削除しました');
   });
   $('exportWorkBtn').addEventListener('click', async () => {
     const w = getWork(currentWorkId);
@@ -4553,7 +4830,7 @@
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     const open = !menuPanel.classList.contains('is-open');
-    if (open) updateBackupAlert();
+    if (open) { updateBackupAlert(); updateMenuGroups(); } // 開くたびに、いまの画面の操作と作品名にそろえる
     menuPanel.classList.toggle('is-open', open);
     menuBtn.classList.toggle('is-active', open);
     menuBtn.setAttribute('aria-expanded', String(open));
@@ -4583,14 +4860,16 @@
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
     if (niModal.classList.contains('is-open')) { closeNetaImport(); return; }
     if (netaModal.classList.contains('is-open')) { closeNetaModal(); return; }
+    if (chGearMenu.classList.contains('is-open')) { setChGear(false); if (chGearMenu.contains(document.activeElement)) chGearBtn.focus(); return; }
     if (menuPanel.classList.contains('is-open')) { closeMenu(); return; }
     if (netaSelecting && currentView === 'neta') exitNetaSelect();
+    if (worksSelecting && currentView === 'works') exitWorksSelect();
   });
   // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：ネタ帳の「選んで削除」の途中も1段として数え、
   // 戻るで選ぶのをやめる（いちばん手前の層には Esc を送る仕組みなので、上の Esc でやめる）。前半はブリッジの既定と同じ。
   // 開いた ☰ も1段に数え、戻るで ☰ だけを閉じる（2026-11-05。ネタ帳の操作を ☰ に移したので、開く機会が増えた）
   window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
-    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #menuPanel.is-open';
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #worksSelectBar, #menuPanel.is-open, #chGearMenu.is-open';
   const flushAll = () => { netaSaver.flush(); loreSaver.flush(); genreSaver.flush(); workSaver.flush(); };
   window.addEventListener('beforeunload', (e) => {
     if (netaSaver.pending || loreSaver.pending || genreSaver.pending || workSaver.pending) { flushAll(); e.preventDefault(); e.returnValue = ''; }
