@@ -38,8 +38,9 @@ IndexedDBに限らず、以下のようなAPIも`file://`環境やHTTP（非HTTP
 - **display-mode**：このEdgeでは`Emulation.setEmulatedMedia`で`display-mode`を真似できない（効かない）。ホーム画面から開いたときの動きは、`?app=1`の印の扱いだけを確かめている（2026-10-07）
 - **ファイル選択の画面**：`Page.setInterceptFileChooserDialog`を有効にしておくと、`input[type=file]`のクリックで選ぶ画面が開いて止まることがない。そのうえで`DOM.setFileInputFiles`でファイルを渡す
 - **偽のOneDriveの一覧**：`fake_ms.dart`はページ送りを確かめるため、一覧を3件ずつ返す（`pageSize`）。通信の回数を測るときは200にする（本物と同じく1回で返る。`sync_perf.dart`はそうしている）
-- **同じポートのテストを同時に流さない**：`sync_e2e.dart`と`D:dev_handoffdartstage_back.dart`は、どちらもEdgeのポート9341・9342を使う。同時に流すと互いのブラウザにつながって失敗する（2026-10-07に発生）。失敗して残った使い捨てのEdge（`--headless=new`・`sideops-sync-e2e-*`）は止めてから流し直す
-- **ダウンロード先**：`Browser.setDownloadBehavior`の`downloadPath`は、Windowsの書き方（`C:\...`）で渡す。`C:/...`（スラッシュ）で渡したら何もダウンロードされなかった（2026-10-06）。`sync_e2e.dart`の2つ目の引数（作業フォルダ）も同じ
+- **同じポートのテストを同時に流さない**：`sync_e2e.dart`と`D:\dev\_handoff\dart\stage_back.dart`は、どちらもEdgeのポート9341・9342を使う。同時に流すと互いのブラウザにつながって失敗する（2026-10-07に発生）。失敗して残った使い捨てのEdge（`--headless=new`・`sideops-sync-e2e-*`）は止めてから流し直す
+- **ダウンロード先**：`Browser.setDownloadBehavior`の`downloadPath`に「/」が入っていると、Edgeはダウンロードを取り消す（`Browser.downloadProgress`が`canceled`になり、ファイルは置かれない。2026-10-06に気づき、2026-11-07にEdge 156で取り消しを確かめた。「\」だけのパスなら保存される）。Git Bash から`/c/Users/…`や`/d/dev/…`を引数に渡すと、Windowsのプログラムには`C:/Users/…`の形で届くので、2026-11-05にはこれで`sync_e2e.dart`が「ダウンロードされない：sideops-backup-」で止まった（アプリの不具合ではない）。2026-11-07から、`cdp.dart`の`allowDownloads`が保存先を「\」だけの絶対パスにそろえてから渡す（引数はどちらの書き方でもよい）。それでもダウンロードされないときは、`kit.dart`の`waitDownload`が、ブラウザが取り消した件数と実際の保存先をエラーに出す
+- **引数の要る確認**：`sync_e2e.dart`・`onedrive_e2e.dart`・`drive_e2e.dart`・`conflict_e2e.dart`・`runlog_e2e.dart`・`io_e2e.dart`は`<Btools01のフォルダ> <作業フォルダ>`、`header_fit.dart`は`<Btools01のフォルダ>`が要る（省くと最初の行で止まる）。作業フォルダは流すたびに消して作り直される
 - **再読み込みの直前の片付け**：`location.reload()`を呼ぶと、その呼び出しの中で`beforeunload`が起きる（2026-10-06に確認）。そのあとで`history.back()`等を呼ぶと再読み込みが打ち消される（`js/back-nav.js`はこれを避けている）
 
 2026-10-06に足した確認の道具（`D:\dev\sideops_sync_verify\`）：
