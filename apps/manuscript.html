@@ -494,6 +494,17 @@
   .sc-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--cyan) 60%, var(--line)); }
   .sc-num { grid-area: num; font-size: 11.5px; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
   .sc-row.is-empty .sc-num { color: var(--text-faint); }
+  /* 公開用のハッシュタグ（2026-11-08） */
+  .tag-preview { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tag-preview:empty { display: none; }
+  .tg-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); background: color-mix(in srgb, var(--cyan) 8%, var(--bg)); color: var(--text); overflow-wrap: anywhere; }
+  .tg-count { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
+  #tagNote:empty { display: none; }
+  #tagNote .is-warn { color: var(--amber); }
+  .pub-tags { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line-soft); background: var(--bg); }
+  .pt-label { font-size: 11px; font-weight: 700; color: var(--text-dim); flex-shrink: 0; }
+  .pt-text { flex: 1 1 12em; min-width: 0; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pt-text.is-empty { color: var(--text-faint); }
   .editor-foot { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
   .editor-foot .spacer { flex: 1; }
 
@@ -989,6 +1000,12 @@
                   <input type="date" class="field-input" id="chPubDate">
                 </div>
               </div>
+              <!-- note には章ごとに出すので、ここでもタグをコピーできる（セットは「04 仕上げ」で選ぶ。2026-11-08） -->
+              <div class="pub-tags">
+                <span class="pt-label">ハッシュタグ</span>
+                <span class="pt-text" id="pubTagsText"></span>
+                <button type="button" class="btn small" id="copyTagsBtn2">タグをコピー</button>
+              </div>
               <div><button type="button" class="btn small" id="chMdBtn">この章の本文を .md で書き出す</button></div>
             </div>
           </div>
@@ -1025,6 +1042,19 @@
             <div class="step-body">
               <div class="stat-sum" id="statSum"></div>
               <div class="stat-chs" id="statChs"></div>
+            </div>
+          </div>
+          <!-- 公開用のハッシュタグ（2026-11-08）：セットはテンプレートの用途「ハッシュタグ」（ブランドごとに1つ）。作品は選ぶだけ。
+               note のタグ欄に「貼り付け」るとまとめて入る（IME の辞書から変換すると、打ち込み扱いになって入らない） -->
+          <div class="step-block no-num" id="stepTags">
+            <div class="step-head"><span class="step-title">公開用のハッシュタグ</span><span class="step-hint">note のタグ欄に貼り付けると、まとめて入ります。セットはテンプレートの「ハッシュタグ」で作ります（ブランドごとに1つ）</span></div>
+            <div class="step-body">
+              <div class="compose-row">
+                <select class="field-select" id="tplSel_tags" aria-label="ハッシュタグのセット"></select>
+                <button type="button" class="btn primary" id="copyTagsBtn">タグをまとめてコピー</button>
+              </div>
+              <div class="tag-preview" id="tagPreview"></div>
+              <div class="field-hint" id="tagNote"></div>
             </div>
           </div>
           <div class="step-block no-num" id="stepBook">
@@ -1332,9 +1362,12 @@
     polish:  { label: '推敲',                         required: '{{本文}}' },
     chimg:   { label: '章の画像（挿絵を頼む）',       required: '{{本文}}' },
     loreimg: { label: '設定画像（画像を頼む）',       required: '{{設定項目}}' },
+    // 公開用のハッシュタグ（2026-11-08）。AIに渡すプロンプトではなく、note のタグ欄に貼る1行を作る。必須の差し込みはない
+    tags:    { label: 'ハッシュタグ（公開用）',       required: '' },
   };
   // テンプレートの画面に出す用途（作品エディタの上からの順）
-  const KIND_ORDER = ['plot', 'assets', 'loreimg', 'kv', 'synopsis', 'serial', 'polish', 'chimg', 'summary'];
+  const KIND_ORDER = ['plot', 'assets', 'loreimg', 'kv', 'synopsis', 'serial', 'polish', 'chimg', 'summary', 'tags'];
+  const TAG_PH = ['{{名義}}', '{{タイトル}}', '{{シリーズ}}']; // ハッシュタグで使える差し込み（空白は詰めて1つのタグにする）
   const ALL_KINDS = Object.keys(KINDS); // 作品が覚える選択（tpl）は、画面に出さない用途の分も持ち運ぶ
   const PLACEHOLDERS = ['{{タイトル}}', '{{名義}}', '{{ネタ}}', '{{設定}}', '{{プロット}}', '{{概要}}', '{{章の一覧}}', '{{章番号}}', '{{章タイトル}}', '{{章の筋}}', '{{前章まで}}', '{{本文}}', '{{設定項目}}'];
   const PH_REGEX = /\{\{(タイトル|名義|ネタ|設定項目|設定|プロット|概要|章の一覧|章番号|章タイトル|章の筋|前章まで|本文)\}\}/g;
@@ -1524,6 +1557,9 @@
 
 # 設定
 {{設定項目}}` },
+    // 公開用のハッシュタグ（2026-11-08）の見本。ブランドごとに作り替える前提。IDと日時を固定にして、同期で2つにならないようにする
+    { kind: 'tags', name: 'ハッシュタグの見本（ブランドごとに作り替えてください）', fixedId: 'tp_20261108_000000_tag1', fixedAt: Date.UTC(2026, 10, 7, 15), body:
+`#小説 #創作 #{{名義}}` },
   ];
 
   function openDb() {
@@ -2941,7 +2977,8 @@
     w.plot = wPlot.value;
     w.synopsis = wSynopsis.value;
     w.kvPrompt = wKvPrompt.value;
-    KIND_ORDER.forEach((k) => { const sel = $('tplSel_' + k); if (sel && sel.value) w.tpl[k] = sel.value; });
+    // ハッシュタグのセットは、選び直したときだけ覚える（選んでいなければ名義から決める。renderTags()）
+    KIND_ORDER.forEach((k) => { const sel = $('tplSel_' + k); if (k !== 'tags' && sel && sel.value) w.tpl[k] = sel.value; });
     const ch = getChapter(currentChapterId);
     if (ch && ch.workId === w.id) {
       ch.title = chTitle.value.slice(0, 200);
@@ -3089,6 +3126,7 @@
     readBookBtn.classList.toggle('is-hidden', !w.isBook);
     renderHero(w);
     if (currentTab === 'finish') renderFinish(w); // 04 仕上げの点検・数字（出しているときだけ）
+    renderTags(w); // 公開用のハッシュタグ（名義・題名を打つと、その場で変わる）
     renderChapterTabs(); // 章の一覧の状態（本文あり・完成・次はここ）も、入力に合わせて変える
     updateCounts();
   }
@@ -3278,6 +3316,80 @@
     const r = e.target.closest('.sc-row');
     if (r) goToStep({ step: 'stepFinal', chapterId: r.dataset.id, focus: 'chFinal' });
   });
+
+  /* ---- 公開用のハッシュタグ（2026-11-08）----
+     セットはテンプレートの用途「ハッシュタグ」（ブランドごとに1つ）。作品は選ぶだけ（選び直したときだけ w.tpl.tags に覚える）。
+     選んでいない作品は、同じ名義のほかの作品で最後に選んだセット、なければ最初のセット（名義を打つと、その場で変わる）。
+     コピーする形は「#タグ #タグ」の1行（半角の # と半角の空白。note のタグ欄に貼ってまとめて入ったのと同じ形）。
+     全角の ＃・全角の空白・読点・カンマで区切ってあってもよい。同じタグ（大文字・小文字の違いも）は1つにする。
+     {{名義}}・{{タイトル}}・{{シリーズ}} は、空白を詰めて1つのタグにする（例：霧島 灯 → #霧島灯）。空なら入れない */
+  function tagsText(t, w) {
+    const missing = [];
+    const body = String(t.body || '').replace(/\{\{(名義|タイトル|シリーズ)\}\}/g, (all, k) => {
+      const v = String((k === '名義' ? w.penName : k === 'タイトル' ? w.title : w.series) || '').replace(/[\s　]+/g, '');
+      if (!v) missing.push(k);
+      return v ? '#' + v : ' ';
+    });
+    const seen = new Set(), tags = [];
+    body.replace(/＃/g, '#').split(/[\s　,、，#]+/).forEach((tok) => {
+      const name = tok.trim();
+      if (!name || seen.has(name.toLowerCase())) return;
+      seen.add(name.toLowerCase());
+      tags.push(name);
+    });
+    return { tags, text: tags.map((x) => '#' + x).join(' '), missing };
+  }
+  const isTagsTpl = (id) => { const t = id && getTpl(id); return !!(t && t.kind === 'tags'); };
+  // この作品で使うセット：選んだもの → 同じ名義のほかの作品で最後に選んだもの → 最初のセット
+  function tagsTplOf(w) {
+    if (isTagsTpl(w.tpl.tags)) return { id: w.tpl.tags, from: 'picked' };
+    const pen = (w.penName || '').trim();
+    if (pen) {
+      const same = works.filter((x) => x !== w && (x.penName || '').trim() === pen && x.tpl && isTagsTpl(x.tpl.tags)).sort((a, b) => b.updatedAt - a.updatedAt);
+      if (same.length) return { id: same[0].tpl.tags, from: 'pen' };
+    }
+    const first = tplsOf('tags')[0];
+    return { id: first ? first.id : null, from: 'first' };
+  }
+  let tagsCurrent = null; // いま出しているタグ（コピーのボタンで使う）
+  function renderTags(w) {
+    const pick = tagsTplOf(w);
+    const sel = $('tplSel_tags');
+    if (pick.id && sel.value !== pick.id) sel.value = pick.id;
+    const t = pick.id ? getTpl(pick.id) : null;
+    tagsCurrent = t ? tagsText(t, w) : { tags: [], text: '', missing: [] };
+    const n = tagsCurrent.tags.length;
+    $('tagPreview').innerHTML = n ? tagsCurrent.tags.map((x) => `<span class="tg-chip">#${escapeHtml(x)}</span>`).join('') + `<span class="tg-count">${n}個</span>` : '';
+    const notes = [];
+    if (!t) notes.push('<span class="is-warn">テンプレートのタブで、用途「ハッシュタグ（公開用）」のセットを作ってください</span>');
+    else if (!n) notes.push('<span class="is-warn">このセットにはタグがありません（テンプレートのタブで直せます）</span>');
+    if (pick.from === 'pen') notes.push(`名義「${escapeHtml(w.penName.trim())}」のほかの作品と同じセットを選んでいます`);
+    if (tagsCurrent.missing.length) notes.push(`<span class="is-warn">${tagsCurrent.missing.map((k) => `{{${k}}}`).join('・')} は${tagsCurrent.missing.length > 1 ? 'どれも' : ''}空なので入れていません</span>`);
+    notes.push('note では、タグ欄に貼り付け（Ctrl+V・長押しの「貼り付け」）で入れてください。IME の辞書からの変換では、まとめて入りません');
+    $('tagNote').innerHTML = notes.join('<br>');
+    const pt = $('pubTagsText');
+    pt.textContent = n ? tagsCurrent.text : 'タグがありません（「04 仕上げ」でセットを選びます）';
+    pt.classList.toggle('is-empty', !n);
+    pt.title = n ? tagsCurrent.text : '';
+    $('copyTagsBtn').disabled = !n; $('copyTagsBtn2').disabled = !n;
+  }
+  $('tplSel_tags').addEventListener('change', () => {
+    const w = getWork(currentWorkId);
+    if (!w || !isTagsTpl($('tplSel_tags').value)) return;
+    w.tpl.tags = $('tplSel_tags').value; // 選び直したときだけ覚える
+    workSaver.schedule();
+    renderTags(w);
+  });
+  async function copyTags(btn) {
+    const w = getWork(currentWorkId);
+    if (!w) return;
+    syncFromForm();
+    renderTags(w);
+    if (!tagsCurrent || !tagsCurrent.tags.length) { showToast('コピーするタグがありません', true); return; }
+    if (await copyText(tagsCurrent.text, btn)) showToast(`タグを${tagsCurrent.tags.length}個コピーしました。note のタグ欄に貼り付けてください`);
+  }
+  $('copyTagsBtn').addEventListener('click', (e) => copyTags(e.currentTarget));
+  $('copyTagsBtn2').addEventListener('click', (e) => copyTags(e.currentTarget));
   $('heroCoverBtn').addEventListener('click', () => goToStep({ step: 'stepVisual', focusSel: '.img-slot[data-slot="cover"] [data-img-act="pick"]' }));
 
   /* ---- たたむ（2026-10-10。いまは「11 要約」だけ） ----
@@ -4651,7 +4763,7 @@
     templatesListEl.innerHTML = KIND_ORDER.map((k) => {
       const list = tplsOf(k);
       return `<div class="tpl-section">
-        <div class="tpl-section-head"><h2>${KINDS[k].label}</h2><span class="req">必須の差し込み：${escapeHtml(KINDS[k].required)}</span></div>
+        <div class="tpl-section-head"><h2>${KINDS[k].label}</h2><span class="req">${k === 'tags' ? `ブランドごとに1つ作り、作品で選びます。タグは空白か改行で区切ります（使える差し込み：${TAG_PH.join('・')}）` : '必須の差し込み：' + escapeHtml(KINDS[k].required)}</span></div>
         ${list.map((t) => {
           const used = tplUsageCount(t.id);
           return `<div class="tpl-row" data-id="${escapeHtml(t.id)}">
@@ -4662,7 +4774,7 @@
           </div>`;
         }).join('')}
       </div>`;
-    }).join('') + `<div class="field-hint">使える差し込み：${PLACEHOLDERS.join('・')}。値が空のときは「（なし）」が入ります。各用途で最後の1件は削除できません。</div>`;
+    }).join('') + `<div class="field-hint">プロンプトの用途で使える差し込み：${PLACEHOLDERS.join('・')}。値が空のときは「（なし）」が入ります。各用途で最後の1件は削除できません。</div>`;
   }
   templatesListEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('.icon-btn'), row = e.target.closest('.tpl-row');
@@ -4690,14 +4802,22 @@
     }
   });
   KIND_ORDER.forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = KINDS[k].label; tplKind.appendChild(o); });
-  PLACEHOLDERS.forEach((ph) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip'; b.textContent = ph;
-    b.title = ph + ' を差し込む';
-    b.addEventListener('click', () => { tplBody.setRangeText(ph, tplBody.selectionStart, tplBody.selectionEnd, 'end'); tplBody.focus(); });
-    tplPhButtons.appendChild(b);
-  });
-  const updateTplReqHint = () => { tplReqHint.textContent = '必須：' + KINDS[tplKind.value].required; };
+  // 差し込みのボタン：用途「ハッシュタグ」では、名義・タイトル・シリーズだけ（2026-11-08）
+  function renderPhButtons() {
+    tplPhButtons.innerHTML = '';
+    (tplKind.value === 'tags' ? TAG_PH : PLACEHOLDERS).forEach((ph) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = ph;
+      b.title = ph + ' を差し込む';
+      b.addEventListener('click', () => { tplBody.setRangeText(ph, tplBody.selectionStart, tplBody.selectionEnd, 'end'); tplBody.focus(); });
+      tplPhButtons.appendChild(b);
+    });
+  }
+  const updateTplReqHint = () => {
+    tplReqHint.textContent = tplKind.value === 'tags' ? '例：#小説 #創作 #{{名義}}（空白か改行で区切る。# はなくても可）' : '必須：' + KINDS[tplKind.value].required;
+    tplBody.placeholder = tplKind.value === 'tags' ? '#官能小説 #創作 #R18 #{{名義}}' : '';
+    renderPhButtons();
+  };
   tplKind.addEventListener('change', updateTplReqHint);
   function openTplModal(t) {
     editingTplId = t ? t.id : null;
@@ -4718,6 +4838,7 @@
   $('tplSaveBtn').addEventListener('click', async () => {
     const kind = tplKind.value, name = tplName.value.trim(), body = tplBody.value;
     const err = !name ? '名前を入力してください'
+      : kind === 'tags' && !tagsText({ body }, { penName: 'x', title: 'x', series: 'x' }).tags.length ? 'タグを1つ以上書いてください（例：#小説 #創作）'
       : !body.includes(KINDS[kind].required) ? `本文に ${KINDS[kind].required} を入れてください（ここに素材が差し込まれます）`
       : body.length > 20000 ? '本文は20,000文字以内にしてください' : null;
     if (err) { tplError.textContent = err; tplError.classList.add('is-shown'); return; }
