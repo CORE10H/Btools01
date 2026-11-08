@@ -317,7 +317,9 @@
   .hl-back mark { color: transparent; border-radius: 2px; }
   .hl-back mark.an-sq, .rt-an-sq { background: var(--amber-dim); background: color-mix(in srgb, var(--amber) 48%, transparent); box-shadow: 0 0 0 1px var(--amber); }
   .hl-back mark.an-dk, .rt-an-dk { background: var(--magenta-dim); background: color-mix(in srgb, var(--magenta) 48%, transparent); box-shadow: 0 0 0 1px var(--magenta); }
-  .rt-an-sq, .rt-an-dk { color: var(--text); border-radius: 2px; }
+  /* note の有料ラインの文「このラインより上のエリアが無料で表示されます。」（2026-11-08）：消し忘れの印。赤紫の斜めの縞で、〔〔 〕〕 と見分ける */
+  .hl-back mark.an-pw, .rt-an-pw { background: var(--magenta-dim); background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--magenta) 62%, transparent) 0 5px, color-mix(in srgb, var(--magenta) 24%, transparent) 5px 10px); box-shadow: 0 0 0 1px var(--magenta); }
+  .rt-an-sq, .rt-an-dk, .rt-an-pw { color: var(--text); border-radius: 2px; }
   /* 検索・置換 */
   .find-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .find-list { display: flex; flex-direction: column; gap: 8px; }
@@ -461,6 +463,37 @@
   .book-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
   .book-state { font-size: 11px; color: var(--text-faint); margin-right: auto; }
   .book-state.is-book { color: var(--cyan); }
+  /* 04 仕上げ：出す前の点検・作品の数字（2026-11-08）。番号のない段は、説明を左に寄せる */
+  .step-block.no-num .step-hint { padding-left: 0; }
+  .ck-sum { font-size: 10.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+  .ck-sum.is-ok { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 50%, var(--line)); }
+  .ck-sum.is-ng { color: var(--on-accent); background: var(--amber); border-color: var(--amber); }
+  .check-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .ck-item { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 9px 4px; border-top: 1px solid var(--line-soft); }
+  .ck-item:first-child { border-top: none; }
+  .ck-mark { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; border: 1.5px solid var(--line); color: var(--text-faint); }
+  .ck-item.is-ok .ck-mark { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); }
+  .ck-item.is-ng .ck-mark { color: var(--amber); border-color: var(--amber); }
+  .ck-main { flex: 1 1 16em; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .ck-name { font-size: 12.5px; font-weight: 700; color: var(--text); }
+  .ck-item.is-opt .ck-name::after { content: '（任意）'; font-weight: 400; font-size: 11px; color: var(--text-faint); }
+  .ck-detail { font-size: 11px; line-height: 1.6; color: var(--text-dim); overflow-wrap: anywhere; }
+  .ck-item.is-ng .ck-detail { color: var(--amber); }
+  .ck-item .btn { flex-shrink: 0; margin-left: auto; }
+  .stat-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .st-box { border: 1px solid var(--line-soft); background: var(--bg); padding: 10px 12px; min-width: 0; }
+  .st-label { display: block; font-size: 10.5px; color: var(--text-faint); }
+  .st-val { display: block; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.35; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-val small { font-family: var(--font-body); font-size: 11px; font-weight: 600; color: var(--text-dim); margin-left: 2px; }
+  .st-sub { display: block; font-size: 10.5px; color: var(--text-dim); }
+  .stat-chs { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+  .sc-row { display: grid; grid-template-columns: minmax(0, 16em) minmax(0, 1fr) 6.5em; grid-template-areas: "name bar num"; align-items: center; gap: 4px 12px; width: 100%; background: transparent; border: none; padding: 6px 4px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .sc-row:hover { background: color-mix(in srgb, var(--cyan) 7%, transparent); }
+  .sc-name { grid-area: name; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sc-bar { grid-area: bar; height: 8px; background: var(--bg-alt); position: relative; overflow: hidden; }
+  .sc-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--cyan) 60%, var(--line)); }
+  .sc-num { grid-area: num; font-size: 11.5px; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .sc-row.is-empty .sc-num { color: var(--text-faint); }
   .editor-foot { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
   .editor-foot .spacer { flex: 1; }
 
@@ -568,6 +601,11 @@
     .hn-label { flex-basis: 100%; }
     .meta-row, .pub-row, .slot-row, .lore-top { grid-template-columns: 1fr; }
     .lore-img-col .img-slot { max-width: 220px; } /* 狭い画面では画像を上に置き、幅いっぱいには広げない */
+    /* 作品の数字：3つの箱は文字を小さく、章ごとの行は「名前・文字数」の下に帯 */
+    .stat-sum { gap: 6px; }
+    .st-box { padding: 8px 8px; }
+    .st-val { font-size: 17px; }
+    .sc-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name num" "bar bar"; }
     #workView .meta-row { grid-template-columns: auto minmax(0, 1fr); }
     /* 工程タブ：縦に 番号・名前・札。小さな文字は出さない */
     .ms-tabs { top: -12px; }
@@ -752,7 +790,7 @@
             <button type="button" class="mt-tab" role="tab" id="tabDesign" data-pane="design" aria-controls="paneDesign" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">01</span><span class="mt-txt"><span class="mt-name">設計</span><span class="mt-sub">ネタ・設定とプロット</span></span><span class="mt-state" id="tabStateDesign">まだ</span></button>
             <button type="button" class="mt-tab" role="tab" id="tabAssets" data-pane="assets" aria-controls="paneAssets" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">02</span><span class="mt-txt"><span class="mt-name">素材</span><span class="mt-sub">設定集・画像・概要</span></span><span class="mt-state" id="tabStateAssets">まだ</span></button>
             <button type="button" class="mt-tab" role="tab" id="tabText" data-pane="text" aria-controls="paneText" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">03</span><span class="mt-txt"><span class="mt-name">本文</span><span class="mt-sub" id="tabSubText">本文・完成</span></span><span class="mt-state" id="tabStateText">まだ</span></button>
-            <button type="button" class="mt-tab" role="tab" id="tabFinish" data-pane="finish" aria-controls="paneFinish" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">04</span><span class="mt-txt"><span class="mt-name">仕上げ</span><span class="mt-sub">本棚・書き出し</span></span><span class="mt-state" id="tabStateFinish">まだ</span></button>
+            <button type="button" class="mt-tab" role="tab" id="tabFinish" data-pane="finish" aria-controls="paneFinish" aria-selected="false" tabindex="-1"><span class="mt-num" aria-hidden="true">04</span><span class="mt-txt"><span class="mt-name">仕上げ</span><span class="mt-sub">点検・本棚・書き出し</span></span><span class="mt-state" id="tabStateFinish">まだ</span></button>
           </div>
 
           <div class="ms-pane" id="paneDesign" data-pane="design" role="tabpanel" aria-labelledby="tabDesign">
@@ -976,7 +1014,21 @@
           </div><!-- /paneText -->
 
           <div class="ms-pane" id="paneFinish" data-pane="finish" role="tabpanel" aria-labelledby="tabFinish">
-          <div class="step-block" id="stepBook">
+          <!-- 出す前の点検（2026-11-08。A）：本棚に登録する・公開する前に、抜けと消し忘れを一覧で見る。計算するだけで保存しない -->
+          <div class="step-block no-num" id="stepCheck">
+            <div class="step-head"><span class="step-title">出す前の点検</span><span class="ck-sum" id="checkSum"></span><span class="step-hint">本棚に登録する・公開する前に、抜けと消し忘れを確かめます。「そこへ移動」で直す場所へ移ります</span></div>
+            <div class="step-body"><ul class="check-list" id="checkList"></ul></div>
+          </div>
+          <!-- 作品の数字（2026-11-08。B）：⑧ 本文の文字数（⑧ の欄の文字数と同じ数え方）・読み終える目安 -->
+          <div class="step-block no-num" id="stepStats">
+            <div class="step-head"><span class="step-title">作品の数字</span><span class="step-hint">⑧ 本文の文字数（空白・改行は数えません）と、読み終える目安（1分に500字で計算）</span></div>
+            <div class="step-body">
+              <div class="stat-sum" id="statSum"></div>
+              <div class="stat-chs" id="statChs"></div>
+            </div>
+          </div>
+          <div class="step-block no-num" id="stepBook">
+            <div class="step-head"><span class="step-title">本棚</span><span class="step-hint">本棚に登録すると「本棚」のタブに並び、本として読めます</span></div>
             <div class="step-body">
               <div class="book-row">
                 <span class="book-state" id="bookState"></span>
@@ -3036,6 +3088,7 @@
     bookBtn.className = 'btn ' + (w.isBook ? 'danger' : 'primary');
     readBookBtn.classList.toggle('is-hidden', !w.isBook);
     renderHero(w);
+    if (currentTab === 'finish') renderFinish(w); // 04 仕上げの点検・数字（出しているときだけ）
     renderChapterTabs(); // 章の一覧の状態（本文あり・完成・次はここ）も、入力に合わせて変える
     updateCounts();
   }
@@ -3110,6 +3163,7 @@
       b.tabIndex = on ? 0 : -1;
       $('pane' + TAB_ID[k]).classList.toggle('is-active', on);
     });
+    if (key === 'finish') { const w = getWork(currentWorkId); if (w) { syncFromForm(); renderFinish(w); } } // 開くたびに数え直す
     // 中身の一番上が見えるように：顔より下までスクロールしていたら、顔のすぐ下へ戻す（顔が見えている間は動かさない）
     if (opts.scroll !== false) {
       const sc = viewEls.work.querySelector('.scroll-area');
@@ -3153,6 +3207,77 @@
     if (f) f.focus({ preventScroll: true });
   }
   $('heroNextBtn').addEventListener('click', () => goToStep(heroNextTarget));
+
+  /* ---- 04 仕上げ：出す前の点検・作品の数字（2026-11-08）----
+     どちらも作品と章から計算して出すだけ（保存しない。データの形・同期の版を変えない。端末の間で食い違わない）。
+     04 仕上げのタブを出しているときだけ計算する（ほかのタブで打つたびに全章を数え直さない）。
+     「そこへ移動」は goToStep() と同じく**移るだけ**（何も書き換えない） */
+  const READ_CHARS_PER_MIN = 500; // 読み終える目安：1分に500字
+  let checkItems = [];
+  function renderFinish(w) {
+    const chs = chaptersOf(w.id);
+    const no = (c) => `第${chs.indexOf(c) + 1}章`;
+    const names = (list) => list.slice(0, 3).map(no).join('・') + (list.length > 3 ? ` ほか${list.length - 3}章` : '');
+    const items = [];
+    const add = (key, name, state, detail, target) => items.push({ key, name, state, detail, target });
+    const title = w.title.trim(), pen = (w.penName || '').trim();
+    add('title', '作品タイトル', title ? 'ok' : 'ng', title ? `「${title}」` : 'まだありません（本棚に登録するには必要です）', { step: 'workHero', focus: 'wTitle' });
+    add('pen', '名義', pen ? 'ok' : 'ng', pen || 'まだありません', { step: 'workHero', focus: 'wPen' });
+    add('synopsis', '⑥ 作品の概要', w.synopsis.trim() ? 'ok' : 'ng', w.synopsis.trim() ? `${countChars(w.synopsis).toLocaleString()}字` : 'まだありません（販売ページ・紹介に使います）', { step: 'stepSynopsis', focus: 'wSynopsis' });
+    const hasKv = images.has(imgId(w.id, 'kv')), hasCover = images.has(imgId(w.id, 'cover'));
+    add('cover', '⑤ 表紙（縦3:4）', hasKv ? 'ok' : 'ng', hasKv ? '登録済み' : hasCover ? 'まだありません（本棚ではカバーで代わりにします）' : 'まだありません（本棚では題名だけの表紙になります）', { step: 'stepVisual', focusSel: '.img-slot[data-slot="kv"] [data-img-act="pick"]' });
+    const noText = chs.filter((c) => !c.final.trim());
+    add('final', '⑧ 全章の本文', noText.length ? 'ng' : 'ok', noText.length ? `${names(noText)}の本文がまだです` : `${chs.length}章とも本文があります`, noText.length ? { step: 'stepFinal', chapterId: noText[0].id, focus: 'chFinal' } : { step: 'stepFinal', focus: 'chFinal' });
+    const notDone = chs.filter((c) => !c.done);
+    add('done', '全章を「完成」に', notDone.length ? 'ng' : 'ok', notDone.length ? `${names(notDone)}が「推敲中」です` : `${chs.length}章とも完成です`, notDone.length ? { step: 'stepFinal', chapterId: notDone[0].id, focus: 'chDoneBtn' } : { step: 'stepFinal', focus: 'chDoneBtn' });
+    const left = chs.map((c) => ({ c, list: annotList(c.final) })).filter((x) => x.list.length);
+    const nAll = left.reduce((s, x) => s + x.list.length, 0);
+    const nPw = left.reduce((s, x) => s + x.list.filter((a) => annotKind(a) === 'pw').length, 0);
+    const kinds = [nAll - nPw ? `注釈 ${nAll - nPw}` : '', nPw ? `有料ラインの文 ${nPw}` : ''].filter(Boolean).join('・');
+    add('annot', '⑧ 本文の消し忘れ', left.length ? 'ng' : 'ok', left.length ? `${names(left.map((x) => x.c))}に ${nAll}か所（${kinds}）` : '注釈 […]・〔〔…〕〕 と、note の有料ラインの文は残っていません', left.length ? { step: 'stepFinal', chapterId: left[0].c.id, focus: 'chFinal', annot: true } : { step: 'stepFinal', focus: 'chFinal' });
+    const noTitle = chs.filter((c) => !c.title.trim());
+    add('chtitle', '章タイトル', noTitle.length ? 'opt' : 'ok', noTitle.length ? `${names(noTitle)}にありません` : `${chs.length}章ともあります`, noTitle.length ? { step: 'chTitle', chapterId: noTitle[0].id, focus: 'chTitle' } : { step: 'chTitle', focus: 'chTitle' });
+    checkItems = items;
+    const ng = items.filter((x) => x.state === 'ng').length;
+    const sum = $('checkSum');
+    sum.className = 'ck-sum ' + (ng ? 'is-ng' : 'is-ok');
+    sum.textContent = ng ? `あと ${ng}か所` : '✓ すべて済み';
+    $('checkList').innerHTML = items.map((x, i) => `<li class="ck-item is-${x.state}" data-key="${x.key}">`
+      + `<span class="ck-mark" aria-hidden="true">${x.state === 'ok' ? '✓' : x.state === 'ng' ? '！' : '−'}</span>`
+      + `<span class="ck-main"><span class="ck-name">${escapeHtml(x.name)}</span><span class="ck-detail">${escapeHtml(x.detail)}</span></span>`
+      + (x.state === 'ok' ? '' : `<button type="button" class="btn small" data-ck="${i}">そこへ移動 →</button>`) + '</li>').join('');
+    // 作品の数字
+    const per = chs.map((c) => ({ c, n: countChars(c.final) }));
+    const total = per.reduce((s, x) => s + x.n, 0);
+    const withText = per.filter((x) => x.n > 0).length;
+    const max = Math.max(1, ...per.map((x) => x.n));
+    const mins = Math.ceil(total / READ_CHARS_PER_MIN);
+    const minsText = mins < 60 ? `約${mins}<small>分</small>` : `約${Math.floor(mins / 60)}<small>時間</small>${mins % 60 ? `${mins % 60}<small>分</small>` : ''}`;
+    const box = (label, val, sub) => `<div class="st-box"><span class="st-label">${label}</span><span class="st-val">${val}</span><span class="st-sub">${sub}</span></div>`;
+    $('statSum').innerHTML = box('本文の合計', `${total.toLocaleString()}<small>字</small>`, `${chs.length}章のうち本文あり ${withText}章`)
+      + box('読み終える目安', total ? minsText : '—', total ? `1分に${READ_CHARS_PER_MIN}字で計算` : '本文がまだありません')
+      + box('1章の平均', withText ? `${Math.round(total / withText).toLocaleString()}<small>字</small>` : '—', '本文のある章で計算');
+    $('statChs').innerHTML = per.map((x, i) => `<button type="button" class="sc-row${x.n ? '' : ' is-empty'}" data-id="${escapeHtml(x.c.id)}" title="この章の本文へ">`
+      + `<span class="sc-name">${escapeHtml(`第${i + 1}章` + (x.c.title.trim() ? ' ' + x.c.title.trim() : ''))}</span>`
+      + `<span class="sc-bar" aria-hidden="true"><i style="width:${(x.n / max * 100).toFixed(1)}%"></i></span>`
+      + `<span class="sc-num">${x.n ? x.n.toLocaleString() + '字' : 'まだ'}</span></button>`).join('');
+  }
+  $('checkList').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ck]');
+    const it = b && checkItems[Number(b.dataset.ck)];
+    if (!it || !it.target) return;
+    await goToStep(it.target);
+    if (it.target.annot && currentChapterId === it.target.chapterId) {
+      // 消し忘れ：その章の最初の1か所を選ぶ（検索の結果を開くときと同じ）
+      ANNOT_RE.lastIndex = 0;
+      const m = ANNOT_RE.exec(chFinal.value);
+      if (m) focusMatch(chFinal, m.index, m[0].length);
+    }
+  });
+  $('statChs').addEventListener('click', (e) => {
+    const r = e.target.closest('.sc-row');
+    if (r) goToStep({ step: 'stepFinal', chapterId: r.dataset.id, focus: 'chFinal' });
+  });
   $('heroCoverBtn').addEventListener('click', () => goToStep({ step: 'stepVisual', focusSel: '.img-slot[data-slot="cover"] [data-img-act="pick"]' }));
 
   /* ---- たたむ（2026-10-10。いまは「11 要約」だけ） ----
@@ -3884,14 +4009,17 @@
      注釈の所だけ <mark> で色を塗る（よく使われる「textarea の中を強調する」方法）。入力欄の文字はそのまま上に見える
      - [ ] は1行の中だけ（閉じていない [ で、その先が全部塗られないように）。〔〔 〕〕 は複数行でもよい（2000字まで）
   ===================================================================== */
-  const ANNOT_RE = /\[[^\[\]\n]{0,200}\]|〔〔[\s\S]{0,2000}?〕〕/g;
+  //   2026-11-08〜 note の有料ラインの文（過去の記事を写すと混ざる）も、消し忘れの印として同じ仕組みで強調する
+  const PAYWALL_TEXT = 'このラインより上のエリアが無料で表示されます';
+  const ANNOT_RE = new RegExp('\\[[^\\[\\]\\n]{0,200}\\]|〔〔[\\s\\S]{0,2000}?〕〕|' + PAYWALL_TEXT + '。?', 'g');
   const annotList = (text) => String(text || '').match(ANNOT_RE) || [];
+  const annotKind = (s) => (s[0] === '[' ? 'sq' : s[0] === '〔' ? 'dk' : 'pw'); // sq＝[ ]・dk＝〔〔 〕〕・pw＝有料ラインの文
   function annotHtml(text) {
     let out = '', last = 0, m, found = false;
     ANNOT_RE.lastIndex = 0;
     while ((m = ANNOT_RE.exec(text))) {
       found = true;
-      out += escapeHtml(text.slice(last, m.index)) + `<mark class="${m[0][0] === '[' ? 'an-sq' : 'an-dk'}">${escapeHtml(m[0])}</mark>`;
+      out += escapeHtml(text.slice(last, m.index)) + `<mark class="an-${annotKind(m[0])}">${escapeHtml(m[0])}</mark>`;
       last = m.index + m[0].length;
     }
     // 末尾が改行のとき、入力欄には空の行が1つあるので、層にも行を作る
@@ -3955,7 +4083,7 @@
     while ((m = ANNOT_RE.exec(text))) {
       if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
       const s = document.createElement('span');
-      s.className = m[0][0] === '[' ? 'rt-an-sq' : 'rt-an-dk';
+      s.className = 'rt-an-' + annotKind(m[0]);
       s.textContent = m[0];
       el.appendChild(s);
       last = m.index + m[0].length;
@@ -3968,9 +4096,18 @@
     const per = chs.map((c) => ({ c, list: annotList(c.final) })).filter((x) => x.list.length);
     if (!per.length) return true;
     const total = per.reduce((s, x) => s + x.list.length, 0);
+    const pw = per.reduce((s, x) => s + x.list.filter((a) => annotKind(a) === 'pw').length, 0);
     const lines = per.slice(0, 8).map((x) => `第${all.indexOf(x.c) + 1}章：${x.list.length}か所（${x.list[0].replace(/\s+/g, ' ').slice(0, 24)}${x.list.length > 1 ? ' ほか' : ''}）`);
-    return ask(`本文に注釈（[…] や 〔〔…〕〕）が ${total}か所残っています。\n${lines.join('\n')}${per.length > 8 ? '\nほか' : ''}\n\n${question}`, { ok: okLabel });
+    // 有料ラインの文があるときは、注釈と分けて数を言う（2026-11-08）
+    const head = pw === 0 ? `本文に注釈（[…] や 〔〔…〕〕）が ${total}か所残っています。`
+      : `本文に消し忘れが ${total}か所残っています（${total - pw ? `注釈 ${total - pw}か所・` : ''}note の有料ラインの文「${PAYWALL_TEXT}。」${pw}か所）。`;
+    return ask(`${head}\n${lines.join('\n')}${per.length > 8 ? '\nほか' : ''}\n\n${question}`, { ok: okLabel });
   }
+  // 有料ラインの文を貼り付けたら知らせる（強調はするが、長い本文の途中だと気づきにくいため）
+  hlAll.forEach((h) => h.ta.addEventListener('paste', (e) => {
+    const t = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+    if (t && t.includes(PAYWALL_TEXT)) setTimeout(() => showToast(`note の有料ラインの文「${PAYWALL_TEXT}。」が入っています。\n赤紫の縞で強調しています。消し忘れに気をつけてください`, 'warn'), 0);
+  }));
 
   /* =====================================================================
      この作品の中を検索・置換（2026-10-13）
