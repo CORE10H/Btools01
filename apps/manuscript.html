@@ -19,6 +19,7 @@
     --magenta: #ff2f6e;
     --magenta-dim: #4a0f24;
     --amber: #ffb020;
+    --lastread: #ff4a3d; /* ネタ帳の「前回ここ」の枠（2026-11-13）。テーマで変えない（赤紫の「選んだ」と取り違えない赤） */
     --amber-dim: #4a3608;
     --text: #f5f9fa;
     --text-dim: #b8c4cc;
@@ -111,6 +112,16 @@
   .neta-grid { display: flex; flex-direction: column; gap: 6px; }
   .neta-card { width: 100%; background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 10px 14px; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "body foot"; align-items: center; column-gap: 16px; row-gap: 5px; text-align: left; }
   .neta-card:hover { border-color: var(--cyan-dim); background: var(--panel-hi); }
+  /* お気に入り・前回ここ（2026-11-13）。お気に入りは琥珀色の面、前回ここは赤の枠（2px の線だけ）。
+     「選んで削除」で選んだカード（赤紫の面＋✓）と取り違えないよう、前回ここは面を塗らず、選んでいる間はどちらの印も出さない */
+  .neta-card { position: relative; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "fav body foot"; }
+  .nc-fav { grid-area: fav; align-self: center; width: 30px; height: 30px; margin: -4px 0 -4px -6px; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; color: var(--text-faint); border-radius: 50%; cursor: pointer; user-select: none; }
+  .nc-fav:hover { color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); }
+  .neta-card.is-fav { background: color-mix(in srgb, var(--amber) 11%, var(--bg-alt)); border-color: color-mix(in srgb, var(--amber) 50%, var(--line)); }
+  .neta-card.is-fav:hover { background: color-mix(in srgb, var(--amber) 16%, var(--bg-alt)); }
+  .neta-card.is-fav .nc-fav { color: var(--amber); }
+  .neta-card.is-last { outline: 2px solid var(--lastread); outline-offset: -1px; }
+  .last-mark { font-size: 10px; font-weight: 700; color: var(--lastread); }
   .nc-body { grid-area: body; min-width: 0; font-size: 12.5px; color: var(--text); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; }
   .nc-foot { grid-area: foot; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; max-width: 260px; font-size: 10.5px; color: var(--text-faint); }
   @media (max-width: 860px) { .nc-foot { max-width: 180px; } } /* 中くらいの幅では、タグの欄を詰めて本文の幅を残す */
@@ -145,6 +156,11 @@
   .genre-card:hover, .genre-card:focus-visible { border-color: var(--cyan-dim); }
   .gc-cover { position: relative; aspect-ratio: 16 / 9; background: var(--panel); overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .gc-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* ピン止め（2026-11-13）：表紙の右上。外れているときは薄く、止めると青緑の丸。押してもジャンルは開かない */
+  .gc-pin { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--text-faint); background: rgba(var(--bg-rgb), .55); border: 1px solid transparent; cursor: pointer; z-index: 1; }
+  .gc-pin:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+  .gc-pin.is-on { color: var(--on-accent); background: var(--cyan); border-color: var(--cyan); }
+  .genre-card.is-pinned { border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); }
   .gc-type { font-family: var(--font-book); font-size: 20px; letter-spacing: .1em; color: var(--text-dim); padding: 0 16px; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .gc-info { padding: 9px 12px 10px; display: flex; align-items: baseline; gap: 8px; }
   .gc-name { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -466,6 +482,13 @@
   .ch-label { font-family: var(--font-book); font-size: 22px; font-weight: 600; letter-spacing: .04em; color: var(--cyan); flex-shrink: 0; }
   .ch-title-input { flex: 1; min-width: 160px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 17px; font-family: var(--font-book); color: var(--text); padding: 7px 10px; outline: none; }
   .ch-title-input:focus { border-color: var(--cyan); }
+  /* 章のメモ（2026-11-13）：付箋のような琥珀色。書くと伸びる（autoGrowMemo） */
+  .ch-memo-row { flex-basis: 100%; display: flex; align-items: flex-start; gap: 8px; }
+  .ch-memo-label { font-size: 11px; font-weight: 600; color: var(--amber); padding-top: 6px; flex-shrink: 0; cursor: text; }
+  .ch-memo { flex: 1; min-width: 0; resize: none; overflow: hidden; min-height: 30px; background: color-mix(in srgb, var(--amber) 6%, var(--bg-alt)); border: 1px dashed color-mix(in srgb, var(--amber) 40%, var(--line)); color: var(--text); font-size: 12.5px; line-height: 1.6; padding: 4px 9px; outline: none; font-family: var(--font-body); }
+  .ch-memo:focus { border-style: solid; border-color: var(--amber); }
+  .ch-memo::placeholder { color: var(--text-faint); }
+  .ct-memo { color: var(--amber); font-weight: 600; margin-left: 4px; }
   /* 章の操作の歯車（2026-11-07）：前へ・後ろへ・この章を削除は、歯車を押して出るメニューの中（ワンタッチでは動かない） */
   .gear-wrap { position: relative; flex-shrink: 0; }
   .gear-btn { width: 32px; height: 32px; }
@@ -569,7 +592,16 @@
   /* ===================== テンプレート ===================== */
   .tpl-section { margin-bottom: 22px; max-width: 900px; }
   .tpl-section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-  .tpl-section-head h2 { font-size: 13px; font-weight: 600; }
+  /* 見た目（2026-11-13）：用途の見出し（項目）と、各テンプレートの名前の強さが同じだった。
+     見出しは大きく太く左に青緑の線、テンプレートの名前は普通の太さ。編集の画面は、項目名を小さく沈め、テンプレートの名前を大きく */
+  .tpl-section-head h2 { font-size: 15px; font-weight: 700; color: var(--text); border-left: 3px solid var(--cyan); padding-left: 9px; line-height: 1.3; }
+  .tpl-name { font-weight: 400; color: var(--text-dim); }
+  .tpl-row:hover .tpl-name { color: var(--text); }
+  #tplModal .field-label { font-size: 11px; font-weight: 500; color: var(--text-faint); margin-bottom: 5px; }
+  #tplModal .field-label > span:first-child::before { width: 2px; height: 10px; background: var(--text-faint); }
+  #tplModal #tplName { font-size: 16px; font-weight: 600; font-family: var(--font-book); padding: 8px 11px; }
+  #tplModal #tplKind { font-size: 13px; font-weight: 600; }
+  #tplModal #tplBody { font-size: 13px; line-height: 1.75; }
   .tpl-section-head .req { font-size: 10.5px; color: var(--text-faint); }
   .tpl-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line-soft); background: var(--bg-alt); margin-bottom: 6px; }
   .tpl-name { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -661,7 +693,8 @@
     .ch-layout .ch-tab.is-active { border-right: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); border-bottom-color: transparent; margin: 0 0 -1px; padding-right: 12px; }
     .ch-layout .ch-tab.add { margin: 0; border-width: 1px 1px 0; }
     .compose-row.ai-row::before { flex-basis: 100%; } /* 「AI連携」を上の行に */
-    .neta-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "body" "foot"; align-items: start; }
+    .neta-card { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "fav body" "fav foot"; align-items: start; }
+    .nc-fav { align-self: start; margin-top: -2px; }
     .find-row { grid-template-columns: 1fr; }
     .nc-foot { justify-content: flex-start; max-width: none; }
     .step-hint { padding-left: 40px; } /* 工程の説明はスマホでも出す（何をする工程かが導線になる。2026-11-06） */
@@ -696,6 +729,7 @@
           <div id="menuNetaGroup" class="is-hidden">
             <div class="menu-head">ネタ帳</div>
             <button type="button" class="menu-panel-item" id="menuNetaNew">＋ 新規ネタ<small>ジャンルを開いていれば、そのジャンルに入ります</small></button>
+            <button type="button" class="menu-panel-item" id="netaGenBtn">✦ ネタ出しのプロンプト<small>AIにネタを出してもらう。返事は「§ ネタを取り込む」へ</small></button>
             <button type="button" class="menu-panel-item" id="netaImportBtn">§ ネタを取り込む<small>§ と § で挟んだ文章をまとめて登録</small></button>
             <button type="button" class="menu-panel-item" id="genreAddBtn">＋ ジャンルを追加</button>
             <button type="button" class="menu-panel-item" id="netaSelectBtn">☑ 選んで削除</button>
@@ -734,6 +768,13 @@
           <option value="created-desc">作成が新しい順</option>
           <option value="created-asc">作成が古い順</option>
           <option value="used-desc">作品で使っている順</option>
+        </select>
+        <!-- ジャンルの並び順（2026-11-13）。ジャンルのカードを並べている間だけ、ネタの並び順の代わりに出す。端末ごとに覚える。ピン止めしたジャンルはいつも先頭 -->
+        <select class="filter-select is-hidden" id="genreSort" title="ジャンルの並び順" aria-label="ジャンルの並び順">
+          <option value="order">作った順</option>
+          <option value="kana">50音順</option>
+          <option value="created-desc">作成が新しい順</option>
+          <option value="count-desc">ネタの多い順</option>
         </select>
       </div>
       <div class="select-bar is-hidden" id="netaSelectBar" role="region" aria-label="ネタを選んで削除">
@@ -975,6 +1016,11 @@
                 <div class="menu-sep"></div>
                 <button type="button" class="menu-panel-item is-danger" role="menuitem" id="chDeleteBtn">この章を削除</button>
               </div>
+            </div>
+            <!-- 章のメモ（2026-11-13）：未来の自分への伝言板。本文・書き出し・本棚・コピーには入らない -->
+            <div class="ch-memo-row">
+              <label class="ch-memo-label" for="chMemo">✎ メモ</label>
+              <textarea class="ch-memo" id="chMemo" rows="1" maxlength="5000" placeholder="未来の自分への伝言（本文には入りません）"></textarea>
             </div>
           </div>
 
@@ -1280,6 +1326,25 @@
   </div>
 </div>
 
+<!-- ネタ出しのプロンプト（2026-11-13）：テンプレートの用途「ネタ出し」に、ジャンルと今あるネタを差し込んでコピーする。保存はしない -->
+<div class="modal-overlay" id="ngModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="ngModalTitle">
+    <div class="modal-head"><span class="modal-title" id="ngModalTitle">ネタ出しのプロンプト</span><button type="button" class="modal-close" id="ngCloseBtn" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="field-hint">プロンプトをコピーしてAIに貼ります。AIの返事（§ で挟んだネタ）は、下の「§ ネタを取り込む」にそのまま貼ると、まとめて登録できます。プロンプトの文面は「テンプレート」タブの「ネタ出し（ネタ帳）」で書き換えられます。</div>
+      <div class="meta-row" style="margin-bottom:0">
+        <div><div class="field-label"><span><label for="ngTpl">テンプレート</label></span></div><select class="field-select" id="ngTpl"></select></div>
+        <div><div class="field-label"><span><label for="ngGenre">ジャンル</label></span></div><select class="field-select" id="ngGenre"></select></div>
+      </div>
+      <div><div class="field-label"><span class="grow">AIに渡すプロンプト</span><span id="ngCount"></span></div><textarea class="field-textarea" id="ngOut" rows="12" readonly aria-label="AIに渡すプロンプト"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" id="ngToImportBtn">§ ネタを取り込む へ</button>
+      <button type="button" class="btn primary" id="ngCopyBtn">コピー</button>
+    </div>
+  </div>
+</div>
+
 <!-- ネタの取り込み（§区切り） -->
 <div class="modal-overlay" id="niModal">
   <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="niModalTitle">
@@ -1410,10 +1475,16 @@
     loreimg: { label: '設定画像（画像を頼む）',       required: '{{設定項目}}' },
     // 公開用のハッシュタグ（2026-11-08）。AIに渡すプロンプトではなく、note のタグ欄に貼る1行を作る。必須の差し込みはない
     tags:    { label: 'ハッシュタグ（公開用）',       required: '' },
+    // ネタ出し（2026-11-13）。ネタ帳の ☰ から、AIにネタを出してもらうプロンプト。必須の差し込みはない
+    neta:    { label: 'ネタ出し（ネタ帳）',           required: '' },
   };
-  // テンプレートの画面に出す用途（作品エディタの上からの順）
-  const KIND_ORDER = ['plot', 'assets', 'loreimg', 'kv', 'synopsis', 'serial', 'polish', 'chimg', 'summary', 'tags'];
+  // テンプレートの画面に出す用途（ネタ帳 → 作品エディタの上からの順）
+  const KIND_ORDER = ['neta', 'plot', 'assets', 'loreimg', 'kv', 'synopsis', 'serial', 'polish', 'chimg', 'summary', 'tags'];
   const TAG_PH = ['{{名義}}', '{{タイトル}}', '{{シリーズ}}']; // ハッシュタグで使える差し込み（空白は詰めて1つのタグにする）
+  const NETA_PH = ['{{ジャンル}}', '{{ジャンルの説明}}', '{{既存のネタ}}']; // ネタ出しで使える差し込み
+  const NETA_PH_REGEX = /\{\{(ジャンルの説明|ジャンル|既存のネタ)\}\}/g;
+  const NETA_GEN_MAX = 60; // {{既存のネタ}} に入れる件数の上限（新しい順。長すぎるプロンプトにしない）
+  const phOf = (kind) => (kind === 'tags' ? TAG_PH : kind === 'neta' ? NETA_PH : PLACEHOLDERS);
   const ALL_KINDS = Object.keys(KINDS); // 作品が覚える選択（tpl）は、画面に出さない用途の分も持ち運ぶ
   const PLACEHOLDERS = ['{{タイトル}}', '{{名義}}', '{{ネタ}}', '{{設定}}', '{{プロット}}', '{{概要}}', '{{章の一覧}}', '{{章番号}}', '{{章タイトル}}', '{{章の筋}}', '{{前章まで}}', '{{本文}}', '{{設定項目}}'];
   const PH_REGEX = /\{\{(タイトル|名義|ネタ|設定項目|設定|プロット|概要|章の一覧|章番号|章タイトル|章の筋|前章まで|本文)\}\}/g;
@@ -1606,6 +1677,22 @@
     // 公開用のハッシュタグ（2026-11-08）の見本。ブランドごとに作り替える前提。IDと日時を固定にして、同期で2つにならないようにする
     { kind: 'tags', name: 'ハッシュタグの見本（ブランドごとに作り替えてください）', fixedId: 'tp_20261108_000000_tag1', fixedAt: Date.UTC(2026, 10, 7, 15), body:
 `#小説 #創作 #{{名義}}` },
+    // ネタ出し（2026-11-13）の見本。返事を「§ ネタを取り込む」に貼れるよう、§ で挟んで出させる
+    { kind: 'neta', name: 'ネタを10個（§ で受け取る）', fixedId: 'tp_20261113_000000_net1', fixedAt: Date.UTC(2026, 10, 12, 15), body:
+`あなたは小説のネタ出しを手伝う編集者です。
+次の条件で、小説のネタを10個考えてください。
+
+# ジャンル
+{{ジャンル}}
+{{ジャンルの説明}}
+
+# すでにあるネタ（これと重ならないものにしてください）
+{{既存のネタ}}
+
+# 出し方
+- 1つのネタは1〜3行。1行目に一言で分かる要約、続けて見どころ
+- ネタを1つずつ § と § で挟んで出す（例：§夜だけ開く図書館の司書が、空から落ちた星を拾う。星は一冊の本になる。§）
+- § の外には何も書かない` },
   ];
 
   function openDb() {
@@ -1697,7 +1784,7 @@
   const wPen = $('wPen'), wSeries = $('wSeries'), wPlot = $('wPlot'), wSynopsis = $('wSynopsis'), wKvPrompt = $('wKvPrompt'), chImgPrompt = $('chImgPrompt');
   const wNetaList = $('wNetaList'), wNetaAddSelect = $('wNetaAddSelect'), wNetaAddBtn = $('wNetaAddBtn');
   const loreListEl = $('loreList');
-  const chTabs = $('chTabs'), chLabel = $('chLabel'), chTitle = $('chTitle'), chOutline = $('chOutline');
+  const chTabs = $('chTabs'), chLabel = $('chLabel'), chTitle = $('chTitle'), chMemo = $('chMemo'), chOutline = $('chOutline');
   const chBody = $('chBody'), chSummary = $('chSummary'), chFinal = $('chFinal');
   const chDoneBtn = $('chDoneBtn');
   const chUrl = $('chUrl'), chUrlErr = $('chUrlErr'), chNoteId = $('chNoteId'), chPubDate = $('chPubDate');
@@ -2050,12 +2137,13 @@
       id: x.id, body: netaBodyWithTitle(x),
       tags: Array.isArray(x.tags) ? parseTags(x.tags.filter((t) => typeof t === 'string').join(',')) : [],
       genreId: validId(x.genreId) ? x.genreId : '',
+      fav: x.fav === true, // お気に入り（2026-11-13〜。ない古い記録は false）
       createdAt: num(x.createdAt), updatedAt: num(x.updatedAt),
     };
   }
   function normalizeGenre(x) {
     if (!x || !validId(x.id)) return null;
-    return { id: x.id, name: str(x.name, 60).trim(), note: str(x.note, 2000), order: typeof x.order === 'number' && isFinite(x.order) ? x.order : num(x.createdAt), createdAt: num(x.createdAt), updatedAt: num(x.updatedAt) };
+    return { id: x.id, name: str(x.name, 60).trim(), note: str(x.note, 2000), order: typeof x.order === 'number' && isFinite(x.order) ? x.order : num(x.createdAt), pinned: x.pinned === true /* ピン止め（2026-11-13〜） */, createdAt: num(x.createdAt), updatedAt: num(x.updatedAt) };
   }
   function normalizeWork(x) {
     if (!x || !validId(x.id)) return null;
@@ -2075,7 +2163,7 @@
     const url = str(x.publishUrl, 2000).trim();
     return {
       id: x.id, workId: x.workId, order: typeof x.order === 'number' && isFinite(x.order) ? x.order : 0,
-      title: str(x.title, 200), outline: str(x.outline, 100000), body: str(x.body, 2000000),
+      title: str(x.title, 200), memo: str(x.memo, 5000), outline: str(x.outline, 100000), body: str(x.body, 2000000),
       summary: str(x.summary, 100000), final: str(x.final, 2000000), imgPrompt: str(x.imgPrompt, 100000), done: x.done === true,
       publishUrl: url, noteId: extractNoteId(url), publishedAt: dateOnly(x.publishedAt),
       undo: normalizeUndo(x.undo, CHAPTER_UNDO),
@@ -2276,10 +2364,13 @@
     const used = netaUsageCount(n.id);
     const g = showGenre && n.genreId ? getGenre(n.genreId) : null;
     const pick = netaSelecting ? ` is-selectable${netaPicked.has(n.id) ? ' is-picked' : ''}" aria-pressed="${netaPicked.has(n.id)}` : '';
-    return `<button type="button" class="neta-card${pick}" data-id="${escapeHtml(n.id)}">
+    // お気に入り（2026-11-13。n.fav・同期する）と、この端末で最後に開いたネタ（netaLastId・端末ごと）。選んで削除の間はどちらの印も出さない
+    const fav = !!n.fav && !netaSelecting, last = !netaSelecting && n.id === netaLastId;
+    const star = netaSelecting ? '' : `<span class="nc-fav" data-fav="${escapeHtml(n.id)}" role="button" aria-pressed="${!!n.fav}" title="${n.fav ? 'お気に入りを外す' : 'お気に入りにする'}" aria-label="${n.fav ? 'お気に入りを外す' : 'お気に入りにする'}">${n.fav ? '★' : '☆'}</span>`;
+    return `<button type="button" class="neta-card${pick}${fav ? ' is-fav' : ''}${last ? ' is-last' : ''}" data-id="${escapeHtml(n.id)}">${star}
       <span class="nc-body">${escapeHtml(String(n.body).slice(0, 300))}</span>
       <span class="nc-foot">${g ? `<span class="genre-pill">${escapeHtml(genreLabel(g))}</span>` : ''}${n.tags.slice(0, 4).map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
-        <span>${escapeHtml(formatDateTime(n.updatedAt))}</span>${used ? `<span class="used-mark">作品 ${used}</span>` : ''}</span>
+        <span>${escapeHtml(formatDateTime(n.updatedAt))}</span>${used ? `<span class="used-mark">作品 ${used}</span>` : ''}${last ? '<span class="last-mark">前回ここ</span>' : ''}</span>
     </button>`;
   }
   /* ネタの並び順（2026-11-05）。メモアプリと同じく端末ごとの好みなので、同期されるDBではなく localStorage に覚える。
@@ -2297,7 +2388,8 @@
     renderNeta();
     netaListEl.scrollTop = 0;
   });
-  function sortNeta(list) {
+  function sortNeta(list) { return sortNetaBy(list, netaSort); }
+  function sortNetaBy(list, netaSort) {
     const t = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
     const tie = (a, b) => (t(b.updatedAt) - t(a.updatedAt)) || String(a.id).localeCompare(String(b.id));
     if (netaSort === 'used-desc') {
@@ -2319,9 +2411,52 @@
   }
   // 空のときの案内に置く「＋ 新規ネタ」（☰ の中にもある。はじめて使うときに迷わないように）
   const NETA_NEW_BTN = '<button type="button" class="btn small" data-act="neta-new">＋ 新規ネタ</button>';
+  /* ジャンルの並び順とピン止め（2026-11-13）。並び順は端末ごとの好み（localStorage）、ピン止めはジャンルの記録の pinned（同期する）。
+     50音順は Intl.Collator('ja')：かな・カナは読みどおり。漢字は読みが分からないので、JIS の第1水準の並び（おおむね音読みの順）になる */
+  const GENRE_SORT_KEY = 'sideops_manuscript_genre_sort';
+  const GENRE_SORTS = ['order', 'kana', 'created-desc', 'count-desc'];
+  let genreSort = 'order';
+  try { const saved = localStorage.getItem(GENRE_SORT_KEY); if (GENRE_SORTS.includes(saved)) genreSort = saved; } catch (err) { /* 覚えられない環境では作った順 */ }
+  const genreSortEl = $('genreSort');
+  genreSortEl.value = genreSort;
+  genreSortEl.addEventListener('change', () => {
+    if (!GENRE_SORTS.includes(genreSortEl.value)) { genreSortEl.value = genreSort; return; }
+    genreSort = genreSortEl.value;
+    try { localStorage.setItem(GENRE_SORT_KEY, genreSort); } catch (err) { /* 覚えられなくても並びは変える */ }
+    renderNeta();
+    netaListEl.scrollTop = 0;
+  });
+  const jaCollator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' });
+  function genresForGrid() {
+    const base = sortedGenres(); // 作った順（同じ値どうしの決め手にも使う）
+    const pos = new Map(base.map((g, i) => [g.id, i]));
+    const tie = (a, b) => pos.get(a.id) - pos.get(b.id);
+    let list = base;
+    if (genreSort === 'kana') list = base.slice().sort((a, b) => jaCollator.compare(genreLabel(a), genreLabel(b)) || tie(a, b));
+    else if (genreSort === 'created-desc') list = base.slice().sort((a, b) => b.createdAt - a.createdAt || tie(a, b));
+    else if (genreSort === 'count-desc') { const cnt = new Map(base.map((g) => [g.id, genreNetaCount(g.id)])); list = base.slice().sort((a, b) => cnt.get(b.id) - cnt.get(a.id) || tie(a, b)); }
+    return list.filter((g) => g.pinned).concat(list.filter((g) => !g.pinned));
+  }
+  let pinBusy = false;
+  async function toggleGenrePin(id) {
+    const g = getGenre(id);
+    if (!g || !dbReady || pinBusy) return;
+    pinBusy = true;
+    const prev = g.pinned;
+    g.pinned = !prev; // 更新日時は変えない（並びが動くのはピンの分だけにする）
+    try { await put(S.genres, g); }
+    catch (err) { console.error(err); g.pinned = prev; showToast('ピン止めを保存できませんでした', true); }
+    finally { pinBusy = false; }
+    renderNeta();
+  }
+  const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M15 3l6 6-2 1-3 3 .5 5-1.5 1.5-4-4L6 20H4v-2l4.5-5-4-4L6 7.5l5 .5 3-3z"/></svg>';
   function renderNeta() {
     const q = netaSearch.value.trim().toLowerCase();
     if (netaGenreView && netaGenreView !== UNCAT && !getGenre(netaGenreView)) netaGenreView = null;
+    // ジャンルのカードを並べている間は、ネタの並び順の代わりにジャンルの並び順を出す
+    const genreGrid = !q && genres.length > 0 && netaGenreView === null;
+    genreSortEl.classList.toggle('is-hidden', !genreGrid);
+    netaSortEl.classList.toggle('is-hidden', genreGrid);
     updateNetaSelectBar();
     if (netaList.length === 0 && genres.length === 0) {
       netaListEl.innerHTML = `<div class="empty-state"><div class="big">ネタ帳はまだ空です</div><div class="small">右上の ☰ の「＋ 新規ネタ」で1つずつ書くか、「§ ネタを取り込む」で §〜§ で区切った文章をまとめて取り込めます。「＋ ジャンルを追加」でジャンルごとのカードに分けて管理できます。</div>${NETA_NEW_BTN}</div>`;
@@ -2341,10 +2476,12 @@
     }
     if (netaGenreView === null) {
       const uncat = genreNetaCount('');
-      netaListEl.innerHTML = '<div class="genre-grid">' + sortedGenres().map((g) => {
+      netaListEl.innerHTML = '<div class="genre-grid">' + genresForGrid().map((g) => {
         const img = framedImg(imgId(g.id, 'cover'), 16 / 9);
-        return `<button type="button" class="genre-card" data-gid="${escapeHtml(g.id)}">
-          <span class="gc-cover">${img || `<span class="gc-type">${escapeHtml(genreLabel(g))}</span>`}</span>
+        const pinLabel = g.pinned ? 'ピン止めを外す' : '先頭にピン止め';
+        const pin = netaSelecting ? '' : `<span class="gc-pin${g.pinned ? ' is-on' : ''}" data-pin="${escapeHtml(g.id)}" role="button" aria-pressed="${g.pinned}" title="${pinLabel}" aria-label="${pinLabel}">${PIN_SVG}</span>`;
+        return `<button type="button" class="genre-card${g.pinned ? ' is-pinned' : ''}" data-gid="${escapeHtml(g.id)}">
+          <span class="gc-cover">${img || `<span class="gc-type">${escapeHtml(genreLabel(g))}</span>`}${pin}</span>
           <span class="gc-info"><span class="gc-name">${escapeHtml(genreLabel(g))}</span><span class="gc-count">${genreNetaCount(g.id)}</span></span>
         </button>`;
       }).join('') +
@@ -2365,6 +2502,10 @@
   }
   netaSearch.addEventListener('input', renderNeta);
   netaListEl.addEventListener('click', (e) => {
+    const pn = e.target.closest('[data-pin]');
+    if (pn) { e.preventDefault(); if (!netaSelecting) toggleGenrePin(pn.dataset.pin); return; } // ピンはジャンルを開かない
+    const fv = e.target.closest('[data-fav]');
+    if (fv) { e.preventDefault(); if (!netaSelecting) toggleNetaFav(fv.dataset.fav); return; } // ☆ はネタを開かない
     const c = e.target.closest('.neta-card');
     if (c && netaSelecting) { toggleNetaPick(c); return; }
     if (c) { const n = getNeta(c.dataset.id); if (n) openNetaModal(n); return; }
@@ -2394,6 +2535,29 @@
     const shown = shownNeta();
     $('netaSelAllBtn').disabled = !shown || shown.length === 0 || shown.every((n) => netaPicked.has(n.id));
     $('netaSelClearBtn').disabled = netaPicked.size === 0;
+  }
+  /* お気に入り（2026-11-13）：☆を押すと★になり、カードを強調色にする。ネタの記録の fav（同期する）。
+     更新日時は変えない（「更新が新しい順」で、押したカードが指の下から先頭へ飛ばないように。同期は中身の違いで気づく） */
+  let favBusy = false;
+  async function toggleNetaFav(id) {
+    const n = getNeta(id);
+    if (!n || !dbReady || favBusy) return;
+    favBusy = true;
+    const prev = !!n.fav;
+    n.fav = !prev;
+    try { await put(S.neta, n); }
+    catch (err) { console.error(err); n.fav = prev; showToast('お気に入りを保存できませんでした', true); }
+    finally { favBusy = false; }
+    renderNeta();
+  }
+  /* この端末で最後に開いたネタ（2026-11-13）：一覧で枠と「前回ここ」を付ける。開くたびに変わる端末ごとの印なので、
+     同期するDBではなく localStorage に覚える（同期すると、ネタを開くたびにDBを送り直すことになる） */
+  const NETA_LAST_KEY = 'sideops_manuscript_neta_last';
+  let netaLastId = '';
+  try { const v = localStorage.getItem(NETA_LAST_KEY); if (validId(v)) netaLastId = v; } catch (err) { /* 覚えられない環境では印を付けない */ }
+  function rememberNetaLast(id) {
+    netaLastId = id;
+    try { localStorage.setItem(NETA_LAST_KEY, id); } catch (err) { /* 覚えられなくても、このページの間は印を付ける */ }
   }
   function toggleNetaPick(card) {
     const id = card.dataset.id;
@@ -2469,14 +2633,15 @@
     if (isNetaEmpty(n) && !persisted) return;
     n.updatedAt = Date.now();
     await put(S.neta, n);
-    if (!persisted) netaList.unshift(n);
+    if (!persisted) { netaList.unshift(n); rememberNetaLast(n.id); }
   }, (s) => { netaSaveInd.textContent = saveStateText(s); });
   function readNetaForm(n) { n.body = netaBody.value; n.tags = parseTags(netaTags.value); n.genreId = getGenre($('netaGenre').value) ? $('netaGenre').value : ''; }
   const isNetaEmpty = (n) => !n.body.trim() && n.tags.length === 0;
 
   function openNetaModal(n) {
-    if (!n) { const now = Date.now(); n = { id: genId('nt'), body: '', tags: [], genreId: currentNetaGenreId(), createdAt: now, updatedAt: now }; }
+    if (!n) { const now = Date.now(); n = { id: genId('nt'), body: '', tags: [], genreId: currentNetaGenreId(), fav: false, createdAt: now, updatedAt: now }; }
     editingNeta = n;
+    if (netaList.includes(n)) rememberNetaLast(n.id); // 新しいネタは、保存した時点で覚える（netaSaver）
     fillGenreSelect($('netaGenre'), n.genreId);
     netaBody.value = n.body; netaTags.value = n.tags.join(', ');
     const used = netaUsageCount(n.id);
@@ -2620,7 +2785,7 @@
     genreUsage.textContent = (cnt ? `このジャンルのネタ：${cnt}件` : '') + (dupName ? `${cnt ? '　' : ''}※同じ名前のジャンルが既にあります` : '');
   }
   function openGenreModal(g) {
-    if (!g) { const now = Date.now(); g = { id: genId('gn'), name: '', note: '', order: now, createdAt: now, updatedAt: now }; }
+    if (!g) { const now = Date.now(); g = { id: genId('gn'), name: '', note: '', order: now, pinned: false, createdAt: now, updatedAt: now }; }
     editingGenre = g;
     genreName.value = g.name; genreNote.value = g.note;
     genreModalTitle.textContent = genres.includes(g) ? 'ジャンルを編集' : 'ジャンルを追加';
@@ -2750,6 +2915,59 @@
     setTimeout(() => niText.focus(), 0);
   }
   function closeNetaImport() { niModal.classList.remove('is-open'); }
+
+  /* ---- ネタ出しのプロンプト（2026-11-13）----
+     テンプレートの用途「ネタ出し」に、選んだジャンル（名前・説明）と、そのジャンルの今あるネタ（1行目・新しい順に NETA_GEN_MAX 件まで）を差し込む。
+     ここでは何も保存しない（テンプレートとジャンルの選択はその場だけ）。AIの返事は「§ ネタを取り込む」で受け取る（同じジャンルを選んだ状態で開く） */
+  const ngModal = $('ngModal'), ngTpl = $('ngTpl'), ngGenre = $('ngGenre'), ngOut = $('ngOut');
+  function buildNetaGenPrompt() {
+    const t = getTpl(ngTpl.value) || tplsOf('neta')[0];
+    if (!t) return '';
+    const g = getGenre(ngGenre.value);
+    const list = sortNetaBy(netaList.filter((n) => n.genreId === (g ? g.id : '') && n.body.trim()), 'updated-desc');
+    const firstLine = (n) => { const l = n.body.trim().split('\n')[0].trim(); return Array.from(l).length > 60 ? Array.from(l).slice(0, 60).join('') + '…' : l; };
+    const lines = list.slice(0, NETA_GEN_MAX).map((n) => '- ' + firstLine(n));
+    if (list.length > NETA_GEN_MAX) lines.push(`（ほか ${list.length - NETA_GEN_MAX}件）`);
+    const vals = {
+      'ジャンル': g ? genreLabel(g) : '（指定なし）',
+      'ジャンルの説明': g && g.note.trim() ? g.note.trim() : '',
+      '既存のネタ': lines.length ? lines.join('\n') : '（なし）',
+    };
+    // 説明が空のときは、その行ごと消す（「（なし）」の行を残さない）
+    return t.body.replace(/^[ \t]*\{\{ジャンルの説明\}\}[ \t]*\n?/gm, (m) => (vals['ジャンルの説明'] ? m : ''))
+      .replace(NETA_PH_REGEX, (_, k) => vals[k]);
+  }
+  function updateNetaGen() {
+    ngOut.value = buildNetaGenPrompt();
+    $('ngCount').textContent = ngOut.value ? `${ngOut.value.length.toLocaleString()}字` : '';
+  }
+  function openNetaGen() {
+    if (!dbReady || netaSelecting) return;
+    const tpls = tplsOf('neta');
+    if (!tpls.length) { showToast('ネタ出しのテンプレートがありません。「テンプレート」タブで作成してください', true); return; }
+    const prev = ngTpl.value;
+    ngTpl.innerHTML = '';
+    tpls.forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; ngTpl.appendChild(o); });
+    if (tpls.some((t) => t.id === prev)) ngTpl.value = prev;
+    fillGenreSelect(ngGenre, currentNetaGenreId());
+    ngGenre.options[0].textContent = '指定なし（未分類）';
+    updateNetaGen();
+    ngModal.classList.add('is-open');
+    setTimeout(() => $('ngCopyBtn').focus(), 0);
+  }
+  function closeNetaGen() { ngModal.classList.remove('is-open'); }
+  $('netaGenBtn').addEventListener('click', openNetaGen);
+  $('ngCloseBtn').addEventListener('click', closeNetaGen);
+  ngModal.addEventListener('click', (e) => { if (e.target === ngModal) closeNetaGen(); });
+  ngTpl.addEventListener('change', updateNetaGen);
+  ngGenre.addEventListener('change', updateNetaGen);
+  $('ngCopyBtn').addEventListener('click', (e) => { if (ngOut.value) copyText(ngOut.value, e.currentTarget); });
+  $('ngToImportBtn').addEventListener('click', () => {
+    const gid = ngGenre.value;
+    closeNetaGen();
+    openNetaImport();
+    fillGenreSelect(niGenre, gid); // プロンプトで選んだジャンルに取り込む
+  });
   $('netaImportBtn').addEventListener('click', openNetaImport);
   $('niCloseBtn').addEventListener('click', closeNetaImport);
   $('niCancelBtn').addEventListener('click', closeNetaImport);
@@ -2952,7 +3170,7 @@
 
   function newChapter(workId, order) {
     const now = Date.now();
-    return { id: genId('ch'), workId, order, title: '', outline: '', body: '', summary: '', final: '', imgPrompt: '', done: false, publishUrl: '', noteId: '', publishedAt: '', undo: {}, createdAt: now, updatedAt: now };
+    return { id: genId('ch'), workId, order, title: '', memo: '', outline: '', body: '', summary: '', final: '', imgPrompt: '', done: false, publishUrl: '', noteId: '', publishedAt: '', undo: {}, createdAt: now, updatedAt: now };
   }
   async function createWork(netaIds) {
     const now = Date.now();
@@ -3112,6 +3330,7 @@
     const ch = getChapter(currentChapterId);
     if (ch && ch.workId === w.id) {
       ch.title = chTitle.value.slice(0, 200);
+      ch.memo = chMemo.value.slice(0, 5000);
       ch.outline = chOutline.value;
       ch.body = chBody.value;
       ch.summary = chSummary.value;
@@ -3170,7 +3389,7 @@
     if (w.title.trim() || w.plot.trim() || w.synopsis.trim() || w.kvPrompt.trim() || w.penName || w.series || w.netaIds.length || w.isBook) return false;
     if (loreOf(w.id).length) return false;
     if (Array.from(images.values()).some((r) => r.workId === w.id)) return false;
-    return chaptersOf(w.id).every((c) => !c.title.trim() && !c.outline.trim() && !c.body.trim() && !c.summary.trim() && !c.final.trim() && !c.imgPrompt.trim() && !c.publishUrl);
+    return chaptersOf(w.id).every((c) => !c.title.trim() && !c.memo.trim() &&!c.outline.trim() && !c.body.trim() && !c.summary.trim() && !c.final.trim() && !c.imgPrompt.trim() && !c.publishUrl);
   }
   async function deleteWorkCascade(w) {
     let ok = true;
@@ -3195,7 +3414,10 @@
   });
   wIdChip.addEventListener('click', () => copyText(wIdChip.textContent));
 
-  [wTitle, wPen, wSeries, wPlot, wSynopsis, wKvPrompt, chTitle, chOutline, chBody, chSummary, chFinal, chImgPrompt, chUrl, chPubDate].forEach((el) => {
+  // 章のメモは書いた分だけ伸ばす（最初は1行）
+  function autoGrowMemo() { chMemo.style.height = 'auto'; chMemo.style.height = Math.max(30, chMemo.scrollHeight + 2) + 'px'; }
+  chMemo.addEventListener('input', () => { autoGrowMemo(); renderChapterTabs(); });
+  [wTitle, wPen, wSeries, wPlot, wSynopsis, wKvPrompt, chTitle, chMemo, chOutline, chBody, chSummary, chFinal, chImgPrompt, chUrl, chPubDate].forEach((el) => {
     el.addEventListener('input', () => { workSaver.schedule(); updateWorkState(); });
     el.addEventListener('change', () => { workSaver.flush(); });
   });
@@ -3324,6 +3546,7 @@
     setChGear(false); hideNetaPeek();
     currentTab = key;
     if (currentWorkId) lastTabOf.set(currentWorkId, key);
+    if (key === 'text') requestAnimationFrame(autoGrowMemo); // 章のメモの高さは、本文タブが見えてから測る
     TABS.forEach((k) => {
       const on = k === key;
       const b = $('tab' + TAB_ID[k]);
@@ -3405,6 +3628,9 @@
     add('annot', '⑧ 本文の消し忘れ', left.length ? 'ng' : 'ok', left.length ? `${names(left.map((x) => x.c))}に ${nAll}か所（${kinds}）` : '注釈 […]・〔〔…〕〕 と、note の有料ラインの文は残っていません', left.length ? { step: 'stepFinal', chapterId: left[0].c.id, focus: 'chFinal', annot: true } : { step: 'stepFinal', focus: 'chFinal' });
     const noTitle = chs.filter((c) => !c.title.trim());
     add('chtitle', '章タイトル', noTitle.length ? 'opt' : 'ok', noTitle.length ? `${names(noTitle)}にありません` : `${chs.length}章ともあります`, noTitle.length ? { step: 'chTitle', chapterId: noTitle[0].id, focus: 'chTitle' } : { step: 'chTitle', focus: 'chTitle' });
+    // 章のメモ（2026-11-13）：残っていても出せる（本文には入らない）ので「任意」。メモのある章があるときだけ出す
+    const memos = chs.filter((c) => (c.id === currentChapterId ? chMemo.value : c.memo).trim());
+    if (memos.length) add('memo', '✎ 章のメモ', 'opt', `${names(memos)}に残っています（本文には入りません。済んだら消してください）`, { step: 'chTitle', chapterId: memos[0].id, focus: 'chMemo' });
     checkItems = items;
     const ng = items.filter((x) => x.state === 'ng').length;
     const sum = $('checkSum');
@@ -3736,13 +3962,14 @@
     const items = chs.map((c, i) => {
       const title = c.id === currentChapterId ? chTitle.value.trim() : c.title.trim();
       const st = c.done ? ['is-done', '✓ 完成'] : c.final.trim() ? ['is-text', '● 本文あり・推敲中'] : nextCh && nextCh.id === c.id ? ['is-next', '▶ 次はここ'] : ['', '○ まだ'];
-      return [c.id, `第${i + 1}章` + (title ? ' ' + title : ''), st];
+      const memo = (c.id === currentChapterId ? chMemo.value : c.memo).trim() ? 1 : 0; // メモのある章には ✎ を付ける
+      return [c.id, `第${i + 1}章` + (title ? ' ' + title : ''), st, memo];
     });
     const sig = JSON.stringify([items, currentChapterId]);
     if (sig !== chTabsSig) {
       chTabsSig = sig;
-      chTabs.innerHTML = items.map(([id, label, st]) => `<button type="button" class="ch-tab${id === currentChapterId ? ' is-active' : ''}" data-id="${escapeHtml(id)}" aria-current="${id === currentChapterId}">`
-        + `<span class="ct-name">${escapeHtml(label)}</span><span class="ct-state ${st[0]}">${st[1]}</span></button>`).join('')
+      chTabs.innerHTML = items.map(([id, label, st, memo]) => `<button type="button" class="ch-tab${id === currentChapterId ? ' is-active' : ''}" data-id="${escapeHtml(id)}" aria-current="${id === currentChapterId}">`
+        + `<span class="ct-name">${escapeHtml(label)}</span><span class="ct-state ${st[0]}">${st[1]}${memo ? '<span class="ct-memo" title="メモあり">✎</span>' : ''}</span></button>`).join('')
         + '<button type="button" class="ch-tab add" data-add="1">＋ 章を追加</button>';
     }
     const idx = chs.findIndex((c) => c.id === currentChapterId);
@@ -3758,6 +3985,8 @@
       const ch = getChapter(id);
       currentChapterId = ch ? ch.id : null;
       chTitle.value = ch ? ch.title : ''; chOutline.value = ch ? ch.outline : '';
+      chMemo.value = ch ? ch.memo : '';
+      requestAnimationFrame(autoGrowMemo); // 隠れているタブの中では高さを測れないので、出てから（showTab でも測り直す）
       chBody.value = ch ? ch.body : ''; chSummary.value = ch ? ch.summary : ''; chFinal.value = ch ? ch.final : '';
       chImgPrompt.value = ch ? ch.imgPrompt : '';
       chUrl.value = ch ? ch.publishUrl : ''; chPubDate.value = ch ? ch.publishedAt : '';
@@ -4893,7 +5122,9 @@
     templatesListEl.innerHTML = KIND_ORDER.map((k) => {
       const list = tplsOf(k);
       return `<div class="tpl-section">
-        <div class="tpl-section-head"><h2>${KINDS[k].label}</h2><span class="req">${k === 'tags' ? `ブランドごとに1つ作り、作品で選びます。タグは空白か改行で区切ります（使える差し込み：${TAG_PH.join('・')}）` : '必須の差し込み：' + escapeHtml(KINDS[k].required)}</span></div>
+        <div class="tpl-section-head"><h2>${KINDS[k].label}</h2><span class="req">${k === 'tags' ? `ブランドごとに1つ作り、作品で選びます。タグは空白か改行で区切ります（使える差し込み：${TAG_PH.join('・')}）`
+          : k === 'neta' ? `ネタ帳の ☰ の「ネタ出しのプロンプト」で使います。返事を § で挟ませると、そのまま取り込めます（使える差し込み：${NETA_PH.join('・')}）`
+          : '必須の差し込み：' + escapeHtml(KINDS[k].required)}</span></div>
         ${list.map((t) => {
           const used = tplUsageCount(t.id);
           return `<div class="tpl-row" data-id="${escapeHtml(t.id)}">
@@ -4935,7 +5166,7 @@
   // 差し込みのボタン：用途「ハッシュタグ」では、名義・タイトル・シリーズだけ（2026-11-08）
   function renderPhButtons() {
     tplPhButtons.innerHTML = '';
-    (tplKind.value === 'tags' ? TAG_PH : PLACEHOLDERS).forEach((ph) => {
+    phOf(tplKind.value).forEach((ph) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'chip'; b.textContent = ph;
       b.title = ph + ' を差し込む';
@@ -4944,7 +5175,8 @@
     });
   }
   const updateTplReqHint = () => {
-    tplReqHint.textContent = tplKind.value === 'tags' ? '例：#小説 #創作 #{{名義}}（空白か改行で区切る。# はなくても可）' : '必須：' + KINDS[tplKind.value].required;
+    tplReqHint.textContent = tplKind.value === 'tags' ? '例：#小説 #創作 #{{名義}}（空白か改行で区切る。# はなくても可）'
+      : tplKind.value === 'neta' ? '返事を § と § で挟ませると、「§ ネタを取り込む」にそのまま貼れます' : '必須：' + KINDS[tplKind.value].required;
     tplBody.placeholder = tplKind.value === 'tags' ? '#官能小説 #創作 #R18 #{{名義}}' : '';
     renderPhButtons();
   };
@@ -4969,6 +5201,7 @@
     const kind = tplKind.value, name = tplName.value.trim(), body = tplBody.value;
     const err = !name ? '名前を入力してください'
       : kind === 'tags' && !tagsText({ body }, { penName: 'x', title: 'x', series: 'x' }).tags.length ? 'タグを1つ以上書いてください（例：#小説 #創作）'
+      : kind === 'neta' && !body.trim() ? '本文を入力してください'
       : !body.includes(KINDS[kind].required) ? `本文に ${KINDS[kind].required} を入れてください（ここに素材が差し込まれます）`
       : body.length > 20000 ? '本文は20,000文字以内にしてください' : null;
     if (err) { tplError.textContent = err; tplError.classList.add('is-shown'); return; }
@@ -5246,6 +5479,7 @@
     if (asModal.classList.contains('is-open')) { closeAssetsModal(); return; }
     if (loreModal.classList.contains('is-open')) { closeLoreModal(); return; }
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
+    if (ngModal.classList.contains('is-open')) { closeNetaGen(); return; }
     if (niModal.classList.contains('is-open')) { closeNetaImport(); return; }
     if (netaModal.classList.contains('is-open')) { closeNetaModal(); return; }
     if (chGearMenu.classList.contains('is-open')) { setChGear(false); if (chGearMenu.contains(document.activeElement)) chGearBtn.focus(); return; }
