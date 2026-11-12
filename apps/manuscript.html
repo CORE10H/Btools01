@@ -201,6 +201,33 @@
   .stage-badge[data-stage="polish"] { border-color: var(--cyan-dim); color: var(--cyan); }
   .stage-badge[data-stage="book"] { border-color: var(--cyan); color: var(--on-accent); background: var(--cyan); }
 
+  /* ===================== 作品録（2026-11-13）=====================
+     制作中と本棚の全作品を、キービジュアル（16:9 を優先）・概要・登場人物名・進み具合で並べる。読むだけ（保存しない） */
+  .xr-sum { font-size: 11px; color: var(--text-faint); margin-left: auto; }
+  .xr-note { font-size: 11px; color: var(--text-faint); padding: 8px 16px 0; flex-shrink: 0; }
+  .xr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 12px; }
+  .xr-card { position: relative; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .xr-top { display: flex; gap: 14px; padding: 12px 14px 0 12px; align-items: flex-start; }
+  .xr-thumb { width: 220px; aspect-ratio: 16 / 9; flex-shrink: 0; background: var(--bg-alt); border: 1px solid var(--line-soft); overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+  .xr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .xr-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .xr-title { font-family: var(--font-book); font-size: 17px; font-weight: 600; color: var(--text); padding-right: 62px; word-break: break-word; }
+  .xr-title.is-untitled { color: var(--text-faint); font-weight: 400; }
+  .xr-card > .stage-badge { position: absolute; top: 10px; right: 10px; }
+  .xr-open { align-self: flex-start; margin-top: 2px; }
+  .xr-syn { font-size: 12.5px; line-height: 1.8; color: var(--text-dim); padding: 10px 14px 0 12px; white-space: pre-wrap; word-break: break-word; }
+  .xr-syn.is-none { color: var(--text-faint); font-style: italic; }
+  .xr-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 14px 12px 12px; margin-top: auto; }
+  .xr-people-label { font-size: 10.5px; color: var(--cyan); margin-right: 4px; }
+  .xr-name { background: var(--bg); border: 1px solid var(--line); color: var(--text); font-size: 12px; padding: 2px 9px; border-radius: 4px; word-break: break-word; }
+  .xr-none { font-size: 11px; color: var(--text-faint); }
+  @media (max-width: 600px) {
+    .xr-top { flex-direction: column; gap: 10px; padding: 10px 10px 0; }
+    .xr-thumb { width: 100%; }
+    .xr-syn { padding: 8px 10px 0; } .xr-people { padding: 8px 10px 10px; }
+    .xr-sum { margin-left: 0; flex-basis: 100%; }
+  }
+
   /* ===================== 本棚（このアプリで一番目立たせる場所） ===================== */
   .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 16px; }
   .book { background: transparent; border: none; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px; }
@@ -657,6 +684,7 @@
       <button type="button" class="tab-btn" data-tab="neta">ネタ帳<span class="tab-count" id="countNeta">0</span></button>
       <button type="button" class="tab-btn is-active" data-tab="works">制作中<span class="tab-count" id="countWorks">0</span></button>
       <button type="button" class="tab-btn" data-tab="shelf">本棚<span class="tab-count" id="countShelf">0</span></button>
+      <button type="button" class="tab-btn" data-tab="xref">作品録<span class="tab-count" id="countXref">0</span></button>
       <button type="button" class="tab-btn" data-tab="templates">テンプレート</button>
     </nav>
     <div class="bar-right">
@@ -744,6 +772,24 @@
         <select class="filter-select" id="shelfPen" aria-label="名義で絞り込み"></select>
       </div>
       <div class="scroll-area" id="shelfList"></div>
+    </section>
+
+    <!-- 作品録（2026-11-13）：全作品の横断リスト。次回作の参考に、キービジュアル・概要・登場人物名・進み具合を並べる。読むだけ -->
+    <section class="view" id="xrefView">
+      <div class="toolbar" id="xrefToolbar">
+        <input type="search" class="search-input" id="xrefSearch" placeholder="検索（題名・概要・登場人物など）" title="題名・名義・シリーズ・概要・登場人物で検索">
+        <select class="filter-select" id="xrefPen" aria-label="名義で絞り込み"></select>
+        <button type="button" class="chip is-on" data-stage="all">すべて</button>
+        <button type="button" class="chip" data-stage="idea">構想</button>
+        <button type="button" class="chip" data-stage="plot">プロット</button>
+        <button type="button" class="chip" data-stage="draft">執筆</button>
+        <button type="button" class="chip" data-stage="polish">推敲</button>
+        <button type="button" class="chip" data-stage="book">本棚</button>
+        <button type="button" class="btn" id="xrefCopyBtn">表示中をコピー</button>
+        <span class="xr-sum" id="xrefSum"></span>
+      </div>
+      <div class="xr-note">制作中と本棚の全作品です。この画面は読むだけです。直すときは「この作品を開く」から。登場人物は設定集のカテゴリ「人物」の名称です。</div>
+      <div class="scroll-area" id="xrefList"></div>
     </section>
 
     <section class="view" id="templatesView">
@@ -1640,7 +1686,7 @@
 
   /* ===================== DOM ===================== */
   const $ = (id) => document.getElementById(id);
-  const viewEls = { neta: $('netaView'), works: $('worksView'), shelf: $('shelfView'), templates: $('templatesView'), work: $('workView'), reader: $('readerView') };
+  const viewEls = { neta: $('netaView'), works: $('worksView'), shelf: $('shelfView'), xref: $('xrefView'), templates: $('templatesView'), work: $('workView'), reader: $('readerView') };
   const tabsEl = $('tabs'), primaryActionBtn = $('primaryActionBtn'), menuBtn = $('menuBtn'), menuPanel = $('menuPanel'), toastEl = $('toast');
   const netaSearch = $('netaSearch'), netaListEl = $('netaList');
   const worksSearch = $('worksSearch'), worksPen = $('worksPen'), worksListEl = $('worksList'), worksSelectBar = $('worksSelectBar');
@@ -2155,7 +2201,7 @@
   /* =====================================================================
      画面切り替え
   ===================================================================== */
-  const TAB_OF_VIEW = { neta: 'neta', works: 'works', shelf: 'shelf', templates: 'templates', reader: 'shelf' };
+  const TAB_OF_VIEW = { neta: 'neta', works: 'works', shelf: 'shelf', xref: 'xref', templates: 'templates', reader: 'shelf' };
   function showView(name) {
     currentView = name;
     if (name !== 'neta' && netaSelecting) { netaSelecting = false; netaPicked.clear(); primaryActionBtn.disabled = false; } // ほかの画面へ移ったら選ぶのをやめる
@@ -2200,12 +2246,14 @@
     $('countNeta').textContent = netaList.length;
     $('countWorks').textContent = works.filter((w) => !w.isBook).length;
     $('countShelf').textContent = works.filter((w) => w.isBook).length;
+    $('countXref').textContent = works.length;
   }
   function renderAll() {
     updateCounts();
     if (currentView === 'neta') renderNeta();
     else if (currentView === 'works') renderWorks();
     else if (currentView === 'shelf') renderShelf();
+    else if (currentView === 'xref') renderXref();
     else if (currentView === 'templates') renderTemplates();
   }
   function fillPenSelect(sel, list) {
@@ -2953,6 +3001,88 @@
   shelfSearch.addEventListener('input', renderShelf);
   shelfPen.addEventListener('change', renderShelf);
   shelfListEl.addEventListener('click', (e) => { const b = e.target.closest('.book'); if (b) openReader(b.dataset.id); });
+
+  /* =====================================================================
+     作品録（2026-11-13）：制作中と本棚の全作品の横断リスト
+     次回作の参考に、各作品のキービジュアル・概要・登場人物名・進み具合を並べる。
+     読むだけ：保存するものはなく、作品・設定集・画像から毎回組み立てる（データの形・同期の版は変えない）。
+     キービジュアルは「制作中」の一覧と同じく カバー（横16:9）→ 表紙（縦3:4）の順で、16:9 の枠に保存した見え方で出す。
+     登場人物は設定集のカテゴリ「人物」の名称（作った順）。並びは更新が新しい順
+  ===================================================================== */
+  const xrefListEl = $('xrefList'), xrefSearch = $('xrefSearch'), xrefPen = $('xrefPen');
+  let xrefStageFilter = 'all';
+  let shownXrefList = [];
+  const peopleOf = (w) => loreOf(w.id).filter((l) => l.kind === 'person').map((l) => l.name.trim()).filter(Boolean);
+  const xrefMatches = (w, q) => !q || [w.title, w.penName, w.series, w.id, w.synopsis, peopleOf(w).join(' ')].join(' ').toLowerCase().includes(q);
+  function renderXref() {
+    fillPenSelect(xrefPen, works);
+    const q = xrefSearch.value.trim().toLowerCase();
+    const pen = xrefPen.value;
+    const list = works.filter((w) => (xrefStageFilter === 'all' || stageOf(w) === xrefStageFilter) && (!pen || w.penName === pen) && xrefMatches(w, q))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    shownXrefList = list;
+    $('xrefSum').textContent = works.length ? (list.length === works.length ? `作品 ${works.length}件` : `作品 ${list.length}件 ／ 全${works.length}件`) : '';
+    $('xrefCopyBtn').disabled = !list.length;
+    if (!works.length) {
+      xrefListEl.innerHTML = `<div class="empty-state"><div class="big">作品はまだありません</div><div class="small">「制作中」で作品を作ると、本棚に登録したものも含めて、ここに全作品が並びます。</div></div>`;
+      return;
+    }
+    if (!list.length) { xrefListEl.innerHTML = `<div class="empty-state"><div class="big">条件に一致する作品はありません</div></div>`; return; }
+    xrefListEl.innerHTML = '<div class="xr-grid">' + list.map((w) => {
+      const thumbImg = framedImg(workThumbId(w), 16 / 9);
+      const st = stageOf(w);
+      const untitled = !w.title.trim();
+      const p = progressOf(w);
+      const bar = p.steps.map((s, i) => {
+        const cls = s.done ? 'is-done' : [s.part ? 'is-part' : '', i === p.cur ? 'is-cur' : ''].join(' ').trim();
+        return `<i class="${cls}"${s.part ? ` style="--p:${Math.round(s.ratio * 100)}%"` : ''}></i>`;
+      }).join('');
+      const ppl = peopleOf(w);
+      const id = escapeHtml(w.id);
+      return `<article class="xr-card" data-id="${id}">
+        <div class="xr-top">
+          <button type="button" class="xr-thumb" data-xr-open="${id}" aria-label="「${escapeHtml(workDisplayTitle(w))}」を開く">${thumbImg || `<span class="wt-type" aria-hidden="true">${escapeHtml(untitled ? '？' : Array.from(w.title.trim())[0])}</span>`}</button>
+          <div class="xr-head">
+            <span class="xr-title${untitled ? ' is-untitled' : ''}">${escapeHtml(workDisplayTitle(w))}</span>
+            <span class="wr-meta">${w.penName ? `<span>${escapeHtml(w.penName)}</span>` : ''}${w.series ? `<span>${escapeHtml(w.series)}</span>` : ''}</span>
+            <span class="wr-prog" aria-hidden="true">${bar}</span>
+            ${p.next && !w.isBook ? `<span class="wr-next">${escapeHtml(p.next.text)}</span>` : ''}
+            <button type="button" class="btn small xr-open" data-xr-open="${id}">この作品を開く</button>
+          </div>
+        </div>
+        ${w.synopsis.trim() ? `<div class="xr-syn">${escapeHtml(w.synopsis.trim())}</div>` : '<div class="xr-syn is-none">概要なし</div>'}
+        <div class="xr-people"><span class="xr-people-label">登場人物</span>${ppl.length ? ppl.map((n) => `<span class="xr-name">${escapeHtml(n)}</span>`).join('') : '<span class="xr-none">設定集に人物がありません</span>'}</div>
+        <span class="stage-badge" data-stage="${st}">${STAGE_LABEL[st]}</span>
+      </article>`;
+    }).join('') + '</div>';
+    applyFrames(xrefListEl);
+  }
+  // 表示中の作品を、次回作の相談でAIに貼れるテキストにする（画像は入らない）
+  function xrefText(list) {
+    return list.map((w) => {
+      const st = stageOf(w);
+      const meta = [w.penName, w.series ? 'シリーズ：' + w.series : '', st === 'book' ? '本棚' : STAGE_LABEL[st]].filter(Boolean).join('／');
+      const ppl = peopleOf(w);
+      return `【${workDisplayTitle(w)}】（${meta}）\n概要：${w.synopsis.trim() || 'なし'}\n登場人物：${ppl.length ? ppl.join('、') : 'なし'}`;
+    }).join('\n\n');
+  }
+  xrefSearch.addEventListener('input', renderXref);
+  xrefPen.addEventListener('change', renderXref);
+  $('xrefToolbar').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    xrefStageFilter = chip.dataset.stage;
+    $('xrefToolbar').querySelectorAll('.chip').forEach((c) => c.classList.toggle('is-on', c === chip));
+    renderXref();
+  });
+  $('xrefCopyBtn').addEventListener('click', async (e) => {
+    if (!shownXrefList.length) { showToast('コピーする作品がありません', true); return; }
+    if (await copyText(xrefText(shownXrefList))) showToast(`${shownXrefList.length}作品をコピーしました`);
+  });
+  xrefListEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-xr-open]');
+    if (b && dbReady) openWork(b.dataset.xrOpen, 'xref');
+  });
 
   /* =====================================================================
      作品エディタ
@@ -4599,7 +4729,7 @@
     const chs = chaptersOf(w.id);
     if (w.isBook) {
       if (!(await ask('本棚から外して「制作中」に戻します。本文や画像は消えません。', { ok: '本棚から外す' }))) return;
-      w.isBook = false; w.bookAt = null; workReturnTab = 'works';
+      w.isBook = false; w.bookAt = null; if (workReturnTab !== 'xref') workReturnTab = 'works'; // 作品録から開いたときは作品録へ戻る
     } else {
       if (!w.title.trim()) { showToast('作品タイトルを入力してから登録してください', true); wTitle.focus(); return; }
       const done = chs.filter((c) => c.final.trim());
@@ -4609,7 +4739,7 @@
       const lacking = chs.map((c, i) => (c.final.trim() ? null : i + 1)).filter(Boolean);
       if (lacking.length && !(await ask(`第${lacking.join('・')}章には本文がありません。\n本棚では本文のある章だけが表示されます。登録しますか？`, { ok: '登録する' }))) return;
       if (!(await confirmAnnotations(w, done, 'このまま本棚に登録しますか？', '登録する'))) return;
-      w.isBook = true; w.bookAt = Date.now(); workReturnTab = 'shelf';
+      w.isBook = true; w.bookAt = Date.now(); if (workReturnTab !== 'xref') workReturnTab = 'shelf';
     }
     workSaver.schedule();
     await workSaver.flush();
