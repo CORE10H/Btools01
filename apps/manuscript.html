@@ -221,26 +221,21 @@
      制作中と本棚の全作品を、キービジュアル（16:9 を優先）・概要・登場人物名・進み具合で並べる。読むだけ（保存しない） */
   .xr-sum { font-size: 11px; color: var(--text-faint); margin-left: auto; }
   .xr-note { font-size: 11px; color: var(--text-faint); padding: 8px 16px 0; flex-shrink: 0; }
-  .xr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 12px; }
-  .xr-card { position: relative; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-  .xr-top { display: flex; gap: 14px; padding: 12px 14px 0 12px; align-items: flex-start; }
-  .xr-thumb { width: 220px; aspect-ratio: 16 / 9; flex-shrink: 0; background: var(--bg-alt); border: 1px solid var(--line-soft); overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
-  .xr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .xr-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-  .xr-title { font-family: var(--font-book); font-size: 17px; font-weight: 600; color: var(--text); padding-right: 62px; word-break: break-word; }
+  /* 2026-11-14 ユーザーの希望で簡易版に：画像・概要・進み具合の帯をやめ、作品名と登場人物の名前だけを1行ずつ並べる */
+  .xr-list { display: flex; flex-direction: column; max-width: 1000px; border-top: 1px solid var(--line-soft); }
+  .xr-row { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 4px 16px; align-items: baseline; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+  .xr-row:hover { background: var(--panel); }
+  .xr-work { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .xr-work .stage-badge { font-size: 9.5px; padding: 1px 6px; }
+  .xr-title { background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-book); font-size: 14px; font-weight: 600; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .xr-title:hover { color: var(--cyan); text-decoration: underline; }
   .xr-title.is-untitled { color: var(--text-faint); font-weight: 400; }
-  .xr-card > .stage-badge { position: absolute; top: 10px; right: 10px; }
-  .xr-open { align-self: flex-start; margin-top: 2px; }
-  .xr-syn { font-size: 12.5px; line-height: 1.8; color: var(--text-dim); padding: 10px 14px 0 12px; white-space: pre-wrap; word-break: break-word; }
-  .xr-syn.is-none { color: var(--text-faint); font-style: italic; }
-  .xr-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 14px 12px 12px; margin-top: auto; }
-  .xr-people-label { font-size: 10.5px; color: var(--cyan); margin-right: 4px; }
-  .xr-name { background: var(--bg); border: 1px solid var(--line); color: var(--text); font-size: 12px; padding: 2px 9px; border-radius: 4px; word-break: break-word; }
+  .xr-pen { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; white-space: nowrap; }
+  .xr-people { font-size: 13px; line-height: 1.7; color: var(--text-dim); word-break: break-word; }
   .xr-none { font-size: 11px; color: var(--text-faint); }
   @media (max-width: 600px) {
-    .xr-top { flex-direction: column; gap: 10px; padding: 10px 10px 0; }
-    .xr-thumb { width: 100%; }
-    .xr-syn { padding: 8px 10px 0; } .xr-people { padding: 8px 10px 10px; }
+    .xr-row { grid-template-columns: minmax(0, 1fr); }
+    .xr-pen { display: none; }
     .xr-sum { margin-left: 0; flex-basis: 100%; }
   }
 
@@ -818,7 +813,7 @@
     <!-- 作品録（2026-11-13）：全作品の横断リスト。次回作の参考に、キービジュアル・概要・登場人物名・進み具合を並べる。読むだけ -->
     <section class="view" id="xrefView">
       <div class="toolbar" id="xrefToolbar">
-        <input type="search" class="search-input" id="xrefSearch" placeholder="検索（題名・概要・登場人物など）" title="題名・名義・シリーズ・概要・登場人物で検索">
+        <input type="search" class="search-input" id="xrefSearch" placeholder="検索（作品名・登場人物など）" title="作品名・名義・シリーズ・登場人物で検索">
         <select class="filter-select" id="xrefPen" aria-label="名義で絞り込み"></select>
         <button type="button" class="chip is-on" data-stage="all">すべて</button>
         <button type="button" class="chip" data-stage="idea">構想</button>
@@ -829,7 +824,7 @@
         <button type="button" class="btn" id="xrefCopyBtn">表示中をコピー</button>
         <span class="xr-sum" id="xrefSum"></span>
       </div>
-      <div class="xr-note">制作中と本棚の全作品です。この画面は読むだけです。直すときは「この作品を開く」から。登場人物は設定集のカテゴリ「人物」の名称です。</div>
+      <div class="xr-note">制作中と本棚の全作品の、作品名と登場人物（設定集のカテゴリ「人物」）です。作品名を押すと、その作品を開きます。</div>
       <div class="scroll-area" id="xrefList"></div>
     </section>
 
@@ -3231,7 +3226,7 @@
   let xrefStageFilter = 'all';
   let shownXrefList = [];
   const peopleOf = (w) => loreOf(w.id).filter((l) => l.kind === 'person').map((l) => l.name.trim()).filter(Boolean);
-  const xrefMatches = (w, q) => !q || [w.title, w.penName, w.series, w.id, w.synopsis, peopleOf(w).join(' ')].join(' ').toLowerCase().includes(q);
+  const xrefMatches = (w, q) => !q || [w.title, w.penName, w.series, w.id, peopleOf(w).join(' ')].join(' ').toLowerCase().includes(q);
   function renderXref() {
     fillPenSelect(xrefPen, works);
     const q = xrefSearch.value.trim().toLowerCase();
@@ -3246,42 +3241,23 @@
       return;
     }
     if (!list.length) { xrefListEl.innerHTML = `<div class="empty-state"><div class="big">条件に一致する作品はありません</div></div>`; return; }
-    xrefListEl.innerHTML = '<div class="xr-grid">' + list.map((w) => {
-      const thumbImg = framedImg(workThumbId(w), 16 / 9);
+    // 1作品1行（2026-11-14 簡易版）：段階の小さな印・作品名（押すと開く）・名義 ｜ 登場人物の名前（読点区切り）
+    xrefListEl.innerHTML = '<div class="xr-list">' + list.map((w) => {
       const st = stageOf(w);
       const untitled = !w.title.trim();
-      const p = progressOf(w);
-      const bar = p.steps.map((s, i) => {
-        const cls = s.done ? 'is-done' : [s.part ? 'is-part' : '', i === p.cur ? 'is-cur' : ''].join(' ').trim();
-        return `<i class="${cls}"${s.part ? ` style="--p:${Math.round(s.ratio * 100)}%"` : ''}></i>`;
-      }).join('');
       const ppl = peopleOf(w);
       const id = escapeHtml(w.id);
-      return `<article class="xr-card" data-id="${id}">
-        <div class="xr-top">
-          <button type="button" class="xr-thumb" data-xr-open="${id}" aria-label="「${escapeHtml(workDisplayTitle(w))}」を開く">${thumbImg || `<span class="wt-type" aria-hidden="true">${escapeHtml(untitled ? '？' : Array.from(w.title.trim())[0])}</span>`}</button>
-          <div class="xr-head">
-            <span class="xr-title${untitled ? ' is-untitled' : ''}">${escapeHtml(workDisplayTitle(w))}</span>
-            <span class="wr-meta">${w.penName ? `<span>${escapeHtml(w.penName)}</span>` : ''}${w.series ? `<span>${escapeHtml(w.series)}</span>` : ''}</span>
-            <span class="wr-prog" aria-hidden="true">${bar}</span>
-            ${p.next && !w.isBook ? `<span class="wr-next">${escapeHtml(p.next.text)}</span>` : ''}
-            <button type="button" class="btn small xr-open" data-xr-open="${id}">この作品を開く</button>
-          </div>
-        </div>
-        ${w.synopsis.trim() ? `<div class="xr-syn">${escapeHtml(w.synopsis.trim())}</div>` : '<div class="xr-syn is-none">概要なし</div>'}
-        <div class="xr-people"><span class="xr-people-label">登場人物</span>${ppl.length ? ppl.map((n) => `<span class="xr-name">${escapeHtml(n)}</span>`).join('') : '<span class="xr-none">設定集に人物がありません</span>'}</div>
-        <span class="stage-badge" data-stage="${st}">${STAGE_LABEL[st]}</span>
+      return `<article class="xr-row" data-id="${id}">
+        <div class="xr-work"><span class="stage-badge" data-stage="${st}">${STAGE_LABEL[st]}</span><button type="button" class="xr-title${untitled ? ' is-untitled' : ''}" data-xr-open="${id}" title="この作品を開く">${escapeHtml(workDisplayTitle(w))}</button>${w.penName ? `<span class="xr-pen">${escapeHtml(w.penName)}</span>` : ''}</div>
+        <div class="xr-people">${ppl.length ? ppl.map((n) => `<span class="xr-name">${escapeHtml(n)}</span>`).join('、') : '<span class="xr-none">（人物なし）</span>'}</div>
       </article>`;
     }).join('') + '</div>';
-    applyFrames(xrefListEl);
   }
-  // 表示中の作品を、次回作の相談でAIに貼れるテキストにする（画像は入らない）
+  // 表示中の作品を、作品名と登場人物のテキストにする（次回作の相談でAIに貼る）
   function xrefText(list) {
     return list.map((w) => {
-      const st = stageOf(w);
-      const meta = [w.penName, w.series ? 'シリーズ：' + w.series : '', st === 'book' ? '本棚' : STAGE_LABEL[st]].filter(Boolean).join('／');
       const ppl = peopleOf(w);
-      return `【${workDisplayTitle(w)}】（${meta}）\n概要：${w.synopsis.trim() || 'なし'}\n登場人物：${ppl.length ? ppl.join('、') : 'なし'}`;
+      return `【${workDisplayTitle(w)}】${w.penName ? '（' + w.penName + '）' : ''}\n登場人物：${ppl.length ? ppl.join('、') : 'なし'}`;
     }).join('\n\n');
   }
   xrefSearch.addEventListener('input', renderXref);
