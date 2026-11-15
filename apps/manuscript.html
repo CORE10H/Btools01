@@ -146,6 +146,24 @@
   .nr-body { font-size: 14px; line-height: 1.9; color: var(--text); white-space: pre-wrap; word-break: break-word; }
   .nr-body.is-empty { color: var(--text-faint); }
 
+  /* ネタ帳の検索・お気に入りだけ・置き換え（2026-11-15）。一致した語は青緑の面（注釈の琥珀・赤紫と見分ける）。
+     ネタの中を探す欄は、読む表示をスクロールしても上に残す */
+  .chip.fav-chip.is-on { border-color: var(--amber); color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, var(--panel)); }
+  .nh-cond { font-size: 11px; color: var(--text-dim); flex-basis: 100%; line-height: 1.7; }
+  .nh-cond b { color: var(--text); font-weight: 600; }
+  .nc-body mark, .nr-body mark.kw-hit { background: color-mix(in srgb, var(--cyan) 32%, transparent); color: var(--text); padding: 0 1px; border-radius: 2px; }
+  .nr-body mark.kw-hit.is-current { background: var(--cyan); color: var(--on-accent); }
+  .nr-find { position: sticky; top: -14px; z-index: 1; display: flex; gap: 6px; align-items: center; margin: -14px -18px 0; padding: 10px 18px 8px; background: var(--panel); border-bottom: 1px solid var(--line-soft); }
+  .nr-find .field-input { flex: 1; min-width: 0; padding: 6px 9px; font-size: 12px; }
+  .nr-find-stats { font-size: 11px; color: var(--text-dim); line-height: 1.7; margin-top: -4px; }
+  .nr-find-stats:empty { display: none; }
+  .nr-find-stats .miss { color: var(--amber); }
+  .nr-find-stats > span { white-space: nowrap; } /* 「1 / 4」や「「猫」2か所」を途中で折り返さない */
+  .nf-scope { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .nf-scope .field-select { flex: 1; min-width: 0; }
+  .fd-kind { font-size: 10px; color: var(--text-faint); margin-right: 6px; }
+  .nf-bulk { display: inline-flex; gap: 6px; margin-left: 8px; vertical-align: middle; }
+
   /* ===================== ジャンルカード・ネタの取り込み ===================== */
   .neta-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .nh-title { font-size: 14px; font-weight: 600; }
@@ -691,6 +709,7 @@
     .neta-card { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "fav body" "fav foot"; align-items: start; }
     .nc-fav { align-self: start; margin-top: -2px; }
     .find-row { grid-template-columns: 1fr; }
+    .fav-chip-txt { display: none; } /* 狭い画面では「★」だけ（検索・並び順と1行に収める） */
     .nc-foot { justify-content: flex-start; max-width: none; }
     .step-hint { padding-left: 40px; } /* 工程の説明はスマホでも出す（何をする工程かが導線になる。2026-11-06） */
     .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
@@ -727,6 +746,7 @@
             <button type="button" class="menu-panel-item" id="netaGenBtn">✦ ネタ出しのプロンプト<small>AIにネタを出してもらう。返事は「§ ネタを取り込む」へ</small></button>
             <button type="button" class="menu-panel-item" id="netaImportBtn">§ ネタを取り込む<small>§ と § で挟んだ文章をまとめて登録</small></button>
             <button type="button" class="menu-panel-item" id="genreAddBtn">＋ ジャンルを追加</button>
+            <button type="button" class="menu-panel-item" id="menuNetaReplace">⇄ 文字の置き換え<small>すべてのネタ・1つのジャンルの中の文字をまとめて置き換え</small></button>
             <button type="button" class="menu-panel-item" id="netaSelectBtn">☑ 選んで削除</button>
             <div class="menu-sep"></div>
           </div>
@@ -755,7 +775,10 @@
   <main class="app-body">
     <section class="view" id="netaView">
       <div class="toolbar">
-        <input type="search" class="search-input" id="netaSearch" placeholder="ネタを検索（全ジャンル・本文・タグ）">
+        <!-- 検索（2026-11-15〜）：スペースで区切った語を「すべて含む」ネタを出す。ジャンル一覧ではすべてのネタから、ジャンルの中ではそのジャンルから探す -->
+        <input type="search" class="search-input" id="netaSearch" placeholder="すべてのネタから探す（語はスペースで区切る）" aria-label="ネタを探す">
+        <!-- お気に入りだけ（2026-11-15）。範囲は検索と同じ。このページを開いている間だけ覚える -->
+        <button type="button" class="chip fav-chip" id="netaFavOnly" aria-pressed="false" aria-label="お気に入りだけ" title="お気に入りのネタだけを表示">★<span class="fav-chip-txt"> お気に入りだけ</span></button>
         <!-- 並び順（2026-11-05）。ネタのカードの並びだけを変える（ジャンルのカードは変えない）。端末ごとに覚える -->
         <select class="filter-select" id="netaSort" title="ネタの並び順" aria-label="ネタの並び順">
           <option value="updated-desc">更新が新しい順</option>
@@ -1193,6 +1216,14 @@
     <div class="modal-head"><span class="modal-title" id="netaModalTitle">ネタ</span><button type="button" class="modal-close" id="netaCloseBtn" aria-label="閉じる">✕</button></div>
     <!-- 読む表示（開いたときはこちら。2026-11-05） -->
     <div class="modal-body neta-read-only">
+      <!-- このネタの中を探す（2026-11-15）。語はスペースで区切る（すべての語の数を出す）。「置き換え」はこのネタを範囲にして開く -->
+      <div class="nr-find" role="search">
+        <input type="search" class="field-input" id="netaInQ" maxlength="300" placeholder="このネタの中を探す（語はスペースで区切る）" aria-label="このネタの中を探す">
+        <button type="button" class="btn small" id="netaInPrev" title="前の一致" aria-label="前の一致">▲</button>
+        <button type="button" class="btn small" id="netaInNext" title="次の一致" aria-label="次の一致">▼</button>
+        <button type="button" class="btn small" id="netaInRepBtn" title="このネタの文字を置き換える">置き換え</button>
+      </div>
+      <div class="nr-find-stats" id="netaInStats" aria-live="polite"></div>
       <div class="nr-meta" id="netaReadMeta"></div>
       <div class="nr-body" id="netaReadBody"></div>
     </div>
@@ -1279,6 +1310,29 @@
       <button type="button" class="btn small is-hidden" id="findUndoBtn" style="margin-right:auto">直前の置換を元に戻す</button>
       <button type="button" class="btn" id="findDoneBtn">閉じる</button>
       <button type="button" class="btn primary" id="findReplaceBtn">選んだ欄を置換</button>
+    </div>
+  </div>
+</div>
+
+<!-- ネタの文字の置き換え（2026-11-15）。範囲：すべてのネタ／1つのジャンル／1つのネタ（ネタを開いて「置き換え」を押したとき） -->
+<div class="modal-overlay" id="nfModal">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="nfModalTitle">
+    <div class="modal-head"><span class="modal-title" id="nfModalTitle">ネタの文字を置き換え</span><button type="button" class="modal-close" id="nfCloseBtn" aria-label="閉じる">✕</button></div>
+    <div class="modal-body">
+      <div class="nf-scope"><label for="nfScope">範囲</label><select class="field-select" id="nfScope"></select></div>
+      <div class="find-row">
+        <input type="text" class="field-input" id="nfQ" maxlength="200" placeholder="探す文字" aria-label="探す文字">
+        <input type="text" class="field-input" id="nfR" maxlength="2000" placeholder="置き換える文字（空なら消す）" aria-label="置き換える文字">
+      </div>
+      <label class="check-row"><input type="checkbox" id="nfCi">英字の大文字・小文字を区別しない</label>
+      <div class="field-hint">対象：ネタの本文とタグ。探す文字は、入れたとおりの1つのかたまりで探します（スペースも文字のうち）。置き換えたくないネタは、チェックを外してください。結果を押すと、そのネタを開きます。</div>
+      <div class="import-stats" id="nfStats"></div>
+      <div class="find-list" id="nfList"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn small is-hidden" id="nfUndoBtn" style="margin-right:auto">直前の置換を元に戻す</button>
+      <button type="button" class="btn" id="nfDoneBtn">閉じる</button>
+      <button type="button" class="btn primary" id="nfReplaceBtn">選んだネタを置換</button>
     </div>
   </div>
 </div>
@@ -1753,6 +1807,8 @@
   let editingLore = null;
   let editingGenre = null;
   let netaGenreView = null; // null=ジャンル一覧 / UNCAT=未分類 / ジャンルID
+  let netaFavOnly = false;  // ネタ帳の「お気に入りだけ」（2026-11-15。このページを開いている間だけ）
+  let netaGridScroll = 0;   // ジャンルを開く前のジャンル一覧のスクロール位置（戻ったときに元の場所へ）
   // 保存を待ってから閉じる画面の「閉じている途中」（2026-11-05）。SIDE-OPSの戻るボタン（テーマブリッジ）は
   // 「背景のクリック → Esc → ✕」と続けて試し、保存を待つ間は画面がまだ開いて見えるので、閉じる処理が重ねて呼ばれる。
   // 重なった分は何もしない（以前は2回目以降が空の編集中を読んでエラーになっていた）
@@ -2355,7 +2411,7 @@
   ===================================================================== */
   const netaUsageCount = (id) => works.filter((w) => w.netaIds.includes(id)).length;
   const genreNetaCount = (gid) => netaList.filter((n) => n.genreId === gid).length;
-  function netaCardHtml(n, showGenre) {
+  function netaCardHtml(n, showGenre, kws) {
     const used = netaUsageCount(n.id);
     const g = showGenre && n.genreId ? getGenre(n.genreId) : null;
     const pick = netaSelecting ? ` is-selectable${netaPicked.has(n.id) ? ' is-picked' : ''}" aria-pressed="${netaPicked.has(n.id)}` : '';
@@ -2363,7 +2419,7 @@
     const fav = !!n.fav && !netaSelecting, last = !netaSelecting && n.id === netaLastId;
     const star = netaSelecting ? '' : `<span class="nc-fav" data-fav="${escapeHtml(n.id)}" role="button" aria-pressed="${!!n.fav}" title="${n.fav ? 'お気に入りを外す' : 'お気に入りにする'}" aria-label="${n.fav ? 'お気に入りを外す' : 'お気に入りにする'}">${n.fav ? '★' : '☆'}</span>`;
     return `<button type="button" class="neta-card${pick}${fav ? ' is-fav' : ''}${last ? ' is-last' : ''}" data-id="${escapeHtml(n.id)}">${star}
-      <span class="nc-body">${escapeHtml(String(n.body).slice(0, 300))}</span>
+      <span class="nc-body">${kws && kws.length ? netaSnippetHtml(n.body, kws) : escapeHtml(String(n.body).slice(0, 300))}</span>
       <span class="nc-foot">${g ? `<span class="genre-pill">${escapeHtml(genreLabel(g))}</span>` : ''}${n.tags.slice(0, 4).map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
         <span>${escapeHtml(formatDateTime(n.updatedAt))}</span>${used ? `<span class="used-mark">作品 ${used}</span>` : ''}${last ? '<span class="last-mark">前回ここ</span>' : ''}</span>
     </button>`;
@@ -2395,14 +2451,73 @@
     const f = key === 'created' ? 'createdAt' : 'updatedAt';
     return list.slice().sort((a, b) => (dir === 'asc' ? t(a[f]) - t(b[f]) : t(b[f]) - t(a[f])) || tie(a, b));
   }
+  /* ---- 複数の語で探す（2026-11-15）----
+     スペース（全角も）で区切った語を「すべて含む」ネタを出す（AND）。語は入れたとおりの文字で探す（正規表現・あいまい検索にはしない）。
+     英字の大文字・小文字は区別しない（以前の検索と同じ）。対象は本文とタグ。
+     範囲：ジャンル一覧（ジャンルがなければ一覧そのもの）で探すとすべてのネタから、ジャンルの中で探すとそのジャンルから */
+  const KW_MAX = 10;
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function parseKeywords(s) {
+    const out = [];
+    String(s || '').split(/[\s　]+/).forEach((t) => {
+      const v = t.slice(0, 100);
+      if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
+    });
+    return out.slice(0, KW_MAX);
+  }
+  const keywordTesters = (kws) => kws.map((k) => new RegExp(escapeRe(k), 'iu'));
+  const netaHasAll = (n, testers) => { const text = n.body + '\n' + n.tags.join(' '); return testers.every((re) => re.test(text)); };
+  // 本文の中で語に一致した所（[始め, 終わり] の並び。重なりはまとめる＝長い語を先に試す）
+  function keywordRanges(text, kws) {
+    if (!kws.length || !text) return [];
+    const re = new RegExp(kws.slice().sort((a, b) => b.length - a.length).map(escapeRe).join('|'), 'giu');
+    const out = [];
+    let m;
+    while ((m = re.exec(text)) && out.length < 5000) out.push([m.index, m.index + m[0].length]);
+    return out;
+  }
+  // サロゲートペア（絵文字など）の途中で切らない
+  const safeCut = (text, i) => (i > 0 && i < text.length && /[\uDC00-\uDFFF]/.test(text[i]) ? i - 1 : i);
+  // text の [start, end) を、一致した所に <mark> を付けた HTML にする
+  function markedHtml(text, ranges, start, end) {
+    let out = '', pos = start;
+    for (const [a, b] of ranges) {
+      if (b <= start) continue;
+      if (a >= end) break;
+      const s = Math.max(a, start), e = Math.min(b, end);
+      out += escapeHtml(text.slice(pos, s)) + '<mark>' + escapeHtml(text.slice(s, e)) + '</mark>';
+      pos = e;
+    }
+    return out + escapeHtml(text.slice(pos, end));
+  }
+  // カードの本文：最初の一致が後ろの方にあれば、その少し前から見せる（カードは2行まで）
+  function netaSnippetHtml(body, kws) {
+    const text = String(body || '');
+    const ranges = keywordRanges(text, kws);
+    if (!ranges.length) return escapeHtml(text.slice(0, 300));
+    const first = ranges[0][0];
+    const start = first > 50 ? safeCut(text, first - 24) : 0;
+    const end = safeCut(text, Math.min(text.length, start + 300));
+    return (start ? '…' : '') + markedHtml(text, ranges, start, end);
+  }
+  // いまの絞り込み（語・お気に入りだけ）
+  function netaFilter() {
+    const kws = parseKeywords(netaSearch.value);
+    return { kws, testers: keywordTesters(kws), fav: netaFavOnly, on: kws.length > 0 || netaFavOnly };
+  }
+  const inNetaGenre = () => genres.length > 0 && netaGenreView !== null;
+  // 戻る操作で1段戻れる所にいるか（ジャンルの中・絞り込んだ一覧）。下の SideOpsBackLayers で1段に数える
+  const netaSubLevel = () => inNetaGenre() || netaFilter().on;
   // いま一覧に並んでいるネタ（選んだ並び順。ジャンルのカードを並べている間は null）
   function shownNeta() {
-    const q = netaSearch.value.trim().toLowerCase();
-    if (q) return sortNeta(netaList.filter((n) => (n.body + '\n' + n.tags.join(' ')).toLowerCase().includes(q)));
-    if (genres.length === 0) return sortNeta(netaList);
-    if (netaGenreView === null) return null;
-    const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
-    return sortNeta(netaList.filter((n) => n.genreId === (g ? g.id : '')));
+    const f = netaFilter();
+    let base;
+    if (inNetaGenre()) {
+      const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
+      base = netaList.filter((n) => n.genreId === (g ? g.id : ''));
+    } else if (genres.length === 0 || f.on) base = netaList;
+    else return null;
+    return sortNeta(f.on ? base.filter((n) => (!f.fav || n.fav) && netaHasAll(n, f.testers)) : base);
   }
   // 空のときの案内に置く「＋ 新規ネタ」（☰ の中にもある。はじめて使うときに迷わないように）
   const NETA_NEW_BTN = '<button type="button" class="btn small" data-act="neta-new">＋ 新規ネタ</button>';
@@ -2445,31 +2560,51 @@
     renderNeta();
   }
   const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M15 3l6 6-2 1-3 3 .5 5-1.5 1.5-4-4L6 20H4v-2l4.5-5-4-4L6 7.5l5 .5 3-3z"/></svg>';
+  // 絞り込みの条件の1行（「猫」「魔法」をすべて含む・★ お気に入りだけ（12件中））
+  function netaCondHtml(f, total) {
+    const parts = [];
+    if (f.kws.length) parts.push(f.kws.map((k) => `「<b>${escapeHtml(k)}</b>」`).join('') + (f.kws.length > 1 ? 'をすべて含む' : 'を含む'));
+    if (f.fav) parts.push('<b>★ お気に入り</b>だけ');
+    return `<span class="nh-cond">${parts.join('・')}（${total}件中）</span>`;
+  }
+  const netaFavBtn = $('netaFavOnly');
+  // 検索欄の案内と「お気に入りだけ」の見た目を、いまいる所（すべて／ジャンルの中）に合わせる
+  function updateNetaToolbar(inGenre) {
+    netaSearch.placeholder = inGenre ? 'このジャンルから探す（語はスペースで区切る）' : 'すべてのネタから探す（語はスペースで区切る）';
+    netaFavBtn.classList.toggle('is-on', netaFavOnly);
+    netaFavBtn.setAttribute('aria-pressed', String(netaFavOnly));
+    netaFavBtn.title = inGenre ? 'このジャンルのお気に入りだけを表示' : 'すべてのネタからお気に入りだけを表示';
+  }
   function renderNeta() {
-    const q = netaSearch.value.trim().toLowerCase();
+    if (genres.length === 0) netaGenreView = null;
     if (netaGenreView && netaGenreView !== UNCAT && !getGenre(netaGenreView)) netaGenreView = null;
+    const f = netaFilter();
+    const inGenre = inNetaGenre();
     // ジャンルのカードを並べている間は、ネタの並び順の代わりにジャンルの並び順を出す
-    const genreGrid = !q && genres.length > 0 && netaGenreView === null;
+    const genreGrid = !f.on && genres.length > 0 && !inGenre;
     genreSortEl.classList.toggle('is-hidden', !genreGrid);
     netaSortEl.classList.toggle('is-hidden', genreGrid);
+    updateNetaToolbar(inGenre);
+    viewEls.neta.classList.toggle('is-sublist', netaSubLevel()); // 戻る操作の1段（下の SideOpsBackLayers）
     updateNetaSelectBar();
     if (netaList.length === 0 && genres.length === 0) {
       netaListEl.innerHTML = `<div class="empty-state"><div class="big">ネタ帳はまだ空です</div><div class="small">右上の ☰ の「＋ 新規ネタ」で1つずつ書くか、「§ ネタを取り込む」で §〜§ で区切った文章をまとめて取り込めます。「＋ ジャンルを追加」でジャンルごとのカードに分けて管理できます。</div>${NETA_NEW_BTN}</div>`;
       return;
     }
-    // 検索中は全ジャンルを横断して表示
-    if (q) {
-      const hits = shownNeta();
-      netaListEl.innerHTML = hits.length ? '<div class="neta-grid">' + hits.map((n) => netaCardHtml(n, true)).join('') + '</div>'
-        : `<div class="empty-state"><div class="big">「${escapeHtml(q)}」に一致するネタはありません</div></div>`;
+    // すべてのネタから絞り込んだ一覧（ジャンル一覧で探した／お気に入りだけにした。ジャンルがなければ一覧そのもの）
+    if (!inGenre && (f.on || genres.length === 0)) {
+      const list = shownNeta();
+      if (!f.on) { netaListEl.innerHTML = '<div class="neta-grid">' + list.map((n) => netaCardHtml(n, false)).join('') + '</div>'; return; }
+      netaListEl.innerHTML = `<div class="neta-head">
+          ${genres.length ? '<button type="button" class="btn small" data-act="genre-back">← ジャンル一覧</button>' : ''}
+          <span class="nh-title">すべてのネタ</span><span class="nh-count">${list.length}</span>
+          <button type="button" class="btn small" data-act="filter-clear">条件を外す</button>
+          ${netaCondHtml(f, netaList.length)}
+        </div>` + (list.length ? '<div class="neta-grid">' + list.map((n) => netaCardHtml(n, genres.length > 0, f.kws)).join('') + '</div>'
+        : '<div class="empty-state"><div class="big">条件に合うネタはありません</div></div>');
       return;
     }
-    // ジャンルを1つも作っていない間は、これまでどおり全ネタを並べる
-    if (genres.length === 0) {
-      netaListEl.innerHTML = '<div class="neta-grid">' + shownNeta().map((n) => netaCardHtml(n, false)).join('') + '</div>';
-      return;
-    }
-    if (netaGenreView === null) {
+    if (!inGenre) {
       const uncat = genreNetaCount('');
       netaListEl.innerHTML = '<div class="genre-grid">' + genresForGrid().map((g) => {
         const img = framedImg(imgId(g.id, 'cover'), 16 / 9);
@@ -2487,15 +2622,37 @@
     }
     const g = netaGenreView === UNCAT ? null : getGenre(netaGenreView);
     const list = shownNeta();
+    const total = genreNetaCount(g ? g.id : '');
     netaListEl.innerHTML = `<div class="neta-head">
         <button type="button" class="btn small" data-act="genre-back">← ジャンル一覧</button>
         <span class="nh-title">${escapeHtml(g ? genreLabel(g) : '未分類')}</span><span class="nh-count">${list.length}</span>
         ${g && !netaSelecting ? '<button type="button" class="btn small" data-act="genre-edit">ジャンルを編集</button>' : ''}
+        ${f.on ? '<button type="button" class="btn small" data-act="filter-clear">条件を外す</button>' : ''}
+        ${f.on ? netaCondHtml(f, total) : ''}
         ${g && g.note.trim() ? `<span class="nh-note">${escapeHtml(g.note)}</span>` : ''}
-      </div>` + (list.length ? '<div class="neta-grid">' + list.map((n) => netaCardHtml(n, false)).join('') + '</div>'
+      </div>` + (list.length ? '<div class="neta-grid">' + list.map((n) => netaCardHtml(n, false, f.kws)).join('') + '</div>'
+      : f.on && total ? '<div class="empty-state"><div class="big">このジャンルには、条件に合うネタはありません</div></div>'
       : `<div class="empty-state"><div class="big">このジャンルにはまだネタがありません</div><div class="small">右上の ☰ の「＋ 新規ネタ」か「§ ネタを取り込む」で追加できます。</div>${netaSelecting ? '' : NETA_NEW_BTN}</div>`);
   }
+  // 絞り込み（語・お気に入りだけ）を外す。ジャンルを出るときも外す（ジャンル一覧に戻ったのに、すべてのネタの検索結果が出ないように）
+  function clearNetaFilter() { netaSearch.value = ''; netaFavOnly = false; }
+  function openNetaGenre(gid) {
+    netaGridScroll = netaListEl.scrollTop;
+    netaGenreView = gid;
+    clearNetaFilter();
+    renderNeta();
+    netaListEl.scrollTop = 0;
+  }
+  // ジャンル一覧へ戻る（「← ジャンル一覧」・スマホの戻るボタン）。ジャンルを開く前の位置へ
+  function backToGenreGrid() {
+    const wasInGenre = inNetaGenre();
+    netaGenreView = null;
+    clearNetaFilter();
+    renderNeta();
+    netaListEl.scrollTop = wasInGenre ? netaGridScroll : 0;
+  }
   netaSearch.addEventListener('input', renderNeta);
+  netaFavBtn.addEventListener('click', () => { if (!dbReady) return; netaFavOnly = !netaFavOnly; renderNeta(); netaListEl.scrollTop = 0; });
   netaListEl.addEventListener('click', (e) => {
     const pn = e.target.closest('[data-pin]');
     if (pn) { e.preventDefault(); if (!netaSelecting) toggleGenrePin(pn.dataset.pin); return; } // ピンはジャンルを開かない
@@ -2507,12 +2664,13 @@
     const gc = e.target.closest('.genre-card');
     if (gc) {
       if (gc.dataset.addGenre) { if (!netaSelecting) openGenreModal(null); }
-      else { netaGenreView = gc.dataset.gid; renderNeta(); netaListEl.scrollTop = 0; }
+      else openNetaGenre(gc.dataset.gid);
       return;
     }
     const act = e.target.closest('[data-act]');
     if (!act) return;
-    if (act.dataset.act === 'genre-back') { netaGenreView = null; renderNeta(); }
+    if (act.dataset.act === 'genre-back') backToGenreGrid();
+    else if (act.dataset.act === 'filter-clear') { clearNetaFilter(); renderNeta(); netaListEl.scrollTop = 0; }
     else if (act.dataset.act === 'genre-edit') { const g = getGenre(netaGenreView); if (g) openGenreModal(g); }
     else if (act.dataset.act === 'neta-new') { if (dbReady && !netaSelecting) openNetaModal(null); }
   });
@@ -2643,8 +2801,12 @@
     netaUsage.textContent = used ? `このネタを使っている作品：${used}件` : '';
     netaSaveInd.textContent = '入力は自動で保存されます';
     $('netaMakeWorkBtn').textContent = currentView === 'work' ? 'この作品に追加' : 'このネタで作品を作る';
+    // ネタ帳で語を入れて探していたら、その語をネタの中でも探して、最初の一致を見せる（2026-11-15）
+    netaInQ.value = currentView === 'neta' ? parseKeywords(netaSearch.value).join(' ') : '';
+    netaInCur = -1;
     netaModal.classList.add('is-open');
     setNetaReading(netaList.includes(n) && !!n.body.trim());
+    if (netaModalBox.classList.contains('is-reading') && netaInRanges.length) netaInGo(0);
   }
   /* ネタを開いたときは読む表示（2026-11-05）。書き換えるのは「編集」を押してから
      （スマホで開いただけでキーボードが出ない・うっかり書き換えない）。新しいネタと本文の空のネタは、書くために開くので最初から編集。
@@ -2659,14 +2821,75 @@
     n.tags.forEach((t) => add('tag-pill', t));
     const made = formatDateTime(n.createdAt), upd = formatDateTime(n.updatedAt);
     add('', [made && `作成 ${made}`, upd && `更新 ${upd}`].filter(Boolean).join('・'));
-    const body = $('netaReadBody');
-    body.textContent = '';
-    body.classList.toggle('is-empty', !n.body.trim());
-    if (n.body.trim()) appendAnnotated(body, n.body); // 注釈（[…]・〔〔…〕〕）は編集のときと同じ色で強調
-    else body.textContent = '（本文はありません。「編集」で書けます）';
+    renderNetaReadBody(n);
     const used = netaUsageCount(n.id);
     $('netaReadUsage').textContent = used ? `作品 ${used}件で使用中` : '';
   }
+  /* ---- このネタの中を探す（2026-11-15）----
+     読む表示の上の欄。スペースで区切った語ごとに、本文の中の数を出し、一致した所を青緑で塗る（注釈の色の上から）。
+     ▲▼ で一致した所を順に見る。タグにだけある語は「タグにあり」と出す */
+  const netaInQ = $('netaInQ'), netaInStats = $('netaInStats');
+  let netaInRanges = [], netaInCur = -1, netaInTimer = 0;
+  function renderNetaReadBody(n) {
+    const body = $('netaReadBody');
+    body.textContent = '';
+    body.classList.toggle('is-empty', !n.body.trim());
+    const kws = parseKeywords(netaInQ.value);
+    netaInRanges = n.body.trim() ? keywordRanges(n.body, kws) : [];
+    if (netaInCur >= netaInRanges.length) netaInCur = -1;
+    if (n.body.trim()) appendAnnotated(body, n.body, netaInRanges); // 注釈（[…]・〔〔…〕〕）は編集のときと同じ色で強調
+    else body.textContent = '（本文はありません。「編集」で書けます）';
+    if (netaInCur >= 0) markNetaInCurrent(false);
+    updateNetaInStats(n, kws);
+  }
+  function updateNetaInStats(n, kws) {
+    $('netaInPrev').disabled = $('netaInNext').disabled = netaInRanges.length === 0;
+    if (!kws.length) { netaInStats.textContent = ''; return; }
+    const parts = kws.map((k) => {
+      const re = new RegExp(escapeRe(k), 'giu');
+      let c = 0;
+      while (re.exec(n.body) && c < 5000) c++;
+      const inTag = !c && n.tags.some((t) => new RegExp(escapeRe(k), 'iu').test(t));
+      return { k, c, inTag };
+    });
+    const all = parts.every((p) => p.c || p.inTag);
+    const pos = netaInCur >= 0 && netaInRanges.length ? `　<span class="nr-find-pos">${netaInCur + 1} / ${netaInRanges.length}</span>` : '';
+    netaInStats.innerHTML = parts.map((p) => `<span class="${p.c || p.inTag ? '' : 'miss'}">「${escapeHtml(p.k)}」${p.c ? p.c + 'か所' : p.inTag ? 'タグにあり' : 'なし'}</span>`).join('・')
+      + (kws.length > 1 ? `　<b>${all ? 'すべての語が入っています' : '入っていない語があります'}</b>` : '') + pos;
+  }
+  // i 番目の一致を「いまの所」にして、見える所までスクロールする
+  function markNetaInCurrent(scroll) {
+    const body = $('netaReadBody');
+    body.querySelectorAll('mark.kw-hit.is-current').forEach((m) => m.classList.remove('is-current'));
+    const marks = body.querySelectorAll(`mark.kw-hit[data-hit="${netaInCur}"]`);
+    marks.forEach((m) => m.classList.add('is-current'));
+    if (scroll && marks[0]) marks[0].scrollIntoView({ block: 'center' });
+  }
+  function netaInGo(i) {
+    if (!netaInRanges.length || !editingNeta) return;
+    netaInCur = (i + netaInRanges.length) % netaInRanges.length;
+    markNetaInCurrent(true);
+    updateNetaInStats(editingNeta, parseKeywords(netaInQ.value));
+  }
+  netaInQ.addEventListener('input', () => {
+    clearTimeout(netaInTimer);
+    netaInTimer = setTimeout(() => { if (!editingNeta) return; netaInCur = -1; renderNetaReadBody(editingNeta); if (netaInRanges.length) netaInGo(0); }, 150);
+  });
+  netaInQ.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    clearTimeout(netaInTimer);
+    if (!editingNeta) return;
+    if (netaInCur < 0) renderNetaReadBody(editingNeta); // 入れた直後に Enter を押した
+    netaInGo(netaInCur + (e.shiftKey ? -1 : 1));
+  });
+  $('netaInPrev').addEventListener('click', () => netaInGo(netaInCur < 0 ? -1 : netaInCur - 1));
+  $('netaInNext').addEventListener('click', () => netaInGo(netaInCur + 1));
+  $('netaInRepBtn').addEventListener('click', () => {
+    const n = editingNeta;
+    if (!n || !netaList.includes(n)) { showToast('まだ保存されていないネタです。本文を書いてから使えます', true); return; }
+    openNfModal({ scope: 'n:' + n.id, netaId: n.id, q: parseKeywords(netaInQ.value)[0] || '' });
+  });
   function setNetaReading(reading) {
     const n = editingNeta;
     if (!n) return;
@@ -2757,6 +2980,211 @@
   });
 
   /* =====================================================================
+     ネタの文字の置き換え（2026-11-15）
+     範囲：すべてのネタ／1つのジャンル（未分類を含む）／1つのネタ（ネタを開いて「置き換え」を押したときだけ選べる）。
+     対象はネタの本文とタグ（タグは1つずつ置き換えてから、いつものタグの決まりで整える）。探す文字はそのまま（正規表現にしない・語に分けない）。
+     置換はネタごとに選べ、1つのトランザクションで書く（途中で失敗したら何も変えない）。更新日時は置換した時刻にする（中身を変えたため）。
+     「直前の置換を元に戻す」は、置換の後に書き換えたネタは戻さない（その後の編集を消さないように）。控えはこのページを開いている間だけ
+  ===================================================================== */
+  const nfModal = $('nfModal'), nfScope = $('nfScope'), nfQ = $('nfQ'), nfR = $('nfR'), nfCi = $('nfCi'), nfStats = $('nfStats'), nfList = $('nfList'), nfReplaceBtn = $('nfReplaceBtn'), nfUndoBtn = $('nfUndoBtn');
+  const NF_HITS_SHOWN = 3;          // 1つのネタに出す結果の数
+  const NF_MAX_PER_NETA = 5000;     // 1つのネタで数える上限（重くしない）
+  const NF_BODY_MAX = 2000000;      // 置き換えた後の本文の長さの上限（増えすぎるネタは置換しない）
+  let nfResult = null, nfTimer = 0, nfUndo = null, nfOneId = '';
+  const nfPicked = new Map(); // ネタのID → 置換するか（検索をやり直すまで選んだ状態を残す）
+  function nfScopeNeta(scope) {
+    if (scope === 'all') return netaList.slice();
+    if (scope.startsWith('g:')) { const gid = scope.slice(2); return netaList.filter((n) => n.genreId === (gid === UNCAT ? '' : gid)); }
+    if (scope.startsWith('n:')) { const n = getNeta(scope.slice(2)); return n ? [n] : []; }
+    return [];
+  }
+  function fillNfScope(selected) {
+    nfScope.innerHTML = '';
+    const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; nfScope.appendChild(o); };
+    add('all', `すべてのネタ（${netaList.length}件）`);
+    sortedGenres().forEach((g) => add('g:' + g.id, `ジャンル：${genreLabel(g)}（${genreNetaCount(g.id)}件）`));
+    if (genres.length) add('g:' + UNCAT, `未分類（${genreNetaCount('')}件）`);
+    const one = nfOneId ? getNeta(nfOneId) : null;
+    if (one) add('n:' + one.id, `このネタ：${netaHead(one)}`);
+    nfScope.value = Array.from(nfScope.options).some((o) => o.value === selected) ? selected : 'all';
+  }
+  const nfScopeLabel = () => { const o = nfScope.options[nfScope.selectedIndex]; return o ? o.textContent.replace(/（\d+件）$/, '') : ''; };
+  // 1つのネタの中で一致した所（本文・タグごと）
+  function nfHitsOf(n, re) {
+    const hits = [];
+    const scan = (field, value, idx) => {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(value)) && hits.length < NF_MAX_PER_NETA) hits.push({ field, idx, value, pos: m.index, len: m[0].length });
+    };
+    scan('body', n.body, 0);
+    n.tags.forEach((t, i) => scan('tag', t, i));
+    return hits;
+  }
+  function runNf() {
+    const q = nfQ.value;
+    if (!q) { nfResult = null; nfStats.textContent = '探す文字を入れてください'; nfList.innerHTML = ''; updateNfButtons(); return; }
+    if (!nfResult || nfResult.q !== q || nfResult.ci !== nfCi.checked || nfResult.scope !== nfScope.value) nfPicked.clear(); // 探し直したら、選択は全部に戻す
+    const re = findRegex(q, nfCi.checked);
+    const groups = [];
+    for (const n of sortNeta(nfScopeNeta(nfScope.value))) {
+      const hits = nfHitsOf(n, re);
+      if (hits.length) groups.push({ n, hits });
+    }
+    nfResult = { q, ci: nfCi.checked, scope: nfScope.value, groups };
+    const total = groups.reduce((s, g) => s + g.hits.length, 0);
+    nfStats.innerHTML = total
+      ? `<strong>${total}か所</strong>（ネタ${groups.length}件）見つかりました` + (groups.length > 1 ? '<span class="nf-bulk"><button type="button" class="btn small" data-nfall="1">すべて選ぶ</button><button type="button" class="btn small" data-nfall="0">すべて外す</button></span>' : '')
+      : `「${escapeHtml(q)}」は見つかりません（範囲：${escapeHtml(nfScopeLabel())}）`;
+    const showGenre = genres.length > 0 && nfScope.value === 'all'; // ジャンル・1つのネタが範囲なら、どれも同じなので出さない
+    nfList.innerHTML = groups.map(({ n, hits }) => {
+      const on = nfPicked.has(n.id) ? nfPicked.get(n.id) : true;
+      const g = n.genreId ? getGenre(n.genreId) : null;
+      const hitsHtml = hits.slice(0, NF_HITS_SHOWN).map((h) => {
+        // 一致の前は12字まで（スマホの幅でも、一致が行末の … に隠れないように）
+        const v = h.value, a = safeCut(v, Math.max(0, h.pos - 12)), b = safeCut(v, Math.min(v.length, h.pos + h.len + 48));
+        const snip = (a ? '…' : '') + escapeHtml(v.slice(a, h.pos).replace(/\s+/g, ' ')) + '<mark>' + escapeHtml(v.slice(h.pos, h.pos + h.len)) + '</mark>' + escapeHtml(v.slice(h.pos + h.len, b).replace(/\s+/g, ' ')) + (b < v.length ? '…' : '');
+        return `<button type="button" class="fd-hit" data-nid="${escapeHtml(n.id)}" data-field="${h.field}" data-idx="${h.idx}" data-pos="${h.pos}" data-len="${h.len}"><span class="fd-kind">${h.field === 'tag' ? 'タグ' : '本文'}</span>${snip}</button>`;
+      }).join('');
+      return `<div class="fd-group"><label class="fd-head"><input type="checkbox" data-nfpick="${escapeHtml(n.id)}"${on ? ' checked' : ''}><span class="fd-label">${escapeHtml(netaHead(n))}</span>`
+        + (showGenre ? `<span class="genre-pill">${escapeHtml(g ? genreLabel(g) : '未分類')}</span>` : '')
+        + `<span class="fd-count">${hits.length}か所</span></label>${hitsHtml}${hits.length > NF_HITS_SHOWN ? `<div class="fd-more">ほか ${hits.length - NF_HITS_SHOWN}か所</div>` : ''}</div>`;
+    }).join('');
+    updateNfButtons();
+  }
+  const pickedNfGroups = () => (nfResult ? nfResult.groups.filter((g) => (nfPicked.has(g.n.id) ? nfPicked.get(g.n.id) : true)) : []);
+  function updateNfButtons() {
+    const gs = pickedNfGroups();
+    const n = gs.reduce((s, g) => s + g.hits.length, 0);
+    nfReplaceBtn.disabled = n === 0;
+    nfReplaceBtn.textContent = n ? `選んだネタ${gs.length}件の ${n}か所を置換` : '選んだネタを置換';
+    nfUndoBtn.classList.toggle('is-hidden', !nfUndo);
+  }
+  // 開いているネタの入力を保存し、画面の記録にも入れておく（置換・数え直しが、打ったばかりの文字を見落とさないように）
+  async function settleEditingNeta() {
+    if (!editingNeta) return;
+    await netaSaver.flush();
+    if (netaList.includes(editingNeta)) readNetaForm(editingNeta);
+  }
+  // opts：scope（'all' / 'g:<ジャンルID>' / 'n:<ネタID>'）・netaId（「このネタ」を選べるようにするネタ）・q（探す文字の下書き）
+  async function openNfModal(opts) {
+    if (!dbReady) return;
+    const o = opts || {};
+    await settleEditingNeta();
+    nfOneId = o.netaId && getNeta(o.netaId) ? o.netaId : '';
+    fillNfScope(o.scope || 'all');
+    if (o.q) nfQ.value = o.q;
+    nfModal.classList.add('is-open');
+    runNf();
+    setTimeout(() => { nfQ.focus(); nfQ.select(); }, 0);
+  }
+  function closeNfModal() { nfModal.classList.remove('is-open'); clearTimeout(nfTimer); }
+  $('menuNetaReplace').addEventListener('click', () => {
+    if (netaSelecting) return;
+    const kws = parseKeywords(netaSearch.value);
+    openNfModal({ scope: inNetaGenre() ? 'g:' + netaGenreView : 'all', q: kws.length === 1 ? kws[0] : '' });
+  });
+  $('nfCloseBtn').addEventListener('click', closeNfModal);
+  $('nfDoneBtn').addEventListener('click', closeNfModal);
+  nfModal.addEventListener('click', (e) => { if (e.target === nfModal) closeNfModal(); });
+  nfQ.addEventListener('input', () => { clearTimeout(nfTimer); nfTimer = setTimeout(runNf, 200); });
+  nfQ.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); clearTimeout(nfTimer); runNf(); } });
+  nfCi.addEventListener('change', runNf);
+  nfScope.addEventListener('change', runNf);
+  nfList.addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-nfpick]');
+    if (cb) { nfPicked.set(cb.dataset.nfpick, cb.checked); updateNfButtons(); }
+  });
+  nfStats.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-nfall]');
+    if (!b || !nfResult) return;
+    const on = b.dataset.nfall === '1';
+    nfResult.groups.forEach((g) => nfPicked.set(g.n.id, on));
+    nfList.querySelectorAll('[data-nfpick]').forEach((cb) => { cb.checked = on; });
+    updateNfButtons();
+  });
+  // 結果を押すと、そのネタを編集の表示で開いて、一致した文字を選ぶ
+  nfList.addEventListener('click', async (e) => {
+    const b = e.target.closest('.fd-hit');
+    if (!b || !nfResult) return;
+    const n = getNeta(b.dataset.nid);
+    if (!n) return;
+    closeNfModal();
+    if (editingNeta && editingNeta !== n) await closeNetaModal();
+    if (editingNeta !== n) openNetaModal(n);
+    setNetaReading(false);
+    const pos = Number(b.dataset.pos), len = Number(b.dataset.len), idx = Number(b.dataset.idx);
+    if (b.dataset.field === 'tag') {
+      // タグの欄は「a, b, c」と並べて出しているので、その中での位置に直す
+      const before = n.tags.slice(0, idx).reduce((s, t) => s + t.length + 2, 0);
+      focusMatch(netaTags, before + pos, len);
+    } else focusMatch(netaBody, pos, len);
+  });
+  // 置換・取り消しの後に、開いているネタの欄・読む表示・一覧を出し直す
+  function afterNfWrite() {
+    netaList.sort((a, b) => b.updatedAt - a.updatedAt);
+    if (editingNeta && netaList.includes(editingNeta)) {
+      netaBody.value = editingNeta.body;
+      netaTags.value = editingNeta.tags.join(', ');
+      if (netaModalBox.classList.contains('is-reading')) renderNetaRead(editingNeta);
+    }
+    afterNetaChangeInEditor();
+    renderAll();
+    if (nfModal.classList.contains('is-open')) { fillNfScope(nfScope.value); runNf(); }
+    else updateNfButtons();
+  }
+  const sameTags = (a, b) => a.join('\n') === b.join('\n');
+  nfReplaceBtn.addEventListener('click', async () => {
+    await settleEditingNeta();
+    runNf(); // 押した時点の中身で数え直す
+    const gs = pickedNfGroups();
+    if (!gs.length) return;
+    const q = nfResult.q, r = nfR.value;
+    const re = findRegex(q, nfResult.ci);
+    const plan = [], tooLong = [];
+    for (const { n } of gs) {
+      const body = n.body.replace(re, () => r); // $& などの特別な書き方は使わない（そのままの文字に置き換える）
+      const tags = parseTags(n.tags.map((t) => t.replace(re, () => r)).join(','));
+      if (body === n.body && sameTags(tags, n.tags)) continue; // 置き換えても変わらない（同じ文字に置き換えた）
+      if (body.length > NF_BODY_MAX) tooLong.push(netaHead(n));
+      else plan.push({ n, body, tags, count: nfHitsOf(n, re).length });
+    }
+    if (!plan.length) { showToast(tooLong.length ? `置き換えると長すぎるネタしかないため、置換しませんでした（${tooLong.join('・')}）` : '置き換えても中身が変わりません', true); return; }
+    const cnt = plan.reduce((s, p) => s + p.count, 0);
+    const what = r ? `「${q}」を「${r}」に置き換えます` : `「${q}」を消します（空の文字に置き換えます）`;
+    const msg = `${what}。\n範囲：${nfScopeLabel()}\n${cnt}か所（ネタ${plan.length}件）が変わります。`
+      + (tooLong.length ? `\n置き換えると長すぎるネタ（${tooLong.join('・')}）は置換しません。` : '')
+      + (r && /[,、，\s]/.test(r) && plan.some((p) => !sameTags(p.tags, p.n.tags)) ? '\nタグの中の「、」やスペースは区切りになるため、タグが分かれることがあります。' : '')
+      + '\n「直前の置換を元に戻す」で元に戻せます（このページを開いている間）。';
+    if (!(await ask(msg, { ok: r ? '置き換える' : '消す', danger: !r }))) return;
+    // 写しに書いて保存し、保存できてから画面の記録に反映する（失敗したら何も変えない）
+    const now = Date.now();
+    const copies = plan.map((p) => ({ p, value: Object.assign({}, p.n, { body: p.body, tags: p.tags, updatedAt: now }) }));
+    try { await putMany(copies.map((c) => ({ store: S.neta, value: c.value }))); }
+    catch (err) { console.error('ネタの置換の保存に失敗しました', err); showToast('保存できなかったため、何も変えていません', true); return; }
+    nfUndo = { q, r, entries: plan.map((p) => ({ id: p.n.id, before: { body: p.n.body, tags: p.n.tags.slice() }, after: { body: p.body, tags: p.tags.slice() } })) };
+    copies.forEach((c) => Object.assign(c.p.n, c.value));
+    afterNfWrite();
+    showToast(`${cnt}か所（ネタ${plan.length}件）を置き換えました`);
+  });
+  nfUndoBtn.addEventListener('click', async () => {
+    if (!nfUndo) return;
+    await settleEditingNeta();
+    const ok = nfUndo.entries.filter((e) => { const n = getNeta(e.id); return n && n.body === e.after.body && sameTags(n.tags, e.after.tags); });
+    const skipped = nfUndo.entries.length - ok.length;
+    if (!ok.length) { nfUndo = null; updateNfButtons(); showToast('元に戻せるネタがありません（置換の後に書き換えたか、消したため）', true); return; }
+    if (!(await ask(`直前の置換（「${nfUndo.q}」→「${nfUndo.r}」）を元に戻します。ネタ${ok.length}件が戻ります。` + (skipped ? `\n置換の後に書き換えた（または消した）${skipped}件は戻しません。` : ''), { ok: '元に戻す' }))) return;
+    const now = Date.now();
+    const copies = ok.map((e) => { const n = getNeta(e.id); return { n, value: Object.assign({}, n, { body: e.before.body, tags: e.before.tags.slice(), updatedAt: now }) }; });
+    try { await putMany(copies.map((c) => ({ store: S.neta, value: c.value }))); }
+    catch (err) { console.error('ネタの置換の取り消しに失敗しました', err); showToast('保存できなかったため、元に戻せませんでした', true); return; }
+    copies.forEach((c) => Object.assign(c.n, c.value));
+    nfUndo = null;
+    afterNfWrite();
+    showToast(`置換を元に戻しました（ネタ${ok.length}件）` + (skipped ? `。${skipped}件は置換の後に書き換えていたので、そのままです` : ''));
+  });
+
+  /* =====================================================================
      ジャンル（ネタをまとめるカード。表紙は16:9）
   ===================================================================== */
   const genreModal = $('genreModal'), genreName = $('genreName'), genreNote = $('genreNote'), genreSaveInd = $('genreSaveInd'), genreUsage = $('genreUsage');
@@ -2841,7 +3269,7 @@
     if (images.has(iid) && await delSafe(S.images, iid)) { images.delete(iid); dropUrl(iid); }
     if (!(await delSafe(S.genres, g.id))) { showToast('削除に失敗しました', true); return; }
     genres = genres.filter((x) => x !== g);
-    if (netaGenreView === g.id) netaGenreView = null;
+    if (netaGenreView === g.id) { netaGenreView = null; clearNetaFilter(); }
     editingGenre = null;
     genreModal.classList.remove('is-open');
     renderAll();
@@ -3004,7 +3432,7 @@
     niText.value = '';
     closeNetaImport();
     netaGenreView = genres.length ? (gid || UNCAT) : null;
-    netaSearch.value = '';
+    clearNetaFilter(); // 取り込んだネタが絞り込みで隠れないように
     renderAll();
     updateBackupAlert();
     const g = getGenre(gid);
@@ -4524,18 +4952,37 @@
   ['wPlot', 'wSynopsis', 'wKvPrompt', 'chFinal', 'chImgPrompt', 'chSummary', 'chBody', 'chOutline', 'loreBody', 'loreImgPrompt', 'netaBody'].forEach((id) => setupHighlight($(id)));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => hlAll.forEach((h) => hlSchedule(h, true))); // 字体が読み込まれると幅が変わる
   // 閲覧の画面：文字を注釈とそれ以外に分けて入れる（textContent と span だけで組む）
-  function appendAnnotated(el, text) {
-    let last = 0, m;
+  //   hits（2026-11-15〜。ネタの中を探す）：[始め, 終わり] の並び。その所を <mark class="kw-hit" data-hit="番号"> で包む
+  //   （注釈をまたぐ一致は、注釈の内と外で2つの mark に分かれる。番号は同じ）
+  function appendAnnotated(el, text, hits) {
+    let last = 0, m, hi = 0;
+    const put = (parent, a, b) => {
+      if (!hits || !hits.length) { parent.appendChild(document.createTextNode(text.slice(a, b))); return; }
+      let pos = a;
+      while (hi > 0 && hits[hi - 1][1] > a) hi--; // 前の区切りから続く一致
+      for (let i = hi; i < hits.length; i++) {
+        const [s0, e0] = hits[i];
+        if (e0 <= a) { hi = i + 1; continue; }
+        if (s0 >= b) break;
+        const s = Math.max(s0, a), e = Math.min(e0, b);
+        if (s > pos) parent.appendChild(document.createTextNode(text.slice(pos, s)));
+        const mk = document.createElement('mark');
+        mk.className = 'kw-hit'; mk.dataset.hit = String(i); mk.textContent = text.slice(s, e);
+        parent.appendChild(mk);
+        pos = e;
+      }
+      if (pos < b) parent.appendChild(document.createTextNode(text.slice(pos, b)));
+    };
     ANNOT_RE.lastIndex = 0;
     while ((m = ANNOT_RE.exec(text))) {
-      if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+      if (m.index > last) put(el, last, m.index);
       const s = document.createElement('span');
       s.className = 'rt-an-' + annotKind(m[0]);
-      s.textContent = m[0];
+      put(s, m.index, m.index + m[0].length);
       el.appendChild(s);
       last = m.index + m[0].length;
     }
-    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+    if (last < text.length) put(el, last, text.length);
   }
   // 完成稿に注釈が残ったまま書き出す・登録する・コピーするときの確認（止めはしない）
   async function confirmAnnotations(w, chs, question, okLabel) {
@@ -5452,6 +5899,7 @@
     if (tplModal.classList.contains('is-open')) { closeTplModal(); return; }
     if (importModal.classList.contains('is-open')) { closeImportModal(); return; }
     if (findModal.classList.contains('is-open')) { closeFindModal(); return; }
+    if (nfModal.classList.contains('is-open')) { closeNfModal(); return; }
     if (asModal.classList.contains('is-open')) { closeAssetsModal(); return; }
     if (loreModal.classList.contains('is-open')) { closeLoreModal(); return; }
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
@@ -5466,8 +5914,20 @@
   // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：ネタ帳の「選んで削除」の途中も1段として数え、
   // 戻るで選ぶのをやめる（いちばん手前の層には Esc を送る仕組みなので、上の Esc でやめる）。前半はブリッジの既定と同じ。
   // 開いた ☰ も1段に数え、戻るで ☰ だけを閉じる（2026-11-05。ネタ帳の操作を ☰ に移したので、開く機会が増えた）
+  // 2026-11-15〜 ネタ帳の「ジャンルの中」と「絞り込んだ一覧」（検索・お気に入りだけ）も1段に数え、戻るでジャンル一覧へ戻す
+  //   （ネタを開いていれば、まずネタを閉じる＝ネタ → ネタの一覧 → ジャンル一覧 → アプリを閉じる、の順）
   window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
-    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #worksSelectBar, #menuPanel.is-open, #chGearMenu.is-open';
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #worksSelectBar, #menuPanel.is-open, #chGearMenu.is-open, '
+    + '#netaView.is-active.is-sublist';
+  // 戻るが届いたとき：ネタ帳の段より手前に何か開いていれば（モーダル・☰・選んで削除の途中など）、いつもの閉じ方に任せる
+  window.SideOpsBack = () => {
+    if (currentView !== 'neta' || !viewEls.neta.classList.contains('is-sublist')) return false;
+    const shown = (el) => el.getClientRects().length > 0;
+    const above = Array.from(document.querySelectorAll(window.SideOpsBackLayers)).filter((el) => el !== viewEls.neta && shown(el));
+    if (above.length) return false;
+    backToGenreGrid();
+    return true;
+  };
   const flushAll = () => { netaSaver.flush(); loreSaver.flush(); genreSaver.flush(); workSaver.flush(); };
   window.addEventListener('beforeunload', (e) => {
     if (netaSaver.pending || loreSaver.pending || genreSaver.pending || workSaver.pending) { flushAll(); e.preventDefault(); e.returnValue = ''; }
