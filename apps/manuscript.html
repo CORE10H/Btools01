@@ -251,6 +251,20 @@
   .xr-pen { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; white-space: nowrap; }
   .xr-people { font-size: 13px; line-height: 1.7; color: var(--text-dim); word-break: break-word; }
   .xr-none { font-size: 11px; color: var(--text-faint); }
+  /* 名前の重なり（2026-11-15）：ほかの作品と重なる名前の右に、重なった作品の数のバッジ。合わせる（スマホは押す）と一覧が浮かぶ */
+  .xr-name { white-space: nowrap; }
+  .xr-dup { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; margin-left: 3px; vertical-align: 1px; border-radius: 9px; border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); font-family: var(--font-display); font-size: 10.5px; font-weight: 700; line-height: 1; cursor: help; }
+  .xr-dup.is-same { background: var(--amber); color: var(--on-accent); }
+  .xr-dup:hover, .xr-dup:focus-visible, .xr-dup[aria-expanded="true"] { outline: 2px solid color-mix(in srgb, var(--amber) 55%, transparent); outline-offset: 1px; }
+  .xr-pop { position: fixed; z-index: 60; display: none; max-width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; background: var(--panel-hi); border: 1px solid var(--amber); box-shadow: 0 6px 20px rgba(var(--scrim-rgb), .5); padding: 8px 10px; font-size: 12px; color: var(--text); }
+  .xr-pop.is-open { display: block; }
+  .xp-head { font-size: 11px; color: var(--amber); font-weight: 600; margin-bottom: 6px; }
+  .xp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 4px 0; border-top: 1px solid var(--line-soft); }
+  .xp-work { font-family: var(--font-book); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .xp-names { grid-column: 1 / -1; color: var(--text-dim); }
+  .xp-kind { font-size: 10px; color: var(--text-faint); }
+  .xp-kind.is-same { color: var(--amber); }
+  .xr-dup-note { font-size: 11px; color: var(--text-faint); }
   @media (max-width: 600px) {
     .xr-row { grid-template-columns: minmax(0, 1fr); }
     .xr-pen { display: none; }
@@ -2343,6 +2357,7 @@
   const TAB_OF_VIEW = { neta: 'neta', works: 'works', shelf: 'shelf', xref: 'xref', templates: 'templates', reader: 'shelf' };
   function showView(name) {
     currentView = name;
+    const xp = document.getElementById('xrefPop'); if (xp && xp.classList.contains('is-open')) hideXrefPop(); // 作品録の重なりの一覧は、画面を移ったら消す
     if (name !== 'neta' && netaSelecting) { netaSelecting = false; netaPicked.clear(); primaryActionBtn.disabled = false; } // ほかの画面へ移ったら選ぶのをやめる
     if (name !== 'works' && worksSelecting) { worksSelecting = false; worksPicked.clear(); primaryActionBtn.disabled = false; worksSelectBar.classList.add('is-hidden'); }
     Object.keys(viewEls).forEach((k) => viewEls[k].classList.toggle('is-active', k === name));
@@ -3655,7 +3670,58 @@
   let shownXrefList = [];
   const peopleOf = (w) => loreOf(w.id).filter((l) => l.kind === 'person').map((l) => l.name.trim()).filter(Boolean);
   const xrefMatches = (w, q) => !q || [w.title, w.penName, w.series, w.id, peopleOf(w).join(' ')].join(' ').toLowerCase().includes(q);
+  /* ---- 名前の重なり（2026-11-15）----
+     全作品の登場人物（設定集の「人物」）どうしを比べ、ほかの作品の人物と重なる名前に、重なった作品の数を付ける。同じ作品の中どうしは数えない。
+     比べ方（部分一致。ユーザーの希望「名字だけ・名前だけでもよい」）：全角・半角／大文字・小文字をそろえ（NFKC）、
+       1) まったく同じ名前 → 同じ名前
+       2) 空白・「・」「＝」などで区切った部分が1つでも同じ（「真白 奏」と「真白 葵」）→ 部分一致
+       3) 区切りを除いて2文字以上の名前が、もう一方に丸ごと含まれる（「白鷺」と「白鷺透」）→ 部分一致
+     1文字の名前（「澪」）は 2) の「部分がまったく同じ」ときだけ（「澪標」などにまで当たって印だらけにならないように）。
+     作品録を出すたびに作り直す（保存しない） */
+  const NAME_SEP = /[\s・･=＝·,，、/／]+/u;
+  function nameInfo(name) {
+    const key = name.normalize('NFKC').toLowerCase().trim();
+    const tokens = key.split(NAME_SEP).filter(Boolean);
+    return { key, tokens, flat: tokens.join('') };
+  }
+  function nameOverlap(a, b) {
+    if (a.flat === b.flat) return 'same';
+    if (a.tokens.some((t) => b.tokens.includes(t))) return 'part';
+    const [s, l] = a.flat.length <= b.flat.length ? [a, b] : [b, a];
+    if (Array.from(s.flat).length >= 2 && l.flat.includes(s.flat)) return 'part';
+    return null;
+  }
+  // 戻り値：Map<"作品ID\u0000名前", [{ workId, names: [{ name, kind }] }]>（重なった相手を作品ごとに）
+  function buildNameOverlaps() {
+    const all = [];
+    works.forEach((w) => peopleOf(w).forEach((name) => all.push({ workId: w.id, name, info: nameInfo(name) })));
+    const map = new Map();
+    for (const p of all) {
+      const key = p.workId + '\u0000' + p.name;
+      if (map.has(key)) continue; // 同じ作品に同じ名前が2つ（設定集の重複）でも1回だけ数える
+      const byWork = new Map();
+      for (const o of all) {
+        if (o.workId === p.workId) continue;
+        const kind = nameOverlap(p.info, o.info);
+        if (!kind) continue;
+        if (!byWork.has(o.workId)) byWork.set(o.workId, []);
+        const arr = byWork.get(o.workId);
+        if (!arr.some((x) => x.name === o.name)) arr.push({ name: o.name, kind });
+      }
+      if (byWork.size) map.set(key, Array.from(byWork, ([workId, names]) => ({ workId, names })));
+    }
+    return map;
+  }
+  let xrefOverlaps = new Map();
+  const xrefPop = document.createElement('div');
+  xrefPop.className = 'xr-pop'; xrefPop.id = 'xrefPop'; xrefPop.setAttribute('role', 'tooltip');
+  document.body.appendChild(xrefPop);
+  let xrefPopFor = null;
+  let xrefPointer = 'mouse'; // 最後に押したのがマウスか指か（押したときの出し方を変える）
+  xrefListEl.addEventListener('pointerdown', (e) => { xrefPointer = e.pointerType || 'mouse'; });
   function renderXref() {
+    hideXrefPop();
+    xrefOverlaps = buildNameOverlaps();
     fillPenSelect(xrefPen, works);
     const q = xrefSearch.value.trim().toLowerCase();
     const pen = xrefPen.value;
@@ -3677,7 +3743,12 @@
       const id = escapeHtml(w.id);
       return `<article class="xr-row" data-id="${id}">
         <div class="xr-work"><span class="stage-badge" data-stage="${st}">${STAGE_LABEL[st]}</span><button type="button" class="xr-title${untitled ? ' is-untitled' : ''}" data-xr-open="${id}" title="この作品を開く">${escapeHtml(workDisplayTitle(w))}</button>${w.penName ? `<span class="xr-pen">${escapeHtml(w.penName)}</span>` : ''}</div>
-        <div class="xr-people">${ppl.length ? ppl.map((n) => `<span class="xr-name">${escapeHtml(n)}</span>`).join('、') : '<span class="xr-none">（人物なし）</span>'}</div>
+        <div class="xr-people">${ppl.length ? ppl.map((n) => {
+          const ov = xrefOverlaps.get(w.id + '\u0000' + n);
+          const same = ov && ov.some((x) => x.names.some((y) => y.kind === 'same'));
+          const badge = ov ? `<button type="button" class="xr-dup${same ? ' is-same' : ''}" data-dup-work="${id}" data-dup-name="${escapeHtml(n)}" aria-expanded="false" aria-label="ほかの${ov.length}作品と重なる名前（一覧を出す）">${ov.length}</button>` : '';
+          return `<span class="xr-name">${escapeHtml(n)}${badge}</span>`;
+        }).join('、') : '<span class="xr-none">（人物なし）</span>'}</div>
       </article>`;
     }).join('') + '</div>';
   }
@@ -3702,9 +3773,50 @@
     if (await copyText(xrefText(shownXrefList))) showToast(`${shownXrefList.length}作品をコピーしました`);
   });
   xrefListEl.addEventListener('click', (e) => {
+    const dup = e.target.closest('.xr-dup');
+    if (dup) {
+      e.preventDefault();
+      // マウスは合わせた時点で出ているので、押しても出したまま。指（スマホ）は押すと出し、もう一度押すと消す
+      if (xrefPointer !== 'mouse' && xrefPopFor === dup && xrefPop.classList.contains('is-open')) hideXrefPop(); else showXrefPop(dup);
+      return;
+    }
     const b = e.target.closest('[data-xr-open]');
     if (b && dbReady) openWork(b.dataset.xrOpen, 'xref');
   });
+  // 重なりの一覧（浮かぶ箱 #xrefPop。作品録の上で作る）。PCはバッジに合わせると出て、離すと消える。キーボードはフォーカスで出す。
+  // Esc・戻るボタン・スクロール・画面の切り替えで消える
+  function showXrefPop(btn) {
+    const ov = xrefOverlaps.get(btn.dataset.dupWork + '\u0000' + btn.dataset.dupName);
+    if (!ov) return;
+    if (xrefPopFor && xrefPopFor !== btn) xrefPopFor.setAttribute('aria-expanded', 'false');
+    xrefPopFor = btn;
+    btn.setAttribute('aria-expanded', 'true');
+    xrefPop.innerHTML = `<div class="xp-head">「${escapeHtml(btn.dataset.dupName)}」と重なる名前（${ov.length}作品）</div>` + ov.map((x) => {
+      const w = getWork(x.workId);
+      const same = x.names.some((y) => y.kind === 'same');
+      return `<div class="xp-row"><span class="xp-work">${escapeHtml(w ? workDisplayTitle(w) : '')}</span><span class="xp-kind${same ? ' is-same' : ''}">${same ? '同じ名前' : '部分一致'}</span>`
+        + `<span class="xp-names">${x.names.map((y) => escapeHtml(y.name)).join('、')}</span></div>`;
+    }).join('');
+    xrefPop.classList.add('is-open');
+    // バッジの下に出す（下に入らなければ上）。左右は画面からはみ出さないように
+    const r = btn.getBoundingClientRect(), pw = xrefPop.offsetWidth, ph = xrefPop.offsetHeight;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - pw - 8));
+    const top = r.bottom + 6 + ph <= window.innerHeight - 8 ? r.bottom + 6 : Math.max(8, r.top - 6 - ph);
+    xrefPop.style.left = left + 'px'; xrefPop.style.top = top + 'px';
+  }
+  function hideXrefPop() {
+    xrefPop.classList.remove('is-open');
+    if (xrefPopFor) xrefPopFor.setAttribute('aria-expanded', 'false');
+    xrefPopFor = null;
+  }
+  // 合わせて出す・離して消すのはマウスだけ（指で押すと、ブラウザがまねて送る mouseover で出た直後に、押した分で消えてしまうため pointer の種類を見る）
+  xrefListEl.addEventListener('pointerover', (e) => { if (e.pointerType !== 'mouse') return; const d = e.target.closest('.xr-dup'); if (d && d !== xrefPopFor) showXrefPop(d); });
+  xrefListEl.addEventListener('pointerout', (e) => { if (e.pointerType !== 'mouse') return; const d = e.target.closest('.xr-dup'); if (d && !d.contains(e.relatedTarget) && e.relatedTarget !== null) hideXrefPop(); });
+  // フォーカスで出すのはキーボードのときだけ（指やマウスで押してもフォーカスが来るので、押したときの出し入れとぶつからないように）
+  xrefListEl.addEventListener('focusin', (e) => { const d = e.target.closest('.xr-dup'); if (d && d.matches(':focus-visible')) showXrefPop(d); });
+  xrefListEl.addEventListener('focusout', (e) => { if (e.target.closest('.xr-dup')) hideXrefPop(); });
+  xrefListEl.addEventListener('scroll', hideXrefPop, { passive: true });
+  window.addEventListener('resize', hideXrefPop);
 
   /* =====================================================================
      作品エディタ
@@ -5903,6 +6015,7 @@
     if (asModal.classList.contains('is-open')) { closeAssetsModal(); return; }
     if (loreModal.classList.contains('is-open')) { closeLoreModal(); return; }
     if (genreModal.classList.contains('is-open')) { closeGenreModal(); return; }
+    if (xrefPop.classList.contains('is-open')) { hideXrefPop(); return; }
     if (ngModal.classList.contains('is-open')) { closeNetaGen(); return; }
     if (niModal.classList.contains('is-open')) { closeNetaImport(); return; }
     if (netaModal.classList.contains('is-open')) { closeNetaModal(); return; }
@@ -5917,7 +6030,7 @@
   // 2026-11-15〜 ネタ帳の「ジャンルの中」と「絞り込んだ一覧」（検索・お気に入りだけ）も1段に数え、戻るでジャンル一覧へ戻す
   //   （ネタを開いていれば、まずネタを閉じる＝ネタ → ネタの一覧 → ジャンル一覧 → アプリを閉じる、の順）
   window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .editor-overlay.is-open, '
-    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #worksSelectBar, #menuPanel.is-open, #chGearMenu.is-open, '
+    + '.view-overlay.is-open, .thumb-lightbox.is-open, .sideops-frame-overlay.is-open, dialog[open], #netaSelectBar, #worksSelectBar, #menuPanel.is-open, #chGearMenu.is-open, #xrefPop.is-open, '
     + '#netaView.is-active.is-sublist';
   // 戻るが届いたとき：ネタ帳の段より手前に何か開いていれば（モーダル・☰・選んで削除の途中など）、いつもの閉じ方に任せる
   window.SideOpsBack = () => {
