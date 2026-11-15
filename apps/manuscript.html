@@ -773,6 +773,7 @@
           <!-- 作品を開いているときだけ出す（2026-11-07。以前は「04 仕上げ」のタブの「作品を削除」） -->
           <div id="menuWorkGroup" class="is-hidden">
             <div class="menu-head">この作品</div>
+            <button type="button" class="menu-panel-item" id="menuWorkReplace">⇄ 文字の置き換え<small>この作品の中・1つの章の中の文字を探して、まとめて置き換え</small></button>
             <button type="button" class="menu-panel-item is-danger" id="menuWorkDelete">この作品を削除<small id="menuWorkDeleteNote"></small></button>
             <div class="menu-sep"></div>
           </div>
@@ -884,7 +885,7 @@
                 <button type="button" class="btn" id="workBackBtn">← 戻る</button>
                 <span class="stage-badge" id="wStage" data-stage="idea">構想</span>
                 <span class="spacer"></span>
-                <button type="button" class="btn small" id="findBtn" title="この作品の中の文字を検索・置換">検索・置換</button>
+                <!-- 文字の置き換え（以前の「検索・置換」）は 2026-11-15 から ☰ の「この作品」へ（ネタ帳と同じ場所） -->
               </div>
               <input type="text" class="edit-title-input" id="wTitle" placeholder="作品タイトル（未定なら空欄のまま）" maxlength="200" aria-label="作品タイトル">
               <div class="edit-sub">
@@ -1306,17 +1307,18 @@
   </div>
 </div>
 
-<!-- この作品の中を検索・置換（2026-10-13） -->
+<!-- 作品の文字の置き換え（2026-10-13「この作品の中を検索・置換」。2026-11-15 から ☰ から開き、範囲：この作品／1つの章） -->
 <div class="modal-overlay" id="findModal">
   <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="findModalTitle">
-    <div class="modal-head"><span class="modal-title" id="findModalTitle">この作品の中を検索・置換</span><button type="button" class="modal-close" id="findCloseBtn" aria-label="閉じる">✕</button></div>
+    <div class="modal-head"><span class="modal-title" id="findModalTitle">作品の文字を置き換え</span><button type="button" class="modal-close" id="findCloseBtn" aria-label="閉じる">✕</button></div>
     <div class="modal-body">
+      <div class="nf-scope"><label for="findScope">範囲</label><select class="field-select" id="findScope"></select></div>
       <div class="find-row">
-        <input type="text" class="field-input" id="findQ" maxlength="200" placeholder="検索する文字" aria-label="検索する文字">
-        <input type="text" class="field-input" id="findR" maxlength="2000" placeholder="置き換える文字（空なら削除）" aria-label="置き換える文字">
+        <input type="text" class="field-input" id="findQ" maxlength="200" placeholder="探す文字" aria-label="探す文字">
+        <input type="text" class="field-input" id="findR" maxlength="2000" placeholder="置き換える文字（空なら消す）" aria-label="置き換える文字">
       </div>
       <label class="check-row"><input type="checkbox" id="findCi">英字の大文字・小文字を区別しない</label>
-      <div class="field-hint">対象：作品タイトル・設定とプロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章（章タイトル・本文・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません。結果を押すと、その場所を開きます。</div>
+      <div class="field-hint">対象：範囲が「この作品」なら、作品タイトル・設定とプロット・キービジュアルのプロンプト・作品の概要・設定集（名前・説明・画像生成プロンプト）・各章。章なら、その章だけ（章タイトル・✎ メモ・本文・タイトル画像のプロンプト・要約・以前の初稿）。ネタはほかの作品と共有なので含みません（ネタ帳の ☰ から置き換えます）。置き換えたくない欄は、チェックを外してください。結果を押すと、その場所を開きます。置き換える前に、この作品の控え（.json）を書き出します。</div>
       <div class="import-stats" id="findStats"></div>
       <div class="find-list" id="findList"></div>
     </div>
@@ -1339,7 +1341,7 @@
         <input type="text" class="field-input" id="nfR" maxlength="2000" placeholder="置き換える文字（空なら消す）" aria-label="置き換える文字">
       </div>
       <label class="check-row"><input type="checkbox" id="nfCi">英字の大文字・小文字を区別しない</label>
-      <div class="field-hint">対象：ネタの本文とタグ。探す文字は、入れたとおりの1つのかたまりで探します（スペースも文字のうち）。置き換えたくないネタは、チェックを外してください。結果を押すと、そのネタを開きます。</div>
+      <div class="field-hint">対象：ネタの本文とタグ。探す文字は、入れたとおりの1つのかたまりで探します（スペースも文字のうち）。置き換えたくないネタは、チェックを外してください。結果を押すと、そのネタを開きます。置き換える前に、変わるネタの控え（.json）を書き出します。</div>
       <div class="import-stats" id="nfStats"></div>
       <div class="find-list" id="nfList"></div>
     </div>
@@ -1567,6 +1569,7 @@
   const UNCAT = '__uncat'; // ネタ帳で「未分類」を開いている状態
   const NETA_IMPORT_MAX = 500;
   const BULK_DELETE_TWICE = 20; // この件数以上をまとめて消すときは、削除ボタンを2回押させる
+  const BULK_REPLACE_TWICE = 20; // 置き換える所がこの数以上なら、置き換えのボタンを2回押させる（2026-11-15。ネタ帳・作品とも）
   const TEXT_FILE_MAX_BYTES = 5 * 1024 * 1024;
 
   const DEFAULT_TEMPLATES = [
@@ -2138,15 +2141,17 @@
   // ---- 確認ダイアログ ----
   // opts.twice：OKを2回押させる（まとめて消す件数が多いとき）。1回目でボタンの文字が変わり、
   // 少しの間は押せない（ダブルクリックで2回目まで通ってしまわないように）
+  //   2026-11-15〜 置き換えでも使う：opts.twiceNote（確認文の最後の1行）・opts.twiceLabel（1回目を押した後のボタンの文字）。なければ削除の文言
   let confirmResolve = null;
-  let confirmTwice = false, confirmArmed = false, confirmArmTimer = 0;
+  let confirmTwice = false, confirmArmed = false, confirmArmTimer = 0, confirmArmLabel = '';
   function ask(message, opts) {
     const o = opts || {};
     if (confirmResolve) closeConfirm(false);
-    confirmMsg.textContent = message + (o.twice ? '\n\n件数が多いため、削除ボタンは2回押します。' : '');
+    confirmMsg.textContent = message + (o.twice ? '\n\n' + (o.twiceNote || '件数が多いため、削除ボタンは2回押します。') : '');
     confirmOkBtn.textContent = o.ok || 'OK';
     confirmOkBtn.className = 'btn ' + (o.danger ? 'danger' : 'primary');
     confirmTwice = !!o.twice; confirmArmed = false;
+    confirmArmLabel = o.twiceLabel || 'もう一度押すと削除します';
     clearTimeout(confirmArmTimer); confirmOkBtn.disabled = false;
     confirmBox.classList.toggle('is-danger', !!o.danger);
     confirmOverlay.classList.add('is-open');
@@ -2162,7 +2167,7 @@
   confirmOkBtn.addEventListener('click', () => {
     if (confirmTwice && !confirmArmed) {
       confirmArmed = true;
-      confirmOkBtn.textContent = 'もう一度押すと削除します';
+      confirmOkBtn.textContent = confirmArmLabel;
       confirmOkBtn.disabled = true;
       confirmArmTimer = setTimeout(() => { confirmOkBtn.disabled = false; }, 700);
       return;
@@ -3170,8 +3175,12 @@
     const msg = `${what}。\n範囲：${nfScopeLabel()}\n${cnt}か所（ネタ${plan.length}件）が変わります。`
       + (tooLong.length ? `\n置き換えると長すぎるネタ（${tooLong.join('・')}）は置換しません。` : '')
       + (r && /[,、，\s]/.test(r) && plan.some((p) => !sameTags(p.tags, p.n.tags)) ? '\nタグの中の「、」やスペースは区切りになるため、タグが分かれることがあります。' : '')
-      + '\n「直前の置換を元に戻す」で元に戻せます（このページを開いている間）。';
-    if (!(await ask(msg, { ok: r ? '置き換える' : '消す', danger: !r }))) return;
+      + '\n「直前の置換を元に戻す」で元に戻せます（このページを開いている間）。\n置き換える前に、変わるネタの控え（.json）を書き出します。';
+    if (!(await ask(msg, replaceAskOpts(cnt, r)))) return;
+    // 置き換える前の控え（2026-11-15）。書き出せなければ置き換えない
+    let backupName = '';
+    try { backupName = writeNetaBackup(plan.map((p) => p.n)); }
+    catch (err) { console.error('置き換える前の控えを書き出せませんでした', err); showToast('置き換える前の控えを書き出せなかったため、置き換えていません', true); return; }
     // 写しに書いて保存し、保存できてから画面の記録に反映する（失敗したら何も変えない）
     const now = Date.now();
     const copies = plan.map((p) => ({ p, value: Object.assign({}, p.n, { body: p.body, tags: p.tags, updatedAt: now }) }));
@@ -3180,7 +3189,7 @@
     nfUndo = { q, r, entries: plan.map((p) => ({ id: p.n.id, before: { body: p.n.body, tags: p.n.tags.slice() }, after: { body: p.body, tags: p.tags.slice() } })) };
     copies.forEach((c) => Object.assign(c.p.n, c.value));
     afterNfWrite();
-    showToast(`${cnt}か所（ネタ${plan.length}件）を置き換えました`);
+    showToast(`${cnt}か所（ネタ${plan.length}件）を置き換えました\n置き換える前の控え：${backupName}`);
   });
   nfUndoBtn.addEventListener('click', async () => {
     if (!nfUndo) return;
@@ -5116,44 +5125,63 @@
   }));
 
   /* =====================================================================
-     この作品の中を検索・置換（2026-10-13）
-     対象は作品の文字の欄すべて（ネタはほかの作品と共有なので含まない）。検索は文字そのまま（正規表現にはしない）。
+     作品の文字の置き換え（2026-10-13「この作品の中を検索・置換」。2026-11-15 からネタ帳と同じ作り）
+     範囲：この作品（作品の文字の欄すべて）／1つの章（その章の欄だけ）。すべての作品を範囲にすることはない（ユーザーの判断）。
+     開くのは ☰ の「この作品」の「⇄ 文字の置き換え」（それまでは作品の顔の「検索・置換」ボタン）。
+     ネタはほかの作品と共有なので含まない（ネタ帳の ☰ から置き換える）。検索は文字そのまま（正規表現にはしない）。
      置換は欄ごとに選べ、作品・章・設定集を1つのトランザクションで書く。「直前の置換を元に戻す」は、
-     置換の後に書き換えた欄は戻さない（その後の編集を消さないように）
+     置換の後に書き換えた欄は戻さない（その後の編集を消さないように）。
+     歯止め（2026-11-15〜。ネタ帳と同じ）：置き換える所が20以上なら2回押す・置き換える前にこの作品の控え（.json）を書き出す
   ===================================================================== */
-  const findModal = $('findModal'), findQ = $('findQ'), findR = $('findR'), findCi = $('findCi'), findStats = $('findStats'), findList = $('findList'), findReplaceBtn = $('findReplaceBtn'), findUndoBtn = $('findUndoBtn');
+  const findModal = $('findModal'), findQ = $('findQ'), findR = $('findR'), findCi = $('findCi'), findStats = $('findStats'), findList = $('findList'), findReplaceBtn = $('findReplaceBtn'), findUndoBtn = $('findUndoBtn'), findScope = $('findScope');
   const FIND_HITS_SHOWN = 5;      // 1つの欄に出す結果の数
   const FIND_MAX_PER_FIELD = 5000; // 1つの欄で数える上限（重くしない）
   let findResult = null, findTimer = 0, findUndo = null;
   const findPicked = new Map(); // 欄のキー → 置換するか（検索をやり直しても選んだ状態を残す）
-  function findTargets(w) {
+  // 範囲の選び方は、同じ作品を開いている間だけ覚える（結果から章へ飛んだ後に開き直しても、勝手に章だけにならないように）
+  let findScopeMemo = { workId: '', scope: 'w' };
+  // scope：'w'＝この作品／'c:<章ID>'＝その章だけ
+  function findTargets(w, scope) {
     const t = [];
     const add = (kind, rec, field, label, max) => t.push({ key: `${kind}:${rec.id}:${field}`, kind, rec, field, label, max });
-    add('w', w, 'title', '作品タイトル', 200);
-    add('w', w, 'plot', '② 設定とプロット', 500000);
-    loreOf(w.id).forEach((l) => {
-      const nm = `④ 設定集「${l.name.trim() || '（名前なし）'}」`;
-      add('l', l, 'name', nm + 'の名前', 100); add('l', l, 'body', nm + 'の説明', 100000); add('l', l, 'imgPrompt', nm + 'の画像生成プロンプト', 100000);
-    });
-    add('w', w, 'kvPrompt', '⑤ キービジュアルの画像生成プロンプト', 100000);
-    add('w', w, 'synopsis', '⑥ 作品の概要', 100000);
+    const one = scope && scope.startsWith('c:') ? scope.slice(2) : '';
+    if (!one) {
+      add('w', w, 'title', '作品タイトル', 200);
+      add('w', w, 'plot', '② 設定とプロット', 500000);
+      loreOf(w.id).forEach((l) => {
+        const nm = `④ 設定集「${l.name.trim() || '（名前なし）'}」`;
+        add('l', l, 'name', nm + 'の名前', 100); add('l', l, 'body', nm + 'の説明', 100000); add('l', l, 'imgPrompt', nm + 'の画像生成プロンプト', 100000);
+      });
+      add('w', w, 'kvPrompt', '⑤ キービジュアルの画像生成プロンプト', 100000);
+      add('w', w, 'synopsis', '⑥ 作品の概要', 100000);
+    }
     chaptersOf(w.id).forEach((c, i) => {
+      if (one && c.id !== one) return;
       const n = `第${i + 1}章`;
-      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'final', n + ' ⑧ 本文', 2000000); add('c', c, 'imgPrompt', n + ' ⑨ タイトル画像の生成プロンプト', 100000);
+      add('c', c, 'title', n + 'の章タイトル', 200); add('c', c, 'memo', n + 'の ✎ メモ', 5000); add('c', c, 'final', n + ' ⑧ 本文', 2000000); add('c', c, 'imgPrompt', n + ' ⑨ タイトル画像の生成プロンプト', 100000);
       add('c', c, 'summary', n + ' ⑪ 要約', 100000); add('c', c, 'body', n + ' 以前の初稿', 2000000); add('c', c, 'outline', n + ' 以前の章の筋', 100000);
     });
     return t;
   }
+  function fillFindScope(w, selected) {
+    findScope.innerHTML = '';
+    const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; findScope.appendChild(o); };
+    add('w', `この作品：${workDisplayTitle(w)}`);
+    chaptersOf(w.id).forEach((c, i) => add('c:' + c.id, `第${i + 1}章：${c.title.trim() || '（章タイトルなし）'}${c.id === currentChapterId ? '（表示中）' : ''}`));
+    findScope.value = Array.from(findScope.options).some((o) => o.value === selected) ? selected : 'w';
+  }
+  const findScopeLabel = () => { const o = findScope.options[findScope.selectedIndex]; return o ? o.textContent.replace(/（表示中）$/, '') : ''; };
   function findRegex(q, ci) { return new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), ci ? 'giu' : 'gu'); }
   function runFind() {
     const w = getWork(currentWorkId);
     const q = findQ.value;
-    if (!w || !q) { findResult = null; findStats.innerHTML = q ? '' : '検索する文字を入れてください'; findList.innerHTML = ''; updateFindButtons(); return; }
+    if (!w || !q) { findResult = null; findStats.innerHTML = q ? '' : '探す文字を入れてください'; findList.innerHTML = ''; updateFindButtons(); return; }
     syncFromForm();
-    if (!findResult || findResult.q !== q || findResult.ci !== findCi.checked) findPicked.clear(); // 検索をやり直したら、欄の選択は全部に戻す
+    const scope = findScope.value || 'w';
+    if (!findResult || findResult.q !== q || findResult.ci !== findCi.checked || findResult.scope !== scope) findPicked.clear(); // 探し直したら、欄の選択は全部に戻す
     const re = findRegex(q, findCi.checked);
     const groups = [];
-    for (const t of findTargets(w)) {
+    for (const t of findTargets(w, scope)) {
       const v = String(t.rec[t.field] || '');
       if (!v) continue;
       const hits = [];
@@ -5162,13 +5190,16 @@
       while ((m = re.exec(v)) && hits.length < FIND_MAX_PER_FIELD) hits.push({ pos: m.index, len: m[0].length });
       if (hits.length) groups.push(Object.assign({}, t, { value: v, hits }));
     }
-    findResult = { q, ci: findCi.checked, groups };
+    findResult = { q, ci: findCi.checked, scope, groups };
     const total = groups.reduce((s, g) => s + g.hits.length, 0);
-    findStats.innerHTML = total ? `<strong>${total}件</strong>（${groups.length}欄）見つかりました` : `「${escapeHtml(q)}」は見つかりません`;
+    findStats.innerHTML = total
+      ? `<strong>${total}件</strong>（${groups.length}欄）見つかりました` + (groups.length > 1 ? '<span class="nf-bulk"><button type="button" class="btn small" data-fall="1">すべて選ぶ</button><button type="button" class="btn small" data-fall="0">すべて外す</button></span>' : '')
+      : `「${escapeHtml(q)}」は見つかりません（範囲：${escapeHtml(findScopeLabel())}）`;
     findList.innerHTML = groups.map((g) => {
       const on = findPicked.has(g.key) ? findPicked.get(g.key) : true;
       const hitsHtml = g.hits.slice(0, FIND_HITS_SHOWN).map((h) => {
-        const a = Math.max(0, h.pos - 24), b = Math.min(g.value.length, h.pos + h.len + 36);
+        // 一致の前は12字まで（スマホの幅でも、一致が行末の … に隠れないように。2026-11-15）
+        const a = safeCut(g.value, Math.max(0, h.pos - 12)), b = safeCut(g.value, Math.min(g.value.length, h.pos + h.len + 48));
         const snip = (a ? '…' : '') + escapeHtml(g.value.slice(a, h.pos).replace(/\s+/g, ' ')) + '<mark>' + escapeHtml(g.value.slice(h.pos, h.pos + h.len)) + '</mark>' + escapeHtml(g.value.slice(h.pos + h.len, b).replace(/\s+/g, ' ')) + (b < g.value.length ? '…' : '');
         return `<button type="button" class="fd-hit" data-fkey="${escapeHtml(g.key)}" data-pos="${h.pos}" data-len="${h.len}">${snip}</button>`;
       }).join('');
@@ -5185,19 +5216,31 @@
     findUndoBtn.classList.toggle('is-hidden', !(findUndo && findUndo.workId === currentWorkId));
   }
   async function openFindModal() {
-    if (!getWork(currentWorkId)) return;
+    const w = getWork(currentWorkId);
+    if (!w) return;
     await workSaver.flush();
+    syncFromForm();
+    fillFindScope(w, findScopeMemo.workId === w.id ? findScopeMemo.scope : 'w'); // はじめは「この作品」
     findModal.classList.add('is-open');
     runFind();
     setTimeout(() => { findQ.focus(); findQ.select(); }, 0);
   }
   function closeFindModal() { findModal.classList.remove('is-open'); clearTimeout(findTimer); }
-  $('findBtn').addEventListener('click', openFindModal);
+  $('menuWorkReplace').addEventListener('click', openFindModal);
   $('findCloseBtn').addEventListener('click', closeFindModal);
   $('findDoneBtn').addEventListener('click', closeFindModal);
   findModal.addEventListener('click', (e) => { if (e.target === findModal) closeFindModal(); });
   findQ.addEventListener('input', () => { clearTimeout(findTimer); findTimer = setTimeout(runFind, 200); });
   findCi.addEventListener('change', runFind);
+  findScope.addEventListener('change', () => { findScopeMemo = { workId: currentWorkId, scope: findScope.value }; runFind(); });
+  findStats.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fall]');
+    if (!b || !findResult) return;
+    const on = b.dataset.fall === '1';
+    findResult.groups.forEach((g) => findPicked.set(g.key, on));
+    findList.querySelectorAll('[data-fpick]').forEach((cb) => { cb.checked = on; });
+    updateFindButtons();
+  });
   findQ.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); clearTimeout(findTimer); runFind(); } });
   findList.addEventListener('change', (e) => {
     const cb = e.target.closest('[data-fpick]');
@@ -5221,7 +5264,7 @@
       if (currentTab !== 'text') await showTab('text', { scroll: false });
       if (g.field === 'summary' && isFolded('summary')) setFold('summary', false);
       if (currentChapterId !== g.rec.id) await selectChapter(g.rec.id);
-      el = { title: chTitle, final: chFinal, imgPrompt: chImgPrompt, summary: chSummary, body: chBody, outline: chOutline }[g.field];
+      el = { title: chTitle, memo: chMemo, final: chFinal, imgPrompt: chImgPrompt, summary: chSummary, body: chBody, outline: chOutline }[g.field];
     } else if (g.kind === 'l') {
       if (currentTab !== 'assets') await showTab('assets', { scroll: false });
       await openLoreModal(g.rec);
@@ -5267,14 +5310,19 @@
     for (const g of gs) {
       re.lastIndex = 0;
       const after = g.value.replace(re, () => r); // $& などの特別な書き方は使わない（そのままの文字に置き換える）
+      if (after === g.value) continue; // 置き換えても変わらない（同じ文字に置き換えた）
       if (after.length > g.max) tooLong.push(g.label); else plan.push({ g, after });
     }
     const cnt = plan.reduce((s, p) => s + p.g.hits.length, 0);
-    if (!plan.length) { showToast(`置き換えると長すぎる欄しかないため、置換しませんでした（${tooLong.join('・')}）`, true); return; }
+    if (!plan.length) { showToast(tooLong.length ? `置き換えると長すぎる欄しかないため、置換しませんでした（${tooLong.join('・')}）` : '置き換えても中身が変わりません', true); return; }
     const what = r ? `「${q}」を「${r}」に置き換えます` : `「${q}」を消します（空の文字に置き換えます）`;
-    const msg = `${what}。\n${cnt}件（${plan.length}欄）が変わります。` + (tooLong.length ? `\n置き換えると長すぎる欄（${tooLong.join('・')}）は置換しません。` : '')
-      + '\n「直前の置換を元に戻す」で元に戻せます（この作品を開いている間）。';
-    if (!(await ask(msg, { ok: r ? '置き換える' : '消す', danger: !r }))) return;
+    const msg = `${what}。\n範囲：${findScopeLabel()}\n${cnt}件（${plan.length}欄）が変わります。` + (tooLong.length ? `\n置き換えると長すぎる欄（${tooLong.join('・')}）は置換しません。` : '')
+      + '\n「直前の置換を元に戻す」で元に戻せます（この作品を開いている間）。\n置き換える前に、この作品の控え（.json）を書き出します。';
+    if (!(await ask(msg, replaceAskOpts(cnt, r)))) return;
+    // 置き換える前の控え（2026-11-15）。書き出せなければ置き換えない
+    let backupName = '';
+    try { backupName = await writeWorkBackup(w); }
+    catch (err) { console.error('置き換える前の控えを書き出せませんでした', err); showToast('置き換える前の控えを書き出せなかったため、置き換えていません', true); return; }
     // 写しに書いて保存し、保存できてから画面の記録に反映する（失敗したら何も変えない）
     const now = Date.now();
     const copies = new Map();
@@ -5292,8 +5340,37 @@
     findUndo = { workId: w.id, q, r, entries };
     refreshEditorAfterBulk(w);
     runFind();
-    showToast(`${cnt}件を置き換えました`);
+    showToast(`${cnt}件を置き換えました\n置き換える前の控え：${backupName}`);
   });
+  /* ---- 置き換えの歯止め（2026-11-15。ネタ帳・作品で共通）----
+     ① 置き換える所が BULK_REPLACE_TWICE（20）以上なら、確認のボタンを2回押させる（削除の2回押しと同じ仕組み）
+     ② 確認の後、置き換える前の中身を、取り込める形（JSON）で書き出してから置き換える。書き出せなければ置き換えない。
+        元に戻すときは ☰ の「JSONからインポート」で「取り込むデータで上書きする」を選ぶ
+        （置換で更新日時が新しくなるので、既定の「新しい方を残す」では取り込まれない） */
+  function replaceAskOpts(cnt, r) {
+    return {
+      ok: r ? '置き換える' : '消す', danger: !r, twice: cnt >= BULK_REPLACE_TWICE,
+      twiceNote: `置き換える所が${BULK_REPLACE_TWICE}以上あるため、ボタンは2回押します。`,
+      twiceLabel: r ? 'もう一度押すと置き換えます' : 'もう一度押すと消します',
+    };
+  }
+  // ネタの控え：置き換えるネタだけ（ジャンルは入れない。入れると、取り込みの上書きでその後のジャンルの編集まで戻るため）
+  function writeNetaBackup(list) {
+    const payload = { app: APP_KEY, schemaVersion: SCHEMA_VERSION, scope: 'neta', exportedAt: new Date().toISOString(), genres: [], neta: JSON.parse(JSON.stringify(list)), works: [], chapters: [], lore: [], templates: [], images: [] };
+    const name = `manuscript_prereplace_neta_${stamp(new Date())}.json`;
+    downloadJson(payload, name);
+    return name;
+  }
+  // 作品の控え：作品・章・設定集・作品の画像（作品の書き出しと同じ。画像も入れる＝取り込みの上書きは作品ごと入れ替えるため、
+  // 画像がないと画像が消える）。ネタ・ジャンルは置き換えないので入れない
+  async function writeWorkBackup(w) {
+    const p = await buildExport([w], 'work');
+    p.genres = []; p.neta = [];
+    p.images = p.images.filter((im) => im.workId === w.id);
+    const name = `manuscript_prereplace_${w.id}_${stamp(new Date())}.json`;
+    downloadJson(p, name);
+    return name;
+  }
   findUndoBtn.addEventListener('click', async () => {
     const w = getWork(currentWorkId);
     if (!w || !findUndo || findUndo.workId !== w.id) return;
@@ -5861,7 +5938,7 @@
     const p = pendingImport;
     const row = (label, arr, getter) => { const c = arr.filter((x) => getter(x.id)).length; return `<tr><td>${label}</td><td>${arr.length - c}</td><td>${c}</td></tr>`; };
     const when = p.exportedAt ? formatDateTime(Date.parse(p.exportedAt)) : '';
-    $('importSource').textContent = `${p.fileName}（${p.scope === 'work' ? '作品単位' : 'すべて'}・${when || '日時不明'} 書き出し）`;
+    $('importSource').textContent = `${p.fileName}（${p.scope === 'work' ? '作品単位' : p.scope === 'neta' ? 'ネタの控え' : 'すべて'}・${when || '日時不明'} 書き出し）`;
     $('importTable').innerHTML = '<tr><th>種類</th><th>新規</th><th>同じIDあり</th></tr>' +
       row('ジャンル', p.genres, getGenre) + row('ネタ', p.neta, getNeta) + row('作品', p.works, getWork) + row('テンプレート', p.templates, getTpl) +
       `<tr><td>作品に含まれるもの</td><td colspan="2">章${p.chapters.length}・設定${p.lore.length}・画像${p.images.length}</td></tr>`;
