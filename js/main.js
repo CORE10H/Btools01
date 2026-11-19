@@ -1140,6 +1140,8 @@
     { name: 'STAMPWORKS', src: 'apps/stampworks.html', coverImg: 'apps/img/stampworks.jpg' },
     // TAGFORGE：画像生成プロンプトのワードをカテゴリから選んで組み立て、コピーする（2026-11-20）
     { name: 'TAGFORGE', src: 'apps/tagforge.html', coverImg: 'apps/img/tagforge.jpg' },
+    // PASTEUP：用意した画像に、画像（透過PNGも）と文字（吹き出し・台紙）を重ねて書き出す（2026-11-20）
+    { name: 'PASTEUP', src: 'apps/pasteup.html', coverImg: 'apps/img/pasteup.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 

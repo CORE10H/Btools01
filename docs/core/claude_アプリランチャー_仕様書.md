@@ -72,6 +72,8 @@
 
 2026-11-20からTAGFORGE（`apps/tagforge.html`・`apps/img/tagforge.jpg`）を足した（`apps/claude_アプリ_TAGFORGE_仕様書.md`）。
 
+2026-11-20からPASTEUP（`apps/pasteup.html`・`apps/img/pasteup.jpg`）を足した（`apps/claude_アプリ_PASTEUP_仕様書.md`）。
+
 ## ローカルhtmlインポート機能
 
 「種類」で「ローカルhtmlをインポート」を選択した場合のフロー：
