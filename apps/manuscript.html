@@ -713,7 +713,7 @@
     .mt-state { margin: 0; font-size: 9.5px; padding: 0 6px; }
     .ch-frame { padding: 0 10px 2px; }
     /* 本文タブの章：1列。章の一覧は横にすべるタブ（2段にすると枠から離れる）に、状態の1行を足す */
-    .ch-layout { grid-template-columns: 1fr; }
+    .ch-layout { grid-template-columns: minmax(0, 1fr); } /* 1fr だと中身の最小幅（長いURLなど）で画面より広がる。0 まで縮める（2026-11-20） */
     .ch-layout .ch-tabs { position: static; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 3px; }
     .ch-tabs::-webkit-scrollbar { display: none; }
     .ch-layout .ch-tab { flex-shrink: 0; width: auto; max-width: 180px; border-width: 1px 1px 0; border-radius: 4px 4px 0 0; margin: 0; }
