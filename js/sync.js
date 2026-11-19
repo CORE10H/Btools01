@@ -43,7 +43,7 @@
   // SIDE-OPSの版（yyyymmddnn の数値）。どれかのアプリでデータの形（レコードの
   // 項目・DBの版）を変えたら必ず上げる。自分より新しい版の端末が書いたファイルを
   // 見つけたら同期を止める（古い版が新しい項目を知らずに上書きして消すのを防ぐ）
-  const SYNC_APP_BUILD = 2026111301; // 2026-11-13：MANUSCRIPT の章の memo・ネタの fav・ジャンルの pinned
+  const SYNC_APP_BUILD = 2026112001; // 2026-11-20：TAGFORGE を追加
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
   const SYNC_DB_VERSION = 3; // 2：同期の記録（journal）を追加、3：同期のログ（runlog。かかった時間）を追加
@@ -95,6 +95,8 @@
     // STAMPWORKS は企画だけを同期する（2026-10-10）。作業中の画像（sideops_stampworks_work）は数MBの画像を毎回送ると
     // 同期が重くなるので、わざとここに入れない（端末の中の一時保存。元の画像はカメラロールにあり、作り直せる）
     { name: 'sideops_stampworks', label: 'STAMPWORKS', version: 1 },
+    // TAGFORGE（2026-11-20）：カテゴリ・ワード・定型文。組み立て中の中身は端末ごと（localStorage）
+    { name: 'sideops_tagforge', label: 'TAGFORGE', version: 1 },
   ];
   const RULE_BY_NAME = new Map(DB_RULES.map((r) => [r.name, r]));
 

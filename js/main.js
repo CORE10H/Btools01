@@ -1138,6 +1138,8 @@
     { name: 'LIBRARIUM', src: 'apps/librarium.html', coverImg: 'apps/img/librarium.jpg' },
     // STAMPWORKS：LINEスタンプの企画・プロンプト・透過と切り分け・書き出し（2026-10-10）
     { name: 'STAMPWORKS', src: 'apps/stampworks.html', coverImg: 'apps/img/stampworks.jpg' },
+    // TAGFORGE：画像生成プロンプトのワードをカテゴリから選んで組み立て、コピーする（2026-11-20）
+    { name: 'TAGFORGE', src: 'apps/tagforge.html', coverImg: 'apps/img/tagforge.jpg' },
     { name: '未定（blank）', src: 'apps/blank.html' },
   ];
 

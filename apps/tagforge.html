@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAGFORGE</title>
+<script src="sideops-theme-bridge.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070a;
+    --bg-alt: #070b10;
+    --panel: #0e1620;
+    --panel-hi: #121d29;
+    --line: #1e3038;
+    --line-soft: #14212a;
+    --cyan: #00f0d0;
+    --cyan-dim: #0a4a44;
+    --magenta: #ff2f6e;
+    --magenta-dim: #4a0f24;
+    --amber: #ffb020;
+    --amber-dim: #4a3608;
+    --text: #f5f9fa;
+    --text-dim: #b8c4cc;
+    --text-faint: #5c6b73;
+    --font-display: 'Rajdhani', sans-serif;
+    --font-body: 'IBM Plex Sans JP', sans-serif;
+    /* --- テーマ連携用（本体から上書きされる。単体表示時はこの既定値） --- */
+    --bg-rgb: 5, 7, 10;
+    --panel-rgb: 14, 22, 32;
+    --cyan-rgb: 0, 240, 208;
+    --magenta-rgb: 255, 47, 110;
+    --magenta-dim-rgb: 74, 15, 36;
+    --text-rgb: 245, 249, 250;
+    --scrim-rgb: 0, 0, 0;
+    --shadow-rgb: 0, 0, 0;
+    --on-accent: #000000;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  button, input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--cyan); color: var(--on-accent); }
+
+  .app-shell { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+  }
+  .app-bar .app-title { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
+  .bar-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .btn {
+    font-family: var(--font-body); font-size: 11px; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+    flex-shrink: 0; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary { border-color: var(--cyan-dim); color: var(--cyan); }
+  .btn.primary:hover { background: var(--cyan-dim); }
+  .btn.danger { border-color: var(--magenta-dim); color: var(--magenta); }
+  .btn.danger:hover { background: var(--magenta-dim); }
+  .btn.is-on { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); }
+  .btn.is-armed { background: var(--magenta-dim); border-color: var(--magenta); color: var(--magenta); }
+  .btn.small { padding: 4px 9px; font-size: 10.5px; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--line); color: var(--text-dim); background: transparent; }
+
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .hamburger-btn {
+    width: 30px; height: 30px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hamburger-btn:hover, .hamburger-btn.is-active { border-color: var(--cyan-dim); color: var(--cyan); }
+  .menu-panel {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 240px;
+    background: var(--panel); border: 1px solid var(--line); z-index: 40; display: none;
+    padding: 6px;
+  }
+  .menu-panel.is-open { display: block; }
+  .menu-panel-item {
+    width: 100%; text-align: left; background: transparent; border: none;
+    color: var(--text-dim); font-size: 12px; padding: 9px 10px; cursor: pointer; display: block;
+  }
+  .menu-panel-item:hover { background: var(--bg-alt); color: var(--cyan); }
+  .menu-panel-item:disabled { opacity: .35; cursor: not-allowed; }
+  .menu-panel-item:disabled:hover { background: transparent; color: var(--text-dim); }
+  .menu-sep { height: 1px; background: var(--line-soft); margin: 6px 4px; }
+  .menu-check { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-dim); padding: 7px 10px; cursor: pointer; }
+  .menu-check input { accent-color: var(--cyan); }
+  .menu-note { font-size: 10px; color: var(--text-faint); padding: 0 10px 6px 31px; line-height: 1.5; }
+
+  /* ---- 本体（カテゴリ｜ワード） ---- */
+  .app-body { flex: 1; min-height: 0; display: flex; }
+  .cat-pane { width: 200px; flex-shrink: 0; border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; min-height: 0; }
+  .pane-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 6px; font-size: 10.5px; color: var(--text-faint); letter-spacing: .04em; }
+  .icon-btn {
+    width: 24px; height: 24px; background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .cat-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; min-height: 0; }
+  .cat-item {
+    display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+    background: transparent; border: 1px solid transparent; padding: 8px 9px; margin-bottom: 2px;
+    font-size: 12.5px; color: var(--text-dim); cursor: pointer;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .cat-item:hover { background: var(--bg-alt); color: var(--text); }
+  .cat-item.is-active { border-color: var(--cyan-dim); background: var(--panel-hi); color: var(--cyan); }
+  .cat-item .ci-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-item .ci-count { font-size: 10px; color: var(--text-faint); flex-shrink: 0; }
+  .cat-item .ci-sel { font-size: 10px; color: var(--on-accent); background: var(--cyan); padding: 0 5px; border-radius: 8px; flex-shrink: 0; }
+  .cat-item .ci-neg { font-size: 9px; color: var(--magenta); border: 1px solid var(--magenta-dim); padding: 0 3px; flex-shrink: 0; }
+  .cat-item .ci-grip { display: none; color: var(--text-faint); font-size: 11px; flex-shrink: 0; }
+  .is-editmode .cat-item .ci-grip { display: inline; }
+
+  .word-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+  .word-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .wh-title { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 140px; }
+  .wh-title .wh-name { font-family: var(--font-display); font-size: 15px; letter-spacing: .03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .neg-badge { font-size: 9.5px; color: var(--magenta); border: 1px solid var(--magenta-dim); padding: 1px 5px; flex-shrink: 0; }
+  .search-input {
+    flex: 1 1 160px; min-width: 120px; background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 9px;
+    font-size: 12px; color: var(--text); outline: none;
+  }
+  .search-input:focus { border-color: var(--cyan-dim); }
+  .edit-hint { display: none; font-size: 10.5px; color: var(--amber); padding: 6px 14px; border-bottom: 1px solid var(--line-soft); background: rgba(255, 176, 32, .06); }
+  .is-editmode .edit-hint { display: block; }
+  .word-list { flex: 1; overflow-y: auto; padding: 12px 14px 20px; min-height: 0; align-content: flex-start; }
+  .word-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .group-label { font-size: 10.5px; color: var(--text-faint); letter-spacing: .04em; margin: 14px 0 6px; }
+  .group-label:first-child { margin-top: 0; }
+
+  .word-chip {
+    display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; max-width: 100%;
+    background: var(--bg-alt); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; text-align: left;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .word-chip:hover { border-color: var(--cyan-dim); }
+  .word-chip .wc-text { font-size: 12.5px; color: var(--text); word-break: break-word; }
+  .word-chip .wc-label { font-size: 10px; color: var(--text-faint); }
+  .word-chip.is-selected { background: var(--cyan-dim); border-color: var(--cyan); }
+  .word-chip.is-selected .wc-text { color: var(--cyan); }
+  .word-chip.is-selected.is-neg { background: var(--magenta-dim); border-color: var(--magenta); }
+  .word-chip.is-selected.is-neg .wc-text { color: var(--magenta); }
+  .is-editmode .word-chip { border-style: dashed; }
+  .is-dragging { opacity: .55; outline: 1px dashed var(--amber); }
+
+  .empty-state {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--text-faint); flex-direction: column; gap: 10px; padding: 40px 20px;
+  }
+  .empty-state .big { font-family: var(--font-display); font-size: 13px; color: var(--text-dim); letter-spacing: .04em; }
+  .empty-state .small { font-size: 11px; max-width: 380px; line-height: 1.8; }
+  .empty-state .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+
+  /* ---- 組み立て（下の段） ---- */
+  .tray { flex-shrink: 0; border-top: 1px solid var(--line); background: var(--bg-alt); display: flex; flex-direction: column; max-height: 48%; min-height: 0; }
+  .tray-headrow { display: flex; align-items: center; gap: 8px; padding: 6px 14px; flex-shrink: 0; }
+  .tray-toggle {
+    flex: 1; min-width: 0; text-align: left; background: transparent; border: none; cursor: pointer;
+    font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; padding: 4px 0;
+  }
+  .tray-toggle .tray-count { color: var(--text-faint); font-family: var(--font-body); font-size: 11px; margin-left: 6px; }
+  .tray-toggle .tray-arrow { color: var(--text-faint); font-size: 11px; margin-left: 4px; }
+  .tray.is-collapsed .tray-body { display: none; }
+  .tray-body { overflow-y: auto; padding: 0 14px 12px; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  .lane { border: 1px solid var(--line-soft); background: var(--bg); padding: 8px 10px; }
+  .lane.is-neg { border-color: var(--magenta-dim); }
+  .lane-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+  .lane-name { font-family: var(--font-display); font-size: 12px; letter-spacing: .06em; color: var(--cyan); flex: 1; min-width: 0; }
+  .lane.is-neg .lane-name { color: var(--magenta); }
+  .lane-name .lane-len { font-family: var(--font-body); font-size: 10px; color: var(--text-faint); margin-left: 6px; letter-spacing: 0; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 5px; min-height: 26px; }
+  .chip-row .placeholder { font-size: 10.5px; color: var(--text-faint); padding: 4px 0; }
+  .t-chip {
+    display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+    background: var(--panel); border: 1px solid var(--line); padding: 4px 8px; font-size: 12px; color: var(--text); cursor: grab;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; word-break: break-word; text-align: left;
+  }
+  .t-chip:hover { border-color: var(--cyan-dim); }
+  .t-chip .tw { font-size: 10px; color: var(--amber); }
+  .t-chip.is-free { border-style: dotted; }
+  .t-chip.is-current { border-color: var(--amber); background: var(--amber-dim); }
+  .chip-tools { display: none; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 6px; border: 1px solid var(--amber-dim); }
+  .chip-tools.is-open { display: flex; }
+  .chip-tools .ct-name { font-size: 11px; color: var(--amber); flex: 1 1 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip-tools .ct-w { font-size: 11.5px; color: var(--text); min-width: 34px; text-align: center; }
+  .lane-add { display: flex; gap: 6px; margin-top: 6px; }
+  .lane-add input {
+    flex: 1; min-width: 0; background: var(--bg-alt); border: 1px solid var(--line); padding: 5px 8px; font-size: 11.5px; color: var(--text); outline: none;
+  }
+  .lane-add input:focus { border-color: var(--cyan-dim); }
+  .lane-out {
+    margin-top: 6px; font-family: 'Courier New', monospace; font-size: 11.5px; line-height: 1.55; color: var(--text-dim);
+    background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 6px 8px; white-space: pre-wrap; word-break: break-word;
+    max-height: 7.5em; overflow-y: auto; user-select: text;
+  }
+  .lane-out:empty::before { content: '（まだ何もありません）'; color: var(--text-faint); font-family: var(--font-body); }
+
+  /* =====================================================================
+     モーダル共通
+  ===================================================================== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal {
+    width: 100%; max-width: 520px; background: var(--panel); border: 1px solid var(--line);
+    padding: 18px 20px 20px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal.wide { max-width: 640px; }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); gap: 10px;
+  }
+  .modal-title { font-family: var(--font-display); font-size: 13px; color: var(--text); letter-spacing: .04em; }
+  .modal-close {
+    width: 22px; height: 22px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 12px; cursor: pointer; flex-shrink: 0;
+  }
+  .modal-close:hover { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .field-group { margin-bottom: 14px; }
+  .field-label { font-size: 10.5px; color: var(--text-faint); margin-bottom: 5px; letter-spacing: .03em; }
+  .field-input, .field-textarea, .field-select {
+    width: 100%; background: var(--bg-alt); border: 1px solid var(--line); padding: 8px 10px;
+    font-size: 12.5px; color: var(--text); outline: none;
+  }
+  .field-textarea { resize: vertical; line-height: 1.6; font-family: 'Courier New', var(--font-body), monospace; }
+  .field-input:focus, .field-textarea:focus, .field-select:focus { border-color: var(--cyan-dim); }
+  .field-select option { background: var(--panel); }
+  .field-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--text-dim); cursor: pointer; line-height: 1.6; }
+  .field-check input { margin-top: 4px; accent-color: var(--cyan); }
+  .field-error { font-size: 10.5px; color: var(--magenta); margin-top: 5px; line-height: 1.6; display: none; white-space: pre-line; }
+  .field-error.is-shown { display: block; }
+  .field-hint { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; line-height: 1.7; }
+  .field-hint code, .help code { font-family: 'Courier New', monospace; color: var(--cyan); }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .modal-footer .spacer { flex: 1; }
+
+  .help { font-size: 12px; color: var(--text-dim); line-height: 1.8; }
+  .help h4 { font-size: 11px; color: var(--cyan); margin: 12px 0 4px; font-weight: 600; }
+  .help pre {
+    font-family: 'Courier New', monospace; font-size: 11.5px; background: var(--bg-alt); border: 1px solid var(--line-soft);
+    padding: 8px 10px; white-space: pre-wrap; color: var(--text); line-height: 1.6;
+  }
+  .help ul { padding-left: 18px; }
+
+  .imp-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 6px 0 4px; }
+  .imp-table th, .imp-table td { border-bottom: 1px solid var(--line-soft); padding: 5px 6px; text-align: left; }
+  .imp-table th { color: var(--text-faint); font-weight: 500; font-size: 10.5px; }
+  .imp-table td.num { text-align: right; white-space: nowrap; }
+  .imp-tag { font-size: 9.5px; padding: 0 4px; border: 1px solid var(--cyan-dim); color: var(--cyan); margin-left: 4px; }
+  .imp-tag.neg { border-color: var(--magenta-dim); color: var(--magenta); }
+  .imp-summary { font-size: 12px; color: var(--text); margin: 8px 0; }
+
+  .preset-row {
+    display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; border: 1px solid var(--line-soft);
+    background: var(--bg-alt); margin-bottom: 6px;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .preset-row .pr-grip { color: var(--text-faint); font-size: 11px; cursor: grab; padding-top: 2px; flex-shrink: 0; touch-action: none; }
+  .preset-row .pr-main { flex: 1; min-width: 0; }
+  .preset-row .pr-name { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preset-row .pr-text { font-family: 'Courier New', monospace; font-size: 10.5px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+  .preset-row .pr-text.neg { color: rgba(var(--magenta-rgb), .7); }
+  .preset-row .pr-actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .preset-save { display: flex; gap: 6px; margin-bottom: 12px; }
+  .preset-save .field-input { flex: 1; min-width: 0; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--panel); border: 1px solid var(--cyan-dim); color: var(--cyan);
+    font-size: 11px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 80; max-width: 86vw; text-align: center; white-space: pre-line;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.is-error { border-color: var(--magenta-dim); color: var(--magenta); }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(var(--scrim-rgb), .6); display: none;
+    align-items: center; justify-content: center; z-index: 70; padding: 20px;
+  }
+  .confirm-overlay.is-open { display: flex; }
+  .confirm-box {
+    width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px;
+  }
+  .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 14px; white-space: pre-line; }
+  .confirm-box .cf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ---- スマホ幅：カテゴリを上の横並びのタブに ---- */
+  @media (max-width: 700px) {
+    .app-bar { padding: 8px 12px; }
+    .app-body { flex-direction: column; }
+    .cat-pane { width: auto; border-right: none; border-bottom: 1px solid var(--line-soft); flex-direction: row; align-items: center; }
+    .pane-head { padding: 6px 4px 6px 10px; }
+    .pane-head .ph-label { display: none; }
+    .cat-list { display: flex; overflow-x: auto; overflow-y: hidden; padding: 6px 10px 6px 4px; gap: 4px; }
+    .cat-item { width: auto; flex-shrink: 0; margin-bottom: 0; padding: 6px 9px; max-width: 60vw; }
+    .word-head { padding: 8px 12px; }
+    .word-list { padding: 10px 12px 16px; }
+    .tray { max-height: 45%; }
+    .tray-headrow { padding: 4px 12px; }
+    .tray-body { padding: 0 12px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell" id="shell">
+  <div class="app-bar">
+    <span class="app-title">// TAGFORGE</span>
+    <div class="bar-right">
+      <button class="btn" id="importBtn" type="button">MD取り込み</button>
+      <div class="menu-wrap">
+        <button class="hamburger-btn" id="menuBtn" type="button" title="メニュー">☰</button>
+        <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="miExport" type="button">ワードリストをMDに書き出す</button>
+          <button class="menu-panel-item" id="miUndoImport" type="button">直前の取り込みを取り消す</button>
+          <button class="menu-panel-item" id="miSample" type="button">見本のワードを入れる</button>
+          <button class="menu-panel-item" id="miHelp" type="button">MDの書き方</button>
+          <div class="menu-sep"></div>
+          <label class="menu-check"><input type="checkbox" id="prefEscape"> ( ) を \( \) にしてコピー</label>
+          <div class="menu-note">キャラ名の括弧用。全体を ( ) で囲んだワードはそのまま</div>
+          <label class="menu-check"><input type="checkbox" id="prefUnderscore"> _ をスペースにしてコピー</label>
+          <div class="menu-note">Danbooru の long_hair → long hair</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <aside class="cat-pane">
+      <div class="pane-head"><span class="ph-label">カテゴリ</span><button class="icon-btn" id="addCatBtn" type="button" title="カテゴリを足す">＋</button></div>
+      <div class="cat-list" id="catList"></div>
+    </aside>
+    <section class="word-pane">
+      <div class="word-head">
+        <div class="wh-title">
+          <span class="wh-name" id="curCatName"></span>
+          <span class="neg-badge" id="curCatNeg" hidden>NEG</span>
+          <button class="icon-btn" id="editCatBtn" type="button" title="このカテゴリを編集">✎</button>
+        </div>
+        <input type="search" class="search-input" id="searchInput" placeholder="検索（全カテゴリ・スペースで複数語）">
+        <button class="btn" id="editModeBtn" type="button">編集・並べ替え</button>
+        <button class="btn primary" id="addWordBtn" type="button">＋ ワード</button>
+      </div>
+      <div class="edit-hint">編集中：ワードをタップで編集・長押し（PCはドラッグ）で並べ替え。カテゴリも長押し／ドラッグで並べ替えられます。</div>
+      <div class="word-list" id="wordList"></div>
+    </section>
+  </div>
+
+  <section class="tray" id="tray">
+    <div class="tray-headrow">
+      <button class="tray-toggle" id="trayToggle" type="button">組み立て<span class="tray-count" id="trayCount"></span><span class="tray-arrow" id="trayArrow">▾</span></button>
+      <button class="btn small" id="presetBtn" type="button">定型文</button>
+    </div>
+    <div class="tray-body">
+      <div class="lane" data-lane="pos">
+        <div class="lane-head">
+          <span class="lane-name">PROMPT<span class="lane-len" data-len></span></span>
+          <button class="btn small primary" data-copy type="button">コピー</button>
+          <button class="btn small" data-clear type="button">クリア</button>
+        </div>
+        <div class="chip-row" data-chips></div>
+        <div class="chip-tools" data-tools></div>
+        <div class="lane-add"><input type="text" data-free placeholder="リストにない語を直接入力して Enter" maxlength="200" enterkeyhint="done"></div>
+        <div class="lane-out" data-out></div>
+      </div>
+      <div class="lane is-neg" data-lane="neg">
+        <div class="lane-head">
+          <span class="lane-name">NEGATIVE<span class="lane-len" data-len></span></span>
+          <button class="btn small primary" data-copy type="button">コピー</button>
+          <button class="btn small" data-clear type="button">クリア</button>
+        </div>
+        <div class="chip-row" data-chips></div>
+        <div class="chip-tools" data-tools></div>
+        <div class="lane-add"><input type="text" data-free placeholder="リストにない語を直接入力して Enter" maxlength="200" enterkeyhint="done"></div>
+        <div class="lane-out" data-out></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ワードを足す -->
+<div class="modal-overlay" id="addWordModal">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">ワードを足す</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group">
+      <div class="field-label">カテゴリ</div>
+      <select class="field-select" id="awCat"></select>
+    </div>
+    <div class="field-group">
+      <div class="field-label">ワード（1行に1つ）</div>
+      <textarea class="field-textarea" id="awText" rows="7" placeholder="blue hair | 青髪&#10;long hair&#10;twintails | ツインテール"></textarea>
+      <div class="field-hint"><code>ワード | 説明</code> と書くと説明（日本語のメモ）も付きます。同じカテゴリにある語は飛ばします。</div>
+      <div class="field-error" id="awError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" type="button" data-close>キャンセル</button>
+      <button class="btn primary" id="awSave" type="button">足す</button>
+    </div>
+  </div>
+</div>
+
+<!-- ワードの編集 -->
+<div class="modal-overlay" id="editWordModal">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">ワードの編集</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group">
+      <div class="field-label">ワード（プロンプトに入る文字）</div>
+      <input class="field-input" id="ewText" maxlength="200">
+    </div>
+    <div class="field-group">
+      <div class="field-label">説明（任意。プロンプトには入りません）</div>
+      <input class="field-input" id="ewLabel" maxlength="100">
+    </div>
+    <div class="field-group">
+      <div class="field-label">カテゴリ</div>
+      <select class="field-select" id="ewCat"></select>
+      <div class="field-error" id="ewError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" id="ewDelete" type="button">削除</button>
+      <span class="spacer"></span>
+      <button class="btn" type="button" data-close>キャンセル</button>
+      <button class="btn primary" id="ewSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- カテゴリの作成・編集 -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title" id="cmTitle">カテゴリ</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group">
+      <div class="field-label">カテゴリ名</div>
+      <input class="field-input" id="cmName" maxlength="40" placeholder="例：髪型">
+    </div>
+    <div class="field-group">
+      <label class="field-check"><input type="checkbox" id="cmNeg"><span>ネガティブ用（ここのワードを選ぶと NEGATIVE の欄に入る）</span></label>
+      <div class="field-error" id="cmError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" id="cmDelete" type="button">削除</button>
+      <span class="spacer"></span>
+      <button class="btn" type="button" data-close>キャンセル</button>
+      <button class="btn primary" id="cmSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- MD取り込み -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">MDファイルから取り込む</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div id="impStep1">
+      <div class="field-group">
+        <div class="field-label">ファイルを選ぶ（.md / .txt・1MBまで）</div>
+        <input type="file" id="impFile" accept=".md,.markdown,.txt,text/markdown,text/plain" class="field-input">
+      </div>
+      <div class="field-group">
+        <div class="field-label">または、ここに貼り付け</div>
+        <textarea class="field-textarea" id="impPaste" rows="8" placeholder="# 髪型&#10;- long hair | ロングヘア&#10;- ponytail | ポニーテール&#10;&#10;# ネガティブ [neg]&#10;- worst quality"></textarea>
+        <div class="field-hint"><code># 見出し</code> がカテゴリ、その下の1行が1ワード。<code>[neg]</code> を見出しに付けるとネガティブ用。詳しくは「☰ → MDの書き方」。</div>
+      </div>
+      <div class="field-group">
+        <label class="field-check"><input type="checkbox" id="impSplit"><span>カンマ区切りの行を、1語ずつに分けて取り込む</span></label>
+      </div>
+      <div class="field-error" id="impError"></div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close>キャンセル</button>
+        <button class="btn primary" id="impPreviewBtn" type="button">中身を確かめる</button>
+      </div>
+    </div>
+    <div id="impStep2" hidden>
+      <div class="imp-summary" id="impSummary"></div>
+      <table class="imp-table">
+        <thead><tr><th>カテゴリ</th><th class="num">追加</th><th class="num">重複で飛ばす</th></tr></thead>
+        <tbody id="impRows"></tbody>
+      </table>
+      <div class="field-hint" id="impNote"></div>
+      <div class="modal-footer">
+        <button class="btn" id="impBack" type="button">戻る</button>
+        <button class="btn primary" id="impRun" type="button">取り込む</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 定型文 -->
+<div class="modal-overlay" id="presetModal">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">定型文</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-label">今の組み立て（PROMPT と NEGATIVE）を定型文として保存</div>
+    <div class="preset-save">
+      <input class="field-input" id="psName" maxlength="60" placeholder="定型文の名前（例：WAI 基本セット）">
+      <button class="btn primary" id="psSave" type="button">保存</button>
+    </div>
+    <div class="field-error" id="psError"></div>
+    <div class="field-hint" style="margin:-4px 0 12px">「追加」は今の組み立ての後ろに足し（同じ語は足しません）、「置換」は今の組み立てと入れ替えます。≡ を長押し（PCはドラッグ）で並べ替え。</div>
+    <div id="presetList"></div>
+  </div>
+</div>
+
+<!-- 定型文の名前の変更 -->
+<div class="modal-overlay" id="presetEditModal">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">定型文の編集</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group">
+      <div class="field-label">名前</div>
+      <input class="field-input" id="peName" maxlength="60">
+    </div>
+    <div class="field-group">
+      <label class="field-check"><input type="checkbox" id="peOverwrite"><span>中身を今の組み立てで上書きする</span></label>
+      <div class="field-error" id="peError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" id="peDelete" type="button">削除</button>
+      <span class="spacer"></span>
+      <button class="btn" type="button" data-close>キャンセル</button>
+      <button class="btn primary" id="peSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- MDの書き方 -->
+<div class="modal-overlay" id="helpModal">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">MDの書き方</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="help">
+      <pre># 髪型
+- long hair | ロングヘア
+- ponytail | ポニーテール
+- twintails
+
+# ネガティブ [neg]
+- worst quality
+- bad hands | 手の崩れ</pre>
+      <h4>決まり</h4>
+      <ul>
+        <li><code>#</code>〜<code>######</code> の見出し＝カテゴリ。同じ名前のカテゴリがあれば、そこに足します</li>
+        <li>見出しに <code>[neg]</code> を付けるとネガティブ用のカテゴリになります（新しく作るときだけ）</li>
+        <li>見出しより前に書いた語は「未分類」に入ります</li>
+        <li>1行＝1ワード。行頭の <code>-</code> <code>*</code> <code>1.</code> などは無視します</li>
+        <li><code>ワード | 説明</code>（前後にスペース、または全角の <code>｜</code>）で説明を付けられます。<code>[cat|dog]</code> のような書き方はそのまま残ります</li>
+        <li>表（<code>| ワード | 説明 |</code>）の行も読めます</li>
+        <li>同じカテゴリにすでにある語・ファイルの中で重なった語は飛ばします（大文字・小文字は区別しません）</li>
+        <li>「☰ → ワードリストをMDに書き出す」で出したファイルは、そのまま取り込み直せます</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="cf-msg" id="confirmMsg"></div>
+    <div class="cf-actions">
+      <button class="btn" id="confirmCancel" type="button" data-sideops-back-close>キャンセル</button>
+      <button class="btn danger" id="confirmOk" type="button">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     IndexedDB（DB: sideops_tagforge・版1。同期する）
+       cats    : { id, name, neg, order, createdAt, updatedAt }
+       words   : { id, catId, text, label, order, createdAt, updatedAt }
+       presets : { id, name, pos:[{wordId,text,w}], neg:[...], order, createdAt, updatedAt }
+     組み立て中の中身・設定は端末ごと（localStorage。よく変わる小さなデータを同期するDBに入れない）
+  ===================================================================== */
+  const DB_NAME = 'sideops_tagforge';
+  const DB_VERSION = 1;
+  const S_CATS = 'cats', S_WORDS = 'words', S_PRESETS = 'presets';
+  const LS_TRAY = 'sideops_tagforge_tray';
+  const LS_PREFS = 'sideops_tagforge_prefs';
+  const SS_LASTIMPORT = 'sideops_tagforge_lastimport';
+
+  // 誤作動防止の上限
+  const MAX_TEXT = 200, MAX_LABEL = 100, MAX_CAT_NAME = 40, MAX_PRESET_NAME = 60;
+  const MAX_IMPORT_BYTES = 1024 * 1024;
+  const MAX_IMPORT_WORDS = 5000, MAX_IMPORT_CATS = 200, MAX_ADD_LINES = 500;
+  const MAX_TRAY = 300;
+  const W_MIN = 0.1, W_MAX = 2.0;
+
+  let db = null;
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (ev) => {
+        const d = ev.target.result;
+        [S_CATS, S_WORDS, S_PRESETS].forEach((n) => {
+          if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' });
+        });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function getAll(name) {
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(name, 'readonly').objectStore(name).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  // ops: [{ store, put: rec } | { store, del: id }] を1つのトランザクションで（途中で失敗したら全部やめる）
+  function writeMany(ops) {
+    if (!ops.length) return Promise.resolve();
+    const names = [...new Set(ops.map((o) => o.store))];
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(names, 'readwrite');
+      ops.forEach((o) => {
+        const s = tx.objectStore(o.store);
+        if (o.put) s.put(o.put); else s.delete(o.del);
+      });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('abort'));
+    });
+  }
+
+  /* ===================== 状態 ===================== */
+  let cats = [], words = [], presets = [];
+  let curCatId = null;
+  let editMode = false;
+  let query = '';
+  let tray = { pos: [], neg: [] };   // [{ k, wordId|null, text, w }]
+  let current = null;                // { lane, k }：組み立てで選んでいるチップ
+  const undoClear = { pos: null, neg: null }; // クリアの直後の控え { items, timer }
+  let prefs = { escape: true, underscore: true, catId: null, trayCollapsed: false };
+
+  /* ===================== 小道具 ===================== */
+  const $ = (id) => document.getElementById(id);
+  const toastEl = $('toast');
+  let toastTimer = null;
+  function showToast(msg, isError) {
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('is-error', !!isError);
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function genId() { return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); }
+  function genKey() { return 'k' + Math.random().toString(36).slice(2, 10); }
+  function norm(s) { return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+  function cleanText(s, max) { return String(s || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, max); }
+  function byOrder(a, b) { return (a.order - b.order) || (a.createdAt - b.createdAt); }
+  function catById(id) { return cats.find((c) => c.id === id) || null; }
+  function wordById(id) { return words.find((w) => w.id === id) || null; }
+  function wordsOf(catId) { return words.filter((w) => w.catId === catId).sort(byOrder); }
+  function nextOrder(list) { return list.reduce((m, x) => Math.max(m, typeof x.order === 'number' ? x.order : 0), -1) + 1; }
+  function roundW(w) { return Math.round(w * 10) / 10; }
+
+  function lsGet(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
+  }
+  function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) { /* 保存できなくても動く */ } }
+  function savePrefs() { lsSet(LS_PREFS, prefs); }
+  function saveTray() { lsSet(LS_TRAY, tray); }
+
+  function sanitizeItems(arr) {
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    arr.forEach((it) => {
+      if (!it || typeof it.text !== 'string') return;
+      const text = cleanText(it.text, MAX_TEXT);
+      if (!text) return;
+      let w = Number(it.w);
+      if (!isFinite(w)) w = 1;
+      w = Math.min(W_MAX, Math.max(W_MIN, roundW(w)));
+      out.push({ k: genKey(), wordId: typeof it.wordId === 'string' ? it.wordId : null, text, w });
+    });
+    return out.slice(0, MAX_TRAY);
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+    } catch (_) { /* 下の方法で */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (_) { return false; }
+  }
+
+  /* ===================== モーダル ===================== */
+  const modalGuards = new Map(); // id -> () => boolean（true なら閉じる前に確認）
+  function openModal(id) { $(id).classList.add('is-open'); closeMenu(); }
+  function closeModalNow(id) { $(id).classList.remove('is-open'); }
+  async function requestClose(id) {
+    const guard = modalGuards.get(id);
+    if (guard && guard()) {
+      if (!(await confirmBox('入力した内容を捨てて閉じますか？', '捨てて閉じる'))) return;
+    }
+    closeModalNow(id);
+  }
+  document.querySelectorAll('.modal-overlay').forEach((ov) => {
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('[data-close]')) requestClose(ov.id);
+    });
+  });
+
+  let confirmResolve = null;
+  function confirmBox(msg, okLabel, safe) {
+    $('confirmMsg').textContent = msg;
+    const ok = $('confirmOk');
+    ok.textContent = okLabel || 'OK';
+    ok.className = 'btn ' + (safe ? 'primary' : 'danger');
+    $('confirmOverlay').classList.add('is-open');
+    return new Promise((resolve) => { confirmResolve = resolve; });
+  }
+  function finishConfirm(v) {
+    $('confirmOverlay').classList.remove('is-open');
+    const r = confirmResolve; confirmResolve = null;
+    if (r) r(v);
+  }
+  $('confirmOk').addEventListener('click', () => finishConfirm(true));
+  $('confirmCancel').addEventListener('click', () => finishConfirm(false));
+  $('confirmOverlay').addEventListener('click', (e) => { if (e.target.id === 'confirmOverlay') finishConfirm(false); });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.isComposing) return;
+    if ($('confirmOverlay').classList.contains('is-open')) { finishConfirm(false); return; }
+    const open = [...document.querySelectorAll('.modal-overlay.is-open')];
+    if (open.length) { requestClose(open[open.length - 1].id); return; }
+    if ($('menuPanel').classList.contains('is-open')) closeMenu();
+  });
+
+  // 2回押しの歯止め（1回目で「もう一度押すと〜」、3秒で元に戻る）
+  function armTwice(btn, armedLabel, action) {
+    if (btn.dataset.armed === '1') {
+      btn.dataset.armed = ''; btn.classList.remove('is-armed'); btn.textContent = btn.dataset.label;
+      clearTimeout(btn._armTimer);
+      action();
+      return;
+    }
+    btn.dataset.label = btn.textContent;
+    btn.dataset.armed = '1'; btn.classList.add('is-armed'); btn.textContent = armedLabel;
+    btn._armTimer = setTimeout(() => {
+      btn.dataset.armed = ''; btn.classList.remove('is-armed'); btn.textContent = btn.dataset.label;
+    }, 3000);
+  }
+
+  /* =====================================================================
+     並べ替え（ドラッグ）の共通部品
+     マウス：5px 動かしたら掴む。タッチ・ペン：長押し（280ms）で掴む（動かすとスクロール）
+     掴んだ要素をその場で動かし、離したら onDrop(並びのid)。動かさずに離したら onTap
+  ===================================================================== */
+  function makeSortable(container, opt) {
+    let st = null;
+    const LONG_MS = 280;
+    function items() { return [...container.querySelectorAll(opt.itemSel)]; }
+    function cleanup() {
+      if (!st) return;
+      clearTimeout(st.timer);
+      if (st.el) st.el.classList.remove('is-dragging');
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onCancel);
+      st = null;
+    }
+    function startDrag() {
+      st.dragging = true;
+      st.el.classList.add('is-dragging');
+      try { st.el.setPointerCapture(st.pid); } catch (_) {}
+      if (st.touch) { try { navigator.vibrate && navigator.vibrate(12); } catch (_) {} }
+    }
+    function onMove(e) {
+      if (!st || e.pointerId !== st.pid) return;
+      const dx = e.clientX - st.x0, dy = e.clientY - st.y0;
+      const dist = Math.hypot(dx, dy);
+      if (!st.dragging) {
+        if (st.touch) { if (dist > 8) cleanup(); return; } // 長押しの前に動いた＝スクロール
+        if (dist < 5) return;
+        startDrag();
+      }
+      e.preventDefault();
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const target = under && under.closest(opt.itemSel);
+      if (target && target !== st.el && container.contains(target)) {
+        const r = target.getBoundingClientRect();
+        const after = opt.axis === 'y'
+          ? e.clientY > r.top + r.height / 2
+          : (e.clientY > r.bottom ? true : e.clientY < r.top ? false : e.clientX > r.left + r.width / 2);
+        const ref = after ? target.nextSibling : target;
+        if (ref !== st.el) target.parentNode.insertBefore(st.el, ref);
+      }
+      // 端に近づいたら自動スクロール
+      const sc = opt.scrollEl ? opt.scrollEl() : null;
+      if (sc) {
+        const r = sc.getBoundingClientRect();
+        if (e.clientY < r.top + 28) sc.scrollTop -= 12; else if (e.clientY > r.bottom - 28) sc.scrollTop += 12;
+        if (e.clientX < r.left + 28) sc.scrollLeft -= 12; else if (e.clientX > r.right - 28) sc.scrollLeft += 12;
+      }
+    }
+    function onUp(e) {
+      if (!st || e.pointerId !== st.pid) return;
+      const s = st;
+      cleanup();
+      if (s.dragging) {
+        const ids = items().map((x) => x.dataset.id);
+        if (ids.join('|') !== s.before) opt.onDrop(ids, s.el.dataset.id);
+        s.suppressClick = true;
+        lastSuppress = Date.now();
+      } else if (!s.longPressed) {
+        opt.onTap && opt.onTap(s.el, e);
+        lastSuppress = Date.now();
+      }
+    }
+    function onCancel(e) { if (st && e.pointerId === st.pid) cleanup(); }
+    let lastSuppress = 0;
+    container.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const el = e.target.closest(opt.itemSel);
+      if (!el || !container.contains(el)) return;
+      if (opt.handleSel && !e.target.closest(opt.handleSel)) return;
+      const canDrag = !opt.enabled || opt.enabled();
+      st = { el, pid: e.pointerId, x0: e.clientX, y0: e.clientY, dragging: false,
+        touch: e.pointerType !== 'mouse', before: items().map((x) => x.dataset.id).join('|'), longPressed: false };
+      if (!canDrag) st.noDrag = true;
+      if (st.touch && canDrag) {
+        st.timer = setTimeout(() => { if (st && !st.dragging) { st.longPressed = true; startDrag(); } }, LONG_MS);
+      }
+      if (st.noDrag) { st.touch = true; clearTimeout(st.timer); }
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onCancel);
+    });
+    // 掴んでいる間はタッチのスクロールを止める
+    container.addEventListener('touchmove', (e) => { if (st && st.dragging) e.preventDefault(); }, { passive: false });
+    container.addEventListener('contextmenu', (e) => { if (e.target.closest(opt.itemSel)) e.preventDefault(); });
+    // キーボード（Enter・Space）の click は onTap に回す。ポインターの直後の click は無視
+    container.addEventListener('click', (e) => {
+      const el = e.target.closest(opt.itemSel);
+      if (!el || !container.contains(el)) return;
+      if (opt.handleSel) return;
+      if (e.detail === 0 && Date.now() - lastSuppress > 300) opt.onTap && opt.onTap(el, e);
+    });
+  }
+
+  /* =====================================================================
+     出力（コピーする文字）
+  ===================================================================== */
+  function formatItem(it) {
+    const w = wordById(it.wordId);
+    let t = w ? w.text : it.text;
+    if (prefs.underscore && /[a-z]/i.test(t) && !/^<.*>$/.test(t)) t = t.replace(/_/g, ' ');
+    const wrapped = /^\(.*\)$/.test(t) || /^\[.*\]$/.test(t) || /^<.*>$/.test(t);
+    if (prefs.escape && !wrapped) t = t.replace(/(\\)?([()])/g, (m, bs, p) => (bs ? m : '\\' + p));
+    if (it.w !== 1) t = '(' + t + ':' + it.w.toFixed(1) + ')';
+    return t;
+  }
+  function laneText(lane) { return tray[lane].map(formatItem).filter(Boolean).join(', '); }
+  function itemText(it) { const w = wordById(it.wordId); return w ? w.text : it.text; }
+
+  /* =====================================================================
+     描画：カテゴリ
+  ===================================================================== */
+  const shell = $('shell');
+  const catList = $('catList');
+  const wordList = $('wordList');
+
+  function selectedWordIds() {
+    const set = new Map();
+    ['pos', 'neg'].forEach((lane) => tray[lane].forEach((it) => { if (it.wordId) set.set(it.wordId, lane); }));
+    return set;
+  }
+
+  function renderCats() {
+    const sel = selectedWordIds();
+    const counts = new Map(), selCounts = new Map();
+    words.forEach((w) => {
+      counts.set(w.catId, (counts.get(w.catId) || 0) + 1);
+      if (sel.has(w.id)) selCounts.set(w.catId, (selCounts.get(w.catId) || 0) + 1);
+    });
+    catList.innerHTML = cats.map((c) => {
+      const sc = selCounts.get(c.id) || 0;
+      return `<button class="cat-item${c.id === curCatId && !query ? ' is-active' : ''}" type="button" data-id="${esc(c.id)}">
+        <span class="ci-grip">⋮⋮</span>
+        <span class="ci-name">${esc(c.name)}</span>
+        ${c.neg ? '<span class="ci-neg">NEG</span>' : ''}
+        ${sc ? `<span class="ci-sel">${sc}</span>` : ''}
+        <span class="ci-count">${counts.get(c.id) || 0}</span>
+      </button>`;
+    }).join('');
+  }
+
+  function renderHead() {
+    const c = catById(curCatId);
+    $('curCatName').textContent = query ? '検索の結果' : (c ? c.name : 'カテゴリがありません');
+    $('curCatNeg').hidden = !(c && c.neg && !query);
+    $('editCatBtn').hidden = !c || !!query;
+    $('addWordBtn').disabled = cats.length === 0;
+    $('editModeBtn').classList.toggle('is-on', editMode);
+    $('editModeBtn').textContent = editMode ? '編集を終える' : '編集・並べ替え';
+    shell.classList.toggle('is-editmode', editMode);
+  }
+
+  /* =====================================================================
+     描画：ワード
+  ===================================================================== */
+  function chipHtml(w, sel) {
+    const c = catById(w.catId);
+    const lane = sel.get(w.id);
+    const cls = 'word-chip' + (lane ? ' is-selected' : '') + (lane === 'neg' ? ' is-neg' : '');
+    return `<button class="${cls}" type="button" data-id="${esc(w.id)}" title="${esc(w.label || w.text)}${c && c.neg ? '（ネガティブ）' : ''}">
+      <span class="wc-text">${esc(w.text)}</span>${w.label ? `<span class="wc-label">${esc(w.label)}</span>` : ''}
+    </button>`;
+  }
+
+  function renderWords() {
+    const sel = selectedWordIds();
+    if (cats.length === 0) {
+      wordList.innerHTML = `<div class="empty-state">
+        <div class="big">ワードリストが空です</div>
+        <div class="small">カテゴリを作ってワードを足すか、MDファイルを取り込んでください。まず試すなら、よく使うタグの見本（品質・髪・構図・ネガティブなど）を入れられます。</div>
+        <div class="row">
+          <button class="btn primary" type="button" data-empty="sample">見本のワードを入れる</button>
+          <button class="btn" type="button" data-empty="import">MD取り込み</button>
+          <button class="btn" type="button" data-empty="cat">＋ カテゴリ</button>
+        </div>
+      </div>`;
+      return;
+    }
+    if (query) {
+      const terms = norm(query).split(' ').filter(Boolean);
+      const hits = words.filter((w) => {
+        const hay = norm(w.text + ' ' + (w.label || ''));
+        return terms.every((t) => hay.includes(t));
+      });
+      if (!hits.length) {
+        wordList.innerHTML = `<div class="empty-state"><div class="big">見つかりません</div><div class="small">「${esc(query)}」を含むワードはありません。</div></div>`;
+        return;
+      }
+      let html = '';
+      cats.forEach((c) => {
+        const ws = hits.filter((w) => w.catId === c.id).sort(byOrder);
+        if (!ws.length) return;
+        html += `<div class="group-label">${esc(c.name)}${c.neg ? '（NEG）' : ''}</div><div class="word-grid" data-cat="${esc(c.id)}">${ws.map((w) => chipHtml(w, sel)).join('')}</div>`;
+      });
+      wordList.innerHTML = html;
+      return;
+    }
+    const ws = wordsOf(curCatId);
+    if (!ws.length) {
+      wordList.innerHTML = `<div class="empty-state"><div class="big">このカテゴリにはまだワードがありません</div>
+        <div class="small">「＋ ワード」から足すか、MDファイルを取り込んでください。</div></div>`;
+      return;
+    }
+    wordList.innerHTML = `<div class="word-grid" data-cat="${esc(curCatId)}">${ws.map((w) => chipHtml(w, sel)).join('')}</div>`;
+  }
+
+  /* =====================================================================
+     描画：組み立て
+  ===================================================================== */
+  const lanes = {};
+  document.querySelectorAll('.lane').forEach((el) => {
+    lanes[el.dataset.lane] = {
+      el, chips: el.querySelector('[data-chips]'), tools: el.querySelector('[data-tools]'),
+      out: el.querySelector('[data-out]'), len: el.querySelector('[data-len]'), free: el.querySelector('[data-free]'),
+      copy: el.querySelector('[data-copy]'), clear: el.querySelector('[data-clear]'),
+    };
+  });
+
+  function renderTray() {
+    ['pos', 'neg'].forEach((lane) => {
+      const L = lanes[lane];
+      const list = tray[lane];
+      L.chips.innerHTML = list.length ? list.map((it) => {
+        const cur = current && current.lane === lane && current.k === it.k;
+        return `<button class="t-chip${it.wordId ? '' : ' is-free'}${cur ? ' is-current' : ''}" type="button" data-id="${esc(it.k)}">${esc(itemText(it))}${it.w !== 1 ? `<span class="tw">:${it.w.toFixed(1)}</span>` : ''}</button>`;
+      }).join('') : '<span class="placeholder">上のワードをタップすると、ここに入ります</span>';
+      const text = laneText(lane);
+      L.out.textContent = text;
+      L.len.textContent = list.length ? `${list.length}語・${text.length}文字` : '';
+      L.copy.disabled = !list.length;
+      if (L.clear.dataset.armed !== '1') {
+        L.clear.textContent = undoClear[lane] ? '元に戻す' : 'クリア';
+        L.clear.disabled = !list.length && !undoClear[lane];
+      }
+      const it = current && current.lane === lane ? list.find((x) => x.k === current.k) : null;
+      if (it) {
+        const idx = list.indexOf(it);
+        L.tools.innerHTML = `<span class="ct-name">選択中：${esc(itemText(it))}${it.wordId ? '' : '（直接入力）'}</span>
+          <button class="btn small" type="button" data-t="left" ${idx === 0 ? 'disabled' : ''} title="前へ">◀</button>
+          <button class="btn small" type="button" data-t="right" ${idx === list.length - 1 ? 'disabled' : ''} title="後ろへ">▶</button>
+          <button class="btn small" type="button" data-t="down" ${it.w <= W_MIN ? 'disabled' : ''} title="弱く">−</button>
+          <span class="ct-w">${it.w.toFixed(1)}</span>
+          <button class="btn small" type="button" data-t="up" ${it.w >= W_MAX ? 'disabled' : ''} title="強く">＋</button>
+          <button class="btn small" type="button" data-t="reset" ${it.w === 1 ? 'disabled' : ''}>1.0に</button>
+          <button class="btn small" type="button" data-t="move">${lane === 'pos' ? 'NEGATIVEへ' : 'PROMPTへ'}</button>
+          <button class="btn small danger" type="button" data-t="remove">外す</button>
+          <button class="btn small" type="button" data-t="done">閉じる</button>`;
+        L.tools.classList.add('is-open');
+      } else {
+        L.tools.innerHTML = '';
+        L.tools.classList.remove('is-open');
+      }
+    });
+    const n = tray.pos.length + tray.neg.length;
+    $('trayCount').textContent = n ? `PROMPT ${tray.pos.length}・NEGATIVE ${tray.neg.length}` : '';
+    $('tray').classList.toggle('is-collapsed', !!prefs.trayCollapsed);
+    $('trayArrow').textContent = prefs.trayCollapsed ? '▴' : '▾';
+  }
+
+  function renderAll() { renderHead(); renderCats(); renderWords(); renderTray(); }
+  function afterTrayChange() { saveTray(); renderTray(); renderCats(); renderWords(); }
+
+  /* =====================================================================
+     データの読み込み
+  ===================================================================== */
+  async function loadAll() {
+    [cats, words, presets] = await Promise.all([getAll(S_CATS), getAll(S_WORDS), getAll(S_PRESETS)]);
+    cats.sort(byOrder); presets.sort(byOrder);
+    // 行き先のないワード（同期の途中などでカテゴリだけ消えた）は表示しない
+    const catIds = new Set(cats.map((c) => c.id));
+    words = words.filter((w) => catIds.has(w.catId) && typeof w.text === 'string');
+    if (!catById(curCatId)) curCatId = cats[0] ? cats[0].id : null;
+  }
+
+  async function init() {
+    prefs = Object.assign(prefs, lsGet(LS_PREFS, {}));
+    const t = lsGet(LS_TRAY, null);
+    if (t) tray = { pos: sanitizeItems(t.pos), neg: sanitizeItems(t.neg) };
+    $('prefEscape').checked = !!prefs.escape;
+    $('prefUnderscore').checked = !!prefs.underscore;
+    try {
+      db = await openDb();
+      curCatId = prefs.catId;
+      await loadAll();
+    } catch (err) {
+      console.error('TAGFORGE のDBを開けませんでした', err);
+      wordList.innerHTML = `<div class="empty-state"><div class="big">保存機能を利用できません</div>
+        <div class="small">このブラウザ／モードでは IndexedDB が使えないため、ワードリストを保存できません。プライベートブラウジングなどをご確認ください。</div></div>`;
+      ['importBtn', 'addCatBtn', 'addWordBtn', 'editModeBtn', 'presetBtn'].forEach((id) => { $(id).disabled = true; });
+      renderTray();
+      return;
+    }
+    renderAll();
+    updateUndoMenu();
+  }
+
+  /* =====================================================================
+     カテゴリの操作
+  ===================================================================== */
+  makeSortable(catList, {
+    itemSel: '.cat-item', axis: window.matchMedia('(max-width: 700px)').matches ? 'x' : 'y',
+    enabled: () => editMode,
+    scrollEl: () => catList,
+    onTap: (el) => selectCat(el.dataset.id),
+    onDrop: async (ids) => {
+      const ops = [];
+      ids.forEach((id, i) => { const c = catById(id); if (c && c.order !== i) { c.order = i; c.updatedAt = Date.now(); ops.push({ store: S_CATS, put: c }); } });
+      cats.sort(byOrder);
+      try { await writeMany(ops); } catch (err) { console.error(err); showToast('並びを保存できませんでした', true); }
+      renderCats();
+    },
+  });
+
+  function selectCat(id) {
+    curCatId = id; prefs.catId = id; savePrefs();
+    if (query) { query = ''; $('searchInput').value = ''; }
+    renderHead(); renderCats(); renderWords();
+    wordList.scrollTop = 0;
+  }
+
+  let catEditingId = null;
+  function openCatModal(id) {
+    catEditingId = id || null;
+    const c = id ? catById(id) : null;
+    $('cmTitle').textContent = c ? 'カテゴリの編集' : 'カテゴリを足す';
+    $('cmName').value = c ? c.name : '';
+    $('cmNeg').checked = c ? !!c.neg : false;
+    $('cmDelete').hidden = !c;
+    $('cmError').classList.remove('is-shown');
+    openModal('catModal');
+    setTimeout(() => $('cmName').focus(), 30);
+  }
+  $('addCatBtn').addEventListener('click', () => openCatModal(null));
+  $('editCatBtn').addEventListener('click', () => { if (curCatId) openCatModal(curCatId); });
+  $('cmName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) $('cmSave').click(); });
+  $('cmSave').addEventListener('click', async () => {
+    const name = cleanText($('cmName').value, MAX_CAT_NAME);
+    const err = $('cmError');
+    if (!name) { err.textContent = 'カテゴリ名を入れてください'; err.classList.add('is-shown'); return; }
+    if (cats.some((c) => c.id !== catEditingId && norm(c.name) === norm(name))) {
+      err.textContent = '同じ名前のカテゴリがあります'; err.classList.add('is-shown'); return;
+    }
+    const now = Date.now();
+    let c = catEditingId ? catById(catEditingId) : null;
+    const wasNeg = c ? !!c.neg : false;
+    if (c) { c.name = name; c.neg = $('cmNeg').checked; c.updatedAt = now; }
+    else { c = { id: genId(), name, neg: $('cmNeg').checked, order: nextOrder(cats), createdAt: now, updatedAt: now }; }
+    try { await writeMany([{ store: S_CATS, put: c }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
+    if (!catEditingId) { cats.push(c); curCatId = c.id; prefs.catId = c.id; savePrefs(); }
+    closeModalNow('catModal');
+    renderAll();
+    showToast(catEditingId ? 'カテゴリを保存しました' : `カテゴリ「${name}」を作りました`);
+    if (catEditingId && wasNeg !== c.neg) showToast('ネガティブ用を切り替えました。\nこれから選ぶワードの入る欄が変わります（組み立て済みの語はそのまま）');
+  });
+  $('cmDelete').addEventListener('click', async () => {
+    const c = catById(catEditingId);
+    if (!c) return;
+    const ws = wordsOf(c.id);
+    const msg = ws.length
+      ? `カテゴリ「${c.name}」と、その中のワード ${ws.length} 件を削除します。\n元に戻せません（先に「☰ → MDに書き出す」で控えを取れます）。`
+      : `カテゴリ「${c.name}」を削除します。`;
+    if (!(await confirmBox(msg, ws.length ? `${ws.length}件ごと削除` : '削除する'))) return;
+    const ops = [{ store: S_CATS, del: c.id }, ...ws.map((w) => ({ store: S_WORDS, del: w.id }))];
+    try { await writeMany(ops); } catch (e) { console.error(e); showToast('削除できませんでした', true); return; }
+    const gone = new Set(ws.map((w) => w.id));
+    cats = cats.filter((x) => x.id !== c.id);
+    words = words.filter((w) => !gone.has(w.id));
+    detachWords(gone);
+    if (curCatId === c.id) curCatId = cats[0] ? cats[0].id : null;
+    closeModalNow('catModal');
+    renderAll();
+    showToast('削除しました');
+  });
+
+  // 消したワードを組み立てに残すときは、直接入力の扱いにする（文字は残す）
+  function detachWords(idSet) {
+    let changed = false;
+    ['pos', 'neg'].forEach((lane) => tray[lane].forEach((it) => {
+      if (it.wordId && idSet.has(it.wordId)) { it.wordId = null; changed = true; }
+    }));
+    if (changed) saveTray();
+  }
+
+  /* =====================================================================
+     ワードの操作
+  ===================================================================== */
+  function toggleWord(id) {
+    const w = wordById(id);
+    if (!w) return;
+    for (const lane of ['pos', 'neg']) {
+      const i = tray[lane].findIndex((it) => it.wordId === id);
+      if (i >= 0) {
+        const it = tray[lane][i];
+        tray[lane].splice(i, 1);
+        if (current && current.k === it.k) current = null;
+        afterTrayChange();
+        return;
+      }
+    }
+    const c = catById(w.catId);
+    const lane = c && c.neg ? 'neg' : 'pos';
+    if (tray.pos.length + tray.neg.length >= MAX_TRAY) { showToast(`組み立てに入れられるのは ${MAX_TRAY} 語までです`, true); return; }
+    // 同じ文字の直接入力があれば、それをこのワードにつなぐ（二重に入れない）
+    const dup = tray[lane].find((it) => !it.wordId && norm(it.text) === norm(w.text));
+    if (dup) { dup.wordId = w.id; afterTrayChange(); return; }
+    tray[lane].push({ k: genKey(), wordId: w.id, text: w.text, w: 1 });
+    afterTrayChange();
+  }
+
+  let wordSortables = false;
+  function setupWordList() {
+    if (wordSortables) return;
+    wordSortables = true;
+    makeSortable(wordList, {
+      itemSel: '.word-chip', axis: 'x',
+      enabled: () => editMode && !query,
+      scrollEl: () => wordList,
+      onTap: (el) => { if (editMode) openEditWord(el.dataset.id); else toggleWord(el.dataset.id); },
+      onDrop: async (ids) => {
+        const ops = [];
+        ids.forEach((id, i) => { const w = wordById(id); if (w && w.order !== i) { w.order = i; w.updatedAt = Date.now(); ops.push({ store: S_WORDS, put: w }); } });
+        try { await writeMany(ops); } catch (err) { console.error(err); showToast('並びを保存できませんでした', true); }
+        renderWords();
+      },
+    });
+  }
+  setupWordList();
+  wordList.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-empty]');
+    if (!b) return;
+    if (b.dataset.empty === 'sample') startSample();
+    else if (b.dataset.empty === 'import') openImport();
+    else openCatModal(null);
+  });
+
+  $('editModeBtn').addEventListener('click', () => {
+    editMode = !editMode;
+    if (editMode && query) { query = ''; $('searchInput').value = ''; }
+    renderAll();
+  });
+
+  let searchTimer = null;
+  $('searchInput').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      query = $('searchInput').value.trim();
+      if (query && editMode) editMode = false;
+      renderHead(); renderCats(); renderWords();
+    }, 120);
+  });
+
+  function fillCatSelect(sel, selectedId) {
+    sel.innerHTML = cats.map((c) => `<option value="${esc(c.id)}"${c.id === selectedId ? ' selected' : ''}>${esc(c.name)}${c.neg ? '（NEG）' : ''}</option>`).join('');
+  }
+
+  // 「ワード | 説明」を分ける。区切りは前後にスペースのある | か、全角の ｜（[cat|dog] を壊さない）
+  function splitLabel(line) {
+    const m = line.match(/^(.*?)(?:\s+\|\s+|\s*｜\s*)(.*)$/);
+    if (m) return { text: m[1].trim(), label: m[2].replace(/\s*\|\s*$/, '').trim() };
+    return { text: line.trim(), label: '' };
+  }
+
+  $('addWordBtn').addEventListener('click', () => {
+    if (!cats.length) { openCatModal(null); return; }
+    fillCatSelect($('awCat'), curCatId);
+    $('awText').value = '';
+    $('awError').classList.remove('is-shown');
+    openModal('addWordModal');
+    setTimeout(() => $('awText').focus(), 30);
+  });
+  modalGuards.set('addWordModal', () => $('awText').value.trim().length > 0);
+  $('awSave').addEventListener('click', async () => {
+    const catId = $('awCat').value;
+    const c = catById(catId);
+    const err = $('awError');
+    const lines = $('awText').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!c) { err.textContent = 'カテゴリを選んでください'; err.classList.add('is-shown'); return; }
+    if (!lines.length) { err.textContent = 'ワードを入れてください'; err.classList.add('is-shown'); return; }
+    if (lines.length > MAX_ADD_LINES) { err.textContent = `一度に足せるのは ${MAX_ADD_LINES} 行までです（多いときは MD取り込み を使ってください）`; err.classList.add('is-shown'); return; }
+    const have = new Set(wordsOf(catId).map((w) => norm(w.text)));
+    let order = nextOrder(wordsOf(catId));
+    const now = Date.now();
+    const recs = [];
+    let dup = 0;
+    lines.forEach((line) => {
+      const p = splitLabel(line.replace(/^\s*(?:[-*+•・]|\d+[.)])\s+/, ''));
+      const text = cleanText(p.text, MAX_TEXT);
+      if (!text) return;
+      if (have.has(norm(text))) { dup++; return; }
+      have.add(norm(text));
+      recs.push({ id: genId(), catId, text, label: cleanText(p.label, MAX_LABEL), order: order++, createdAt: now, updatedAt: now });
+    });
+    if (!recs.length) { err.textContent = `すべて「${c.name}」にある語でした（${dup}件）`; err.classList.add('is-shown'); return; }
+    try { await writeMany(recs.map((r) => ({ store: S_WORDS, put: r }))); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
+    words.push(...recs);
+    curCatId = catId; prefs.catId = catId; savePrefs();
+    if (query) { query = ''; $('searchInput').value = ''; }
+    closeModalNow('addWordModal');
+    renderAll();
+    showToast(`${recs.length}件足しました` + (dup ? `（${dup}件は同じ語があったので飛ばしました）` : ''));
+  });
+
+  let wordEditingId = null;
+  function openEditWord(id) {
+    const w = wordById(id);
+    if (!w) return;
+    wordEditingId = id;
+    $('ewText').value = w.text;
+    $('ewLabel').value = w.label || '';
+    fillCatSelect($('ewCat'), w.catId);
+    $('ewError').classList.remove('is-shown');
+    openModal('editWordModal');
+  }
+  modalGuards.set('editWordModal', () => {
+    const w = wordById(wordEditingId);
+    return !!w && ($('ewText').value !== w.text || $('ewLabel').value !== (w.label || '') || $('ewCat').value !== w.catId);
+  });
+  $('ewSave').addEventListener('click', async () => {
+    const w = wordById(wordEditingId);
+    if (!w) return;
+    const text = cleanText($('ewText').value, MAX_TEXT);
+    const label = cleanText($('ewLabel').value, MAX_LABEL);
+    const catId = $('ewCat').value;
+    const err = $('ewError');
+    if (!text) { err.textContent = 'ワードを入れてください'; err.classList.add('is-shown'); return; }
+    if (words.some((x) => x.id !== w.id && x.catId === catId && norm(x.text) === norm(text))) {
+      err.textContent = 'そのカテゴリに同じ語があります'; err.classList.add('is-shown'); return;
+    }
+    const moved = catId !== w.catId;
+    const next = Object.assign({}, w, { text, label, catId, updatedAt: Date.now() });
+    if (moved) next.order = nextOrder(wordsOf(catId));
+    try { await writeMany([{ store: S_WORDS, put: next }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
+    Object.assign(w, next);
+    ['pos', 'neg'].forEach((lane) => tray[lane].forEach((it) => { if (it.wordId === w.id) it.text = w.text; }));
+    saveTray();
+    closeModalNow('editWordModal');
+    renderAll();
+    showToast(moved ? `「${catById(catId).name}」へ移しました` : '保存しました');
+  });
+  $('ewDelete').addEventListener('click', async () => {
+    const w = wordById(wordEditingId);
+    if (!w) return;
+    if (!(await confirmBox(`ワード「${w.text}」を削除します。`, '削除する'))) return;
+    try { await writeMany([{ store: S_WORDS, del: w.id }]); } catch (e) { console.error(e); showToast('削除できませんでした', true); return; }
+    words = words.filter((x) => x.id !== w.id);
+    detachWords(new Set([w.id]));
+    closeModalNow('editWordModal');
+    renderAll();
+    showToast('削除しました');
+  });
+
+  /* =====================================================================
+     組み立ての操作
+  ===================================================================== */
+  ['pos', 'neg'].forEach((lane) => {
+    const L = lanes[lane];
+    makeSortable(L.chips, {
+      itemSel: '.t-chip', axis: 'x',
+      scrollEl: () => document.querySelector('.tray-body'),
+      onTap: (el) => {
+        const k = el.dataset.id;
+        current = current && current.lane === lane && current.k === k ? null : { lane, k };
+        renderTray();
+      },
+      onDrop: (ids) => {
+        const map = new Map(tray[lane].map((it) => [it.k, it]));
+        tray[lane] = ids.map((k) => map.get(k)).filter(Boolean);
+        saveTray(); renderTray();
+      },
+    });
+    L.tools.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-t]');
+      if (!b || !current || current.lane !== lane) return;
+      const list = tray[lane];
+      const i = list.findIndex((x) => x.k === current.k);
+      if (i < 0) return;
+      const it = list[i];
+      switch (b.dataset.t) {
+        case 'left': if (i > 0) { list.splice(i, 1); list.splice(i - 1, 0, it); } break;
+        case 'right': if (i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, it); } break;
+        case 'up': it.w = Math.min(W_MAX, roundW(it.w + 0.1)); break;
+        case 'down': it.w = Math.max(W_MIN, roundW(it.w - 0.1)); break;
+        case 'reset': it.w = 1; break;
+        case 'move': {
+          const other = lane === 'pos' ? 'neg' : 'pos';
+          list.splice(i, 1);
+          tray[other].push(it);
+          current = { lane: other, k: it.k };
+          break;
+        }
+        case 'remove': list.splice(i, 1); current = null; break;
+        case 'done': current = null; break;
+      }
+      afterTrayChange();
+    });
+    L.copy.addEventListener('click', async () => {
+      const text = laneText(lane);
+      if (!text) return;
+      const ok = await copyText(text);
+      showToast(ok ? `${lane === 'pos' ? 'PROMPT' : 'NEGATIVE'} をコピーしました` : 'コピーできませんでした。下の文字を選んでコピーしてください', !ok);
+    });
+    L.clear.addEventListener('click', () => {
+      // クリアの直後（8秒）は「元に戻す」になる
+      if (undoClear[lane]) {
+        clearTimeout(undoClear[lane].timer);
+        tray[lane] = undoClear[lane].items.concat(tray[lane]);
+        undoClear[lane] = null;
+        afterTrayChange();
+        showToast('元に戻しました');
+        return;
+      }
+      armTwice(L.clear, 'もう一度押すとクリア', () => {
+        const items = tray[lane].slice();
+        tray[lane] = [];
+        if (current && current.lane === lane) current = null;
+        undoClear[lane] = { items, timer: setTimeout(() => { undoClear[lane] = null; renderTray(); }, 8000) };
+        afterTrayChange();
+        showToast('クリアしました（8秒の間は「元に戻す」で戻せます）');
+      });
+    });
+    L.free.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      e.preventDefault();
+      const parts = L.free.value.split(/\s*,\s*/).map((s) => cleanText(s, MAX_TEXT)).filter(Boolean);
+      if (!parts.length) return;
+      let added = 0, dup = 0;
+      parts.forEach((t) => {
+        if (tray.pos.length + tray.neg.length >= MAX_TRAY) return;
+        if (tray[lane].some((it) => norm(itemText(it)) === norm(t))) { dup++; return; }
+        // リストにある語なら、そのワードとしてつなぐ（選んだ印が付く）
+        const w = words.find((x) => norm(x.text) === norm(t));
+        tray[lane].push({ k: genKey(), wordId: w ? w.id : null, text: t, w: 1 });
+        added++;
+      });
+      L.free.value = '';
+      afterTrayChange();
+      if (dup) showToast(`${dup}語はもう入っていたので足しませんでした`);
+    });
+  });
+
+  $('trayToggle').addEventListener('click', () => {
+    prefs.trayCollapsed = !prefs.trayCollapsed; savePrefs(); renderTray();
+  });
+
+  /* =====================================================================
+     定型文
+  ===================================================================== */
+  const presetList = $('presetList');
+  function presetPreview(arr) {
+    return arr.map((it) => formatItem({ wordId: it.wordId, text: it.text, w: it.w })).join(', ');
+  }
+  function renderPresets() {
+    if (!presets.length) {
+      presetList.innerHTML = '<div class="field-hint">まだ定型文がありません。よく使う組み合わせ（品質タグ一式・ネガティブ一式など）を組み立てて、上で名前を付けて保存してください。</div>';
+      return;
+    }
+    presetList.innerHTML = presets.map((p) => `<div class="preset-row" data-id="${esc(p.id)}">
+      <span class="pr-grip" title="並べ替え">≡</span>
+      <div class="pr-main">
+        <div class="pr-name">${esc(p.name)}</div>
+        ${p.pos.length ? `<div class="pr-text">${esc(presetPreview(p.pos))}</div>` : ''}
+        ${p.neg.length ? `<div class="pr-text neg">NEG: ${esc(presetPreview(p.neg))}</div>` : ''}
+      </div>
+      <div class="pr-actions">
+        <button class="btn small primary" type="button" data-p="append">追加</button>
+        <button class="btn small" type="button" data-p="replace">置換</button>
+        <button class="btn small" type="button" data-p="edit">✎</button>
+      </div>
+    </div>`).join('');
+  }
+  makeSortable(presetList, {
+    itemSel: '.preset-row', handleSel: '.pr-grip', axis: 'y',
+    scrollEl: () => document.querySelector('#presetModal .modal'),
+    onDrop: async (ids) => {
+      const ops = [];
+      ids.forEach((id, i) => { const p = presets.find((x) => x.id === id); if (p && p.order !== i) { p.order = i; p.updatedAt = Date.now(); ops.push({ store: S_PRESETS, put: p }); } });
+      presets.sort(byOrder);
+      try { await writeMany(ops); } catch (err) { console.error(err); showToast('並びを保存できませんでした', true); }
+      renderPresets();
+    },
+  });
+  function snapshotLane(lane) { return tray[lane].map((it) => ({ wordId: it.wordId, text: itemText(it), w: it.w })); }
+
+  $('presetBtn').addEventListener('click', () => {
+    $('psName').value = '';
+    $('psError').classList.remove('is-shown');
+    renderPresets();
+    openModal('presetModal');
+  });
+  $('psName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) $('psSave').click(); });
+  $('psSave').addEventListener('click', async () => {
+    const name = cleanText($('psName').value, MAX_PRESET_NAME);
+    const err = $('psError');
+    if (!tray.pos.length && !tray.neg.length) { err.textContent = '組み立てが空です。ワードを選んでから保存してください'; err.classList.add('is-shown'); return; }
+    if (!name) { err.textContent = '名前を入れてください'; err.classList.add('is-shown'); return; }
+    const same = presets.find((p) => norm(p.name) === norm(name));
+    if (same && !(await confirmBox(`定型文「${same.name}」はもうあります。今の組み立てで上書きしますか？`, '上書きする'))) return;
+    const now = Date.now();
+    const rec = same
+      ? Object.assign({}, same, { pos: snapshotLane('pos'), neg: snapshotLane('neg'), updatedAt: now })
+      : { id: genId(), name, pos: snapshotLane('pos'), neg: snapshotLane('neg'), order: nextOrder(presets), createdAt: now, updatedAt: now };
+    try { await writeMany([{ store: S_PRESETS, put: rec }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
+    if (same) Object.assign(same, rec); else presets.push(rec);
+    err.classList.remove('is-shown');
+    $('psName').value = '';
+    renderPresets();
+    showToast(same ? `「${name}」を上書きしました` : `「${name}」を保存しました`);
+  });
+  presetList.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-p]');
+    if (!b) return;
+    const p = presets.find((x) => x.id === b.closest('.preset-row').dataset.id);
+    if (!p) return;
+    if (b.dataset.p === 'edit') { openPresetEdit(p.id); return; }
+    const replace = b.dataset.p === 'replace';
+    if (replace && (tray.pos.length || tray.neg.length)) {
+      if (!(await confirmBox(`今の組み立て（${tray.pos.length + tray.neg.length}語）を「${p.name}」と入れ替えます。`, '入れ替える'))) return;
+    }
+    let added = 0;
+    ['pos', 'neg'].forEach((lane) => {
+      if (replace) tray[lane] = [];
+      (p[lane] || []).forEach((src) => {
+        if (tray.pos.length + tray.neg.length >= MAX_TRAY) return;
+        const wordId = src.wordId && wordById(src.wordId) ? src.wordId : null;
+        const text = wordId ? wordById(wordId).text : src.text;
+        if (tray[lane].some((it) => (wordId && it.wordId === wordId) || norm(itemText(it)) === norm(text))) return;
+        tray[lane].push({ k: genKey(), wordId, text, w: sanitizeItems([src])[0] ? sanitizeItems([src])[0].w : 1 });
+        added++;
+      });
+    });
+    current = null;
+    closeModalNow('presetModal');
+    if (prefs.trayCollapsed) { prefs.trayCollapsed = false; savePrefs(); }
+    afterTrayChange();
+    showToast(replace ? `「${p.name}」に入れ替えました` : `「${p.name}」から ${added} 語を足しました`);
+  });
+
+  let presetEditingId = null;
+  function openPresetEdit(id) {
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    presetEditingId = id;
+    $('peName').value = p.name;
+    $('peOverwrite').checked = false;
+    $('peOverwrite').disabled = !tray.pos.length && !tray.neg.length;
+    $('peError').classList.remove('is-shown');
+    openModal('presetEditModal');
+  }
+  $('peSave').addEventListener('click', async () => {
+    const p = presets.find((x) => x.id === presetEditingId);
+    if (!p) return;
+    const name = cleanText($('peName').value, MAX_PRESET_NAME);
+    const err = $('peError');
+    if (!name) { err.textContent = '名前を入れてください'; err.classList.add('is-shown'); return; }
+    if (presets.some((x) => x.id !== p.id && norm(x.name) === norm(name))) { err.textContent = '同じ名前の定型文があります'; err.classList.add('is-shown'); return; }
+    const rec = Object.assign({}, p, { name, updatedAt: Date.now() });
+    if ($('peOverwrite').checked) {
+      if (!(await confirmBox(`「${p.name}」の中身を今の組み立てで上書きします。`, '上書きする'))) return;
+      rec.pos = snapshotLane('pos'); rec.neg = snapshotLane('neg');
+    }
+    try { await writeMany([{ store: S_PRESETS, put: rec }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
+    Object.assign(p, rec);
+    closeModalNow('presetEditModal');
+    renderPresets();
+    showToast('保存しました');
+  });
+  $('peDelete').addEventListener('click', async () => {
+    const p = presets.find((x) => x.id === presetEditingId);
+    if (!p) return;
+    if (!(await confirmBox(`定型文「${p.name}」を削除します。`, '削除する'))) return;
+    try { await writeMany([{ store: S_PRESETS, del: p.id }]); } catch (e) { console.error(e); showToast('削除できませんでした', true); return; }
+    presets = presets.filter((x) => x.id !== p.id);
+    closeModalNow('presetEditModal');
+    renderPresets();
+    showToast('削除しました');
+  });
+
+  /* =====================================================================
+     MD の読み取り
+  ===================================================================== */
+  const NEG_MARK = /\s*[\[［]\s*(neg|negative|ネガ|ネガティブ)\s*[\]］]\s*/i;
+  const HEADER_CELL = /^(word|words|tag|tags|ワード|タグ|prompt|プロンプト|語)$/i;
+  function parseMd(src, splitComma) {
+    const groups = [];
+    const byName = new Map();
+    let cur = null;
+    let skipped = 0;
+    function group(name, neg) {
+      const key = norm(name);
+      if (byName.has(key)) { const g = byName.get(key); if (neg) g.neg = true; return g; }
+      const g = { name, neg: !!neg, words: [] };
+      byName.set(key, g); groups.push(g);
+      return g;
+    }
+    function addWord(text, label) {
+      if (!cur) cur = group('未分類', false);
+      const items = splitComma && !/^[\(\[<].*[\)\]>]$/.test(text) ? text.split(/\s*[,、]\s*/) : [text];
+      items.forEach((t) => {
+        t = cleanText(t.trim().replace(/[,、]\s*$/, '').trim().replace(/^`+|`+$/g, ''), MAX_TEXT);
+        if (!t) return;
+        cur.words.push({ text: t, label: items.length === 1 ? cleanText(label, MAX_LABEL) : '' });
+      });
+    }
+    String(src).replace(/^﻿/, '').split(/\r?\n/).forEach((raw) => {
+      let line = raw.trim();
+      if (!line) return;
+      if (/^```|^~~~/.test(line) || /^<!--.*-->$/.test(line) || /^(-{3,}|\*{3,}|_{3,})$/.test(line)) return;
+      const h = line.match(/^#{1,6}\s+(.+?)\s*#*$/);
+      if (h) {
+        const neg = NEG_MARK.test(h[1]);
+        const name = cleanText(h[1].replace(NEG_MARK, ' '), MAX_CAT_NAME) || '未分類';
+        cur = group(name, neg);
+        return;
+      }
+      line = line.replace(/^>\s*/, '');
+      if (/^\|.*\|$/.test(line)) {
+        const cells = line.slice(1, -1).split('|').map((c) => c.trim());
+        if (cells.every((c) => /^:?-{2,}:?$/.test(c) || c === '')) return;
+        if (HEADER_CELL.test(cells[0] || '')) return;
+        if (cells[0]) addWord(cells[0], cells[1] || ''); else skipped++;
+        return;
+      }
+      line = line.replace(/^(?:[-*+•・]|\d+[.)])\s+/, '').replace(/^\[[ xX]\]\s+/, '');
+      if (!line) return;
+      const p = splitLabel(line);
+      addWord(p.text, p.label);
+    });
+    return { groups: groups.filter((g) => g.words.length), skipped };
+  }
+
+  // 取り込みの計画（既存と照らし合わせて、何を足すか）
+  function planImport(parsed) {
+    const plan = [];
+    parsed.groups.forEach((g) => {
+      const existing = cats.find((c) => norm(c.name) === norm(g.name));
+      const have = new Set(existing ? wordsOf(existing.id).map((w) => norm(w.text)) : []);
+      const add = [];
+      let dup = 0;
+      g.words.forEach((w) => {
+        if (have.has(norm(w.text))) { dup++; return; }
+        have.add(norm(w.text));
+        add.push(w);
+      });
+      plan.push({ name: g.name, neg: existing ? !!existing.neg : g.neg, mdNeg: g.neg, existing, add, dup });
+    });
+    return plan;
+  }
+
+  let importPlan = null;
+  let importSource = '';
+  function openImport(prefill) {
+    $('impStep1').hidden = false; $('impStep2').hidden = true;
+    $('impFile').value = '';
+    $('impPaste').value = prefill || '';
+    $('impError').classList.remove('is-shown');
+    importPlan = null;
+    openModal('importModal');
+    if (prefill) previewImport();
+  }
+  modalGuards.set('importModal', () => $('impPaste').value.trim().length > 0 && !$('impStep2').hidden);
+  $('importBtn').addEventListener('click', () => openImport(''));
+  $('impFile').addEventListener('change', () => {
+    const f = $('impFile').files && $('impFile').files[0];
+    const err = $('impError');
+    err.classList.remove('is-shown');
+    if (!f) return;
+    if (!/\.(md|markdown|txt)$/i.test(f.name)) { err.textContent = '.md / .txt のファイルを選んでください'; err.classList.add('is-shown'); $('impFile').value = ''; return; }
+    if (f.size > MAX_IMPORT_BYTES) { err.textContent = 'ファイルが大きすぎます（1MBまで）'; err.classList.add('is-shown'); $('impFile').value = ''; return; }
+    const r = new FileReader();
+    r.onload = () => { $('impPaste').value = String(r.result || ''); };
+    r.onerror = () => { err.textContent = 'ファイルを読めませんでした'; err.classList.add('is-shown'); };
+    r.readAsText(f, 'utf-8');
+  });
+  function previewImport() {
+    const err = $('impError');
+    const src = $('impPaste').value;
+    err.classList.remove('is-shown');
+    if (!src.trim()) { err.textContent = 'ファイルを選ぶか、貼り付けてください'; err.classList.add('is-shown'); return; }
+    if (src.length > MAX_IMPORT_BYTES) { err.textContent = '長すぎます（1MBまで）'; err.classList.add('is-shown'); return; }
+    const parsed = parseMd(src, $('impSplit').checked);
+    const total = parsed.groups.reduce((n, g) => n + g.words.length, 0);
+    if (!total) { err.textContent = 'ワードが見つかりませんでした。「☰ → MDの書き方」をご覧ください'; err.classList.add('is-shown'); return; }
+    if (total > MAX_IMPORT_WORDS) { err.textContent = `一度に取り込めるのは ${MAX_IMPORT_WORDS} 語までです（${total} 語ありました）。ファイルを分けてください`; err.classList.add('is-shown'); return; }
+    if (parsed.groups.length > MAX_IMPORT_CATS) { err.textContent = `カテゴリが多すぎます（${MAX_IMPORT_CATS} まで）`; err.classList.add('is-shown'); return; }
+    importSource = src;
+    importPlan = planImport(parsed);
+    const addN = importPlan.reduce((n, p) => n + p.add.length, 0);
+    const dupN = importPlan.reduce((n, p) => n + p.dup, 0);
+    const newCats = importPlan.filter((p) => !p.existing && p.add.length).length;
+    $('impSummary').textContent = `${importPlan.length} カテゴリ・${total} 語を読みました。${addN} 語を足します（新しいカテゴリ ${newCats}）。`;
+    $('impRows').innerHTML = importPlan.map((p) => `<tr>
+      <td>${esc(p.name)}<span class="imp-tag">${p.existing ? '既存' : '新規'}</span>${p.neg ? '<span class="imp-tag neg">NEG</span>' : ''}</td>
+      <td class="num">${p.add.length}</td><td class="num">${p.dup || ''}</td></tr>`).join('');
+    const notes = [];
+    if (dupN) notes.push(`同じカテゴリにある語・重なった語 ${dupN} 件は飛ばします。`);
+    if (importPlan.some((p) => p.existing && p.mdNeg !== !!p.existing.neg)) notes.push('既存のカテゴリのネガティブ用の設定は変えません（変えるときはカテゴリの ✎ から）。');
+    if (parsed.skipped) notes.push(`読めなかった行が ${parsed.skipped} 行ありました。`);
+    notes.push('取り込んだ後でも、このセッションの間は「☰ → 直前の取り込みを取り消す」で戻せます。');
+    $('impNote').textContent = notes.join(' ');
+    $('impRun').disabled = addN === 0;
+    $('impRun').textContent = addN ? `${addN} 語を取り込む` : '足す語がありません';
+    $('impStep1').hidden = true; $('impStep2').hidden = false;
+  }
+  $('impPreviewBtn').addEventListener('click', previewImport);
+  $('impBack').addEventListener('click', () => { $('impStep1').hidden = false; $('impStep2').hidden = true; });
+  $('impRun').addEventListener('click', async () => {
+    if (!importPlan) return;
+    const btn = $('impRun');
+    btn.disabled = true;
+    const now = Date.now();
+    const ops = [];
+    const newCatIds = [], newWordIds = [];
+    const newCats = [], newWords = [];
+    let catOrder = nextOrder(cats);
+    importPlan.forEach((p) => {
+      if (!p.add.length) return;
+      let cat = p.existing;
+      if (!cat) {
+        cat = { id: genId(), name: p.name, neg: p.neg, order: catOrder++, createdAt: now, updatedAt: now };
+        newCats.push(cat); newCatIds.push(cat.id);
+        ops.push({ store: S_CATS, put: cat });
+      }
+      let order = nextOrder(wordsOf(cat.id));
+      p.add.forEach((w) => {
+        const rec = { id: genId(), catId: cat.id, text: w.text, label: w.label || '', order: order++, createdAt: now, updatedAt: now };
+        newWords.push(rec); newWordIds.push(rec.id);
+        ops.push({ store: S_WORDS, put: rec });
+      });
+    });
+    try { await writeMany(ops); } catch (e) {
+      console.error(e); showToast('取り込めませんでした（何も変えていません）', true); btn.disabled = false; return;
+    }
+    cats.push(...newCats); words.push(...newWords);
+    cats.sort(byOrder);
+    try { sessionStorage.setItem(SS_LASTIMPORT, JSON.stringify({ at: now, cats: newCatIds, words: newWordIds })); } catch (_) {}
+    if (!curCatId || newCats.length) { curCatId = (newCats[0] || cats[0]).id; prefs.catId = curCatId; savePrefs(); }
+    closeModalNow('importModal');
+    renderAll();
+    updateUndoMenu();
+    showToast(`${newWords.length} 語を取り込みました`);
+  });
+
+  function lastImport() {
+    try { const v = JSON.parse(sessionStorage.getItem(SS_LASTIMPORT) || 'null'); return v && Array.isArray(v.words) ? v : null; } catch (_) { return null; }
+  }
+  function updateUndoMenu() {
+    const li = lastImport();
+    $('miUndoImport').disabled = !li || !li.words.some((id) => wordById(id));
+  }
+  $('miUndoImport').addEventListener('click', async () => {
+    const li = lastImport();
+    if (!li) return;
+    const ws = li.words.filter((id) => wordById(id));
+    if (!ws.length) { updateUndoMenu(); return; }
+    // 取り込みで作ったカテゴリは、取り込んだ語以外が入っていなければ消す
+    const wsSet = new Set(ws);
+    const delCats = (li.cats || []).filter((id) => catById(id) && wordsOf(id).every((w) => wsSet.has(w.id)));
+    if (!(await confirmBox(`直前の取り込みで足した ${ws.length} 語${delCats.length ? `と、新しく作ったカテゴリ ${delCats.length} 件` : ''}を消します。\n取り込んだ後に編集した語も消えます。`, '取り消す'))) return;
+    const ops = [...ws.map((id) => ({ store: S_WORDS, del: id })), ...delCats.map((id) => ({ store: S_CATS, del: id }))];
+    try { await writeMany(ops); } catch (e) { console.error(e); showToast('取り消せませんでした', true); return; }
+    words = words.filter((w) => !wsSet.has(w.id));
+    const dc = new Set(delCats);
+    cats = cats.filter((c) => !dc.has(c.id));
+    detachWords(wsSet);
+    try { sessionStorage.removeItem(SS_LASTIMPORT); } catch (_) {}
+    if (!catById(curCatId)) curCatId = cats[0] ? cats[0].id : null;
+    closeMenu();
+    renderAll(); updateUndoMenu();
+    showToast('取り込みを取り消しました');
+  });
+
+  /* ===================== 書き出し ===================== */
+  function buildMd() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const lines = [`<!-- TAGFORGE ワードリスト ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} -->`, ''];
+    cats.forEach((c) => {
+      lines.push(`# ${c.name}${c.neg ? ' [neg]' : ''}`);
+      wordsOf(c.id).forEach((w) => lines.push(`- ${w.text}${w.label ? ' | ' + w.label : ''}`));
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  $('miExport').addEventListener('click', () => {
+    closeMenu();
+    if (!cats.length) { showToast('書き出すワードがありません', true); return; }
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const name = `tagforge_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.md`;
+    const url = URL.createObjectURL(new Blob([buildMd()], { type: 'text/markdown;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast(`${name} を書き出しました`);
+  });
+
+  /* ===================== 見本 ===================== */
+  const SAMPLE_MD = [
+    '# 品質', '- masterpiece | 傑作', '- best quality | 最高品質', '- amazing quality | とても良い品質', '- very aesthetic | とても美しい', '- absurdres | 超高解像度', '- newest | 新しめの画風',
+    '# 人数', '- 1girl | 女の子1人', '- 1boy | 男の子1人', '- solo | 1人だけ', '- 2girls | 女の子2人', '- multiple girls | 女の子複数',
+    '# 髪', '- long hair | ロングヘア', '- short hair | ショートヘア', '- ponytail | ポニーテール', '- twintails | ツインテール', '- bob cut | ボブ', '- black hair | 黒髪', '- blonde hair | 金髪', '- silver hair | 銀髪', '- blue hair | 青髪', '- pink hair | ピンク髪',
+    '# 目', '- blue eyes | 青い目', '- red eyes | 赤い目', '- green eyes | 緑の目', '- heterochromia | オッドアイ',
+    '# 服装', '- school uniform | 制服', '- serafuku | セーラー服', '- hoodie | パーカー', '- dress | ドレス', '- kimono | 着物',
+    '# 表情', '- smile | 笑顔', '- open mouth | 口を開ける', '- blush | 赤面', '- closed eyes | 目を閉じる', '- expressionless | 無表情',
+    '# ポーズ・視線', '- looking at viewer | こちらを見る', '- looking away | よそ見', '- standing | 立つ', '- sitting | 座る', '- arms up | 腕を上げる',
+    '# 構図', '- portrait | 顔アップ', '- upper body | 上半身', '- cowboy shot | 太ももから上', '- full body | 全身', '- close-up | 寄り', '- from above | 上から', '- from below | 下から', '- from side | 横から', '- from behind | 後ろから', '- dutch angle | 傾けた構図',
+    '# 背景', '- simple background | シンプルな背景', '- white background | 白背景', '- outdoors | 屋外', '- indoors | 屋内', '- classroom | 教室', '- city | 街', '- night sky | 夜空', '- cherry blossoms | 桜',
+    '# 光・効果', '- depth of field | 被写界深度', '- backlighting | 逆光', '- sunlight | 日差し', '- light particles | 光の粒', '- lens flare | レンズフレア',
+    '# ネガティブ [neg]', '- bad quality', '- worst quality', '- worst detail', '- sketch', '- censor', '- text | 文字', '- watermark | 透かし', '- signature | サイン', '- bad hands | 手の崩れ', '- extra fingers | 指が多い',
+  ].join('\n');
+  function startSample() { openImport(SAMPLE_MD); }
+  $('miSample').addEventListener('click', () => { closeMenu(); startSample(); });
+  $('miHelp').addEventListener('click', () => { closeMenu(); openModal('helpModal'); });
+
+  /* ===================== メニュー・設定 ===================== */
+  function closeMenu() { $('menuPanel').classList.remove('is-open'); $('menuBtn').classList.remove('is-active'); }
+  $('menuBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    updateUndoMenu();
+    const open = !$('menuPanel').classList.contains('is-open');
+    $('menuPanel').classList.toggle('is-open', open);
+    $('menuBtn').classList.toggle('is-active', open);
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.menu-wrap')) closeMenu(); });
+  $('prefEscape').addEventListener('change', () => { prefs.escape = $('prefEscape').checked; savePrefs(); renderTray(); });
+  $('prefUnderscore').addEventListener('change', () => { prefs.underscore = $('prefUnderscore').checked; savePrefs(); renderTray(); });
+
+  // 同期などで別のところから変わったときに読み直す（タブに戻ったとき）
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !db) return;
+    if (document.querySelector('.modal-overlay.is-open') || editMode) return;
+    try { await loadAll(); renderAll(); } catch (_) {}
+  });
+
+  // 動作確認用
+  window.__TAGFORGE__ = { parseMd, formatItem, laneText, get tray() { return tray; }, get words() { return words; }, get cats() { return cats; }, get presets() { return presets; } };
+
+  init();
+})();
+</script>
+</body>
+</html>
