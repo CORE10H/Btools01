@@ -285,7 +285,7 @@
   .book-meta { font-size: 10.5px; color: var(--text-faint); }
 
   /* ===================== 作品エディタ ===================== */
-  #workView .scroll-area { padding: 16px 20px 28px; }
+  #workView .scroll-area { padding: 16px 20px 28px; overflow-x: hidden; } /* 歯止め（2026-11-20）：中の部品が広がっても、エディタが横にすべらないようにする */
   .editor-inner { max-width: 900px; margin: 0 auto; }
   .edit-title-input { flex: 1; min-width: 200px; background: var(--field-bg); border: 1px solid var(--line); border-color: var(--field-line); font-size: 18px; font-family: var(--font-book); font-weight: 600; color: var(--text); padding: 6px 10px; outline: none; }
   .edit-title-input:focus { border-color: var(--cyan); }
@@ -1842,6 +1842,8 @@
   /* ===================== DOM ===================== */
   const $ = (id) => document.getElementById(id);
   const viewEls = { neta: $('netaView'), works: $('worksView'), shelf: $('shelfView'), xref: $('xrefView'), templates: $('templatesView'), work: $('workView'), reader: $('readerView') };
+  // 歯止め（2026-11-20）：作品エディタは横に動かさない。CSS で横のスクロールは止めているが、フォーカスの移動などで横にずれたら左端に戻す
+  viewEls.work.querySelector('.scroll-area').addEventListener('scroll', (e) => { if (e.currentTarget.scrollLeft !== 0) e.currentTarget.scrollLeft = 0; }, { passive: true });
   const tabsEl = $('tabs'), primaryActionBtn = $('primaryActionBtn'), menuBtn = $('menuBtn'), menuPanel = $('menuPanel'), toastEl = $('toast');
   const netaSearch = $('netaSearch'), netaListEl = $('netaList');
   const worksSearch = $('worksSearch'), worksPen = $('worksPen'), worksListEl = $('worksList'), worksSelectBar = $('worksSelectBar');
