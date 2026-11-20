@@ -269,6 +269,14 @@
   .confirm-box { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--magenta-dim); padding: 16px 18px; }
   .confirm-box .cf-msg { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 14px; white-space: pre-line; }
   .confirm-box .cf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .bg-preview {
+    display: flex; align-items: center; justify-content: center; max-height: 46vh; overflow: hidden; border: 1px solid var(--line-soft);
+    background-color: #c8c8c8;
+    background-image: linear-gradient(45deg, #e8e8e8 25%, transparent 25%, transparent 75%, #e8e8e8 75%),
+                      linear-gradient(45deg, #e8e8e8 25%, transparent 25%, transparent 75%, #e8e8e8 75%);
+    background-size: 16px 16px; background-position: 0 0, 8px 8px;
+  }
+  .bg-preview canvas { max-width: 100%; max-height: 46vh; display: block; }
   .busy {
     position: fixed; inset: 0; z-index: 85; display: none; align-items: center; justify-content: center;
     background: rgba(var(--scrim-rgb), .45); color: var(--cyan); font-size: 12px;
@@ -309,6 +317,7 @@
         <div class="menu-panel" id="menuPanel">
           <button class="menu-panel-item" id="miLib" type="button">素材（よく使う画像）の管理</button>
           <button class="menu-panel-item" id="miStyles" type="button">保存したスタイルの管理</button>
+          <button class="menu-panel-item" id="miFonts" type="button">書体の取り込み・管理</button>
           <div class="menu-sep"></div>
           <button class="menu-panel-item" id="miUsage" type="button">使っている容量を見る</button>
           <div class="menu-note">画像はこの端末の中だけに置きます（同期しません）。同期するのは「保存したスタイル」だけです。</div>
@@ -330,6 +339,7 @@
       <button class="btn small" id="redoBtn" type="button" title="やり直す（Ctrl+Y）">↷</button>
       <button class="btn small" id="addImgBtn" type="button">＋画像</button>
       <button class="btn small" id="addTextBtn" type="button">＋文字</button>
+      <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶしの範囲を足す">＋モザイク</button>
       <button class="btn small primary" id="exportBtn" type="button">書き出す</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="edMenuBtn" type="button" title="メニュー">☰</button>
@@ -337,6 +347,7 @@
           <button class="menu-panel-item" id="emRename" type="button">名前を変える</button>
           <button class="menu-panel-item" id="emSwap" type="button">下の画像を差し替える</button>
           <button class="menu-panel-item" id="emReuse" type="button">この配置で別の画像を使う（複製）</button>
+          <button class="menu-panel-item" id="emFonts" type="button">書体の取り込み・管理</button>
           <div class="menu-note">差し替え・複製では、重ねたものの位置と大きさを新しい画像の大きさに合わせます。</div>
         </div>
       </div>
@@ -382,6 +393,7 @@
               <div class="p-row"><label class="p-lab">塗り</label><input type="color" id="pFill"><input type="range" id="pFillA" min="0" max="100" step="1"><input type="number" id="pFillAN" min="0" max="100" step="1"></div>
               <div class="p-hint">右の数字は塗りの濃さ（0で透明）</div>
               <div class="p-row"><label class="p-lab">線</label><input type="color" id="pLine"><input type="range" id="pLineWR" min="0" max="30" step="1"><input type="number" id="pLineW" min="0" max="200" step="1"></div>
+              <div class="p-row"><label class="p-lab">線の種類</label><select id="pLineStyle"></select></div>
               <div class="p-row"><label class="p-lab">余白</label><input type="range" id="pPadR" min="0" max="200" step="1"><input type="number" id="pPad" min="0" max="1000" step="1"></div>
               <div class="p-row"><label class="p-check"><input type="checkbox" id="pTail"> しっぽを付ける</label></div>
               <div class="p-hint">しっぽの先は、画面の ◆ をドラッグして動かします</div>
@@ -398,6 +410,32 @@
             <div class="p-sec-title">画像</div>
             <div class="p-row"><label class="p-lab">大きさ %</label><input type="range" id="pScaleR" min="1" max="300" step="1"><input type="number" id="pScale" min="1" max="5000" step="1"></div>
             <div class="p-row"><button class="btn small" id="pFlip" type="button">左右反転</button><button class="btn small" id="pFit" type="button">画面いっぱいに</button><button class="btn small" id="pToLib" type="button">素材に登録</button></div>
+            <div class="p-row"><button class="btn small" id="pBgCut" type="button">背景を透過…</button></div>
+          </div>
+          <!-- フィルター（画像・下の画像） -->
+          <div class="p-sec" id="secBase">
+            <div class="p-sec-title">下の画像</div>
+            <div class="p-hint" id="pBaseInfo"></div>
+            <div class="p-row"><button class="btn small" id="pBaseSwap" type="button">下の画像を差し替える</button></div>
+          </div>
+          <div class="p-sec" id="secFx">
+            <div class="p-sec-title">フィルター</div>
+            <div class="p-row"><select id="pFxPreset" class="p-select" style="flex:1"></select><button class="btn small" id="pFxApply" type="button">当てる</button><button class="btn small" id="pFxReset" type="button">元に戻す</button></div>
+            <div id="fxRows"></div>
+            <div class="p-hint" id="pFxNote"></div>
+          </div>
+          <!-- モザイク -->
+          <div class="p-sec" id="secMosaic">
+            <div class="p-sec-title">モザイク・ぼかし</div>
+            <div class="p-row"><label class="p-lab">種類</label>
+              <span class="seg" id="pMoMode"><button class="btn" type="button" data-v="pixel">モザイク</button><button class="btn" type="button" data-v="blur">ぼかし</button><button class="btn" type="button" data-v="fill">塗りつぶし</button></span></div>
+            <div class="p-row"><label class="p-lab">形</label>
+              <span class="seg" id="pMoShape"><button class="btn" type="button" data-v="rect">四角</button><button class="btn" type="button" data-v="ellipse">だ円</button></span></div>
+            <div class="p-row" id="pMoBlockRow"><label class="p-lab">粗さ</label><input type="range" id="pMoBlockR" min="2" max="120" step="1"><input type="number" id="pMoBlock" min="2" max="400" step="1"></div>
+            <div class="p-row" id="pMoBlurRow"><label class="p-lab">強さ</label><input type="range" id="pMoBlurR" min="1" max="100" step="1"><input type="number" id="pMoBlur" min="1" max="200" step="1"></div>
+            <div class="p-row" id="pMoColorRow"><label class="p-lab">色</label><input type="color" id="pMoColor"></div>
+            <div class="p-row"><label class="p-lab">幅・高さ</label><input type="number" id="pMoW" min="4" max="100000" step="1"><span class="p-hint" style="margin:0">×</span><input type="number" id="pMoH" min="4" max="100000" step="1"></div>
+            <div class="p-hint">下にあるもの（画像・文字）すべてにかかります。四隅の□で幅と高さを変えられます。</div>
           </div>
           <!-- 共通 -->
           <div class="p-sec" id="secCommon">
@@ -420,6 +458,7 @@
     <div class="field-group">
       <button class="btn primary" id="aiPick" type="button">ファイルから選ぶ</button>
       <label class="field-check" style="margin-top:8px"><input type="checkbox" id="aiToLib"> 素材にも登録する（ほかの作品でも使えるように）</label>
+      <label class="field-check"><input type="checkbox" id="aiBgAsk"> 足す前に、背景を透過するかを選ぶ</label>
       <div class="field-hint">PNG・WebP の透明な部分は、透明のまま重なります。PCは画面にドラッグ＆ドロップ・Ctrl+V の貼り付けでも足せます。</div>
     </div>
     <div class="sub-title">素材から選ぶ</div>
@@ -466,6 +505,49 @@
       <button class="btn" id="exShare" type="button">共有</button>
       <span class="spacer"></span>
       <button class="btn primary" id="exSave" type="button">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 書体の取り込み・管理 -->
+<div class="modal-overlay" id="mFonts">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">書体の取り込み・管理</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="note-box">取り込んだ書体は「書体」の一覧に出ます。<br>画像に使ってよいか（商用・配布など）は、書体ごとのライセンスを確かめてください。</div>
+    <div class="sub-title">ファイルから（.ttf・.otf・.woff・.woff2）</div>
+    <div class="field-group">
+      <button class="btn primary" id="ftPick" type="button">ファイルを選ぶ</button>
+      <div class="field-hint">この端末だけに置きます（同期しません）。1ファイル50MBまで。</div>
+    </div>
+    <div class="sub-title">Google Fonts から（名前で）</div>
+    <div class="field-group">
+      <div class="p-row" style="margin:0"><input class="field-input" id="ftGName" maxlength="60" placeholder="例：Kaisei Decol" style="flex:1"><button class="btn primary" id="ftGAdd" type="button">追加</button></div>
+      <div class="field-hint">fonts.google.com に載っている書体の名前（英字）を入れます。使うたびに Google から読み込むので、ネットにつながっている必要があります。保存したスタイルに使えば、ほかの端末でも同じ書体になります。</div>
+    </div>
+    <div class="sub-title">取り込んだ書体</div>
+    <div id="ftList"></div>
+  </div>
+</div>
+
+<!-- 背景の透過 -->
+<div class="modal-overlay" id="mBgCut">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">背景を透過する？</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="bg-preview"><canvas id="bgCanvas"></canvas></div>
+    <div class="field-hint" id="bgInfo" style="margin:6px 0 10px"></div>
+    <div class="p-row"><label class="p-check"><input type="checkbox" id="bgOn"> 背景を透過する</label></div>
+    <div id="bgOpts">
+      <div class="p-row"><label class="p-lab">消す色</label>
+        <select id="bgKey"><option value="auto">自動（まわりの色）</option><option value="white">白</option><option value="black">黒</option><option value="pick">色を指定</option></select>
+        <input type="color" id="bgColor" value="#00ff00"></div>
+      <div class="p-row"><label class="p-lab">強さ</label><input type="range" id="bgStrength" min="0" max="100" step="1" value="50"><span class="p-hint" style="margin:0" id="bgStrengthV"></span></div>
+      <div class="p-row"><label class="p-check"><input type="checkbox" id="bgFlood" checked> まわりとつながった部分だけ消す（絵の中の同じ色は残す）</label></div>
+      <div class="p-row"><label class="p-lab">ふちを削る</label><input type="range" id="bgErode" min="0" max="3" step="1" value="0"><span class="p-hint" style="margin:0" id="bgErodeV"></span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" type="button" data-close data-sideops-back-close>やめる</button>
+      <span class="spacer"></span>
+      <button class="btn primary" id="bgOk" type="button">この画像を使う</button>
     </div>
   </div>
 </div>
@@ -528,6 +610,7 @@
 <input type="file" id="fileBase" accept="image/*" hidden>
 <input type="file" id="fileReuse" accept="image/*" hidden>
 <input type="file" id="fileLib" accept="image/*" hidden multiple>
+<input type="file" id="fileFont" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden>
 <div class="drop-hint" id="dropHint">ここに画像を落とす</div>
 <div class="busy" id="busy">処理しています…</div>
 <div class="toast" id="toast"></div>
@@ -547,7 +630,11 @@
      座標はすべて「下の画像のピクセル」。レイヤーの x, y は中心
   ===================================================================== */
   const DB_NAME = 'sideops_pasteup', DB_VERSION = 1, S_STYLES = 'styles';
-  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 1, S_PROJ = 'projects', S_BLOBS = 'blobs';
+  // 版2（2026-11-20）：取り込んだ書体の fonts を足した
+  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 2, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts';
+  const LS_PREFS = 'sideops_pasteup_prefs'; // 端末ごとの設定（背景の透過を確かめるか など）
+  const MAX_FONT_FILE = 50 * 1024 * 1024;
+  const BASE_SEL = '__base__';            // レイヤーの一覧で「下の画像」を選んだとき
 
   // 誤作動防止の上限
   const MAX_FILE = 30 * 1024 * 1024;     // 1ファイル30MBまで
@@ -574,16 +661,26 @@
     { key: 'oval', label: '吹き出し（だ円）' },
     { key: 'think', label: '考え事（もくもく）' },
     { key: 'shout', label: '叫び（トゲトゲ）' },
+    { key: 'burst', label: '爆発（ギザギザ）' },
+    { key: 'wave', label: 'ふるえ（弱気・寒い）' },
+    { key: 'flash', label: 'ウニフラ（心の声）' },
     { key: 'plateRound', label: '台紙（角丸）' },
-    { key: 'plate', label: '台紙（四角）' },
+    { key: 'plate', label: '四角（台紙・ナレーション）' },
   ];
   const FRAME_KEYS = new Set(FRAMES.map((f) => f.key));
+  const NO_TAIL = new Set(['none', 'flash']); // しっぽを付けない形
+  const LINE_STYLES = [
+    { key: 'solid', label: '実線' },
+    { key: 'rough', label: '手書き風（ゆれる線）' },
+    { key: 'dash', label: '点線（ひそひそ声）' },
+  ];
+  const LINE_KEYS = new Set(LINE_STYLES.map((f) => f.key));
 
   // 文字の見た目の既定値（大きさなどは px。baseRef＝短い辺 1000px の画像のときの値）
   const ST_DEFAULT = {
     font: 'sans', size: 48, color: '#111111', bold: true, lh: 1.3, ls: 0, align: 'center', vertical: false,
     strokeW: 0, strokeC: '#ffffff', shadow: false,
-    frame: 'round', fill: '#ffffff', fillA: 1, line: '#111111', lineW: 4, pad: 26, tail: true,
+    frame: 'round', fill: '#ffffff', fillA: 1, line: '#111111', lineW: 4, pad: 26, tail: true, lineStyle: 'solid',
   };
   // ひな形（短い辺 1000px の画像を基準にした値。使うときに画像の大きさに合わせる）
   const BUILTIN = [
@@ -592,6 +689,14 @@
     { name: '縦書きの吹き出し', st: { frame: 'oval', vertical: true, pad: 16, font: 'serif' } },
     { name: '考え事（もくもく）', st: { frame: 'think', pad: 18, font: 'maru' } },
     { name: '叫び（トゲトゲ）', st: { frame: 'shout', font: 'pop', bold: false, size: 56, pad: 22, lineW: 5 } },
+    { name: '手書きの吹き出し', st: { frame: 'oval', lineStyle: 'rough', font: 'hand', bold: false, pad: 18, lineW: 3.5 } },
+    { name: '手書きの四角', st: { frame: 'plate', lineStyle: 'rough', font: 'hand', bold: false, pad: 22, lineW: 3.5 } },
+    { name: '手書きのもくもく', st: { frame: 'think', lineStyle: 'rough', font: 'hand', bold: false, pad: 16, lineW: 3 } },
+    { name: '爆発（ギザギザ）', st: { frame: 'burst', font: 'pop', bold: false, size: 54, pad: 20, lineW: 5 } },
+    { name: 'ふるえ（弱気）', st: { frame: 'wave', font: 'maru', pad: 18, lineW: 3 } },
+    { name: 'ひそひそ（点線）', st: { frame: 'oval', lineStyle: 'dash', size: 40, pad: 18, lineW: 3 } },
+    { name: 'ウニフラ（心の声）', st: { frame: 'flash', tail: false, pad: 22, size: 42, lineW: 3 } },
+    { name: 'ナレーション（四角・縦）', st: { frame: 'plate', tail: false, vertical: true, font: 'serif', bold: false, size: 40, pad: 18, lineW: 3 } },
     { name: '台紙（白・角丸）', st: { frame: 'plateRound', tail: false, lineW: 0, fillA: 0.88, pad: 22 } },
     { name: '台紙（黒・白文字）', st: { frame: 'plate', tail: false, lineW: 0, fill: '#000000', fillA: 0.65, color: '#ffffff', pad: 20, size: 40 } },
     { name: '付せん（手書き風）', st: { frame: 'plate', tail: false, lineW: 0, fill: '#fff3a0', color: '#333333', font: 'hand', bold: false, shadow: true, pad: 28, size: 42, align: 'left' } },
@@ -680,10 +785,15 @@
     ov.addEventListener('click', (e) => {
       if (e.target === ov || e.target.closest('[data-close]')) {
         closeModal(ov.id);
-        if (ov.id === 'mPrompt') finishPrompt(null);
+        cancelModal(ov.id);
       }
     });
   });
+  // 閉じたら「やめた」として返すモーダル（背景のクリック・Esc・戻るボタン・✕）
+  function cancelModal(id) {
+    if (id === 'mPrompt') finishPrompt(null);
+    if (id === 'mBgCut') finishBgCut(null);
+  }
   let confirmResolve = null;
   function confirmBox(msg, okLabel, safe) {
     $('confirmMsg').textContent = msg;
@@ -831,7 +941,7 @@
   function normSt(src) {
     const s = Object.assign({}, ST_DEFAULT, src || {});
     return {
-      font: FONT_BY.has(s.font) ? s.font : 'sans',
+      font: isFontKey(s.font) ? s.font : 'sans',
       size: num(s.size, 48, 4, 1500),
       color: isColor(s.color) ? s.color : '#111111',
       bold: !!s.bold,
@@ -849,8 +959,62 @@
       lineW: num(s.lineW, 4, 0, 200),
       pad: num(s.pad, 26, 0, 1000),
       tail: !!s.tail,
+      lineStyle: LINE_KEYS.has(s.lineStyle) ? s.lineStyle : 'solid',
     };
   }
+  // 書体のキー：用意した書体（sans など）・取り込んだファイル（u:id）・Google Fonts の名前（g:名前）
+  // キーの意味は変えない（保存したスタイルに入って同期される）
+  const RE_UFONT = /^u:id_[a-z0-9_]{1,40}$/;
+  const RE_GFONT = /^g:[A-Za-z0-9][A-Za-z0-9 ]{0,59}$/;
+  function isFontKey(k) { return typeof k === 'string' && (FONT_BY.has(k) || RE_UFONT.test(k) || RE_GFONT.test(k)); }
+  // 画像のフィルター（明るさ％・コントラスト％・彩度％・色相°・モノクロ％・セピア％・ぼかし px）
+  const FX_DEFS = [
+    { k: 'b', label: '明るさ', min: 0, max: 200, def: 100 },
+    { k: 'c', label: 'コントラスト', min: 0, max: 200, def: 100 },
+    { k: 's', label: '彩度', min: 0, max: 300, def: 100 },
+    { k: 'h', label: '色相', min: -180, max: 180, def: 0 },
+    { k: 'g', label: 'モノクロ', min: 0, max: 100, def: 0 },
+    { k: 'p', label: 'セピア', min: 0, max: 100, def: 0 },
+    { k: 'bl', label: 'ぼかし', min: 0, max: 60, def: 0 },
+  ];
+  const FX_PRESETS = [
+    { name: 'なし（元のまま）', fx: {} },
+    { name: 'モノクロ', fx: { g: 100, c: 110 } },
+    { name: 'セピア', fx: { p: 85, c: 95, b: 105 } },
+    { name: 'あざやか', fx: { s: 160, c: 112 } },
+    { name: 'やわらか', fx: { b: 110, c: 88, s: 90, bl: 1 } },
+    { name: 'ひんやり', fx: { h: -18, s: 85, b: 104 } },
+    { name: 'あたたか', fx: { p: 25, s: 120, b: 104 } },
+    { name: 'レトロ', fx: { p: 45, c: 115, s: 75 } },
+    { name: '暗く（夜）', fx: { b: 60, c: 115, s: 70, h: -10 } },
+  ];
+  function normFx(src) {
+    const o = {};
+    if (!src || typeof src !== 'object') return o;
+    FX_DEFS.forEach((d) => {
+      const v = Number(src[d.k]);
+      if (isFinite(v) && v !== d.def) o[d.k] = clamp(v, d.min, d.max);
+    });
+    return o;
+  }
+  // canvas の filter の文字列。k＝いまの拡大率（ぼかしの px を合わせる）
+  function fxString(fx, k) {
+    if (!fx) return 'none';
+    const a = [];
+    if (fx.b !== undefined) a.push(`brightness(${fx.b}%)`);
+    if (fx.c !== undefined) a.push(`contrast(${fx.c}%)`);
+    if (fx.s !== undefined) a.push(`saturate(${fx.s}%)`);
+    if (fx.h !== undefined) a.push(`hue-rotate(${fx.h}deg)`);
+    if (fx.g !== undefined) a.push(`grayscale(${fx.g}%)`);
+    if (fx.p !== undefined) a.push(`sepia(${fx.p}%)`);
+    if (fx.bl !== undefined && fx.bl > 0) a.push(`blur(${(fx.bl * (k || 1)).toFixed(2)}px)`);
+    return a.length ? a.join(' ') : 'none';
+  }
+  // canvas の filter が使えるか（使えない端末ではフィルター・ぼかしを別のやり方に）
+  const FILTER_OK = (() => {
+    try { const g = document.createElement('canvas').getContext('2d'); if (typeof g.filter !== 'string') return false; g.filter = 'blur(2px)'; return g.filter === 'blur(2px)'; }
+    catch (_) { return false; }
+  })();
   // 大きさに関わる値を k 倍（画像の大きさに合わせる・ハンドルで拡大したとき）
   function scaleSt(st, k) {
     st.size = clamp(st.size * k, 4, 1500);
@@ -868,7 +1032,17 @@
     };
     if (l.type === 'image') {
       if (typeof l.blobId !== 'string') return null;
-      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX });
+      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx) });
+    }
+    if (l.type === 'mosaic') { // モザイク・ぼかし・塗りつぶし（下にあるものすべてにかかる）
+      return Object.assign(base, {
+        type: 'mosaic', scale: 1,
+        w: num(l.w, 100, 4, 1e5), h: num(l.h, 100, 4, 1e5),
+        shape: l.shape === 'ellipse' ? 'ellipse' : 'rect',
+        mode: ['pixel', 'blur', 'fill'].includes(l.mode) ? l.mode : 'pixel',
+        block: num(l.block, 12, 2, 400), blur: num(l.blur, 12, 1, 200),
+        color: isColor(l.color) ? l.color : '#000000',
+      });
     }
     if (l.type === 'text') {
       const t = l.tail && typeof l.tail === 'object' ? { x: num(l.tail.x, 0, -1e6, 1e6), y: num(l.tail.y, 0, -1e6, 1e6) } : null;
@@ -882,9 +1056,23 @@
   ===================================================================== */
   const mcv = document.createElement('canvas');
   const mctx = mcv.getContext('2d');
+  let userFonts = []; // 取り込んだ書体 { id, kind:'file'|'google', name, size }
+  function cssQuote(s) { return '"' + String(s).replace(/["\\]/g, '') + '"'; }
+  function fontInfo(key) {
+    const b = FONT_BY.get(key);
+    if (b) return { label: b.label, css: b.css, known: true };
+    if (RE_UFONT.test(key || '')) {
+      const id = key.slice(2), u = userFonts.find((f) => f.kind === 'file' && f.id === id);
+      return { label: u ? u.name : '（この端末にない書体）', css: `${cssQuote('PUF_' + id)},${FONTS[0].css}`, known: !!u };
+    }
+    if (RE_GFONT.test(key || '')) {
+      const name = key.slice(2);
+      return { label: name + '（Google）', css: `${cssQuote(name)},${FONTS[0].css}`, known: true };
+    }
+    return { label: FONTS[0].label, css: FONTS[0].css, known: true };
+  }
   function fontCss(st, size) {
-    const f = FONT_BY.get(st.font) || FONTS[0];
-    return `${st.bold ? 800 : 400} ${size || st.size}px ${f.css}`;
+    return `${st.bold ? 800 : 400} ${size || st.size}px ${fontInfo(st.font).css}`;
   }
   // 縦書きで横に寝かせる字・右上に寄せる字・少し寄せる小さい字
   const V_ROT = new Set([...'ー－―—‐-~～〜…‥「」『』（）()【】〔〕［］[]｛｝{}〈〉《》<>＜＞＝=：:；;→←↑↓']);
@@ -916,108 +1104,164 @@
   }
 
   // 枠の大きさ（当たり判定・選択の枠にも使う）
+  function ellPer(rx, ry) { return Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry))); }
   function shapeInfo(L) {
     const lay = layoutText(L), st = L.st;
     const fw = lay.tw + 2 * st.pad, fh = lay.th + 2 * st.pad;
-    const info = { lay, fw, fh, rx: fw / 2, ry: fh / 2, bw: fw, bh: fh };
+    const info = { lay, fw, fh, rx: fw / 2, ry: fh / 2, bw: fw, bh: fh, m: Math.min(fw, fh) };
+    const ell = (k) => { info.rx = fw / 2 * k; info.ry = fh / 2 * k; info.per = ellPer(info.rx, info.ry); };
     switch (st.frame) {
       case 'none':
         info.bw = lay.tw + 2 * st.strokeW + 8; info.bh = lay.th + 2 * st.strokeW + 8; break;
       case 'oval':
-        info.rx = fw / 2 * 1.3; info.ry = fh / 2 * 1.3; info.bw = info.rx * 2; info.bh = info.ry * 2; break;
-      case 'think': {
-        info.rx = fw / 2 * 1.3; info.ry = fh / 2 * 1.3;
-        const per = Math.PI * (3 * (info.rx + info.ry) - Math.sqrt((3 * info.rx + info.ry) * (info.rx + 3 * info.ry)));
-        info.n = clamp(Math.round(per / (Math.min(info.rx, info.ry) * 0.9)), 7, 22);
-        info.br = per / info.n * 0.42;
+        ell(1.3); info.bw = info.rx * 2; info.bh = info.ry * 2; break;
+      case 'wave':
+        ell(1.3); info.n = clamp(Math.round(info.per / (Math.min(info.rx, info.ry) * 0.32)), 10, 48);
+        info.bw = info.rx * 2.1; info.bh = info.ry * 2.1; break;
+      case 'think':
+        ell(1.3); info.n = clamp(Math.round(info.per / (Math.min(info.rx, info.ry) * 0.9)), 7, 22);
+        info.br = info.per / info.n * 0.42;
         info.bw = (info.rx + info.br) * 2; info.bh = (info.ry + info.br) * 2; break;
-      }
-      case 'shout': {
-        info.rx = fw / 2 * 1.25; info.ry = fh / 2 * 1.25;
-        const per = Math.PI * (3 * (info.rx + info.ry) - Math.sqrt((3 * info.rx + info.ry) * (info.rx + 3 * info.ry)));
-        info.n = clamp(Math.round(per / (Math.min(info.rx, info.ry) * 0.45)), 12, 30);
+      case 'shout':
+        ell(1.25); info.n = clamp(Math.round(info.per / (Math.min(info.rx, info.ry) * 0.45)), 12, 30);
         if (info.n % 2) info.n++;
         info.bw = info.rx * 2 * 1.5; info.bh = info.ry * 2 * 1.5; break;
-      }
+      case 'burst':
+        ell(1.22); info.n = clamp(Math.round(info.per / (Math.min(info.rx, info.ry) * 0.7)), 9, 18) * 2;
+        info.bw = info.rx * 2 * 1.9; info.bh = info.ry * 2 * 1.9; break;
+      case 'flash':
+        ell(1.2); info.n = clamp(Math.round(info.per / (Math.min(info.rx, info.ry) * 0.07)), 40, 180);
+        info.bw = info.rx * 2 * 1.75; info.bh = info.ry * 2 * 1.75; break;
       default: break; // round・plate・plateRound は fw×fh
     }
     return info;
   }
   function layerBox(L) { // ローカル座標（中心0・拡大前）での幅と高さ
     if (L.type === 'image') return { w: L.w0, h: L.h0 };
+    if (L.type === 'mosaic') return { w: L.w, h: L.h };
     const i = shapeInfo(L); return { w: i.bw, h: i.bh };
   }
+  function hasTail(L) { return L.type === 'text' && L.st.tail && !NO_TAIL.has(L.st.frame); }
   function defaultTail(L) {
-    const i = shapeInfo(L); const m = Math.min(i.fw, i.fh);
-    return { x: -i.bw * 0.22, y: i.bh / 2 + m * 0.6 };
+    const i = shapeInfo(L);
+    return { x: -i.bw * 0.22, y: i.bh / 2 + i.m * 0.6 };
   }
 
-  function roundRectPath(p, x, y, w, h, r) {
-    r = Math.max(0, Math.min(r, w / 2, h / 2));
-    p.moveTo(x + r, y);
-    p.arcTo(x + w, y, x + w, y + h, r);
-    p.arcTo(x + w, y + h, x, y + h, r);
-    p.arcTo(x, y + h, x, y, r);
-    p.arcTo(x, y, x + w, y, r);
-    p.closePath();
+  // ---- 形を点の並び（多角形）で作る。手書き風は、この点をゆらして描く ----
+  function ellipsePts(cx, cy, rx, ry, n, rfn) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI * 2 * i / n, f = rfn ? rfn(a) : 1;
+      out.push([cx + Math.cos(a) * rx * f, cy + Math.sin(a) * ry * f]);
+    }
+    return out;
   }
-  // 枠の形とおしっぽ（ローカル座標の Path2D の配列）
-  function framePaths(L, info) {
-    const st = L.st, P = [];
-    const { fw, fh, rx, ry } = info;
+  function roundRectPts(w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    const out = [], seg = 10;
+    const corner = (cx, cy, a0) => { for (let i = 0; i <= seg; i++) { const a = a0 + Math.PI / 2 * i / seg; out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } };
+    corner(w / 2 - r, -h / 2 + r, -Math.PI / 2);
+    corner(w / 2 - r, h / 2 - r, 0);
+    corner(-w / 2 + r, h / 2 - r, Math.PI / 2);
+    corner(-w / 2 + r, -h / 2 + r, Math.PI);
+    return out;
+  }
+  // 辺を細かく分ける（手書き風のゆれを辺の途中にも付けるため）
+  function densify(pts, step) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+      for (let k = 0; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+    }
+    return out;
+  }
+  // なめらかにゆらす（いくつかの正弦波を重ねる。乱数はレイヤーのIDから決めるので、開き直しても同じ形）
+  function wobble(pts, amp, rnd) {
+    const ph = [0, 0, 0, 0].map(() => rnd() * Math.PI * 2);
+    const f1 = 0.55 + rnd() * 0.4, f2 = 1.6 + rnd() * 0.9, lam = Math.max(1, amp * 9);
+    let s = 0;
+    return pts.map((p, i) => {
+      if (i) s += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
+      const t = s / lam;
+      return [p[0] + amp * (0.7 * Math.sin(t * f1 + ph[0]) + 0.3 * Math.sin(t * f2 + ph[1])),
+        p[1] + amp * (0.7 * Math.sin(t * f1 + ph[2]) + 0.3 * Math.sin(t * f2 + ph[3]))];
+    });
+  }
+  function polyPath(pts) {
     const p = new Path2D();
+    pts.forEach((q, i) => (i ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1])));
+    p.closePath();
+    return p;
+  }
+  // 枠としっぽの多角形（ローカル座標）。ウニフラは別に描くので、ここでは作らない
+  function framePolys(L, info) {
+    const st = L.st, P = [];
+    const { fw, fh, rx, ry, m } = info;
     switch (st.frame) {
-      case 'plate': p.rect(-fw / 2, -fh / 2, fw, fh); P.push(p); break;
-      case 'plateRound': roundRectPath(p, -fw / 2, -fh / 2, fw, fh, Math.min(fw, fh) * 0.18); P.push(p); break;
-      case 'round': roundRectPath(p, -fw / 2, -fh / 2, fw, fh, Math.min(fw, fh) * 0.42); P.push(p); break;
-      case 'oval': p.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); P.push(p); break;
-      case 'think': {
-        p.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); P.push(p);
+      case 'plate': P.push([[-fw / 2, -fh / 2], [fw / 2, -fh / 2], [fw / 2, fh / 2], [-fw / 2, fh / 2]]); break;
+      case 'plateRound': P.push(roundRectPts(fw, fh, m * 0.18)); break;
+      case 'round': P.push(roundRectPts(fw, fh, m * 0.42)); break;
+      case 'oval': P.push(ellipsePts(0, 0, rx, ry, 96)); break;
+      case 'wave': P.push(ellipsePts(0, 0, rx, ry, info.n * 10, (a) => 1 + 0.045 * Math.sin(a * info.n))); break;
+      case 'think':
+        P.push(ellipsePts(0, 0, rx, ry, 72));
         for (let i = 0; i < info.n; i++) {
           const a = Math.PI * 2 * i / info.n + 0.2;
-          const c = new Path2D(); c.arc(Math.cos(a) * rx * 0.97, Math.sin(a) * ry * 0.97, info.br, 0, Math.PI * 2); P.push(c);
+          P.push(ellipsePts(Math.cos(a) * rx * 0.97, Math.sin(a) * ry * 0.97, info.br, info.br, 28));
         }
         break;
-      }
       case 'shout': {
-        const rnd = seeded(L.id);
+        const rnd = seeded(L.id), q = [];
         for (let i = 0; i < info.n; i++) {
           const a = Math.PI * 2 * i / info.n;
           const f = i % 2 === 0 ? 1.3 + rnd() * 0.2 : 0.98 + rnd() * 0.06;
-          const x = Math.cos(a) * rx * f, y = Math.sin(a) * ry * f;
-          if (i === 0) p.moveTo(x, y); else p.lineTo(x, y);
+          q.push([Math.cos(a) * rx * f, Math.sin(a) * ry * f]);
         }
-        p.closePath(); P.push(p); break;
+        P.push(q); break;
+      }
+      case 'burst': { // 爆発：とがりの長さと向きをばらばらに
+        const rnd = seeded(L.id + ':b'), q = [];
+        for (let i = 0; i < info.n; i++) {
+          const a = Math.PI * 2 * (i + (rnd() - 0.5) * 0.5) / info.n;
+          const f = i % 2 === 0 ? 1.3 + rnd() * 0.6 : 0.92 + rnd() * 0.12;
+          q.push([Math.cos(a) * rx * f, Math.sin(a) * ry * f]);
+        }
+        P.push(q); break;
       }
       default: return P;
     }
     // しっぽ
-    if (st.tail && L.tail) {
+    if (hasTail(L) && L.tail) {
       const T = L.tail, len = Math.hypot(T.x, T.y);
       if (len > 1) {
-        const ux = T.x / len, uy = T.y / len, m = Math.min(fw, fh);
+        const ux = T.x / len, uy = T.y / len;
         let e; // 中心から枠のふちまでの距離（しっぽの向き）
-        if (st.frame === 'oval' || st.frame === 'think' || st.frame === 'shout') e = 1 / Math.sqrt((ux / rx) ** 2 + (uy / ry) ** 2);
-        else e = Math.min(Math.abs(ux) > 1e-6 ? (fw / 2) / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? (fh / 2) / Math.abs(uy) : Infinity);
+        if (['plate', 'plateRound', 'round'].includes(st.frame)) {
+          e = Math.min(Math.abs(ux) > 1e-6 ? (fw / 2) / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? (fh / 2) / Math.abs(uy) : Infinity);
+        } else e = 1 / Math.sqrt((ux / rx) ** 2 + (uy / ry) ** 2);
         if (len > e * 1.02) {
           if (st.frame === 'think') {
             const r0 = m * 0.5;
             [[0.3, 0.32], [0.62, 0.22], [0.92, 0.14]].forEach(([t, rr]) => {
               const d = e + (len - e) * t;
-              const c = new Path2D(); c.arc(ux * d, uy * d, Math.max(1, r0 * rr), 0, Math.PI * 2); P.push(c);
+              P.push(ellipsePts(ux * d, uy * d, Math.max(1, r0 * rr), Math.max(1, r0 * rr), 24));
             });
           } else {
             const hw = m * 0.14, bd = e * 0.7;
-            const t = new Path2D();
-            t.moveTo(ux * bd - uy * hw, uy * bd + ux * hw);
-            t.lineTo(T.x, T.y);
-            t.lineTo(ux * bd + uy * hw, uy * bd - ux * hw);
-            t.closePath(); P.push(t);
+            P.push([[ux * bd - uy * hw, uy * bd + ux * hw], [T.x, T.y], [ux * bd + uy * hw, uy * bd - ux * hw]]);
           }
         }
       }
     }
     return P;
+  }
+  // 手書き風：辺を細かくして、ゆらす。pass を変えると別のゆれ（二度描きの線）
+  function framePaths(L, info, pass) {
+    const polys = framePolys(L, info);
+    if (L.st.lineStyle !== 'rough') return polys.map(polyPath);
+    const step = Math.max(2, info.m * 0.035), amp = Math.max(1.2, info.m * 0.018 + L.st.lineW * 0.25);
+    return polys.map((p, i) => polyPath(wobble(densify(p, step), amp, seeded(L.id + ':' + (pass || 0) + ':' + i))));
   }
 
   /* =====================================================================
@@ -1030,29 +1274,66 @@
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
   }
-  function drawFrame(ctx, L, info) {
-    const st = L.st;
-    if (st.frame === 'none') return;
-    const paths = framePaths(L, info);
-    if (!paths.length) return;
-    // 枠と しっぽ を1つの形にまとめるため、別のキャンバスで「太い線 → 内側を抜く → 塗り」の順に描いてから重ねる
+  function getScratch(ctx) {
     const cv = ctx.canvas;
     if (scratch.width !== cv.width || scratch.height !== cv.height) { scratch.width = cv.width; scratch.height = cv.height; }
     const g = scratch.getContext('2d');
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, scratch.width, scratch.height);
     g.setTransform(ctx.getTransform());
+    return g;
+  }
+  // ウニフラ：まわりに線のとげ（線の色）、まん中は塗り。線の太さで、とげの太さが変わる
+  function drawFlash(g, L, info) {
+    const st = L.st, { rx, ry, n } = info;
+    const rnd = seeded(L.id + ':f');
     if (st.lineW > 0) {
-      g.strokeStyle = st.line; g.lineWidth = st.lineW * 2; g.lineJoin = 'round';
-      paths.forEach((p) => g.stroke(p));
-      g.globalCompositeOperation = 'destination-out';
-      g.fillStyle = '#000';
-      paths.forEach((p) => g.fill(p));
-      g.globalCompositeOperation = 'source-over';
+      const da = Math.PI / n * clamp(0.18 + st.lineW / (info.m * 0.08), 0.18, 0.9);
+      const p = new Path2D();
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI * 2 * i / n + (rnd() - 0.5) * 0.02, f = 1.15 + rnd() * 0.6;
+        p.moveTo(Math.cos(a - da) * rx * 0.97, Math.sin(a - da) * ry * 0.97);
+        p.lineTo(Math.cos(a) * rx * f, Math.sin(a) * ry * f);
+        p.lineTo(Math.cos(a + da) * rx * 0.97, Math.sin(a + da) * ry * 0.97);
+        p.closePath();
+      }
+      g.fillStyle = st.line; g.fill(p);
     }
+    const c = new Path2D(); c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     if (st.fillA > 0) {
-      g.fillStyle = hexA(st.fill, st.fillA);
-      paths.forEach((p) => g.fill(p));
+      // 塗りが薄くても、とげの根元が中に透けないように一度くり抜く
+      g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fill(c);
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = hexA(st.fill, st.fillA); g.fill(c);
+    }
+  }
+  function drawFrame(ctx, L, info) {
+    const st = L.st;
+    if (st.frame === 'none') return;
+    // 枠と しっぽ を1つの形にまとめるため、別のキャンバスで「太い線 → 内側を抜く → 塗り」の順に描いてから重ねる
+    const g = getScratch(ctx);
+    if (st.frame === 'flash') drawFlash(g, L, info);
+    else {
+      const paths = framePaths(L, info, 0);
+      if (!paths.length) return;
+      if (st.lineW > 0) {
+        g.strokeStyle = st.line; g.lineWidth = st.lineW * 2; g.lineJoin = 'round'; g.lineCap = 'round';
+        if (st.lineStyle === 'dash') g.setLineDash([st.lineW * 2.6, st.lineW * 2.4]);
+        paths.forEach((p) => g.stroke(p));
+        g.setLineDash([]);
+        if (st.lineStyle === 'rough') { // 二度描きの線（少しずれた細めの線を重ねる）
+          g.lineWidth = st.lineW * 1.3;
+          framePaths(L, info, 1).forEach((p) => g.stroke(p));
+        }
+        g.globalCompositeOperation = 'destination-out';
+        g.fillStyle = '#000';
+        paths.forEach((p) => g.fill(p));
+        g.globalCompositeOperation = 'source-over';
+      }
+      if (st.fillA > 0) {
+        g.fillStyle = hexA(st.fill, st.fillA);
+        paths.forEach((p) => g.fill(p));
+      }
     }
     const k = transformScale(ctx);
     ctx.save();
@@ -1118,17 +1399,21 @@
     ctx.strokeStyle = 'rgba(255,47,110,.9)'; ctx.lineWidth = Math.max(2, Math.min(w, h) * 0.02);
     ctx.beginPath(); ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, h / 2); ctx.moveTo(w / 2, -h / 2); ctx.lineTo(-w / 2, h / 2); ctx.stroke();
   }
-  function drawLayer(ctx, L) {
+  function drawLayer(ctx, L, opts) {
     if (L.hidden) return;
     ctx.save();
+    // モザイクは画像の外まで広げない（外の部分は書き出されないので、編集の画面の背景をぼかさないように）
+    if (L.type === 'mosaic' && opts && opts.clipW) { ctx.beginPath(); ctx.rect(0, 0, opts.clipW, opts.clipH); ctx.clip(); }
     ctx.translate(L.x, L.y);
     ctx.rotate(L.rot * Math.PI / 180);
     ctx.scale(L.scale * (L.type === 'image' && L.flipX ? -1 : 1), L.scale);
     ctx.globalAlpha = L.opacity;
     if (L.type === 'image') {
       const c = imgCache.get(L.blobId);
-      if (c && c.img) ctx.drawImage(c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0);
+      if (c && c.img) drawImageFx(ctx, c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0, L.fx);
       else drawMissing(ctx, L.w0, L.h0);
+    } else if (L.type === 'mosaic') {
+      drawMosaic(ctx, L);
     } else {
       const info = shapeInfo(L);
       drawFrame(ctx, L, info);
@@ -1136,22 +1421,108 @@
     }
     ctx.restore();
   }
-  function drawScene(ctx, opts) {
-    const c = imgCache.get(cur.baseId);
-    if (c && c.img) ctx.drawImage(opts && opts.baseImg || c.img, 0, 0, cur.W, cur.H);
-    else { ctx.save(); ctx.translate(cur.W / 2, cur.H / 2); drawMissing(ctx, cur.W, cur.H); ctx.restore(); }
-    cur.layers.forEach((L) => drawLayer(ctx, L));
+  function hasFx(fx) { return !!fx && Object.keys(fx).length > 0; }
+  // フィルター付きで画像を描く（filter が使えない端末では、そのまま描く）
+  function drawImageFx(ctx, img, x, y, w, h, fx) {
+    if (!hasFx(fx) || !FILTER_OK) { ctx.drawImage(img, x, y, w, h); return; }
+    const prev = ctx.filter;
+    // ぼかしの px は画像の座標。いまの拡大率で合わせる（filter は画面のピクセルでかかるため）
+    ctx.filter = fxString(fx, transformScale(ctx));
+    ctx.drawImage(img, x, y, w, h);
+    ctx.filter = prev;
+  }
+  // モザイク・ぼかし・塗りつぶし：いまキャンバスに描けている「下のもの」を、その形の中だけ加工して描き直す
+  const mosaicTmp = document.createElement('canvas');
+  const mosaicSmall = document.createElement('canvas');
+  function drawMosaic(ctx, L) {
+    const shape = new Path2D();
+    if (L.shape === 'ellipse') shape.ellipse(0, 0, L.w / 2, L.h / 2, 0, 0, Math.PI * 2);
+    else shape.rect(-L.w / 2, -L.h / 2, L.w, L.h);
+    if (L.mode === 'fill') { ctx.fillStyle = L.color; ctx.fill(shape); return; }
+    const m = ctx.getTransform(), cv = ctx.canvas, k = transformScale(ctx);
+    const pad = L.mode === 'blur' ? Math.ceil(L.blur * k * 2) : 0;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b]) => {
+      const p = m.transformPoint(new DOMPoint(a * L.w / 2, b * L.h / 2));
+      x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+    });
+    const sx = Math.max(0, Math.floor(x0) - pad), sy = Math.max(0, Math.floor(y0) - pad);
+    const ex = Math.min(cv.width, Math.ceil(x1) + pad), ey = Math.min(cv.height, Math.ceil(y1) + pad);
+    const sw = ex - sx, sh = ey - sy;
+    if (sw < 1 || sh < 1) return;
+    mosaicTmp.width = sw; mosaicTmp.height = sh;
+    const tg = mosaicTmp.getContext('2d');
+    tg.clearRect(0, 0, sw, sh);
+    tg.drawImage(cv, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.save();
+    ctx.clip(shape);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const smallDraw = (bs, smooth) => {
+      const cw = Math.max(1, Math.ceil(sw / bs)), ch = Math.max(1, Math.ceil(sh / bs));
+      mosaicSmall.width = cw; mosaicSmall.height = ch;
+      const sg = mosaicSmall.getContext('2d');
+      sg.imageSmoothingEnabled = true; sg.imageSmoothingQuality = 'high';
+      sg.clearRect(0, 0, cw, ch);
+      sg.drawImage(mosaicTmp, 0, 0, sw, sh, 0, 0, cw, ch);
+      ctx.imageSmoothingEnabled = smooth;
+      if (smooth) ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(mosaicSmall, 0, 0, cw, ch, sx, sy, cw * bs, ch * bs);
+    };
+    if (L.mode === 'pixel') smallDraw(Math.max(1, L.block * k), false);
+    else if (FILTER_OK) { ctx.filter = `blur(${(L.blur * k).toFixed(2)}px)`; ctx.drawImage(mosaicTmp, sx, sy); ctx.filter = 'none'; }
+    else smallDraw(Math.max(1, L.blur * k * 0.8), true); // filter が使えない端末：縮めて広げる（ぼけて見える）
+    ctx.restore();
+  }
+  function drawScene(ctx, p, opts) {
+    const c = imgCache.get(p.baseId);
+    if (c && c.img) drawImageFx(ctx, opts && opts.baseImg || c.img, 0, 0, p.W, p.H, p.baseFx);
+    else { ctx.save(); ctx.translate(p.W / 2, p.H / 2); drawMissing(ctx, p.W, p.H); ctx.restore(); }
+    const lo = { clipW: p.W, clipH: p.H };
+    p.layers.forEach((L) => drawLayer(ctx, L, lo));
   }
 
   /* ===================== 書体の読み込み ===================== */
+  const fontState = new Map(); // キー → Promise（読み込み中・済み）
+  function loadGoogleCss(name) {
+    return new Promise((resolve, reject) => {
+      const href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + '&display=swap';
+      const link = document.createElement('link');
+      link.rel = 'stylesheet'; link.href = href;
+      link.onload = () => resolve();
+      link.onerror = () => { link.remove(); reject(new Error('Google Fonts にその名前の書体が見つかりませんでした')); };
+      document.head.append(link);
+    });
+  }
+  // 書体を使えるようにする（取り込んだファイルは FontFace で登録、Google は CSS を読み込む）
+  function ensureFontKey(key) {
+    if (fontState.has(key)) return fontState.get(key);
+    let p;
+    if (RE_UFONT.test(key)) {
+      const id = key.slice(2);
+      p = (async () => {
+        const rec = await getOne(wdb, S_FONTS, id);
+        if (!rec || !rec.blob) throw new Error('missing');
+        const face = new FontFace('PUF_' + id, await rec.blob.arrayBuffer());
+        await face.load();
+        document.fonts.add(face);
+      })();
+    } else if (RE_GFONT.test(key)) {
+      p = loadGoogleCss(key.slice(2));
+    } else p = Promise.resolve();
+    p = p.catch((err) => { fontState.delete(key); throw err; });
+    fontState.set(key, p);
+    return p;
+  }
   function fontLoads(layers) {
     if (!document.fonts || !document.fonts.load) return [];
     const list = [];
     layers.forEach((L) => {
       if (L.type !== 'text') return;
-      const f = FONT_BY.get(L.st.font);
-      if (!f || !f.web) return;
-      list.push(document.fonts.load(`${L.st.bold ? 800 : 400} 40px "${f.web}"`, L.text || 'あ').catch(() => null));
+      const key = L.st.font, b = FONT_BY.get(key);
+      const w = L.st.bold ? 800 : 400, txt = L.text || 'あ';
+      if (b) { if (b.web) list.push(document.fonts.load(`${w} 40px "${b.web}"`, txt).catch(() => null)); return; }
+      const fam = RE_UFONT.test(key) ? 'PUF_' + key.slice(2) : key.slice(2);
+      list.push(ensureFontKey(key).then(() => document.fonts.load(`${w} 40px ${cssQuote(fam)}`, txt)).catch(() => null));
     });
     return list;
   }
@@ -1226,7 +1597,7 @@
     ctx.fillRect(view.ox, view.oy, cur.W * view.s, cur.H * view.s);
     ctx.setTransform(d * view.s, 0, 0, d * view.s, d * view.ox, d * view.oy);
     if (!baseView) baseView = makeBaseView();
-    drawScene(ctx, { baseImg: baseView });
+    drawScene(ctx, cur, { baseImg: baseView });
     // ここから画面の座標（CSS px）
     ctx.setTransform(d, 0, 0, d, 0, 0);
     // 画像の外にはみ出した部分は書き出されないので、暗くして見せる
@@ -1254,7 +1625,7 @@
     const a = L.rot * Math.PI / 180;
     const rotH = { x: top.x + Math.sin(a) * 26, y: top.y - Math.cos(a) * 26 };
     let tail = null;
-    if (L.type === 'text' && L.st.tail && L.st.frame !== 'none' && L.tail) tail = toScreen(L, L.tail.x, L.tail.y);
+    if (hasTail(L) && L.tail) tail = toScreen(L, L.tail.x, L.tail.y);
     return { corners, top, rotH, tail };
   }
   function drawHandles(L) {
@@ -1376,6 +1747,10 @@
         if (Math.abs(ny - cur.H / 2) < snap) { ny = cur.H / 2; guides.h = true; }
       }
       L.x = nx; L.y = ny;
+    } else if (drag.kind === 'scale' && L.type === 'mosaic') {
+      // モザイクは幅と高さを別々に（中心はそのまま、つかんだ角までの距離で決める）
+      const bp = screenToBase(p.x, p.y), lp = baseToLocal(L, bp.x, bp.y);
+      L.w = clamp(Math.abs(lp.x) * 2, 4, 1e5); L.h = clamp(Math.abs(lp.y) * 2, 4, 1e5);
     } else if (drag.kind === 'scale') {
       const d = Math.hypot(p.x - drag.c.x, p.y - drag.c.y);
       L.scale = clamp(drag.s0 * d / drag.d0, 0.005, 200);
@@ -1396,7 +1771,7 @@
     pointers.delete(e.pointerId);
     if (!drag) return;
     if (drag.kind === 'pinch' && pointers.size === 1) { // 1本残ったら、そこから移動を続ける
-      const L = drag.L; bakeText(L);
+      const L = drag.L; bakeLayer(L);
       const p = [...pointers.values()][0];
       drag = { kind: 'move', L, p0: p, x0: L.x, y0: L.y, moved: true };
       changed(true); return;
@@ -1405,7 +1780,7 @@
     const L = drag.L, moved = drag.moved;
     drag = null;
     guides = { v: false, h: false };
-    if (moved) { bakeText(L); changed(true); refreshProps(); }
+    if (moved) { bakeLayer(L); changed(true); refreshProps(); }
     else requestRender();
   }
   cv.addEventListener('pointerup', endPointer);
@@ -1415,11 +1790,13 @@
     if (hit && hit.type === 'text') { select(hit.id); focusText(); }
   });
   function normRot(r) { r = ((r + 180) % 360 + 360) % 360 - 180; return Math.round(r * 10) / 10; }
-  // 文字は、ハンドルで大きくした分を文字の大きさに移す（スタイルの保存で大きさがずれないように）
-  function bakeText(L) {
-    if (!L || L.type !== 'text' || L.scale === 1) return;
+  // 文字は、ハンドルで大きくした分を文字の大きさに移す（スタイルの保存で大きさがずれないように）。
+  // モザイクは2本指で大きくした分を幅・高さに移す
+  function bakeLayer(L) {
+    if (!L || L.scale === 1 || L.type === 'image') return;
     const k = L.scale;
     L.scale = 1;
+    if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); return; }
     scaleSt(L.st, k);
     if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k };
   }
@@ -1431,7 +1808,7 @@
     refreshProps();
     requestRender();
   }
-  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, layers: cur.layers }); }
+  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, layers: cur.layers }); }
   // 変えたら呼ぶ。少し待って（またはすぐ）1回分の「元に戻す」に積む
   function changed(immediate) {
     requestRender();
@@ -1457,7 +1834,7 @@
   async function applySnap(s) {
     const o = JSON.parse(s);
     const baseChanged = o.baseId !== cur.baseId;
-    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H;
+    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx);
     cur.layers = o.layers;
     if (!layerById(selId)) selId = null;
     await loadImagesFor(cur);
@@ -1488,17 +1865,31 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 800);
   }
-  function flushSave() {
+  function projRecord(p) {
+    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
+  }
+  // quick：画面を離れるとき（再読み込み・アプリを閉じる）。見本の画像を作るのを待たずに、すぐ書く
+  // （待っている間にページが消えると、最後の変更が残らない）。見本は次に保存するときに作り直す
+  function flushSave(quick) {
     clearTimeout(saveTimer); saveTimer = null;
     if (!cur || !dirty) return saveChain;
     dirty = false;
     const p = cur;
+    if (quick === true) {
+      p.updatedAt = Date.now();
+      const at = p.updatedAt;
+      const w = putOne(wdb, S_PROJ, projRecord(p)).then(() => { clearRescue(p.id, at); if (cur === p && !dirty) setStatus('保存済み'); })
+        .catch(() => { dirty = true; setStatus('保存できませんでした', true); });
+      saveChain = saveChain.then(() => w);
+      return saveChain;
+    }
     saveChain = saveChain.then(async () => {
       try {
         setStatus('保存中…');
         p.updatedAt = Date.now();
         p.thumb = await makeThumb(p).catch(() => p.thumb || null);
-        await putOne(wdb, S_PROJ, { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt });
+        await putOne(wdb, S_PROJ, projRecord(p));
+        clearRescue(p.id, p.updatedAt);
         if (cur === p && !dirty) setStatus('保存済み');
       } catch (err) {
         dirty = true;
@@ -1508,19 +1899,49 @@
     });
     return saveChain;
   }
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
-  window.addEventListener('pagehide', () => flushSave());
+  // 控え：ページが消える直前は IndexedDB の書き込みが間に合わないことがあるので、同時に localStorage へ
+  // 同期的に書いておく（重ねたものの配置だけ。画像は入れない）。次に開いたとき、保存より新しければ戻す
+  const LS_RESCUE = 'sideops_pasteup_rescue';
+  function writeRescue() {
+    if (!cur || !dirty) return;
+    try {
+      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, layers: cur.layers, updatedAt: Date.now() });
+      if (s.length < 2000000) localStorage.setItem(LS_RESCUE, s);
+    } catch (_) { /* 控えを書けなくても、いつもの保存はする */ }
+  }
+  function clearRescue(id, savedAt) {
+    try {
+      const r = JSON.parse(localStorage.getItem(LS_RESCUE) || 'null');
+      if (r && r.id === id && r.updatedAt <= savedAt) localStorage.removeItem(LS_RESCUE);
+    } catch (_) { /* 何もしない */ }
+  }
+  async function applyRescue() {
+    let r = null;
+    try { r = JSON.parse(localStorage.getItem(LS_RESCUE) || 'null'); } catch (_) { r = null; }
+    if (!r || typeof r.id !== 'string') return;
+    try {
+      const rec = await getOne(wdb, S_PROJ, r.id);
+      if (rec && (rec.updatedAt || 0) < r.updatedAt && Array.isArray(r.layers)) {
+        rec.layers = r.layers.map(normLayer).filter(Boolean);
+        if (typeof r.baseId === 'string') { rec.baseId = r.baseId; rec.W = num(r.W, rec.W, 1, 1e5); rec.H = num(r.H, rec.H, 1, 1e5); }
+        rec.baseFx = normFx(r.baseFx); rec.name = cleanName(r.name) || rec.name;
+        rec.updatedAt = r.updatedAt;
+        await putOne(wdb, S_PROJ, rec);
+      }
+      localStorage.removeItem(LS_RESCUE);
+    } catch (_) { /* 次の起動でもう一度 */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { commitHist(); writeRescue(); flushSave(true); } });
+  window.addEventListener('pagehide', () => { writeRescue(); flushSave(true); });
 
   async function makeThumb(p) {
-    const c = imgCache.get(p.baseId);
     const s = Math.min(1, 360 / Math.max(p.W, p.H));
     const w = Math.max(1, Math.round(p.W * s)), h = Math.max(1, Math.round(p.H * s));
     const t = document.createElement('canvas'); t.width = w; t.height = h;
     const g = t.getContext('2d');
     g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
     g.setTransform(s, 0, 0, s, 0, 0);
-    if (c && c.img) g.drawImage(c.img, 0, 0, p.W, p.H);
-    p.layers.forEach((L) => drawLayer(g, L));
+    drawScene(g, p);
     return canvasToBlob(t, 'image/jpeg', 0.8);
   }
 
@@ -1551,7 +1972,7 @@
       cur = {
         id: rec.id, name: cleanName(rec.name) || '無題', baseId: rec.baseId, W: num(rec.W, 1, 1, 1e5), H: num(rec.H, 1, 1, 1e5),
         layers: (Array.isArray(rec.layers) ? rec.layers : []).map(normLayer).filter(Boolean),
-        thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
+        baseFx: normFx(rec.baseFx), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
       };
       clearImgCache();
       await loadImagesFor(cur);
@@ -1583,8 +2004,11 @@
   new ResizeObserver(() => { if (editorOpen()) { fitView(); render(); } }).observe($('stageWrap'));
 
   /* ===================== レイヤーの一覧 ===================== */
+  const KIND_LABEL = { image: '画像', text: '文字', mosaic: '効果' };
+  const MOSAIC_LABEL = { pixel: 'モザイク', blur: 'ぼかし', fill: '塗りつぶし' };
   function layerLabel(L) {
     if (L.type === 'image') return L.name || '画像';
+    if (L.type === 'mosaic') return MOSAIC_LABEL[L.mode] + (L.shape === 'ellipse' ? '（だ円）' : '（四角）');
     const t = (L.text || '').split('\n').find((s) => s.trim()) || '（空の文字）';
     return t.slice(0, 30);
   }
@@ -1593,17 +2017,23 @@
     const box = $('layerList');
     const rows = [...cur.layers].reverse().map((L) => `
       <div class="layer-item${L.id === selId ? ' is-active' : ''}${L.hidden ? ' is-hidden' : ''}" data-id="${esc(L.id)}">
-        <span class="li-kind">${L.type === 'image' ? '画像' : '文字'}</span>
+        <span class="li-kind">${KIND_LABEL[L.type] || ''}</span>
         <span class="li-name">${esc(layerLabel(L))}</span>
         <button class="icon-btn${L.hidden ? ' is-off' : ''}" type="button" data-act="eye" title="${L.hidden ? '表示する' : '隠す'}">${L.hidden ? '隠' : '見'}</button>
         <button class="icon-btn${L.locked ? ' is-on' : ''}" type="button" data-act="lock" title="${L.locked ? '固定を外す' : '固定する（画面の上で動かなくする）'}">${L.locked ? '固' : '動'}</button>
       </div>`).join('');
-    box.innerHTML = rows + `<div class="layer-base"><span class="li-kind">下</span>下の画像 ${cur.W}×${cur.H}</div>`;
+    const fx = hasFx(cur.baseFx) ? '・フィルター' : '';
+    box.innerHTML = rows + `<div class="layer-item${selId === BASE_SEL ? ' is-active' : ''}" data-id="${BASE_SEL}"><span class="li-kind">下</span><span class="li-name">下の画像 ${cur.W}×${cur.H}${fx}</span></div>`;
     $('layerCount').textContent = `${cur.layers.length} / ${MAX_LAYERS}`;
   }
   $('layerList').addEventListener('click', (e) => {
     const row = e.target.closest('.layer-item');
     if (!row) return;
+    if (row.dataset.id === BASE_SEL) {
+      select(selId === BASE_SEL ? null : BASE_SEL);
+      if (selId && isNarrow()) setTab('props');
+      return;
+    }
     const L = layerById(row.dataset.id);
     if (!L) return;
     const act = e.target.closest('[data-act]');
@@ -1624,23 +2054,55 @@
   document.querySelectorAll('.side-tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
   /* ===================== 調整の欄 ===================== */
-  $('pFont').innerHTML = FONTS.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join('');
   $('pFrame').innerHTML = FRAMES.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join('');
+  $('pLineStyle').innerHTML = LINE_STYLES.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join('');
+  $('pFxPreset').innerHTML = FX_PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join('');
+  $('fxRows').innerHTML = FX_DEFS.map((d) => `<div class="p-row"><label class="p-lab">${esc(d.label)}</label><input type="range" id="fxR_${d.k}" min="${d.min}" max="${d.max}" step="1"><input type="number" id="fxN_${d.k}" min="${d.min}" max="${d.max}" step="1"></div>`).join('');
+  $('pFxNote').textContent = FILTER_OK ? 'ぼかしは画像のピクセル数で指定します。' : 'この端末のブラウザはフィルターに対応していないため、画面と書き出しに反映されません（ほかの端末では反映されます）。';
+  function userFontKey(u) { return u.kind === 'google' ? 'g:' + u.name : 'u:' + u.id; }
+  // 書体の選びもの（用意した書体・取り込んだ書体・この端末にない書体）
+  function renderFontSelect(curKey) {
+    const opts = FONTS.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`);
+    const mine = userFonts.map((u) => { const k = userFontKey(u); return `<option value="${esc(k)}">${esc(fontInfo(k).label)}</option>`; });
+    const keys = new Set(FONTS.map((f) => f.key).concat(userFonts.map(userFontKey)));
+    const extra = curKey && !keys.has(curKey) ? `<option value="${esc(curKey)}">${esc(fontInfo(curKey).label)}</option>` : '';
+    $('pFont').innerHTML = opts.join('') + (mine.length ? '<optgroup label="取り込んだ書体">' + mine.join('') + '</optgroup>' : '') + extra
+      + '<option value="__import__">＋ 書体を取り込む…</option>';
+    if (curKey) $('pFont').value = curKey;
+  }
 
   function setVal(id, v) { const el = $(id); if (document.activeElement !== el) el.value = v; }
+  function fxTargetFx() { // フィルターをかける相手（下の画像・選んだ画像）の fx
+    if (selId === BASE_SEL) return cur.baseFx;
+    const L = selLayer(); return L && L.type === 'image' ? L.fx : null;
+  }
+  function refreshFx() {
+    const fx = fxTargetFx() || {};
+    FX_DEFS.forEach((d) => { const v = fx[d.k] !== undefined ? fx[d.k] : d.def; setVal('fxR_' + d.k, v); setVal('fxN_' + d.k, v); });
+  }
   function refreshProps() {
+    const isBase = selId === BASE_SEL && !!cur;
     const L = selLayer();
-    $('propsEmpty').hidden = !!L;
-    $('propsBody').hidden = !L;
+    $('propsEmpty').hidden = !!L || isBase;
+    $('propsBody').hidden = !L && !isBase;
     disarm($('pDel'));
+    const type = isBase ? 'base' : L ? L.type : '';
+    $('secText').hidden = type !== 'text'; $('secFrame').hidden = type !== 'text'; $('secStyle').hidden = type !== 'text';
+    $('secImage').hidden = type !== 'image';
+    $('secMosaic').hidden = type !== 'mosaic';
+    $('secBase').hidden = type !== 'base';
+    $('secFx').hidden = type !== 'image' && type !== 'base';
+    $('secCommon').hidden = type === 'base';
+    if (isBase) {
+      $('pBaseInfo').textContent = `${cur.W}×${cur.H}。ここでのフィルターは下の画像だけにかかります（重ねたものにはかかりません）。`;
+      refreshFx();
+      return;
+    }
     if (!L) return;
-    const isText = L.type === 'text';
-    $('secText').hidden = !isText; $('secFrame').hidden = !isText; $('secStyle').hidden = !isText;
-    $('secImage').hidden = isText;
-    if (isText) {
+    if (type === 'text') {
       const st = L.st;
       setVal('pText', L.text);
-      $('pFont').value = st.font; $('pBold').checked = st.bold;
+      renderFontSelect(st.font); $('pBold').checked = st.bold;
       setVal('pSize', Math.round(st.size)); setVal('pSizeR', Math.round(st.size));
       $('pSizeR').max = Math.max(400, Math.round(st.size));
       $('pColor').value = st.color; $('pVertical').checked = st.vertical;
@@ -1656,15 +2118,24 @@
       $('pFill').value = st.fill; setVal('pFillA', Math.round(st.fillA * 100)); setVal('pFillAN', Math.round(st.fillA * 100));
       $('pLine').value = st.line; setVal('pLineW', Math.round(st.lineW)); setVal('pLineWR', Math.round(st.lineW));
       $('pLineWR').max = Math.max(30, Math.round(st.lineW));
+      $('pLineStyle').value = st.lineStyle; $('pLineStyle').disabled = st.frame === 'flash';
       setVal('pPad', Math.round(st.pad)); setVal('pPadR', Math.round(st.pad));
       $('pPadR').max = Math.max(200, Math.round(st.pad));
-      $('pTail').checked = st.tail;
+      $('pTail').checked = st.tail; $('pTail').disabled = NO_TAIL.has(st.frame);
       renderStyleSelect();
-    } else {
+    } else if (type === 'image') {
       const pct = Math.round(L.scale * 100);
       setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct));
       $('pFlip').classList.toggle('is-on', L.flipX);
-      $('pToLib').hidden = false;
+      refreshFx();
+    } else if (type === 'mosaic') {
+      $('pMoMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.mode));
+      $('pMoShape').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.shape));
+      $('pMoBlockRow').hidden = L.mode !== 'pixel'; $('pMoBlurRow').hidden = L.mode !== 'blur'; $('pMoColorRow').hidden = L.mode !== 'fill';
+      setVal('pMoBlock', Math.round(L.block)); setVal('pMoBlockR', Math.round(L.block));
+      setVal('pMoBlur', Math.round(L.blur)); setVal('pMoBlurR', Math.round(L.blur));
+      $('pMoColor').value = L.color;
+      setVal('pMoW', Math.round(L.w)); setVal('pMoH', Math.round(L.h));
     }
     setVal('pOpacity', Math.round(L.opacity * 100)); setVal('pOpacityN', Math.round(L.opacity * 100));
     setVal('pRot', Math.round(L.rot)); setVal('pRotR', Math.round(L.rot));
@@ -1674,6 +2145,7 @@
     const L = selLayer(); if (!L) return;
     setVal('pRot', Math.round(L.rot)); setVal('pRotR', Math.round(L.rot));
     if (L.type === 'image') { const pct = Math.round(L.scale * 100); setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct)); }
+    else if (L.type === 'mosaic') { setVal('pMoW', Math.round(L.w * L.scale)); setVal('pMoH', Math.round(L.h * L.scale)); }
     else { const sz = Math.round(L.st.size * L.scale); setVal('pSize', sz); setVal('pSizeR', sz); }
   }
   // 入力欄 → 値（range と number の組は両方を合わせる）
@@ -1723,13 +2195,13 @@
       if (ev === 'change') refreshProps();
     });
   }
-  bindInput('pFont', 'change', (L, el) => { L.st.font = FONT_BY.has(el.value) ? el.value : 'sans'; ensureFonts([L], 4000).then(requestRender); });
+  bindInput('pFont', 'change', (L, el) => { if (el.value === '__import__') { el.value = L.st.font; openFonts(); return; } L.st.font = isFontKey(el.value) ? el.value : 'sans'; ensureFonts([L], 4000).then(requestRender); });
   bindInput('pBold', 'change', (L, el) => { L.st.bold = el.checked; ensureFonts([L], 4000).then(requestRender); });
   bindInput('pVertical', 'change', (L, el) => { L.st.vertical = el.checked; });
   bindInput('pShadow', 'change', (L, el) => { L.st.shadow = el.checked; });
   bindInput('pFrame', 'change', (L, el) => {
     L.st.frame = FRAME_KEYS.has(el.value) ? el.value : 'none';
-    if (L.st.frame !== 'none' && L.st.tail && !L.tail) L.tail = defaultTail(L);
+    if (hasTail(L) && !L.tail) L.tail = defaultTail(L);
   });
   bindInput('pTail', 'change', (L, el) => { L.st.tail = el.checked; if (el.checked && !L.tail) L.tail = defaultTail(L); });
   [['pColor', 'color'], ['pStrokeC', 'strokeC'], ['pFill', 'fill'], ['pLine', 'line']].forEach(([id, key]) => {
@@ -1786,6 +2258,83 @@
   }
   $('pDel').addEventListener('click', () => { const L = selLayer(); if (!L) return; armTwice($('pDel'), 'もう一度押すと削除', () => deleteLayer(L)); });
 
+  bindInput('pLineStyle', 'change', (L, el) => { L.st.lineStyle = LINE_KEYS.has(el.value) ? el.value : 'solid'; });
+
+  // ---- フィルター（下の画像・重ねた画像） ----
+  function setFx(fx) {
+    if (selId === BASE_SEL) cur.baseFx = fx;
+    else { const L = selLayer(); if (!L || L.type !== 'image') return false; L.fx = fx; }
+    return true;
+  }
+  FX_DEFS.forEach((d) => {
+    ['fxR_' + d.k, 'fxN_' + d.k].forEach((id, i, ids) => {
+      $(id).addEventListener('input', () => {
+        const fx = fxTargetFx(); if (!fx) return;
+        const v = Number($(id).value); if (!isFinite(v)) return;
+        const nfx = Object.assign({}, fx); nfx[d.k] = clamp(v, d.min, d.max);
+        if (!setFx(normFx(nfx))) return;
+        setVal(ids[1 - i], $(id).value);
+        changed();
+      });
+      $(id).addEventListener('change', () => { commitHist(); refreshFx(); });
+    });
+  });
+  $('pFxApply').addEventListener('click', () => {
+    const p = FX_PRESETS[+$('pFxPreset').value]; if (!p) return;
+    if (setFx(normFx(p.fx))) { changed(true); refreshFx(); }
+  });
+  $('pFxReset').addEventListener('click', () => { if (setFx({})) { changed(true); refreshFx(); } });
+  $('pBaseSwap').addEventListener('click', () => $('fileBase').click());
+
+  // ---- モザイク・ぼかし・塗りつぶし ----
+  const M = (fn) => (L, v) => { if (L.type === 'mosaic') fn(L, v); };
+  bindNum(['pMoBlock', 'pMoBlockR'], M((L, v) => { L.block = clamp(v, 2, 400); }));
+  bindNum(['pMoBlur', 'pMoBlurR'], M((L, v) => { L.blur = clamp(v, 1, 200); }));
+  bindNum(['pMoW'], M((L, v) => { L.w = clamp(v, 4, 1e5); }));
+  bindNum(['pMoH'], M((L, v) => { L.h = clamp(v, 4, 1e5); }));
+  $('pMoColor').addEventListener('input', () => {
+    const L = selLayer(); if (!L || L.type !== 'mosaic' || !isColor($('pMoColor').value)) return;
+    L.color = $('pMoColor').value.toLowerCase(); changed();
+  });
+  $('pMoColor').addEventListener('change', () => commitHist());
+  [['pMoMode', 'mode'], ['pMoShape', 'shape']].forEach(([id, key]) => {
+    $(id).addEventListener('click', (e) => {
+      const b = e.target.closest('.btn'), L = selLayer();
+      if (!b || !L || L.type !== 'mosaic') return;
+      L[key] = b.dataset.v; changed(true); refreshProps();
+    });
+  });
+  $('addMosaicBtn').addEventListener('click', () => {
+    if (!cur) return;
+    if (cur.layers.length >= MAX_LAYERS) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); return; }
+    const pos = nextOffset(), short = Math.min(cur.W, cur.H);
+    const L = normLayer({ type: 'mosaic', x: pos.x, y: pos.y, w: cur.W * 0.28, h: cur.H * 0.18, mode: 'pixel',
+      block: Math.max(4, Math.round(short / 50)), blur: Math.max(4, Math.round(short / 80)) });
+    cur.layers.push(L);
+    selId = L.id;
+    changed(true); refreshProps();
+    if (isNarrow()) setTab('props');
+    showToast('範囲を動かして、四隅で大きさを合わせます');
+  });
+
+  // ---- 重ねた画像の背景を透過（あとから） ----
+  $('pBgCut').addEventListener('click', async () => {
+    const L = selLayer(); if (!L || L.type !== 'image') return;
+    const c = imgCache.get(L.blobId);
+    if (!c || !c.img) { showToast('画像が見つかりません', true); return; }
+    const res = await askBgCut(c.img, { forceOn: true, title: '背景を透過する' });
+    if (!res || !res.blob) return;
+    busy(true, '保存しています…');
+    try {
+      const rec = await storeBlob(res.blob, (L.name || '画像').replace(/\.[^.]+$/, '') + '_透過.png', c.img.naturalWidth, c.img.naturalHeight, false);
+      imgCache.set(rec.id, await loadImg(rec.blob));
+      L.blobId = rec.id; L.name = rec.name;
+      changed(true); refreshProps();
+      showToast('背景を透過しました（↶ で戻せます）');
+    } catch (err) { showToast('保存できませんでした', true); }
+    finally { busy(false); }
+  });
+
   function focusText() {
     if (isNarrow()) setTab('props');
     refreshProps();
@@ -1798,7 +2347,7 @@
     if (e.key === 'Escape') {
       if ($('confirmOverlay').classList.contains('is-open')) { finishConfirm(false); return; }
       const open = [...document.querySelectorAll('.modal-overlay.is-open')];
-      if (open.length) { const ov = open[open.length - 1]; closeModal(ov.id); if (ov.id === 'mPrompt') finishPrompt(null); return; }
+      if (open.length) { const ov = open[open.length - 1]; closeModal(ov.id); cancelModal(ov.id); return; }
       if (document.querySelector('.menu-panel.is-open')) { closeMenus(); return; }
       if (editorOpen() && selId) { select(null); return; }
       return;
@@ -1836,8 +2385,9 @@
     for (const f of list) {
       if (cur.layers.length >= MAX_LAYERS) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); break; }
       try {
+        const r = await importMaybeCut(f, $('aiToLib').checked);
+        if (!r) continue;
         busy(true, '取り込んでいます…');
-        const r = await importFile(f, { lib: $('aiToLib').checked });
         await addImageLayerFromRec(r.rec, { img: r.img, url: r.url });
         if (r.note) showToast(r.note);
       } catch (err) { showToast((f.name ? f.name + '：' : '') + (err.message || err), true); }
@@ -1884,7 +2434,7 @@
     scaleSt(st, k);
     const pos = nextOffset();
     const L = normLayer({ type: 'text', text: st.vertical ? 'ここに\n文字' : 'ここに文字', st, x: pos.x, y: pos.y });
-    if (L.st.frame !== 'none' && L.st.tail) L.tail = defaultTail(L);
+    if (hasTail(L)) L.tail = defaultTail(L);
     return L;
   }
   function addTextLayer(st, baseRef) {
@@ -1904,7 +2454,7 @@
     const st = normSt(st0);
     scaleSt(st, 750 / (baseRef || 1000)); // 大きめに描いて、はみ出す分は下で縮める
     const L = normLayer({ id: 'sample_' + (st0 && st0.frame || ''), type: 'text', text: st.vertical ? 'あいう\nえお' : 'あいうえお', st, x: W / 2, y: H / 2 - 12 });
-    if (L.st.frame !== 'none' && L.st.tail) { L.tail = defaultTail(L); }
+    if (hasTail(L)) L.tail = defaultTail(L);
     // 見本は枠（しっぽの先まで）に収まるように縮めて、真ん中に置く
     const b = layerBox(L);
     let x0 = -b.w / 2, x1 = b.w / 2, y0 = -b.h / 2, y1 = b.h / 2;
@@ -1992,14 +2542,14 @@
     const k = L.st.size / src.size;
     scaleSt(src, k); src.size = L.st.size;
     L.st = src;
-    if (L.st.frame !== 'none' && L.st.tail && !L.tail) L.tail = defaultTail(L);
+    if (hasTail(L) && !L.tail) L.tail = defaultTail(L);
     changed(true); refreshProps();
     ensureFonts([L], 4000).then(requestRender);
     showToast('スタイルを当てました（↶ で戻せます）');
   });
   $('pStyleSave').addEventListener('click', async () => {
     const L = selLayer(); if (!L || L.type !== 'text') return;
-    bakeText(L);
+    bakeLayer(L);
     const name = await promptBox('今の見た目をスタイルとして保存', '', '書体・色・縁取り・枠などを保存します（文字の中身は保存しません）。同期します');
     if (!name) return;
     const same = styles.find((s) => s.name === name);
@@ -2090,7 +2640,7 @@
     g.imageSmoothingQuality = 'high';
     if (jpeg) { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); }
     g.setTransform(w / cur.W, 0, 0, h / cur.H, 0, 0);
-    drawScene(g);
+    drawScene(g, cur);
     const blob = await canvasToBlob(c, jpeg ? 'image/jpeg' : 'image/png', jpeg ? Number($('exQuality').value) / 100 : undefined);
     const name = safeFileName($('exName').value) + (jpeg ? '.jpg' : '.png');
     return { blob, name, w, h };
@@ -2162,7 +2712,7 @@
       layers.forEach((L) => { L.id = genId(); });
       rescaleLayers(layers, cur.W, cur.H, r.rec.w, r.rec.h);
       const now = Date.now();
-      const rec = { id: genId(), name: baseName(f.name), baseId: r.rec.id, W: r.rec.w, H: r.rec.h, layers, thumb: null, createdAt: now, updatedAt: now };
+      const rec = { id: genId(), name: baseName(f.name), baseId: r.rec.id, W: r.rec.w, H: r.rec.h, baseFx: normFx(cur.baseFx), layers, thumb: null, createdAt: now, updatedAt: now };
       await putOne(wdb, S_PROJ, rec);
       newId = rec.id;
       if (r.note) showToast(r.note);
@@ -2297,10 +2847,10 @@
   $('fileLib').addEventListener('change', async (e) => {
     const files = [...(e.target.files || [])].slice(0, 20); e.target.value = '';
     for (const f of files) {
-      busy(true, '取り込んでいます…');
-      try { const r = await importFile(f, { lib: true }); URL.revokeObjectURL(r.url); if (r.note) showToast(r.note); }
+      try { const r = await importMaybeCut(f, true); if (r) { URL.revokeObjectURL(r.url); if (r.note) showToast(r.note); } }
       catch (err) { showToast((f.name ? f.name + '：' : '') + (err.message || err), true); }
       finally { busy(false); }
+      openModal('mLib');
     }
     await renderLibManager();
   });
@@ -2353,18 +2903,398 @@
     }
   }
 
+  /* =====================================================================
+     背景の透過（STAMPWORKS の処理をそのまま使う：外周から背景色を推定 → 背景らしさで不透明度 →
+     外周とつながった部分だけ → 輪郭の色かぶりを抜く → ふちを削る）
+  ===================================================================== */
+  function ycc(r, g, b) {
+    return {
+      cb: -0.168736 * r - 0.331264 * g + 0.5 * b,
+      cr: 0.5 * r - 0.418688 * g - 0.081312 * b
+    };
+  }
+  // 外周から背景色を推定する
+  function detectKey(d, w, h) {
+    const step = Math.max(1, Math.floor(Math.min(w, h) / 300));
+    const band = Math.max(2, Math.round(Math.min(w, h) * 0.004));
+    const hr = new Uint32Array(256), hg = new Uint32Array(256), hb = new Uint32Array(256);
+    const smp = [];
+    let total = 0, clear = 0;
+    const take = (x, y) => {
+      const i = (y * w + x) * 4;
+      total++;
+      if (d[i + 3] < 16) { clear++; return; }
+      hr[d[i]]++; hg[d[i + 1]]++; hb[d[i + 2]]++;
+      smp.push(d[i], d[i + 1], d[i + 2]);
+    };
+    for (let x = 0; x < w; x += step) for (let k = 0; k < band; k++) { take(x, k); take(x, h - 1 - k); }
+    for (let y = 0; y < h; y += step) for (let k = 0; k < band; k++) { take(k, y); take(w - 1 - k, y); }
+    if (!total || clear / total > 0.5) return { mode: 'alpha', uniform: 1 };
+    const n = smp.length / 3;
+    const med = hist => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc * 2 >= n) return v; } return 255; };
+    const r = med(hr), g = med(hg), b = med(hb);
+    let near = 0;
+    for (let i = 0; i < smp.length; i += 3) {
+      const dr = smp[i] - r, dg = smp[i + 1] - g, db = smp[i + 2] - b;
+      if (dr * dr + dg * dg + db * db < 2025) near++;
+    }
+    const { cb, cr } = ycc(r, g, b);
+    const sat = Math.sqrt(cb * cb + cr * cr);
+    return { mode: sat >= 40 ? 'chroma' : 'neutral', rgb: [r, g, b], cb, cr, sat, uniform: near / n };
+  }
+  // 指定した色を背景色にする（PASTEUP で足した。detectKey と同じ形を返す）
+  function keyFromRgb(r, g, b) {
+    const { cb, cr } = ycc(r, g, b);
+    const sat = Math.sqrt(cb * cb + cr * cr);
+    return { mode: sat >= 40 ? 'chroma' : 'neutral', rgb: [r, g, b], cb, cr, sat, uniform: 1 };
+  }
+  // 背景らしさから不透明度を決める
+  function keyAlpha(d, w, h, key, s) {
+    const N = w * h;
+    const A = new Uint8ClampedArray(N);
+    if (key.mode === 'alpha') {
+      for (let p = 0, i = 3; p < N; p++, i += 4) A[p] = d[i];
+      return A;
+    }
+    if (key.mode === 'chroma') {
+      const ux = key.cb / key.sat, uy = key.cr / key.sat;
+      const hi = key.sat * (0.72 - 0.44 * s), lo = hi * 0.42, span = hi - lo;
+      for (let p = 0, i = 0; p < N; p++, i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        const cb = -0.168736 * r - 0.331264 * g + 0.5 * b;
+        const cr = 0.5 * r - 0.418688 * g - 0.081312 * b;
+        const pr = cb * ux + cr * uy;
+        const pp = cb * uy - cr * ux;
+        const m = pr - (pp < 0 ? -pp : pp);
+        let a = m <= lo ? 255 : m >= hi ? 0 : 255 * (hi - m) / span;
+        const sa = d[i + 3];
+        if (sa < 255) a = a * sa / 255;
+        A[p] = a;
+      }
+      return A;
+    }
+    const kr = key.rgb[0], kg = key.rgb[1], kb = key.rgb[2];
+    const t0 = 10 + 46 * s, t1 = t0 * 1.9, t0s = t0 * t0, t1s = t1 * t1, span = t1 - t0;
+    for (let p = 0, i = 0; p < N; p++, i += 4) {
+      const dr = d[i] - kr, dg = d[i + 1] - kg, db = d[i + 2] - kb;
+      const ds = dr * dr + dg * dg + db * db;
+      let a = ds <= t0s ? 0 : ds >= t1s ? 255 : 255 * (Math.sqrt(ds) - t0) / span;
+      const sa = d[i + 3];
+      if (sa < 255) a = a * sa / 255;
+      A[p] = a;
+    }
+    return A;
+  }
+  // 外周とつながった背景だけを消す
+  function floodRestrict(A, w, h) {
+    const N = w * h;
+    const seen = new Uint8Array(N);
+    const stack = new Int32Array(N);
+    let sp = 0;
+    const seed = p => { if (!seen[p] && A[p] < 255) { seen[p] = 1; stack[sp++] = p; } };
+    for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+    for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+    while (sp) {
+      const p = stack[--sp];
+      const x = p % w;
+      if (x > 0) seed(p - 1);
+      if (x < w - 1) seed(p + 1);
+      if (p >= w) seed(p - w);
+      if (p < N - w) seed(p + w);
+    }
+    for (let p = 0; p < N; p++) if (!seen[p] && A[p] < 255) A[p] = 255;
+  }
+  function dilateMask(m, w, h, r) {
+    const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      let cnt = 0;
+      for (let x = 0; x < Math.min(r, w); x++) cnt += m[row + x];
+      for (let x = 0; x < w; x++) {
+        if (x + r < w) cnt += m[row + x + r];
+        if (x - r - 1 >= 0) cnt -= m[row + x - r - 1];
+        tmp[row + x] = cnt > 0 ? 1 : 0;
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      let cnt = 0;
+      for (let y = 0; y < Math.min(r, h); y++) cnt += tmp[y * w + x];
+      for (let y = 0; y < h; y++) {
+        if (y + r < h) cnt += tmp[(y + r) * w + x];
+        if (y - r - 1 >= 0) cnt -= tmp[(y - r - 1) * w + x];
+        out[y * w + x] = cnt > 0 ? 1 : 0;
+      }
+    }
+    return out;
+  }
+  // 輪郭まわりの背景色かぶりを抜く
+  function despill(d, A, w, h, key, r) {
+    const N = w * h;
+    const m = new Uint8Array(N);
+    for (let p = 0; p < N; p++) m[p] = A[p] < 128 ? 1 : 0;
+    const near = dilateMask(m, w, h, r);
+    const ux = key.cb / key.sat, uy = key.cr / key.sat;
+    for (let p = 0, i = 0; p < N; p++, i += 4) {
+      const a = A[p];
+      if (a === 0 || (a === 255 && !near[p])) continue;
+      const R = d[i], G = d[i + 1], B = d[i + 2];
+      const Y = 0.299 * R + 0.587 * G + 0.114 * B;
+      let cb = -0.168736 * R - 0.331264 * G + 0.5 * B;
+      let cr = 0.5 * R - 0.418688 * G - 0.081312 * B;
+      const pr = cb * ux + cr * uy;
+      if (pr <= 0) continue;
+      cb -= pr * ux;
+      cr -= pr * uy;
+      d[i] = Y + 1.402 * cr;
+      d[i + 1] = Y - 0.344136 * cb - 0.714136 * cr;
+      d[i + 2] = Y + 1.772 * cb;
+    }
+  }
+  function erodeAlpha(A, w, h, r) {
+    if (r <= 0) return A;
+    const tmp = new Uint8ClampedArray(w * h), out = new Uint8ClampedArray(w * h);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        let mn = 255;
+        const x0 = x - r < 0 ? 0 : x - r, x1 = x + r >= w ? w - 1 : x + r;
+        for (let k = x0; k <= x1; k++) { const v = A[row + k]; if (v < mn) mn = v; }
+        tmp[row + x] = mn;
+      }
+    }
+    for (let y = 0; y < h; y++) {
+      const y0 = y - r < 0 ? 0 : y - r, y1 = y + r >= h ? h - 1 : y + r;
+      for (let x = 0; x < w; x++) {
+        let mn = 255;
+        for (let k = y0; k <= y1; k++) { const v = tmp[k * w + x]; if (v < mn) mn = v; }
+        out[y * w + x] = mn;
+      }
+    }
+    return out;
+  }
+  // 上の部品をつなぐ（PASTEUP）。opt：{ key:'auto'|'white'|'black'|'pick', color, strength 0〜100, flood, erode }
+  // 返り値：使った背景色の情報。'alpha'（もう透明な画像で、自動のとき）は何もしない
+  function cutBackground(imgData, opt, erodeScale) {
+    const d = imgData.data, w = imgData.width, h = imgData.height;
+    let key;
+    if (opt.key === 'white') key = keyFromRgb(255, 255, 255);
+    else if (opt.key === 'black') key = keyFromRgb(0, 0, 0);
+    else if (opt.key === 'pick') { const n = parseInt(opt.color.slice(1), 16); key = keyFromRgb((n >> 16) & 255, (n >> 8) & 255, n & 255); }
+    else key = detectKey(d, w, h);
+    if (key.mode === 'alpha') return key;
+    let A = keyAlpha(d, w, h, key, opt.strength / 100);
+    if (opt.flood) floodRestrict(A, w, h);
+    if (key.mode === 'chroma') despill(d, A, w, h, key, Math.max(2, Math.round(Math.min(w, h) / 600)));
+    const er = Math.round(opt.erode * (erodeScale || 1));
+    if (er > 0) A = erodeAlpha(A, w, h, er);
+    for (let p = 0, i = 3; p < A.length; p++, i += 4) d[i] = A[p];
+    return key;
+  }
+
+  // ---- 透過するかを選ぶ画面 ----
+  const bg = { resolve: null, img: null, orig: null, scale: 1, timer: null };
+  function bgOpt() {
+    return { key: $('bgKey').value, color: isColor($('bgColor').value) ? $('bgColor').value : '#00ff00',
+      strength: num($('bgStrength').value, 50, 0, 100), flood: $('bgFlood').checked, erode: num($('bgErode').value, 0, 0, 3) };
+  }
+  function bgPreview() {
+    const c = $('bgCanvas'), g = c.getContext('2d');
+    $('bgOpts').hidden = !$('bgOn').checked;
+    $('bgColor').hidden = $('bgKey').value !== 'pick';
+    $('bgStrengthV').textContent = $('bgStrength').value;
+    $('bgErodeV').textContent = $('bgErode').value === '0' ? 'なし' : $('bgErode').value + 'px';
+    const data = new ImageData(new Uint8ClampedArray(bg.orig.data), bg.orig.width, bg.orig.height);
+    let info = '';
+    if ($('bgOn').checked) {
+      const key = cutBackground(data, bgOpt(), bg.scale);
+      if (key.mode === 'alpha') info = 'まわりがもう透明な画像です（このまま使えます）。消す色を指定すると、その色も消せます。';
+      else if ($('bgKey').value === 'auto') info = `背景の色：rgb(${key.rgb.join(', ')})` + (key.uniform < 0.6 ? '　※まわりの色がそろっていないので、うまく消えないかもしれません' : '');
+    } else info = '「背景を透過する」に印を付けると、ここで仕上がりを確かめられます。';
+    g.putImageData(data, 0, 0);
+    $('bgInfo').textContent = info;
+  }
+  function bgSchedule() { clearTimeout(bg.timer); bg.timer = setTimeout(bgPreview, 90); }
+  ['bgOn', 'bgKey', 'bgFlood'].forEach((id) => $(id).addEventListener('change', bgSchedule));
+  ['bgColor', 'bgStrength', 'bgErode'].forEach((id) => $(id).addEventListener('input', bgSchedule));
+  function finishBgCut(v) { clearTimeout(bg.timer); const r = bg.resolve; bg.resolve = null; bg.img = null; bg.orig = null; if (r) r(v); }
+  // 返り値：{ blob }（透過した PNG）・{ asis:true }（そのまま）・null（やめた）
+  function askBgCut(img, opts) {
+    opts = opts || {};
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const s = Math.min(1, 520 / Math.max(w, h));
+    const pw = Math.max(1, Math.round(w * s)), ph = Math.max(1, Math.round(h * s));
+    const c = $('bgCanvas'); c.width = pw; c.height = ph;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, pw, ph); g.drawImage(img, 0, 0, pw, ph);
+    bg.img = img; bg.scale = s; bg.orig = g.getImageData(0, 0, pw, ph);
+    $('bgOn').checked = !!opts.forceOn;
+    $('mBgCut').querySelector('.modal-title').textContent = opts.title ? '背景を透過する？（' + opts.title.slice(0, 30) + '）' : '背景を透過する？';
+    bgPreview();
+    openModal('mBgCut');
+    return new Promise((resolve) => { bg.resolve = resolve; });
+  }
+  $('bgOk').addEventListener('click', async () => {
+    if (!bg.img) return;
+    if (!$('bgOn').checked) { closeModal('mBgCut'); finishBgCut({ asis: true }); return; }
+    const img = bg.img, opt = bgOpt();
+    busy(true, '背景を透過しています…');
+    try {
+      await new Promise((r) => setTimeout(r, 30)); // 「処理しています」を先に見せる
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(img, 0, 0);
+      const data = g.getImageData(0, 0, w, h);
+      cutBackground(data, opt, 1);
+      g.putImageData(data, 0, 0);
+      const blob = await canvasToBlob(c, 'image/png');
+      closeModal('mBgCut');
+      finishBgCut({ blob });
+    } catch (err) {
+      showToast('透過できませんでした（画像が大きすぎるかもしれません）', true);
+    } finally { busy(false); }
+  });
+  async function storeBlob(blob, name, w, h, lib) {
+    const rec = { id: genId(), blob, type: blob.type || 'image/png', w, h, name: cleanName(name) || '画像', lib: !!lib, createdAt: Date.now() };
+    await putOne(wdb, S_BLOBS, rec);
+    return rec;
+  }
+  // ファイルを取り込み、設定によっては透過するかを選んでもらう。やめたら null
+  async function importMaybeCut(f, lib) {
+    busy(true, '取り込んでいます…');
+    let r;
+    try { r = await importFile(f, { lib }); } finally { busy(false); }
+    if (!prefs.bgAsk) return r;
+    const res = await askBgCut(r.img, { title: f.name || '' });
+    if (!res) { URL.revokeObjectURL(r.url); try { await delOne(wdb, S_BLOBS, r.rec.id); } catch (_) { /* 片付けは起動時にも */ } return null; }
+    if (!res.blob) return r;
+    busy(true, '保存しています…');
+    try {
+      const rec = await storeBlob(res.blob, baseName(f.name) + '.png', r.rec.w, r.rec.h, lib);
+      URL.revokeObjectURL(r.url);
+      try { await delOne(wdb, S_BLOBS, r.rec.id); } catch (_) { /* 片付けは起動時にも */ }
+      const li = await loadImg(rec.blob);
+      return { rec, img: li.img, url: li.url, note: r.note };
+    } finally { busy(false); }
+  }
+
+  /* ===================== 端末ごとの設定 ===================== */
+  let prefs = { bgAsk: true };
+  try { const v = JSON.parse(localStorage.getItem(LS_PREFS) || 'null'); if (v && typeof v === 'object') prefs = Object.assign(prefs, { bgAsk: v.bgAsk !== false }); } catch (_) { /* 既定のまま */ }
+  function savePrefs() { try { localStorage.setItem(LS_PREFS, JSON.stringify(prefs)); } catch (_) { /* 保存できなくても動く */ } }
+  $('aiBgAsk').checked = prefs.bgAsk;
+  $('aiBgAsk').addEventListener('change', () => { prefs.bgAsk = $('aiBgAsk').checked; savePrefs(); });
+
+  /* =====================================================================
+     書体の取り込み（ファイル：この端末だけ／Google Fonts：名前だけなので、スタイルに入れればほかの端末でも同じ）
+  ===================================================================== */
+  let fontImportTarget = null; // 文字の「＋ 書体を取り込む…」から開いたとき、取り込んだ書体をその文字に当てる
+  async function loadUserFonts() {
+    try {
+      userFonts = (await getAll(wdb, S_FONTS)).filter((r) => r && r.id)
+        .map((r) => ({ id: r.id, kind: r.kind === 'google' ? 'google' : 'file', name: cleanName(r.name) || '書体', size: r.blob ? r.blob.size : 0, createdAt: r.createdAt || 0 }))
+        .filter((u) => u.kind === 'file' || RE_GFONT.test('g:' + u.name))
+        .sort((a, b) => a.createdAt - b.createdAt);
+    } catch (_) { userFonts = []; }
+  }
+  function openFonts(fromLayer) {
+    fontImportTarget = fromLayer === false ? null : (selLayer() && selLayer().type === 'text' ? selId : null);
+    renderFontList();
+    openModal('mFonts');
+  }
+  function renderFontList() {
+    $('ftList').innerHTML = userFonts.length ? userFonts.map((u) => {
+      const key = userFontKey(u), fam = u.kind === 'google' ? u.name : 'PUF_' + u.id;
+      return `<div class="lib-row" data-id="${esc(u.id)}">
+        <div class="lr-main"><div class="lr-name" style="font-family:${esc(cssQuote(fam))},sans-serif;font-size:16px">${esc(u.name)}　あいう Abc</div>
+          <div class="lr-sub">${u.kind === 'google' ? 'Google Fonts' : 'ファイル・' + fmtBytes(u.size)}</div></div>
+        <div class="lr-actions">${u.kind === 'file' ? '<button class="btn small" type="button" data-act="rename">名前</button>' : ''}<button class="btn small danger" type="button" data-act="del">削除</button></div>
+      </div>`;
+    }).join('') : '<div class="field-hint">まだありません。</div>';
+    userFonts.forEach((u) => ensureFontKey(userFontKey(u)).catch(() => null));
+  }
+  async function afterFontAdded(key) {
+    await loadUserFonts();
+    renderFontList();
+    const L = fontImportTarget && layerById(fontImportTarget);
+    if (L && L.type === 'text' && editorOpen()) {
+      L.st.font = key; changed(true);
+      ensureFonts([L], 5000).then(requestRender);
+      closeModal('mFonts');
+      showToast('書体を取り込んで、選んでいた文字に当てました（↶ で戻せます）');
+    } else showToast('書体を取り込みました。文字の「書体」から選べます');
+    if (editorOpen()) refreshProps();
+  }
+  $('miFonts').addEventListener('click', () => { closeMenus(); openFonts(false); });
+  $('emFonts').addEventListener('click', () => { closeMenus(); openFonts(); });
+  $('ftPick').addEventListener('click', () => $('fileFont').click());
+  $('fileFont').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (!/\.(ttf|otf|woff2?)$/i.test(f.name || '')) { showToast('.ttf・.otf・.woff・.woff2 のファイルを選んでください', true); return; }
+    if (f.size > MAX_FONT_FILE) { showToast(`ファイルが大きすぎます（${fmtBytes(f.size)}。50MBまで）`, true); return; }
+    busy(true, '書体を読み込んでいます…');
+    try {
+      const id = genId();
+      const face = new FontFace('PUF_' + id, await f.arrayBuffer());
+      try { await face.load(); } catch (_) { throw new Error('書体として読めませんでした（壊れているか、対応していない形式です）'); }
+      document.fonts.add(face);
+      await putOne(wdb, S_FONTS, { id, kind: 'file', name: baseName(f.name), blob: f, createdAt: Date.now() });
+      fontState.set('u:' + id, Promise.resolve());
+      await afterFontAdded('u:' + id);
+    } catch (err) { showToast(err.message || '取り込めませんでした', true); }
+    finally { busy(false); }
+  });
+  $('ftGAdd').addEventListener('click', async () => {
+    const name = String($('ftGName').value || '').trim().replace(/\s+/g, ' ');
+    if (!RE_GFONT.test('g:' + name)) { showToast('書体の名前は英数字とスペースで入れてください（例：Kaisei Decol）', true); return; }
+    if (userFonts.some((u) => u.kind === 'google' && u.name.toLowerCase() === name.toLowerCase())) { showToast('もう入っています'); return; }
+    busy(true, 'Google Fonts から読み込んでいます…');
+    try {
+      await Promise.race([ensureFontKey('g:' + name), new Promise((_, rej) => setTimeout(() => rej(new Error('読み込みに時間がかかっています。ネットのつながりを確かめてください')), 12000))]);
+      await document.fonts.load(`400 40px ${cssQuote(name)}`, 'あAa');
+      await putOne(wdb, S_FONTS, { id: genId(), kind: 'google', name, createdAt: Date.now() });
+      $('ftGName').value = '';
+      await afterFontAdded('g:' + name);
+    } catch (err) { showToast(err.message || '読み込めませんでした', true); }
+    finally { busy(false); }
+  });
+  $('ftGName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) $('ftGAdd').click(); });
+  $('ftList').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]'), row = e.target.closest('.lib-row');
+    if (!b || !row) return;
+    const u = userFonts.find((x) => x.id === row.dataset.id); if (!u) return;
+    if (b.dataset.act === 'rename') {
+      const name = await promptBox('書体の名前', u.name);
+      if (name) { const rec = await getOne(wdb, S_FONTS, u.id); if (rec) { rec.name = name; await putOne(wdb, S_FONTS, rec); } }
+      await loadUserFonts(); renderFontList(); openModal('mFonts');
+      if (editorOpen()) refreshProps();
+      return;
+    }
+    if (b.dataset.act === 'del') {
+      armTwice(b, 'もう一度で削除', async () => {
+        try { await delOne(wdb, S_FONTS, u.id); } catch (_) { showToast('削除できませんでした', true); return; }
+        await loadUserFonts(); renderFontList();
+        if (editorOpen()) { refreshProps(); requestRender(); }
+        showToast('削除しました（使っていた文字は、ほかの書体で表示されます）');
+      });
+    }
+  });
+
   /* ===================== 起動 ===================== */
   (async function init() {
     try {
-      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS]);
+      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS]);
       db = await openDb(DB_NAME, DB_VERSION, [S_STYLES]);
     } catch (err) {
       $('listBody').innerHTML = `<div class="empty-state"><div class="big">開けませんでした</div><div class="small">保存の場所（IndexedDB）が使えません：${esc(err && err.message || err)}</div></div>`;
       return;
     }
     // ほかの端末で消された・削除された作品の画像などを片付ける（取り込んで10分以内のものは残す）
+    await applyRescue(); // 前回、保存が間に合わなかった最後の変更を戻す（片付けより先に。差し替えた下の画像を消さないように）
     try { await gcBlobs(GC_GRACE_MS); } catch (_) { /* 片付けに失敗しても動く */ }
     await loadStyles();
+    await loadUserFonts();
     await loadProjects();
   })();
 })();
