@@ -115,6 +115,7 @@
   .cat-item .ci-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cat-item .ci-count { font-size: 10px; color: var(--text-faint); flex-shrink: 0; }
   .cat-item .ci-sel { font-size: 10px; color: var(--on-accent); background: var(--cyan); padding: 0 5px; border-radius: 8px; flex-shrink: 0; }
+  .cat-item .ci-pick { font-size: 10px; color: #fff; background: var(--magenta); padding: 0 5px; border-radius: 8px; flex-shrink: 0; } /* 選んで削除：このカテゴリで選んだ数 */
   .cat-item .ci-neg { font-size: 9px; color: var(--magenta); border: 1px solid var(--magenta-dim); padding: 0 3px; flex-shrink: 0; }
   .cat-item .ci-grip { display: none; color: var(--text-faint); font-size: 11px; flex-shrink: 0; }
   .is-editmode .cat-item .ci-grip { display: inline; }
@@ -150,6 +151,19 @@
   .word-chip.is-selected.is-neg .wc-text { color: var(--magenta); }
   .is-editmode .word-chip { border-style: dashed; }
   .is-dragging { opacity: .55; outline: 1px dashed var(--amber); }
+
+  /* 選んで削除（☰ から）：選んでいる間はチップの左に四角を出し、選んだワードを赤くする。
+     帯は class（is-hidden）で出し入れする（本体の戻るボタンは class の変化で「1段」を数えるため） */
+  .sel-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 14px 0; padding: 8px 12px; border: 1px solid var(--magenta-dim); background: rgba(var(--magenta-dim-rgb), .35); font-size: 11.5px; color: var(--text); flex-shrink: 0; }
+  .sel-bar.is-hidden { display: none; }
+  .sel-bar .sb-text { margin-right: auto; line-height: 1.6; }
+  .sel-bar strong { color: var(--magenta); font-size: 13px; }
+  .is-selecting .word-chip { position: relative; padding-left: 26px; }
+  .is-selecting .word-chip::before { content: ''; position: absolute; left: 8px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border: 1px solid var(--text-faint); }
+  .is-selecting .word-chip.is-picked { border-color: var(--magenta); background: var(--magenta-dim); }
+  .is-selecting .word-chip.is-picked::before { background: var(--magenta); border-color: var(--magenta); }
+  .is-selecting .word-chip.is-picked .wc-text { color: var(--magenta); }
+  @media (max-width: 480px) { .sel-bar { margin: 10px 12px 0; } .sel-bar .sb-lead { display: none; } } /* 狭い画面では案内を省き、帯を2段に収める */
 
   .empty-state {
     display: flex; align-items: center; justify-content: center; text-align: center;
@@ -343,6 +357,7 @@
       <div class="menu-wrap">
         <button class="hamburger-btn" id="menuBtn" type="button" title="メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="miSelect" type="button">☑ 選んで削除</button>
           <button class="menu-panel-item" id="miExport" type="button">ワードリストをMDに書き出す</button>
           <button class="menu-panel-item" id="miUndoImport" type="button">直前の取り込みを取り消す</button>
           <button class="menu-panel-item" id="miSample" type="button">見本のワードを入れる</button>
@@ -373,6 +388,13 @@
         <input type="search" class="search-input" id="searchInput" placeholder="検索（全カテゴリ・スペースで複数語）">
         <button class="btn" id="editModeBtn" type="button">編集・並べ替え</button>
         <button class="btn primary" id="addWordBtn" type="button">＋ ワード</button>
+      </div>
+      <div class="sel-bar is-hidden" id="selBar" role="region" aria-label="ワードを選んで削除">
+        <span class="sb-text"><span class="sb-lead">消すワードを押して選んでください（カテゴリをまたいでも、検索の結果からも選べます）　</span>選択中 <strong id="selCount">0</strong> 語</span>
+        <button class="btn small" id="selAllBtn" type="button">表示中をすべて選ぶ</button>
+        <button class="btn small" id="selClearBtn" type="button">選択を外す</button>
+        <button class="btn small danger" id="selDeleteBtn" type="button">選んだワードを削除</button>
+        <button class="btn small" id="selExitBtn" type="button">やめる</button>
       </div>
       <div class="edit-hint">編集中：ワードをタップで編集・長押し（PCはドラッグ）で並べ替え。カテゴリも長押し／ドラッグで並べ替えられます。</div>
       <div class="word-list" id="wordList"></div>
@@ -724,6 +746,10 @@
   let current = null;                // { zone, k }：組み立てで選んでいるチップ
   const undoClear = { pos: null, neg: null }; // クリアの直後の控え { snap, timer }
   let prefs = { escape: true, underscore: true, catId: null, trayCollapsed: false, mode: 'break' };
+  // 選んで削除（☰ から）：選んでいる間は、ワードを押すと選ぶ／外すになる。カテゴリをまたいでも、検索の結果からも選べる
+  let selecting = false;
+  const picked = new Set();          // 選んだワードの id
+  const BULK_DELETE_TWICE = 20;      // この語数以上をまとめて消すときは、確認の「削除」を2回押させる（ほかのアプリと同じ）
 
   /* ===================== 小道具 ===================== */
   const $ = (id) => document.getElementById(id);
@@ -841,20 +867,34 @@
   });
 
   let confirmResolve = null;
-  function confirmBox(msg, okLabel, safe) {
-    $('confirmMsg').textContent = msg;
+  // twice：数の多い削除のとき「削除」を2回押させる（1回目で「もう一度押すと削除します」、直後の0.7秒は押せない。LIBRARIUM などと同じ）
+  let confirmTwice = false, confirmArmed = false, confirmArmTimer = 0;
+  function confirmBox(msg, okLabel, safe, twice) {
+    $('confirmMsg').textContent = msg + (twice ? '\n\n語数が多いため、削除ボタンは2回押します。' : '');
     const ok = $('confirmOk');
     ok.textContent = okLabel || 'OK';
     ok.className = 'btn ' + (safe ? 'primary' : 'danger');
+    confirmTwice = !!twice; confirmArmed = false;
+    clearTimeout(confirmArmTimer); ok.disabled = false;
     $('confirmOverlay').classList.add('is-open');
     return new Promise((resolve) => { confirmResolve = resolve; });
   }
   function finishConfirm(v) {
     $('confirmOverlay').classList.remove('is-open');
+    clearTimeout(confirmArmTimer); $('confirmOk').disabled = false; confirmTwice = false; confirmArmed = false;
     const r = confirmResolve; confirmResolve = null;
     if (r) r(v);
   }
-  $('confirmOk').addEventListener('click', () => finishConfirm(true));
+  $('confirmOk').addEventListener('click', () => {
+    if (confirmTwice && !confirmArmed) {
+      confirmArmed = true;
+      $('confirmOk').textContent = 'もう一度押すと削除します';
+      $('confirmOk').disabled = true;
+      confirmArmTimer = setTimeout(() => { $('confirmOk').disabled = false; }, 700);
+      return;
+    }
+    finishConfirm(true);
+  });
   $('confirmCancel').addEventListener('click', () => finishConfirm(false));
   $('confirmOverlay').addEventListener('click', (e) => { if (e.target.id === 'confirmOverlay') finishConfirm(false); });
 
@@ -863,7 +903,10 @@
     if ($('confirmOverlay').classList.contains('is-open')) { finishConfirm(false); return; }
     const open = [...document.querySelectorAll('.modal-overlay.is-open')];
     if (open.length) { requestClose(open[open.length - 1].id); return; }
-    if ($('menuPanel').classList.contains('is-open')) closeMenu();
+    if ($('menuPanel').classList.contains('is-open')) { closeMenu(); return; }
+    // 検索欄に文字があるときの Esc は検索を消すだけ（選んだものまで消さない）
+    if (e.target && e.target.id === 'searchInput' && e.target.value) return;
+    if (selecting) selExit();
   });
 
   // 2回押しの歯止め（1回目で「もう一度押すと〜」、3秒で元に戻る）
@@ -1035,24 +1078,29 @@
 
   function renderCats() {
     const sel = selectedWordIds();
-    const counts = new Map(), selCounts = new Map();
+    const counts = new Map(), selCounts = new Map(), pickCounts = new Map();
     words.forEach((w) => {
       counts.set(w.catId, (counts.get(w.catId) || 0) + 1);
       if (sel.has(w.id)) selCounts.set(w.catId, (selCounts.get(w.catId) || 0) + 1);
+      if (picked.has(w.id)) pickCounts.set(w.catId, (pickCounts.get(w.catId) || 0) + 1);
     });
     catList.innerHTML = cats.map((c) => {
-      const sc = selCounts.get(c.id) || 0;
+      // 選んで削除の間は、組み立ての数の代わりに「このカテゴリで選んだ数」（赤）を出す
+      const sc = selecting ? 0 : (selCounts.get(c.id) || 0);
+      const pc = selecting ? (pickCounts.get(c.id) || 0) : 0;
       return `<button class="cat-item${c.id === curCatId && !query ? ' is-active' : ''}" type="button" data-id="${esc(c.id)}">
         <span class="ci-grip">⋮⋮</span>
         <span class="ci-name">${esc(c.name)}</span>
         ${c.neg ? '<span class="ci-neg">NEG</span>' : ''}
         ${sc ? `<span class="ci-sel">${sc}</span>` : ''}
+        ${pc ? `<span class="ci-pick" title="選んだワード">${pc}</span>` : ''}
         <span class="ci-count">${counts.get(c.id) || 0}</span>
       </button>`;
     }).join('');
   }
 
   function renderHead() {
+    if (selecting) [...picked].forEach((id) => { if (!wordById(id)) picked.delete(id); }); // 同期・取り消しなどで消えた語は外す
     const c = catById(curCatId);
     $('curCatName').textContent = query ? '検索の結果' : (c ? c.name : 'カテゴリがありません');
     $('curCatNeg').hidden = !(c && c.neg && !query);
@@ -1060,7 +1108,12 @@
     $('addWordBtn').disabled = cats.length === 0;
     $('editModeBtn').classList.toggle('is-on', editMode);
     $('editModeBtn').textContent = editMode ? '編集を終える' : '編集・並べ替え';
+    $('editModeBtn').disabled = selecting || !db;   // 選んで削除の間は編集に入れない（押したときの動きが変わるため）。DBが使えないときも押せない
     shell.classList.toggle('is-editmode', editMode);
+    shell.classList.toggle('is-selecting', selecting);
+    $('selBar').classList.toggle('is-hidden', !selecting);
+    $('miSelect').disabled = selecting || !words.length;
+    if (selecting) updateSelBar();
   }
 
   /* =====================================================================
@@ -1074,11 +1127,25 @@
     const inActive = where.has(activeGid);
     const others = [...where].filter((z) => z !== 'neg' && z !== activeGid);
     const cls = 'word-chip' + (inActive || inNeg ? ' is-selected' : '') + (inNeg && !inActive ? ' is-neg' : '')
-      + (!inActive && !inNeg && others.length ? ' is-elsewhere' : '');
+      + (!inActive && !inNeg && others.length ? ' is-elsewhere' : '') + (selecting && picked.has(w.id) ? ' is-picked' : '');
     const whereLabel = persons().length && others.length ? others.map(zoneName).join('・') : '';
-    return `<button class="${cls}" type="button" data-id="${esc(w.id)}" title="${esc(w.label || w.text)}${c && c.neg ? '（ネガティブ）' : ''}">
+    return `<button class="${cls}" type="button" data-id="${esc(w.id)}"${selecting ? ` aria-pressed="${picked.has(w.id)}"` : ''} title="${esc(w.label || w.text)}${c && c.neg ? '（ネガティブ）' : ''}">
       <span class="wc-text">${esc(w.text)}</span>${w.label ? `<span class="wc-label">${esc(w.label)}</span>` : ''}${whereLabel ? `<span class="wc-where">${esc(whereLabel)}</span>` : ''}
     </button>`;
+  }
+
+  // 検索の結果（全カテゴリ・スペースで区切った語をすべて含むもの）
+  function queryHits() {
+    const terms = norm(query).split(' ').filter(Boolean);
+    return words.filter((w) => {
+      const hay = norm(w.text + ' ' + (w.label || ''));
+      return terms.every((t) => hay.includes(t));
+    });
+  }
+  // いま画面に並んでいるワード（検索中は検索の結果、そうでなければ今のカテゴリ）
+  function shownWords() {
+    if (!cats.length) return [];
+    return query ? queryHits() : wordsOf(curCatId);
   }
 
   function renderWords() {
@@ -1096,11 +1163,7 @@
       return;
     }
     if (query) {
-      const terms = norm(query).split(' ').filter(Boolean);
-      const hits = words.filter((w) => {
-        const hay = norm(w.text + ' ' + (w.label || ''));
-        return terms.every((t) => hay.includes(t));
-      });
+      const hits = queryHits();
       if (!hits.length) {
         wordList.innerHTML = `<div class="empty-state"><div class="big">見つかりません</div><div class="small">「${esc(query)}」を含むワードはありません。</div></div>`;
         return;
@@ -1370,9 +1433,13 @@
     wordSortables = true;
     makeSortable(wordList, {
       itemSel: '.word-chip', axis: 'x',
-      enabled: () => editMode && !query,
+      enabled: () => editMode && !query && !selecting,
       scrollEl: () => wordList,
-      onTap: (el) => { if (editMode) openEditWord(el.dataset.id); else toggleWord(el.dataset.id); },
+      onTap: (el) => {
+        if (selecting) togglePick(el);
+        else if (editMode) openEditWord(el.dataset.id);
+        else toggleWord(el.dataset.id);
+      },
       onDrop: async (ids) => {
         const ops = [];
         ids.forEach((id, i) => { const w = wordById(id); if (w && w.order !== i) { w.order = i; w.updatedAt = Date.now(); ops.push({ store: S_WORDS, put: w }); } });
@@ -1391,10 +1458,84 @@
   });
 
   $('editModeBtn').addEventListener('click', () => {
+    if (selecting) return;
     editMode = !editMode;
     if (editMode && query) { query = ''; $('searchInput').value = ''; }
     renderAll();
   });
+
+  /* ---- 選んで削除（☰ → ☑ 選んで削除）----
+     選んでいる間は、ワードを押すと選ぶ／外すになる（組み立てには入らない）。編集の状態は終えて、並べ替えもしない。
+     カテゴリを変えても、検索しても、選んだものは残る（カテゴリの一覧に、そのカテゴリで選んだ数を出す）。
+     消すのは1回の書き込みにまとめる（途中で失敗したら1語も消えない）。組み立て・定型文に入っていた語は文字だけ残す（ふつうの削除と同じ）。
+     20語以上は、確認の「削除」を2回押させる。Esc・やめる・本体の戻るボタンでやめる */
+  function selStart() {
+    closeMenu();
+    if (!words.length) return;
+    editMode = false;
+    selecting = true;
+    picked.clear();
+    renderAll();
+  }
+  function selExit() {
+    if (!selecting) return;
+    selecting = false;
+    picked.clear();
+    renderAll();
+  }
+  function updateSelBar() {
+    $('selCount').textContent = picked.size;
+    $('selDeleteBtn').disabled = picked.size === 0;
+    $('selClearBtn').disabled = picked.size === 0;
+    const shown = shownWords();
+    $('selAllBtn').disabled = !shown.length || shown.every((w) => picked.has(w.id));
+  }
+  function togglePick(el) {
+    const id = el.dataset.id;
+    if (!wordById(id)) return;
+    if (picked.has(id)) picked.delete(id); else picked.add(id);
+    el.classList.toggle('is-picked', picked.has(id));
+    el.setAttribute('aria-pressed', String(picked.has(id)));
+    renderCats();
+    updateSelBar();
+  }
+  async function deletePicked() {
+    const targets = words.filter((w) => picked.has(w.id));
+    if (!targets.length) { showToast('消すワードを選んでください', true); return; }
+    const ids = new Set(targets.map((w) => w.id));
+    // 消すと文字だけ残る場所（組み立て・定型文）の数を先に見せる
+    let inTray = 0;
+    zones().forEach((z) => listOf(z).forEach((it) => { if (it && it.wordId && ids.has(it.wordId)) inTray++; }));
+    const hit = (arr) => arr.some((it) => it && ids.has(it.wordId));
+    const inPreset = presets.filter((p) => presetGroups(p).some((g) => hit(g.items)) || hit(presetNeg(p))).length;
+    const catCount = new Set(targets.map((w) => w.catId)).size;
+    const lines = [`選んだワード${targets.length}語を削除します${catCount > 1 ? `（${catCount}つのカテゴリから）` : ''}。`, '',
+      '・元に戻せません（ゴミ箱はありません）',
+      '・同期を使っている場合は、次の同期でほかの端末からも消えます'];
+    if (inTray) lines.push(`・組み立てに入っている語が${inTray}語あります（文字だけ残ります）`);
+    if (inPreset) lines.push(`・定型文${inPreset}件に入っている語があります（定型文の文字はそのまま残ります）`);
+    lines.push('', '（カテゴリは消えません）');
+    if (!(await confirmBox(lines.join('\n'), `${targets.length}語を削除する`, false, targets.length >= BULK_DELETE_TWICE))) return;
+    try { await writeMany(targets.map((w) => ({ store: S_WORDS, del: w.id }))); }
+    catch (e) { console.error(e); showToast('削除できませんでした（1語も消していません）', true); return; }
+    words = words.filter((w) => !ids.has(w.id));
+    detachWords(ids);
+    selecting = false;
+    picked.clear();
+    renderAll();
+    showToast(`${targets.length}語を削除しました`);
+  }
+  $('miSelect').addEventListener('click', selStart);
+  $('selExitBtn').addEventListener('click', selExit);
+  $('selAllBtn').addEventListener('click', () => {
+    shownWords().forEach((w) => picked.add(w.id));
+    renderCats(); renderWords(); updateSelBar();
+  });
+  $('selClearBtn').addEventListener('click', () => {
+    picked.clear();
+    renderCats(); renderWords(); updateSelBar();
+  });
+  $('selDeleteBtn').addEventListener('click', deletePicked);
 
   let searchTimer = null;
   $('searchInput').addEventListener('input', () => {
@@ -2220,9 +2361,18 @@
   // 同期などで別のところから変わったときに読み直す（タブに戻ったとき）
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState !== 'visible' || !db) return;
-    if (document.querySelector('.modal-overlay.is-open') || editMode) return;
+    if (document.querySelector('.modal-overlay.is-open') || editMode || selecting) return;
     try { await loadAll(); renderAll(); } catch (_) {}
   });
+
+  // SIDE-OPS本体の戻るボタン（apps/sideops-theme-bridge.js）：「選んで削除」の途中も1段として数え、戻るでやめる。
+  // 確認・モーダルが開いていれば、そちらをいつもの閉じ方で先に閉じる（ここでは何もしない）
+  window.SideOpsBackLayers = '.modal-overlay.is-open, .confirm-overlay.is-open, .sideops-frame-overlay.is-open, #selBar';
+  window.SideOpsBack = () => {
+    if (document.querySelector('.modal-overlay.is-open, .confirm-overlay.is-open, .sideops-frame-overlay.is-open')) return false;
+    if (selecting) { selExit(); return true; }
+    return false;
+  };
 
   // 動作確認用
   window.__TAGFORGE__ = { parseMd, formatItem, laneText, buildPos, loadTrayFrom, buildGenPrompt, GEN_DEFAULT,get activeGid() { return activeGid; },get tray() { return tray; }, get words() { return words; }, get cats() { return cats; }, get presets() { return presets; } };
