@@ -346,6 +346,7 @@
           <button class="menu-panel-item" id="miExport" type="button">ワードリストをMDに書き出す</button>
           <button class="menu-panel-item" id="miUndoImport" type="button">直前の取り込みを取り消す</button>
           <button class="menu-panel-item" id="miSample" type="button">見本のワードを入れる</button>
+          <button class="menu-panel-item" id="miGen" type="button">ワード生成プロンプト（LLM用）</button>
           <button class="menu-panel-item" id="miHelp" type="button">MDの書き方</button>
           <div class="menu-sep"></div>
           <label class="menu-check"><input type="checkbox" id="prefEscape"> ( ) を \( \) にしてコピー</label>
@@ -500,6 +501,7 @@
         <div class="field-label">または、ここに貼り付け</div>
         <textarea class="field-textarea" id="impPaste" rows="8" placeholder="# 髪型&#10;- long hair | ロングヘア&#10;- ponytail | ポニーテール&#10;&#10;# ネガティブ [neg]&#10;- worst quality"></textarea>
         <div class="field-hint"><code># 見出し</code> がカテゴリ、その下の1行が1ワード。<code>[neg]</code> を見出しに付けるとネガティブ用。詳しくは「☰ → MDの書き方」。</div>
+        <div class="field-hint">ChatGPT などに作らせるなら <button class="btn small" id="impGenBtn" type="button">ワード生成プロンプト（LLM用）</button></div>
       </div>
       <div class="field-group">
         <label class="field-check"><input type="checkbox" id="impSplit"><span>カンマ区切りの行を、1語ずつに分けて取り込む</span></label>
@@ -576,6 +578,31 @@
       <span class="spacer"></span>
       <button class="btn" type="button" data-close>キャンセル</button>
       <button class="btn primary" id="peSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ワード生成プロンプト（LLM用） -->
+<div class="modal-overlay" id="genModal">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">ワード生成プロンプト（LLM用）</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-hint" style="margin:0 0 12px">ChatGPT・Claude・Gemini などに貼り付けて、取り込める形の MD を作ってもらうためのプロンプトです。できた MD は［MD取り込み］に貼り付けてください。</div>
+    <div class="field-group">
+      <div class="field-label">テーマ（空のままでも可。コピーした後に書き足せます）</div>
+      <input class="field-input" id="genTheme" maxlength="300" placeholder="例：夏祭りの浴衣の女の子／サイバーパンクの街の背景">
+    </div>
+    <div class="field-group">
+      <label class="field-check"><input type="checkbox" id="genCats"><span>今あるカテゴリの名前を伝える（同じ内容はその名前の見出しにしてもらい、取り込むと同じカテゴリに入る）</span></label>
+    </div>
+    <div class="field-group">
+      <div class="field-label">プロンプトのひな形（直してよい。この端末に保存されます。<code>{{テーマ}}</code>・<code>{{カテゴリ}}</code> の所に上の内容が入ります）</div>
+      <textarea class="field-textarea" id="genTpl" rows="12"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="genReset" type="button">ひな形を初期に戻す</button>
+      <span class="spacer"></span>
+      <button class="btn" id="genToImport" type="button">MD取り込みへ</button>
+      <button class="btn primary" id="genCopy" type="button">コピー</button>
     </div>
   </div>
 </div>
@@ -2103,6 +2130,80 @@
   $('miSample').addEventListener('click', () => { closeMenu(); startSample(); });
   $('miHelp').addEventListener('click', () => { closeMenu(); openModal('helpModal'); });
 
+  /* ===================== ワード生成プロンプト（LLM用） =====================
+     ひな形・テーマ・カテゴリを伝えるかは、この端末だけに保存（localStorage。同期しない） */
+  const LS_GEN = 'sideops_tagforge_genprompt';
+  const FENCE = '```';
+  const GEN_DEFAULT = [
+    '# テーマ',
+    '{{テーマ}}',
+    '',
+    '上記のテーマに沿って、画像生成AI（WAI-illustrious-SDXL。Danbooru タグ形式）のプロンプトに使う英語のタグを集め、下記のフォーマットで Markdown（.md）として出力してください。',
+    '',
+    '## フォーマット',
+    '- カテゴリごとに「# カテゴリ名」の見出しを付ける（カテゴリ名は日本語）',
+    '- 見出しの下に、1行に1タグを「- タグ | 日本語の短い説明」の形で書く（「|」の前後は半角スペース）',
+    '- ネガティブプロンプト向けのカテゴリは、見出しの末尾に [neg] を付ける',
+    '- タグは Danbooru に実在するものを優先する。英小文字で、単語の区切りは半角スペース（アンダースコアは使わない）',
+    '- 重みの指定（( ) や :1.2）は付けない。1行に1タグ（カンマで並べない）',
+    '- 1カテゴリ5〜20個程度。同じタグを重ねて書かない',
+    '- 前置きや説明文は書かず、Markdown のコードブロック1つだけを出力する',
+    '{{カテゴリ}}',
+    '## 出力例',
+    FENCE + 'markdown',
+    '# 髪型',
+    '- long hair | ロングヘア',
+    '- twintails | ツインテール',
+    '',
+    '# ネガティブ [neg]',
+    '- worst quality | 最低品質',
+    FENCE,
+  ].join('\n');
+  let genState = { tpl: GEN_DEFAULT, theme: '', cats: false };
+  function saveGen() { lsSet(LS_GEN, genState); }
+  function buildGenPrompt() {
+    const theme = $('genTheme').value.trim() || '（ここにテーマを書いてください）';
+    const catBlock = $('genCats').checked && cats.length
+      ? '\n## 今あるカテゴリ（内容が合うものは、この名前をそのまま見出しに使う）\n' + cats.map((c) => '- ' + c.name + (c.neg ? ' [neg]' : '')).join('\n') + '\n'
+      : '';
+    return $('genTpl').value.split('{{テーマ}}').join(theme).split('{{カテゴリ}}').join(catBlock)
+      .replace(/\n{3,}/g, '\n\n').trim();
+  }
+  function openGen() {
+    closeMenu();
+    const g = lsGet(LS_GEN, null);
+    if (g && typeof g === 'object') {
+      genState = {
+        tpl: typeof g.tpl === 'string' && g.tpl.trim() ? g.tpl.slice(0, 20000) : GEN_DEFAULT,
+        theme: typeof g.theme === 'string' ? g.theme.slice(0, 300) : '',
+        cats: !!g.cats,
+      };
+    }
+    $('genTpl').value = genState.tpl;
+    $('genTheme').value = genState.theme;
+    $('genCats').checked = genState.cats;
+    $('genCats').disabled = !cats.length;
+    openModal('genModal');
+  }
+  $('miGen').addEventListener('click', openGen);
+  $('impGenBtn').addEventListener('click', () => { closeModalNow('importModal'); openGen(); });
+  $('genTpl').addEventListener('input', () => { genState.tpl = $('genTpl').value; saveGen(); });
+  $('genTheme').addEventListener('input', () => { genState.theme = $('genTheme').value; saveGen(); });
+  $('genCats').addEventListener('change', () => { genState.cats = $('genCats').checked; saveGen(); });
+  $('genCopy').addEventListener('click', async () => {
+    if (!$('genTpl').value.trim()) { showToast('ひな形が空です（「ひな形を初期に戻す」で戻せます）', true); return; }
+    const ok = await copyText(buildGenPrompt());
+    showToast(ok ? 'プロンプトをコピーしました。LLM に貼り付けてください' : 'コピーできませんでした', !ok);
+  });
+  $('genReset').addEventListener('click', () => {
+    if ($('genTpl').value === GEN_DEFAULT) { showToast('すでに初期のひな形です'); return; }
+    armTwice($('genReset'), 'もう一度押すと初期に戻す', () => {
+      $('genTpl').value = GEN_DEFAULT; genState.tpl = GEN_DEFAULT; saveGen();
+      showToast('ひな形を初期に戻しました');
+    });
+  });
+  $('genToImport').addEventListener('click', () => { closeModalNow('genModal'); openImport(''); });
+
   /* ===================== メニュー・設定 ===================== */
   function closeMenu() { $('menuPanel').classList.remove('is-open'); $('menuBtn').classList.remove('is-active'); }
   $('menuBtn').addEventListener('click', (e) => {
@@ -2124,7 +2225,7 @@
   });
 
   // 動作確認用
-  window.__TAGFORGE__ = { parseMd, formatItem, laneText, buildPos, loadTrayFrom, get activeGid() { return activeGid; },get tray() { return tray; }, get words() { return words; }, get cats() { return cats; }, get presets() { return presets; } };
+  window.__TAGFORGE__ = { parseMd, formatItem, laneText, buildPos, loadTrayFrom, buildGenPrompt, GEN_DEFAULT,get activeGid() { return activeGid; },get tray() { return tray; }, get words() { return words; }, get cats() { return cats; }, get presets() { return presets; } };
 
   init();
 })();
