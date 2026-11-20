@@ -187,6 +187,28 @@
   .t-chip .tw { font-size: 10px; color: var(--amber); }
   .t-chip.is-free { border-style: dotted; }
   .t-chip.is-current { border-color: var(--amber); background: var(--amber-dim); }
+  .word-chip.is-elsewhere { border-style: dotted; border-color: var(--cyan-dim); }
+  .word-chip .wc-where { font-size: 9.5px; color: var(--cyan); opacity: .75; }
+
+  /* ---- 区画（共通・人物1・人物2…） ---- */
+  .grp { border-left: 2px solid var(--line); padding: 3px 0 5px 8px; margin-bottom: 6px; cursor: pointer; }
+  .grp:last-child { margin-bottom: 0; }
+  .grp.is-active { border-left-color: var(--cyan); background: rgba(var(--cyan-rgb), .05); }
+  .grp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; min-height: 20px; }
+  .grp-name { font-size: 10.5px; color: var(--text-faint); letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grp.is-active .grp-name { color: var(--cyan); }
+  .grp-target { font-size: 9.5px; color: var(--on-accent); background: var(--cyan); padding: 0 5px; display: none; }
+  .grp.is-active .grp-target { display: inline; }
+  .grp-edit { width: 20px; height: 20px; font-size: 10px; }
+  .grp-one .grp { border-left: none; padding-left: 0; background: transparent; cursor: default; }
+  .grp-one .grp-head { display: none; }
+  .mini-select {
+    background: var(--bg-alt); border: 1px solid var(--line); color: var(--text-dim); font-size: 10.5px; padding: 3px 4px; outline: none; max-width: 100%;
+  }
+  .mini-select:focus { border-color: var(--cyan-dim); }
+  .mini-select option { background: var(--panel); }
+  .lane-sub { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .lane-sub .hint { font-size: 10px; color: var(--text-faint); }
   .chip-tools { display: none; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 6px; border: 1px solid var(--amber-dim); }
   .chip-tools.is-open { display: flex; }
   .chip-tools .ct-name { font-size: 11px; color: var(--amber); flex: 1 1 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -365,11 +387,20 @@
       <div class="lane" data-lane="pos">
         <div class="lane-head">
           <span class="lane-name">PROMPT<span class="lane-len" data-len></span></span>
+          <button class="btn small" id="addGroupBtn" type="button" title="人物ごとの区画を足す">＋ 人物</button>
           <button class="btn small primary" data-copy type="button">コピー</button>
           <button class="btn small" data-clear type="button">クリア</button>
         </div>
-        <div class="chip-row" data-chips></div>
+        <div class="groups" id="groups"></div>
         <div class="chip-tools" data-tools></div>
+        <div class="lane-sub" id="modeRow" hidden>
+          <span class="hint">区画の区切り方</span>
+          <select class="mini-select" id="modeSelect">
+            <option value="break">BREAK で区切る</option>
+            <option value="rp">ADDCOMM＋BREAK（領域指定）</option>
+            <option value="flat">区切らず1本につなぐ</option>
+          </select>
+        </div>
         <div class="lane-add"><input type="text" data-free placeholder="リストにない語を直接入力して Enter" maxlength="200" enterkeyhint="done"></div>
         <div class="lane-out" data-out></div>
       </div>
@@ -379,7 +410,7 @@
           <button class="btn small primary" data-copy type="button">コピー</button>
           <button class="btn small" data-clear type="button">クリア</button>
         </div>
-        <div class="chip-row" data-chips></div>
+        <div class="chip-row" data-zone="neg"></div>
         <div class="chip-tools" data-tools></div>
         <div class="lane-add"><input type="text" data-free placeholder="リストにない語を直接入力して Enter" maxlength="200" enterkeyhint="done"></div>
         <div class="lane-out" data-out></div>
@@ -503,9 +534,28 @@
       <input class="field-input" id="psName" maxlength="60" placeholder="定型文の名前（例：WAI 基本セット）">
       <button class="btn primary" id="psSave" type="button">保存</button>
     </div>
+    <label class="field-check" style="margin:-4px 0 8px"><input type="checkbox" id="psActiveOnly"><span>入れ先の区画（<span id="psActiveName">共通</span>）だけを保存する（人物1人分の定型文に。NEGATIVE は入れません）</span></label>
     <div class="field-error" id="psError"></div>
-    <div class="field-hint" style="margin:-4px 0 12px">「追加」は今の組み立ての後ろに足し（同じ語は足しません）、「置換」は今の組み立てと入れ替えます。≡ を長押し（PCはドラッグ）で並べ替え。</div>
+    <div class="field-hint" style="margin:0 0 12px">「追加」は今の組み立てに足します（同じ語は足しません）。人物の区画を持つ定型文は区画ごと新しく足し、区画のない定型文は今の入れ先の区画に入れます。「置換」は今の組み立てと入れ替えます。≡ を長押し（PCはドラッグ）で並べ替え。</div>
     <div id="presetList"></div>
+  </div>
+</div>
+
+<!-- 区画の編集 -->
+<div class="modal-overlay" id="groupModal">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">区画の編集</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group">
+      <div class="field-label">区画の名前（コピーする文字には入りません）</div>
+      <input class="field-input" id="gmName" maxlength="20" placeholder="例：左の子">
+      <div class="field-error" id="gmError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" id="gmDelete" type="button">区画を消す</button>
+      <span class="spacer"></span>
+      <button class="btn" type="button" data-close>キャンセル</button>
+      <button class="btn primary" id="gmSave" type="button">保存</button>
+    </div>
   </div>
 </div>
 
@@ -637,10 +687,16 @@
   let curCatId = null;
   let editMode = false;
   let query = '';
-  let tray = { pos: [], neg: [] };   // [{ k, wordId|null, text, w }]
-  let current = null;                // { lane, k }：組み立てで選んでいるチップ
-  const undoClear = { pos: null, neg: null }; // クリアの直後の控え { items, timer }
-  let prefs = { escape: true, underscore: true, catId: null, trayCollapsed: false };
+  // 組み立て：PROMPT は区画（先頭は必ず「共通」、その後に人物1・人物2…）、NEGATIVE は1つ
+  //   item = { k, wordId|null, text, w }
+  //   「ゾーン」＝区画のid か 'neg'
+  const COMMON = 'common';
+  const MAX_PERSONS = 6;
+  let tray = { groups: [{ id: COMMON, name: '共通', items: [] }], neg: [] };
+  let activeGid = COMMON;            // ワードをタップしたときに入る区画
+  let current = null;                // { zone, k }：組み立てで選んでいるチップ
+  const undoClear = { pos: null, neg: null }; // クリアの直後の控え { snap, timer }
+  let prefs = { escape: true, underscore: true, catId: null, trayCollapsed: false, mode: 'break' };
 
   /* ===================== 小道具 ===================== */
   const $ = (id) => document.getElementById(id);
@@ -672,7 +728,44 @@
   }
   function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) { /* 保存できなくても動く */ } }
   function savePrefs() { lsSet(LS_PREFS, prefs); }
-  function saveTray() { lsSet(LS_TRAY, tray); }
+  function saveTray() { lsSet(LS_TRAY, { v: 2, groups: tray.groups, neg: tray.neg, active: activeGid }); }
+
+  function groupById(id) { return tray.groups.find((g) => g.id === id) || null; }
+  function listOf(zone) { if (zone === 'neg') return tray.neg; const g = groupById(zone); return g ? g.items : null; }
+  function setList(zone, arr) { if (zone === 'neg') tray.neg = arr; else { const g = groupById(zone); if (g) g.items = arr; } }
+  function zones() { return [...tray.groups.map((g) => g.id), 'neg']; }
+  function posItems() { return tray.groups.reduce((a, g) => a.concat(g.items), []); }
+  function total() { return posItems().length + tray.neg.length; }
+  function persons() { return tray.groups.filter((g) => g.id !== COMMON); }
+  function zoneName(zone) { if (zone === 'neg') return 'NEGATIVE'; const g = groupById(zone); return g ? g.name : ''; }
+  function findItem(k) {
+    for (const z of zones()) { const l = listOf(z); const i = l.findIndex((x) => x.k === k); if (i >= 0) return { zone: z, list: l, i, it: l[i] }; }
+    return null;
+  }
+  function nextPersonName() {
+    const used = new Set(tray.groups.map((g) => g.name));
+    for (let n = 1; ; n++) if (!used.has('人物' + n)) return '人物' + n;
+  }
+  // 保存しておいた形（区画あり・旧版の { pos, neg }）を、今の形に直す
+  function loadTrayFrom(t) {
+    const out = { groups: [], neg: sanitizeItems(t && t.neg) };
+    if (t && Array.isArray(t.groups) && t.groups.length) {
+      t.groups.forEach((g, i) => {
+        if (!g || typeof g !== 'object') return;
+        const isCommon = i === 0;
+        out.groups.push({
+          id: isCommon ? COMMON : (typeof g.id === 'string' && g.id && g.id !== COMMON ? g.id : genKey()),
+          name: isCommon ? '共通' : (cleanText(g.name, 20) || '人物'),
+          items: sanitizeItems(g.items),
+        });
+      });
+    }
+    if (!out.groups.length || out.groups[0].id !== COMMON) {
+      out.groups.unshift({ id: COMMON, name: '共通', items: t && !Array.isArray(t.groups) ? sanitizeItems(t.pos) : [] });
+    }
+    out.groups = out.groups.slice(0, MAX_PERSONS + 1);
+    return out;
+  }
 
   function sanitizeItems(arr) {
     if (!Array.isArray(arr)) return [];
@@ -770,6 +863,12 @@
     let st = null;
     const LONG_MS = 280;
     function items() { return [...container.querySelectorAll(opt.itemSel)]; }
+    function sig() {
+      return items().map((x) => {
+        const z = opt.zoneSel ? x.closest(opt.zoneSel) : null;
+        return (z ? z.dataset.zone : '') + ':' + x.dataset.id;
+      }).join('|');
+    }
     function cleanup() {
       if (!st) return;
       clearTimeout(st.timer);
@@ -804,6 +903,10 @@
           : (e.clientY > r.bottom ? true : e.clientY < r.top ? false : e.clientX > r.left + r.width / 2);
         const ref = after ? target.nextSibling : target;
         if (ref !== st.el) target.parentNode.insertBefore(st.el, ref);
+      } else if (!target && opt.zoneSel && under) {
+        // 置き場（区画）の空いたところに来たら、その置き場の末尾へ
+        const zone = under.closest(opt.zoneSel);
+        if (zone && container.contains(zone) && st.el.parentNode !== zone) zone.appendChild(st.el);
       }
       // 端に近づいたら自動スクロール
       const sc = opt.scrollEl ? opt.scrollEl() : null;
@@ -819,7 +922,7 @@
       cleanup();
       if (s.dragging) {
         const ids = items().map((x) => x.dataset.id);
-        if (ids.join('|') !== s.before) opt.onDrop(ids, s.el.dataset.id);
+        if (sig() !== s.before) opt.onDrop(ids, s.el.dataset.id);
         s.suppressClick = true;
         lastSuppress = Date.now();
       } else if (!s.longPressed) {
@@ -836,7 +939,7 @@
       if (opt.handleSel && !e.target.closest(opt.handleSel)) return;
       const canDrag = !opt.enabled || opt.enabled();
       st = { el, pid: e.pointerId, x0: e.clientX, y0: e.clientY, dragging: false,
-        touch: e.pointerType !== 'mouse', before: items().map((x) => x.dataset.id).join('|'), longPressed: false };
+        touch: e.pointerType !== 'mouse', before: sig(), longPressed: false };
       if (!canDrag) st.noDrag = true;
       if (st.touch && canDrag) {
         st.timer = setTimeout(() => { if (st && !st.dragging) { st.longPressed = true; startDrag(); } }, LONG_MS);
@@ -870,7 +973,19 @@
     if (it.w !== 1) t = '(' + t + ':' + it.w.toFixed(1) + ')';
     return t;
   }
-  function laneText(lane) { return tray[lane].map(formatItem).filter(Boolean).join(', '); }
+  function joinItems(arr) { return arr.map(formatItem).filter(Boolean).join(', '); }
+  // 区画を区切り方（prefs.mode）でつなぐ。人物の区画がない・1本につなぐ設定なら、全部を「, 」で
+  //   break：共通 BREAK 人物1 BREAK 人物2
+  //   rp   ：共通 ADDCOMM 人物1 BREAK 人物2（Regional Prompter の共通プロンプト）
+  //   中身が空の区画は飛ばす（領域の割り当てがずれないよう、空の人物は作らないのがよい）
+  function buildPos(groups, mode) {
+    const common = joinItems(groups[0] ? groups[0].items : []);
+    const ps = groups.slice(1).map((g) => joinItems(g.items)).filter(Boolean);
+    if (!ps.length || mode === 'flat') return [common, ...ps].filter(Boolean).join(', ');
+    if (mode === 'rp') return (common ? common + ' ADDCOMM ' : '') + ps.join(' BREAK ');
+    return [common, ...ps].filter(Boolean).join(' BREAK ');
+  }
+  function laneText(lane) { return lane === 'neg' ? joinItems(tray.neg) : buildPos(tray.groups, prefs.mode); }
   function itemText(it) { const w = wordById(it.wordId); return w ? w.text : it.text; }
 
   /* =====================================================================
@@ -882,7 +997,12 @@
 
   function selectedWordIds() {
     const set = new Map();
-    ['pos', 'neg'].forEach((lane) => tray[lane].forEach((it) => { if (it.wordId) set.set(it.wordId, lane); }));
+    // wordId → 入っているゾーンの集合
+    zones().forEach((z) => listOf(z).forEach((it) => {
+      if (!it.wordId) return;
+      if (!set.has(it.wordId)) set.set(it.wordId, new Set());
+      set.get(it.wordId).add(z);
+    }));
     return set;
   }
 
@@ -921,10 +1041,16 @@
   ===================================================================== */
   function chipHtml(w, sel) {
     const c = catById(w.catId);
-    const lane = sel.get(w.id);
-    const cls = 'word-chip' + (lane ? ' is-selected' : '') + (lane === 'neg' ? ' is-neg' : '');
+    const where = sel.get(w.id) || new Set();
+    // 色が付く＝今の入れ先の区画（ネガティブ用なら NEGATIVE）に入っている。点線＝ほかの区画にだけ入っている
+    const inNeg = where.has('neg');
+    const inActive = where.has(activeGid);
+    const others = [...where].filter((z) => z !== 'neg' && z !== activeGid);
+    const cls = 'word-chip' + (inActive || inNeg ? ' is-selected' : '') + (inNeg && !inActive ? ' is-neg' : '')
+      + (!inActive && !inNeg && others.length ? ' is-elsewhere' : '');
+    const whereLabel = persons().length && others.length ? others.map(zoneName).join('・') : '';
     return `<button class="${cls}" type="button" data-id="${esc(w.id)}" title="${esc(w.label || w.text)}${c && c.neg ? '（ネガティブ）' : ''}">
-      <span class="wc-text">${esc(w.text)}</span>${w.label ? `<span class="wc-label">${esc(w.label)}</span>` : ''}
+      <span class="wc-text">${esc(w.text)}</span>${w.label ? `<span class="wc-label">${esc(w.label)}</span>` : ''}${whereLabel ? `<span class="wc-where">${esc(whereLabel)}</span>` : ''}
     </button>`;
   }
 
@@ -976,49 +1102,78 @@
   const lanes = {};
   document.querySelectorAll('.lane').forEach((el) => {
     lanes[el.dataset.lane] = {
-      el, chips: el.querySelector('[data-chips]'), tools: el.querySelector('[data-tools]'),
+      el, tools: el.querySelector('[data-tools]'),
       out: el.querySelector('[data-out]'), len: el.querySelector('[data-len]'), free: el.querySelector('[data-free]'),
       copy: el.querySelector('[data-copy]'), clear: el.querySelector('[data-clear]'),
     };
   });
+  const groupsEl = $('groups');
+  const negRow = document.querySelector('[data-zone="neg"]');
+
+  function tChipHtml(it, zone) {
+    const cur = current && current.zone === zone && current.k === it.k;
+    return `<button class="t-chip${it.wordId ? '' : ' is-free'}${cur ? ' is-current' : ''}" type="button" data-id="${esc(it.k)}">${esc(itemText(it))}${it.w !== 1 ? `<span class="tw">:${it.w.toFixed(1)}</span>` : ''}</button>`;
+  }
+  function toolsHtml(f) {
+    const { zone, list, i, it } = f;
+    const opts = zones().filter((z) => z !== zone)
+      .map((z) => `<option value="${esc(z)}">${esc(zoneName(z))}へ</option>`).join('');
+    return `<span class="ct-name">選択中：${esc(itemText(it))}${it.wordId ? '' : '（直接入力）'}・${esc(zoneName(zone))}</span>
+      <button class="btn small" type="button" data-t="left" ${i === 0 ? 'disabled' : ''} title="前へ">◀</button>
+      <button class="btn small" type="button" data-t="right" ${i === list.length - 1 ? 'disabled' : ''} title="後ろへ">▶</button>
+      <button class="btn small" type="button" data-t="down" ${it.w <= W_MIN ? 'disabled' : ''} title="弱く">−</button>
+      <span class="ct-w">${it.w.toFixed(1)}</span>
+      <button class="btn small" type="button" data-t="up" ${it.w >= W_MAX ? 'disabled' : ''} title="強く">＋</button>
+      <button class="btn small" type="button" data-t="reset" ${it.w === 1 ? 'disabled' : ''}>1.0に</button>
+      <select class="mini-select" data-t-move><option value="">移す…</option>${opts}</select>
+      <button class="btn small danger" type="button" data-t="remove">外す</button>
+      <button class="btn small" type="button" data-t="done">閉じる</button>`;
+  }
 
   function renderTray() {
+    if (!groupById(activeGid)) activeGid = COMMON;
+    const multi = persons().length > 0;
+    // PROMPT：区画ごと
+    groupsEl.classList.toggle('grp-one', !multi);
+    groupsEl.innerHTML = tray.groups.map((g) => {
+      const chips = g.items.map((it) => tChipHtml(it, g.id)).join('')
+        || `<span class="placeholder">${multi ? (g.id === activeGid ? '上のワードをタップすると、ここに入ります' : 'ここを押すと入れ先になります') : '上のワードをタップすると、ここに入ります'}</span>`;
+      return `<div class="grp${g.id === activeGid ? ' is-active' : ''}" data-gid="${esc(g.id)}">
+        <div class="grp-head">
+          <span class="grp-name">${esc(g.name)}${g.id === COMMON ? '（全員）' : ''}</span>
+          <span class="grp-target">入れ先</span>
+          ${g.id === COMMON ? '' : `<button class="icon-btn grp-edit" type="button" data-gedit="${esc(g.id)}" title="名前の変更・区画を消す">✎</button>`}
+        </div>
+        <div class="chip-row" data-zone="${esc(g.id)}">${chips}</div>
+      </div>`;
+    }).join('');
+    $('addGroupBtn').disabled = persons().length >= MAX_PERSONS;
+    $('modeRow').hidden = !multi;
+    $('modeSelect').value = prefs.mode;
+    // NEGATIVE
+    negRow.innerHTML = tray.neg.map((it) => tChipHtml(it, 'neg')).join('')
+      || '<span class="placeholder">ネガティブ用のカテゴリのワードは、ここに入ります</span>';
+
+    const f = current ? findItem(current.k) : null;
+    if (!f) current = null;
     ['pos', 'neg'].forEach((lane) => {
       const L = lanes[lane];
-      const list = tray[lane];
-      L.chips.innerHTML = list.length ? list.map((it) => {
-        const cur = current && current.lane === lane && current.k === it.k;
-        return `<button class="t-chip${it.wordId ? '' : ' is-free'}${cur ? ' is-current' : ''}" type="button" data-id="${esc(it.k)}">${esc(itemText(it))}${it.w !== 1 ? `<span class="tw">:${it.w.toFixed(1)}</span>` : ''}</button>`;
-      }).join('') : '<span class="placeholder">上のワードをタップすると、ここに入ります</span>';
+      const n = lane === 'neg' ? tray.neg.length : posItems().length;
       const text = laneText(lane);
       L.out.textContent = text;
-      L.len.textContent = list.length ? `${list.length}語・${text.length}文字` : '';
-      L.copy.disabled = !list.length;
+      L.len.textContent = n ? `${n}語・${text.length}文字` : '';
+      L.copy.disabled = !n;
       if (L.clear.dataset.armed !== '1') {
         L.clear.textContent = undoClear[lane] ? '元に戻す' : 'クリア';
-        L.clear.disabled = !list.length && !undoClear[lane];
+        L.clear.disabled = !n && !undoClear[lane];
       }
-      const it = current && current.lane === lane ? list.find((x) => x.k === current.k) : null;
-      if (it) {
-        const idx = list.indexOf(it);
-        L.tools.innerHTML = `<span class="ct-name">選択中：${esc(itemText(it))}${it.wordId ? '' : '（直接入力）'}</span>
-          <button class="btn small" type="button" data-t="left" ${idx === 0 ? 'disabled' : ''} title="前へ">◀</button>
-          <button class="btn small" type="button" data-t="right" ${idx === list.length - 1 ? 'disabled' : ''} title="後ろへ">▶</button>
-          <button class="btn small" type="button" data-t="down" ${it.w <= W_MIN ? 'disabled' : ''} title="弱く">−</button>
-          <span class="ct-w">${it.w.toFixed(1)}</span>
-          <button class="btn small" type="button" data-t="up" ${it.w >= W_MAX ? 'disabled' : ''} title="強く">＋</button>
-          <button class="btn small" type="button" data-t="reset" ${it.w === 1 ? 'disabled' : ''}>1.0に</button>
-          <button class="btn small" type="button" data-t="move">${lane === 'pos' ? 'NEGATIVEへ' : 'PROMPTへ'}</button>
-          <button class="btn small danger" type="button" data-t="remove">外す</button>
-          <button class="btn small" type="button" data-t="done">閉じる</button>`;
-        L.tools.classList.add('is-open');
-      } else {
-        L.tools.innerHTML = '';
-        L.tools.classList.remove('is-open');
-      }
+      const mine = f && ((lane === 'neg') === (f.zone === 'neg'));
+      L.tools.innerHTML = mine ? toolsHtml(f) : '';
+      L.tools.classList.toggle('is-open', !!mine);
     });
-    const n = tray.pos.length + tray.neg.length;
-    $('trayCount').textContent = n ? `PROMPT ${tray.pos.length}・NEGATIVE ${tray.neg.length}` : '';
+    const pn = posItems().length;
+    $('trayCount').textContent = (pn || tray.neg.length ? `PROMPT ${pn}・NEGATIVE ${tray.neg.length}` : '')
+      + (multi ? `　入れ先：${zoneName(activeGid)}` : '');
     $('tray').classList.toggle('is-collapsed', !!prefs.trayCollapsed);
     $('trayArrow').textContent = prefs.trayCollapsed ? '▴' : '▾';
   }
@@ -1041,7 +1196,11 @@
   async function init() {
     prefs = Object.assign(prefs, lsGet(LS_PREFS, {}));
     const t = lsGet(LS_TRAY, null);
-    if (t) tray = { pos: sanitizeItems(t.pos), neg: sanitizeItems(t.neg) };
+    if (t) {
+      tray = loadTrayFrom(t);
+      if (typeof t.active === 'string' && groupById(t.active)) activeGid = t.active;
+    }
+    if (!['break', 'rp', 'flat'].includes(prefs.mode)) prefs.mode = 'break';
     $('prefEscape').checked = !!prefs.escape;
     $('prefUnderscore').checked = !!prefs.underscore;
     try {
@@ -1141,7 +1300,7 @@
   // 消したワードを組み立てに残すときは、直接入力の扱いにする（文字は残す）
   function detachWords(idSet) {
     let changed = false;
-    ['pos', 'neg'].forEach((lane) => tray[lane].forEach((it) => {
+    zones().forEach((z) => listOf(z).forEach((it) => {
       if (it.wordId && idSet.has(it.wordId)) { it.wordId = null; changed = true; }
     }));
     if (changed) saveTray();
@@ -1153,23 +1312,28 @@
   function toggleWord(id) {
     const w = wordById(id);
     if (!w) return;
-    for (const lane of ['pos', 'neg']) {
-      const i = tray[lane].findIndex((it) => it.wordId === id);
+    const c = catById(w.catId);
+    // 入れ先：ネガティブ用のカテゴリなら NEGATIVE、それ以外は今の入れ先の区画
+    // （同じ語を別の人物の区画にも入れられる。例：2人とも smile）
+    const zone = c && c.neg ? 'neg' : activeGid;
+    for (const z of [zone, 'neg']) {
+      const list = listOf(z);
+      const i = list.findIndex((it) => it.wordId === id);
       if (i >= 0) {
-        const it = tray[lane][i];
-        tray[lane].splice(i, 1);
+        // 入れ先に入っていれば外す。NEGATIVE へ移してあった語も、押せば外す
+        const it = list[i];
+        list.splice(i, 1);
         if (current && current.k === it.k) current = null;
         afterTrayChange();
         return;
       }
     }
-    const c = catById(w.catId);
-    const lane = c && c.neg ? 'neg' : 'pos';
-    if (tray.pos.length + tray.neg.length >= MAX_TRAY) { showToast(`組み立てに入れられるのは ${MAX_TRAY} 語までです`, true); return; }
+    if (total() >= MAX_TRAY) { showToast(`組み立てに入れられるのは ${MAX_TRAY} 語までです`, true); return; }
+    const list = listOf(zone);
     // 同じ文字の直接入力があれば、それをこのワードにつなぐ（二重に入れない）
-    const dup = tray[lane].find((it) => !it.wordId && norm(it.text) === norm(w.text));
+    const dup = list.find((it) => !it.wordId && norm(it.text) === norm(w.text));
     if (dup) { dup.wordId = w.id; afterTrayChange(); return; }
-    tray[lane].push({ k: genKey(), wordId: w.id, text: w.text, w: 1 });
+    list.push({ k: genKey(), wordId: w.id, text: w.text, w: 1 });
     afterTrayChange();
   }
 
@@ -1297,7 +1461,7 @@
     if (moved) next.order = nextOrder(wordsOf(catId));
     try { await writeMany([{ store: S_WORDS, put: next }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
     Object.assign(w, next);
-    ['pos', 'neg'].forEach((lane) => tray[lane].forEach((it) => { if (it.wordId === w.id) it.text = w.text; }));
+    zones().forEach((z) => listOf(z).forEach((it) => { if (it.wordId === w.id) it.text = w.text; }));
     saveTray();
     closeModalNow('editWordModal');
     renderAll();
@@ -1318,47 +1482,138 @@
   /* =====================================================================
      組み立ての操作
   ===================================================================== */
+  function setActive(gid) {
+    if (!groupById(gid) || activeGid === gid) return false;
+    activeGid = gid;
+    saveTray();
+    return true;
+  }
+  // PROMPT の区画と NEGATIVE をまたいでドラッグできる（置き場＝[data-zone]）
+  makeSortable(document.querySelector('.tray-body'), {
+    itemSel: '.t-chip', zoneSel: '[data-zone]', axis: 'x',
+    scrollEl: () => document.querySelector('.tray-body'),
+    onTap: (el) => {
+      const k = el.dataset.id;
+      const f = findItem(k);
+      if (!f) return;
+      current = current && current.k === k ? null : { zone: f.zone, k };
+      if (f.zone !== 'neg') setActive(f.zone); // 押したチップの区画を入れ先にする
+      renderTray(); renderWords();
+    },
+    onDrop: () => {
+      // 画面の並びをそのまま組み立てに写す
+      const all = new Map();
+      zones().forEach((z) => listOf(z).forEach((it) => all.set(it.k, it)));
+      document.querySelectorAll('.tray-body [data-zone]').forEach((row) => {
+        const z = row.dataset.zone;
+        if (z !== 'neg' && !groupById(z)) return;
+        setList(z, [...row.querySelectorAll('.t-chip')].map((c) => all.get(c.dataset.id)).filter(Boolean));
+      });
+      const f = current ? findItem(current.k) : null;
+      if (f) current.zone = f.zone;
+      afterTrayChange();
+    },
+  });
+  // 区画の見出し・空いたところを押すと、その区画を入れ先にする
+  groupsEl.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-gedit]');
+    if (ed) { openGroupModal(ed.dataset.gedit); return; }
+    if (e.target.closest('.t-chip')) return;
+    const g = e.target.closest('.grp');
+    if (g && setActive(g.dataset.gid)) { renderTray(); renderWords(); renderCats(); }
+  });
+
+  $('addGroupBtn').addEventListener('click', () => {
+    if (persons().length >= MAX_PERSONS) { showToast(`人物の区画は ${MAX_PERSONS} つまでです`, true); return; }
+    const g = { id: genKey(), name: nextPersonName(), items: [] };
+    tray.groups.push(g);
+    activeGid = g.id;
+    if (prefs.trayCollapsed) { prefs.trayCollapsed = false; savePrefs(); }
+    afterTrayChange();
+    showToast(`「${g.name}」を足しました。ここに入れるワードをタップしてください`);
+  });
+  $('modeSelect').addEventListener('change', () => {
+    const v = $('modeSelect').value;
+    prefs.mode = ['break', 'rp', 'flat'].includes(v) ? v : 'break';
+    savePrefs(); renderTray();
+  });
+
+  // 区画の編集（名前・消す）
+  let groupEditingId = null;
+  function openGroupModal(gid) {
+    const g = groupById(gid);
+    if (!g || g.id === COMMON) return;
+    groupEditingId = gid;
+    $('gmName').value = g.name;
+    $('gmError').classList.remove('is-shown');
+    openModal('groupModal');
+  }
+  $('gmName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) $('gmSave').click(); });
+  $('gmSave').addEventListener('click', () => {
+    const g = groupById(groupEditingId);
+    if (!g) { closeModalNow('groupModal'); return; }
+    const name = cleanText($('gmName').value, 20);
+    const err = $('gmError');
+    if (!name) { err.textContent = '名前を入れてください'; err.classList.add('is-shown'); return; }
+    if (name === '共通' || tray.groups.some((x) => x.id !== g.id && x.name === name)) { err.textContent = '同じ名前の区画があります'; err.classList.add('is-shown'); return; }
+    g.name = name;
+    closeModalNow('groupModal');
+    afterTrayChange();
+  });
+  $('gmDelete').addEventListener('click', async () => {
+    const g = groupById(groupEditingId);
+    if (!g) return;
+    if (g.items.length && !(await confirmBox(`区画「${g.name}」と、中の ${g.items.length} 語を外します。`, '区画を消す'))) return;
+    tray.groups = tray.groups.filter((x) => x.id !== g.id);
+    if (activeGid === g.id) activeGid = COMMON;
+    if (current && !findItem(current.k)) current = null;
+    closeModalNow('groupModal');
+    afterTrayChange();
+    showToast(`「${g.name}」を消しました`);
+  });
+
+  // 選んだチップの操作（◀ ▶ − ＋ 1.0に 移す 外す 閉じる）
+  function onToolClick(e) {
+    const b = e.target.closest('[data-t]');
+    if (!b || !current) return;
+    const f = findItem(current.k);
+    if (!f) { current = null; renderTray(); return; }
+    const { list, i, it } = f;
+    switch (b.dataset.t) {
+      case 'left': if (i > 0) { list.splice(i, 1); list.splice(i - 1, 0, it); } break;
+      case 'right': if (i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, it); } break;
+      case 'up': it.w = Math.min(W_MAX, roundW(it.w + 0.1)); break;
+      case 'down': it.w = Math.max(W_MIN, roundW(it.w - 0.1)); break;
+      case 'reset': it.w = 1; break;
+      case 'remove': list.splice(i, 1); current = null; break;
+      case 'done': current = null; break;
+      default: return;
+    }
+    afterTrayChange();
+  }
+  function onToolMove(e) {
+    const sel = e.target.closest('[data-t-move]');
+    if (!sel || !current || !sel.value) return;
+    const f = findItem(current.k);
+    const to = listOf(sel.value);
+    if (!f || !to) return;
+    f.list.splice(f.i, 1);
+    // 移す先に同じ語があれば、重ねずに今のものを外すだけにする
+    if (to.some((x) => (f.it.wordId && x.wordId === f.it.wordId) || norm(itemText(x)) === norm(itemText(f.it)))) {
+      current = null;
+      showToast(`${zoneName(sel.value)}にはもう同じ語があります（こちらは外しました）`);
+    } else {
+      to.push(f.it);
+      current = { zone: sel.value, k: f.it.k };
+      if (sel.value !== 'neg') activeGid = sel.value;
+    }
+    afterTrayChange();
+  }
+
   ['pos', 'neg'].forEach((lane) => {
     const L = lanes[lane];
-    makeSortable(L.chips, {
-      itemSel: '.t-chip', axis: 'x',
-      scrollEl: () => document.querySelector('.tray-body'),
-      onTap: (el) => {
-        const k = el.dataset.id;
-        current = current && current.lane === lane && current.k === k ? null : { lane, k };
-        renderTray();
-      },
-      onDrop: (ids) => {
-        const map = new Map(tray[lane].map((it) => [it.k, it]));
-        tray[lane] = ids.map((k) => map.get(k)).filter(Boolean);
-        saveTray(); renderTray();
-      },
-    });
-    L.tools.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-t]');
-      if (!b || !current || current.lane !== lane) return;
-      const list = tray[lane];
-      const i = list.findIndex((x) => x.k === current.k);
-      if (i < 0) return;
-      const it = list[i];
-      switch (b.dataset.t) {
-        case 'left': if (i > 0) { list.splice(i, 1); list.splice(i - 1, 0, it); } break;
-        case 'right': if (i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, it); } break;
-        case 'up': it.w = Math.min(W_MAX, roundW(it.w + 0.1)); break;
-        case 'down': it.w = Math.max(W_MIN, roundW(it.w - 0.1)); break;
-        case 'reset': it.w = 1; break;
-        case 'move': {
-          const other = lane === 'pos' ? 'neg' : 'pos';
-          list.splice(i, 1);
-          tray[other].push(it);
-          current = { lane: other, k: it.k };
-          break;
-        }
-        case 'remove': list.splice(i, 1); current = null; break;
-        case 'done': current = null; break;
-      }
-      afterTrayChange();
-    });
+    L.tools.addEventListener('click', onToolClick);
+    L.tools.addEventListener('change', onToolMove);
     L.copy.addEventListener('click', async () => {
       const text = laneText(lane);
       if (!text) return;
@@ -1366,20 +1621,32 @@
       showToast(ok ? `${lane === 'pos' ? 'PROMPT' : 'NEGATIVE'} をコピーしました` : 'コピーできませんでした。下の文字を選んでコピーしてください', !ok);
     });
     L.clear.addEventListener('click', () => {
-      // クリアの直後（8秒）は「元に戻す」になる
+      // クリアの直後（8秒）は「元に戻す」になる。PROMPT は区画を残して中身だけ空にする
       if (undoClear[lane]) {
         clearTimeout(undoClear[lane].timer);
-        tray[lane] = undoClear[lane].items.concat(tray[lane]);
+        const snap = undoClear[lane].snap;
+        if (lane === 'neg') tray.neg = snap.concat(tray.neg);
+        else {
+          snap.forEach((sg) => {
+            const g = groupById(sg.id);
+            if (g) g.items = sg.items.concat(g.items);
+            else if (persons().length < MAX_PERSONS || sg.id === COMMON) tray.groups.push(sg);
+          });
+        }
         undoClear[lane] = null;
         afterTrayChange();
         showToast('元に戻しました');
         return;
       }
       armTwice(L.clear, 'もう一度押すとクリア', () => {
-        const items = tray[lane].slice();
-        tray[lane] = [];
-        if (current && current.lane === lane) current = null;
-        undoClear[lane] = { items, timer: setTimeout(() => { undoClear[lane] = null; renderTray(); }, 8000) };
+        let snap;
+        if (lane === 'neg') { snap = tray.neg; tray.neg = []; }
+        else {
+          snap = tray.groups.map((g) => ({ id: g.id, name: g.name, items: g.items }));
+          tray.groups.forEach((g) => { g.items = []; });
+        }
+        if (current && !findItem(current.k)) current = null;
+        undoClear[lane] = { snap, timer: setTimeout(() => { undoClear[lane] = null; renderTray(); }, 8000) };
         afterTrayChange();
         showToast('クリアしました（8秒の間は「元に戻す」で戻せます）');
       });
@@ -1389,14 +1656,14 @@
       e.preventDefault();
       const parts = L.free.value.split(/\s*,\s*/).map((s) => cleanText(s, MAX_TEXT)).filter(Boolean);
       if (!parts.length) return;
-      let added = 0, dup = 0;
+      const list = listOf(lane === 'neg' ? 'neg' : activeGid);
+      let dup = 0;
       parts.forEach((t) => {
-        if (tray.pos.length + tray.neg.length >= MAX_TRAY) return;
-        if (tray[lane].some((it) => norm(itemText(it)) === norm(t))) { dup++; return; }
+        if (total() >= MAX_TRAY) return;
+        if (list.some((it) => norm(itemText(it)) === norm(t))) { dup++; return; }
         // リストにある語なら、そのワードとしてつなぐ（選んだ印が付く）
         const w = words.find((x) => norm(x.text) === norm(t));
-        tray[lane].push({ k: genKey(), wordId: w ? w.id : null, text: t, w: 1 });
-        added++;
+        list.push({ k: genKey(), wordId: w ? w.id : null, text: t, w: 1 });
       });
       L.free.value = '';
       afterTrayChange();
@@ -1410,29 +1677,47 @@
 
   /* =====================================================================
      定型文
+     { name, groups: [{ name, items }], neg, pos }
+       groups の先頭は共通。pos は全区画をつないだもの（2026-11-20 より前の版が読む）
+       2026-11-20 より前に保存したもの（groups がない）は、pos を共通として読む
   ===================================================================== */
   const presetList = $('presetList');
+  function snapItems(arr) { return arr.map((it) => ({ wordId: it.wordId, text: itemText(it), w: it.w })); }
+  function presetGroups(p) {
+    if (Array.isArray(p.groups) && p.groups.length) {
+      return p.groups.map((g, i) => ({ name: i === 0 ? '共通' : (cleanText(g && g.name, 20) || '人物'), items: Array.isArray(g && g.items) ? g.items : [] }));
+    }
+    return [{ name: '共通', items: Array.isArray(p.pos) ? p.pos : [] }];
+  }
+  function presetNeg(p) { return Array.isArray(p.neg) ? p.neg : []; }
   function presetPreview(arr) {
-    return arr.map((it) => formatItem({ wordId: it.wordId, text: it.text, w: it.w })).join(', ');
+    return arr.map((it) => formatItem({ wordId: it.wordId, text: it.text, w: Number(it.w) || 1 })).join(', ');
   }
   function renderPresets() {
     if (!presets.length) {
-      presetList.innerHTML = '<div class="field-hint">まだ定型文がありません。よく使う組み合わせ（品質タグ一式・ネガティブ一式など）を組み立てて、上で名前を付けて保存してください。</div>';
+      presetList.innerHTML = '<div class="field-hint">まだ定型文がありません。よく使う組み合わせ（品質タグ一式・ネガティブ一式・人物1人分など）を組み立てて、上で名前を付けて保存してください。</div>';
       return;
     }
-    presetList.innerHTML = presets.map((p) => `<div class="preset-row" data-id="${esc(p.id)}">
+    presetList.innerHTML = presets.map((p) => {
+      const gs = presetGroups(p);
+      const multi = gs.length > 1;
+      const lines = gs.filter((g) => g.items.length)
+        .map((g) => `<div class="pr-text">${multi ? esc(g.name) + ': ' : ''}${esc(presetPreview(g.items))}</div>`).join('');
+      const neg = presetNeg(p);
+      return `<div class="preset-row" data-id="${esc(p.id)}">
       <span class="pr-grip" title="並べ替え">≡</span>
       <div class="pr-main">
-        <div class="pr-name">${esc(p.name)}</div>
-        ${p.pos.length ? `<div class="pr-text">${esc(presetPreview(p.pos))}</div>` : ''}
-        ${p.neg.length ? `<div class="pr-text neg">NEG: ${esc(presetPreview(p.neg))}</div>` : ''}
+        <div class="pr-name">${esc(p.name)}${multi ? `<span class="imp-tag">人物${gs.length - 1}</span>` : ''}</div>
+        ${lines}
+        ${neg.length ? `<div class="pr-text neg">NEG: ${esc(presetPreview(neg))}</div>` : ''}
       </div>
       <div class="pr-actions">
         <button class="btn small primary" type="button" data-p="append">追加</button>
         <button class="btn small" type="button" data-p="replace">置換</button>
         <button class="btn small" type="button" data-p="edit">✎</button>
       </div>
-    </div>`).join('');
+    </div>`;
+    }).join('');
   }
   makeSortable(presetList, {
     itemSel: '.preset-row', handleSel: '.pr-grip', axis: 'y',
@@ -1445,11 +1730,26 @@
       renderPresets();
     },
   });
-  function snapshotLane(lane) { return tray[lane].map((it) => ({ wordId: it.wordId, text: itemText(it), w: it.w })); }
+  // 今の組み立てを定型文の中身にする（activeOnly：入れ先の区画だけを「共通」として。NEGATIVE なし）
+  function snapshotContent(activeOnly) {
+    let groups, neg;
+    if (activeOnly) {
+      const g = groupById(activeGid) || tray.groups[0];
+      groups = [{ name: '共通', items: snapItems(g.items) }];
+      neg = [];
+    } else {
+      groups = tray.groups.map((g) => ({ name: g.id === COMMON ? '共通' : g.name, items: snapItems(g.items) }));
+      neg = snapItems(tray.neg);
+    }
+    const pos = groups.reduce((a, g) => a.concat(g.items), []);
+    return { groups, neg, pos };
+  }
 
   $('presetBtn').addEventListener('click', () => {
     $('psName').value = '';
     $('psError').classList.remove('is-shown');
+    $('psActiveOnly').checked = false;
+    $('psActiveName').textContent = zoneName(activeGid);
     renderPresets();
     openModal('presetModal');
   });
@@ -1457,14 +1757,15 @@
   $('psSave').addEventListener('click', async () => {
     const name = cleanText($('psName').value, MAX_PRESET_NAME);
     const err = $('psError');
-    if (!tray.pos.length && !tray.neg.length) { err.textContent = '組み立てが空です。ワードを選んでから保存してください'; err.classList.add('is-shown'); return; }
+    const content = snapshotContent($('psActiveOnly').checked);
+    if (!content.pos.length && !content.neg.length) { err.textContent = $('psActiveOnly').checked ? '入れ先の区画が空です' : '組み立てが空です。ワードを選んでから保存してください'; err.classList.add('is-shown'); return; }
     if (!name) { err.textContent = '名前を入れてください'; err.classList.add('is-shown'); return; }
     const same = presets.find((p) => norm(p.name) === norm(name));
     if (same && !(await confirmBox(`定型文「${same.name}」はもうあります。今の組み立てで上書きしますか？`, '上書きする'))) return;
     const now = Date.now();
     const rec = same
-      ? Object.assign({}, same, { pos: snapshotLane('pos'), neg: snapshotLane('neg'), updatedAt: now })
-      : { id: genId(), name, pos: snapshotLane('pos'), neg: snapshotLane('neg'), order: nextOrder(presets), createdAt: now, updatedAt: now };
+      ? Object.assign({}, same, content, { updatedAt: now })
+      : Object.assign({ id: genId(), name }, content, { order: nextOrder(presets), createdAt: now, updatedAt: now });
     try { await writeMany([{ store: S_PRESETS, put: rec }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
     if (same) Object.assign(same, rec); else presets.push(rec);
     err.classList.remove('is-shown');
@@ -1472,6 +1773,22 @@
     renderPresets();
     showToast(same ? `「${name}」を上書きしました` : `「${name}」を保存しました`);
   });
+
+  // 定型文の語を list に足す（同じ語は足さない）。足した数を返す
+  function pushFromPreset(list, srcs) {
+    let n = 0;
+    (srcs || []).forEach((src) => {
+      if (!src || total() >= MAX_TRAY) return;
+      const clean = sanitizeItems([src])[0];
+      if (!clean) return;
+      const wordId = src.wordId && wordById(src.wordId) ? src.wordId : null;
+      const text = wordId ? wordById(wordId).text : clean.text;
+      if (list.some((it) => (wordId && it.wordId === wordId) || norm(itemText(it)) === norm(text))) return;
+      list.push({ k: genKey(), wordId, text, w: clean.w });
+      n++;
+    });
+    return n;
+  }
   presetList.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-p]');
     if (!b) return;
@@ -1479,26 +1796,34 @@
     if (!p) return;
     if (b.dataset.p === 'edit') { openPresetEdit(p.id); return; }
     const replace = b.dataset.p === 'replace';
-    if (replace && (tray.pos.length || tray.neg.length)) {
-      if (!(await confirmBox(`今の組み立て（${tray.pos.length + tray.neg.length}語）を「${p.name}」と入れ替えます。`, '入れ替える'))) return;
+    const gs = presetGroups(p);
+    if (replace && total()) {
+      if (!(await confirmBox(`今の組み立て（${total()}語${persons().length ? `・人物の区画${persons().length}つ` : ''}）を「${p.name}」と入れ替えます。`, '入れ替える'))) return;
     }
-    let added = 0;
-    ['pos', 'neg'].forEach((lane) => {
-      if (replace) tray[lane] = [];
-      (p[lane] || []).forEach((src) => {
-        if (tray.pos.length + tray.neg.length >= MAX_TRAY) return;
-        const wordId = src.wordId && wordById(src.wordId) ? src.wordId : null;
-        const text = wordId ? wordById(wordId).text : src.text;
-        if (tray[lane].some((it) => (wordId && it.wordId === wordId) || norm(itemText(it)) === norm(text))) return;
-        tray[lane].push({ k: genKey(), wordId, text, w: sanitizeItems([src])[0] ? sanitizeItems([src])[0].w : 1 });
-        added++;
-      });
+    let added = 0, skippedGroups = 0;
+    if (replace) {
+      tray.groups = [{ id: COMMON, name: '共通', items: [] }];
+      tray.neg = [];
+      activeGid = COMMON;
+    }
+    // 共通の部分：置換・人物の区画を持つ定型文なら共通へ。区画のない定型文の追加は、今の入れ先の区画へ
+    // （人物1人分の定型文を人物2に入れる、など）
+    added += pushFromPreset(listOf(replace || gs.length > 1 ? COMMON : activeGid), gs[0].items);
+    gs.slice(1).forEach((g) => {
+      if (persons().length >= MAX_PERSONS) { skippedGroups++; return; }
+      let name = g.name;
+      if (tray.groups.some((x) => x.name === name)) name = nextPersonName();
+      const ng = { id: genKey(), name, items: [] };
+      tray.groups.push(ng);
+      added += pushFromPreset(ng.items, g.items);
     });
+    added += pushFromPreset(tray.neg, presetNeg(p));
     current = null;
     closeModalNow('presetModal');
     if (prefs.trayCollapsed) { prefs.trayCollapsed = false; savePrefs(); }
     afterTrayChange();
-    showToast(replace ? `「${p.name}」に入れ替えました` : `「${p.name}」から ${added} 語を足しました`);
+    showToast((replace ? `「${p.name}」に入れ替えました` : `「${p.name}」から ${added} 語を足しました`)
+      + (skippedGroups ? `\n人物の区画は ${MAX_PERSONS} つまでなので、${skippedGroups} つは入れませんでした` : ''));
   });
 
   let presetEditingId = null;
@@ -1508,7 +1833,7 @@
     presetEditingId = id;
     $('peName').value = p.name;
     $('peOverwrite').checked = false;
-    $('peOverwrite').disabled = !tray.pos.length && !tray.neg.length;
+    $('peOverwrite').disabled = !total();
     $('peError').classList.remove('is-shown');
     openModal('presetEditModal');
   }
@@ -1519,10 +1844,10 @@
     const err = $('peError');
     if (!name) { err.textContent = '名前を入れてください'; err.classList.add('is-shown'); return; }
     if (presets.some((x) => x.id !== p.id && norm(x.name) === norm(name))) { err.textContent = '同じ名前の定型文があります'; err.classList.add('is-shown'); return; }
-    const rec = Object.assign({}, p, { name, updatedAt: Date.now() });
+    let rec = Object.assign({}, p, { name, updatedAt: Date.now() });
     if ($('peOverwrite').checked) {
-      if (!(await confirmBox(`「${p.name}」の中身を今の組み立てで上書きします。`, '上書きする'))) return;
-      rec.pos = snapshotLane('pos'); rec.neg = snapshotLane('neg');
+      if (!(await confirmBox(`「${p.name}」の中身を今の組み立て（全部の区画と NEGATIVE）で上書きします。`, '上書きする'))) return;
+      rec = Object.assign(rec, snapshotContent(false));
     }
     try { await writeMany([{ store: S_PRESETS, put: rec }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
     Object.assign(p, rec);
@@ -1799,7 +2124,7 @@
   });
 
   // 動作確認用
-  window.__TAGFORGE__ = { parseMd, formatItem, laneText, get tray() { return tray; }, get words() { return words; }, get cats() { return cats; }, get presets() { return presets; } };
+  window.__TAGFORGE__ = { parseMd, formatItem, laneText, buildPos, loadTrayFrom, get activeGid() { return activeGid; },get tray() { return tray; }, get words() { return words; }, get cats() { return cats; }, get presets() { return presets; } };
 
   init();
 })();
