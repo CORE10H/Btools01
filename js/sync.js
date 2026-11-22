@@ -43,7 +43,7 @@
   // SIDE-OPSの版（yyyymmddnn の数値）。どれかのアプリでデータの形（レコードの
   // 項目・DBの版）を変えたら必ず上げる。自分より新しい版の端末が書いたファイルを
   // 見つけたら同期を止める（古い版が新しい項目を知らずに上書きして消すのを防ぐ）
-  const SYNC_APP_BUILD = 2026112004; // 2026-11-20：TAGFORGE の定型文に区画（groups）
+  const SYNC_APP_BUILD = 2026112201; // 2026-11-22：PASTEUP のテンプレートに「最初の4つを入れた印」（__seeded__）
   const FORMAT_VERSION = 1;
   const SYNC_DB_NAME = 'sideops_sync';
   const SYNC_DB_VERSION = 3; // 2：同期の記録（journal）を追加、3：同期のログ（runlog。かかった時間）を追加

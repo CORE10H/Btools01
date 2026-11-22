@@ -251,6 +251,9 @@
   .lib-row .lr-actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
   .sub-title { font-size: 10.5px; color: var(--text-faint); margin: 14px 0 6px; letter-spacing: .04em; }
   .sub-title:first-child { margin-top: 0; }
+  .at-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .lh-tools { display: inline-flex; gap: 4px; }
+  .lh-tools .btn { padding: 2px 7px; font-size: 10px; }
   .note-box { font-size: 11px; color: var(--text-dim); line-height: 1.8; background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 8px 10px; margin-bottom: 12px; }
 
   .toast {
@@ -316,11 +319,11 @@
         <button class="hamburger-btn" id="menuBtn" type="button" title="メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
           <button class="menu-panel-item" id="miLib" type="button">素材（よく使う画像）の管理</button>
-          <button class="menu-panel-item" id="miStyles" type="button">保存したスタイルの管理</button>
+          <button class="menu-panel-item" id="miStyles" type="button">テンプレートの管理</button>
           <button class="menu-panel-item" id="miFonts" type="button">書体の取り込み・管理</button>
           <div class="menu-sep"></div>
           <button class="menu-panel-item" id="miUsage" type="button">使っている容量を見る</button>
-          <div class="menu-note">画像はこの端末の中だけに置きます（同期しません）。同期するのは「保存したスタイル」だけです。</div>
+          <div class="menu-note">画像はこの端末の中だけに置きます（同期しません）。同期するのは「テンプレート」だけです。</div>
         </div>
       </div>
     </div>
@@ -361,7 +364,7 @@
         <button type="button" data-tab="props">調整</button>
       </div>
       <div class="layer-pane">
-        <div class="side-sec-head"><span>レイヤー（上ほど手前）</span><span id="layerCount"></span></div>
+        <div class="side-sec-head"><span>レイヤー（上ほど手前） <span id="layerCount"></span></span><span class="lh-tools"><button class="btn small" id="copyAllBtn" type="button" title="重ねたものを全部コピー（別の作品に貼り付けられる）">全部コピー</button><button class="btn small" id="pasteBtn" type="button" title="コピーしたものを貼り付け" hidden>貼り付け</button></span></div>
         <div class="layer-list" id="layerList"></div>
       </div>
       <div class="side-sec-head props-head"><span>調整</span></div>
@@ -400,10 +403,10 @@
             </div>
           </div>
           <div class="p-sec" id="secStyle">
-            <div class="p-sec-title">スタイル（見た目の組み合わせ）</div>
+            <div class="p-sec-title">テンプレート（見た目の組み合わせ）</div>
             <div class="p-row"><select id="pStyleSel" class="p-select" style="flex:1"></select><button class="btn small" id="pStyleApply" type="button">当てる</button></div>
-            <div class="p-row"><button class="btn small" id="pStyleSave" type="button">今の見た目を保存</button></div>
-            <div class="p-hint">文字の中身・位置は変えず、書体・色・枠などを当てます。保存したスタイルは同期します。</div>
+            <div class="p-row"><button class="btn small" id="pStyleSave" type="button">今の見た目をテンプレートに保存</button></div>
+            <div class="p-hint">「当てる」は、文字の中身・位置・大きさは変えず、書体・色・枠などを変えます。テンプレートは同期します。</div>
           </div>
           <!-- 画像 -->
           <div class="p-sec" id="secImage">
@@ -443,7 +446,7 @@
             <div class="p-row"><label class="p-lab">不透明度</label><input type="range" id="pOpacity" min="0" max="100" step="1"><input type="number" id="pOpacityN" min="0" max="100" step="1"></div>
             <div class="p-row"><label class="p-lab">回転 °</label><input type="range" id="pRotR" min="-180" max="180" step="1"><input type="number" id="pRot" min="-180" max="180" step="1"></div>
             <div class="p-row"><button class="btn small" id="pCenterX" type="button">横の中央へ</button><button class="btn small" id="pCenterY" type="button">縦の中央へ</button><button class="btn small" id="pRot0" type="button">回転を0に</button></div>
-            <div class="p-row"><button class="btn small" id="pFront" type="button">手前へ</button><button class="btn small" id="pBack" type="button">奥へ</button><button class="btn small" id="pDup" type="button">複製</button><button class="btn small danger" id="pDel" type="button">削除</button></div>
+            <div class="p-row"><button class="btn small" id="pFront" type="button">手前へ</button><button class="btn small" id="pBack" type="button">奥へ</button><button class="btn small" id="pDup" type="button">複製</button><button class="btn small" id="pCopy" type="button" title="コピーして、別の作品に貼り付けられる（Ctrl+C）">コピー</button><button class="btn small danger" id="pDel" type="button">削除</button></div>
           </div>
         </div>
       </div>
@@ -469,11 +472,15 @@
 <!-- 文字を足す -->
 <div class="modal-overlay" id="mAddText">
   <div class="modal wide">
-    <div class="modal-head"><span class="modal-title">文字を足す（ひな形を選ぶ）</span><button class="modal-close" type="button" data-close>✕</button></div>
-    <div class="sub-title">ひな形</div>
-    <div class="pick-grid tpl-grid" id="atBuiltin"></div>
-    <div class="sub-title" id="atSavedTitle">保存したスタイル</div>
+    <div class="modal-head"><span class="modal-title">文字を足す（テンプレートを選ぶ）</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="sub-title at-head"><span>テンプレート（ほかの端末と同期します）</span><button class="btn small" id="atManage" type="button">並べ替え・名前・削除</button></div>
     <div class="pick-grid tpl-grid" id="atSaved"></div>
+    <div class="field-hint" id="atEmpty" hidden>テンプレートがありません。下の「見本集」から足すか、文字を選んで「調整」の「今の見た目をテンプレートに保存」で作れます。</div>
+    <div class="sub-title at-head"><button class="btn small" id="atSamplesToggle" type="button">＋ 見本集から足す</button></div>
+    <div id="atSamplesBox" hidden>
+      <div class="field-hint" style="margin-bottom:8px">押すと、上の「テンプレート」に足します（文字はまだ置きません）。消したテンプレートも、ここから足し直せます。</div>
+      <div class="pick-grid tpl-grid" id="atBuiltin"></div>
+    </div>
   </div>
 </div>
 
@@ -522,7 +529,7 @@
     <div class="sub-title">Google Fonts から（名前で）</div>
     <div class="field-group">
       <div class="p-row" style="margin:0"><input class="field-input" id="ftGName" maxlength="60" placeholder="例：Kaisei Decol" style="flex:1"><button class="btn primary" id="ftGAdd" type="button">追加</button></div>
-      <div class="field-hint">fonts.google.com に載っている書体の名前（英字）を入れます。使うたびに Google から読み込むので、ネットにつながっている必要があります。保存したスタイルに使えば、ほかの端末でも同じ書体になります。</div>
+      <div class="field-hint">fonts.google.com に載っている書体の名前（英字）を入れます。使うたびに Google から読み込むので、ネットにつながっている必要があります。テンプレートに使えば、ほかの端末でも同じ書体になります。</div>
     </div>
     <div class="sub-title">取り込んだ書体</div>
     <div id="ftList"></div>
@@ -587,10 +594,10 @@
   </div>
 </div>
 
-<!-- スタイルの管理 -->
+<!-- テンプレートの管理（DB のストア名は styles のまま） -->
 <div class="modal-overlay" id="mStyles">
   <div class="modal">
-    <div class="modal-head"><span class="modal-title">保存したスタイル</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="modal-head"><span class="modal-title">テンプレートの管理</span><button class="modal-close" type="button" data-close>✕</button></div>
     <div id="stList"></div>
   </div>
 </div>
@@ -931,7 +938,7 @@
   const imgCache = new Map(); // blobId -> { img, url } | { missing: true }
   let selId = null;
   const hist = { undo: [], redo: [], last: null, timer: null };
-  let styles = [];        // 保存したスタイル
+  let styles = [];        // テンプレート（同期する。ストア名 styles）
 
   function editorOpen() { return $('editor').classList.contains('is-open'); }
   function layerById(id) { return cur ? cur.layers.find((l) => l.id === id) || null : null; }
@@ -963,7 +970,7 @@
     };
   }
   // 書体のキー：用意した書体（sans など）・取り込んだファイル（u:id）・Google Fonts の名前（g:名前）
-  // キーの意味は変えない（保存したスタイルに入って同期される）
+  // キーの意味は変えない（テンプレートに入って同期される）
   const RE_UFONT = /^u:id_[a-z0-9_]{1,40}$/;
   const RE_GFONT = /^g:[A-Za-z0-9][A-Za-z0-9 ]{0,59}$/;
   function isFontKey(k) { return typeof k === 'string' && (FONT_BY.has(k) || RE_UFONT.test(k) || RE_GFONT.test(k)); }
@@ -1981,6 +1988,7 @@
       $('edName').textContent = cur.name;
       setStatus('保存済み'); dirty = false;
       $('editor').classList.add('is-open');
+      updatePasteBtn();
       setTab('layers');
       fitView();
       renderLayerList(); refreshProps(); render();
@@ -2467,28 +2475,125 @@
     drawLayer(g, L);
   }
   function renderTextPicker() {
-    $('atBuiltin').innerHTML = BUILTIN.map((t, i) => `<button class="pick-item" type="button" data-b="${i}"><span class="pi-img"><canvas></canvas></span><span class="pi-name">${esc(t.name)}</span></button>`).join('');
-    $('atBuiltin').querySelectorAll('.pick-item').forEach((el) => drawSample(el.querySelector('canvas'), BUILTIN[+el.dataset.b].st, 1000));
-    $('atSavedTitle').hidden = !styles.length;
     $('atSaved').innerHTML = styles.map((s) => `<button class="pick-item" type="button" data-s="${esc(s.id)}"><span class="pi-img"><canvas></canvas></span><span class="pi-name">${esc(s.name)}</span></button>`).join('');
     $('atSaved').querySelectorAll('.pick-item').forEach((el) => { const s = styles.find((x) => x.id === el.dataset.s); if (s) drawSample(el.querySelector('canvas'), s.st, s.baseRef); });
+    $('atEmpty').hidden = styles.length > 0;
+    if (!$('atSamplesBox').hidden) renderSamples();
   }
-  $('addTextBtn').addEventListener('click', () => {
+  function renderSamples() {
+    const names = new Set(styles.map((s) => s.name));
+    $('atBuiltin').innerHTML = BUILTIN.map((t, i) => `<button class="pick-item" type="button" data-b="${i}"><span class="pi-img"><canvas></canvas></span><span class="pi-name">${names.has(t.name) ? '✓ ' : '＋ '}${esc(t.name)}</span></button>`).join('');
+    $('atBuiltin').querySelectorAll('.pick-item').forEach((el) => drawSample(el.querySelector('canvas'), BUILTIN[+el.dataset.b].st, 1000));
+  }
+  function sampleFontLayers() {
+    return BUILTIN.map((b) => ({ type: 'text', text: 'あいうえお', st: normSt(b.st) })).concat(styles.map((s) => ({ type: 'text', text: 'あいうえお', st: s.st })));
+  }
+  $('addTextBtn').addEventListener('click', async () => {
+    await loadStyles(); // ほかの端末から同期で来たテンプレートも出す
+    $('atSamplesBox').hidden = true; $('atSamplesToggle').textContent = '＋ 見本集から足す';
     renderTextPicker();
     openModal('mAddText');
-    const all = BUILTIN.map((b) => ({ type: 'text', text: 'あいうえお', st: normSt(b.st) })).concat(styles.map((s) => ({ type: 'text', text: 'あいうえお', st: s.st })));
-    ensureFonts(all, 4000).then(() => { if ($('mAddText').classList.contains('is-open')) renderTextPicker(); });
+    ensureFonts(sampleFontLayers(), 4000).then(() => { if ($('mAddText').classList.contains('is-open')) renderTextPicker(); });
   });
-  $('atBuiltin').addEventListener('click', (e) => {
+  $('atSamplesToggle').addEventListener('click', () => {
+    const open = $('atSamplesBox').hidden;
+    $('atSamplesBox').hidden = !open;
+    $('atSamplesToggle').textContent = open ? '▲ 見本集を閉じる' : '＋ 見本集から足す';
+    if (open) renderSamples();
+  });
+  // 見本集 → 自分のテンプレートに足す（同じ名前があれば足さない）
+  $('atBuiltin').addEventListener('click', async (e) => {
     const b = e.target.closest('.pick-item'); if (!b) return;
-    closeModal('mAddText');
-    addTextLayer(BUILTIN[+b.dataset.b].st, 1000);
+    const t = BUILTIN[+b.dataset.b]; if (!t) return;
+    if (styles.some((s) => s.name === t.name)) { showToast(`「${t.name}」はもうテンプレートに入っています`); return; }
+    const now = Date.now();
+    const rec = { id: genId(), name: t.name, st: normSt(t.st), baseRef: 1000, order: styles.reduce((m, s) => Math.max(m, s.order || 0), -1) + 1, createdAt: now, updatedAt: now };
+    try { await putOne(db, S_STYLES, rec); await loadStyles(); renderTextPicker(); showToast(`「${t.name}」をテンプレートに足しました`); }
+    catch (_) { showToast('保存できませんでした', true); }
   });
   $('atSaved').addEventListener('click', (e) => {
     const b = e.target.closest('.pick-item'); if (!b) return;
     const s = styles.find((x) => x.id === b.dataset.s); if (!s) return;
     closeModal('mAddText');
     addTextLayer(s.st, s.baseRef);
+  });
+  $('atManage').addEventListener('click', async () => { await renderStyleManager(); openModal('mStyles'); });
+
+  /* =====================================================================
+     作品をまたいでコピー・貼り付け（この端末の中。localStorage に配置だけを置く。画像は同じ端末の DB にあるものを指す）
+  ===================================================================== */
+  const LS_CLIP = 'sideops_pasteup_clip';
+  const CLIP_MARK = 'PASTEUP-CLIP:'; // Ctrl+C のとき、OS のクリップボードにはこの印を入れる（古い画像を貼り付けてしまわないように）
+  function readClip() {
+    try {
+      const c = JSON.parse(localStorage.getItem(LS_CLIP) || 'null');
+      if (c && Array.isArray(c.layers) && c.layers.length) return c;
+    } catch (_) { /* 壊れていたら無いことに */ }
+    return null;
+  }
+  function updatePasteBtn() {
+    const c = readClip();
+    $('pasteBtn').hidden = !c;
+    if (c) $('pasteBtn').title = `コピーした ${c.layers.length} 個を貼り付け（Ctrl+V）`;
+  }
+  function copyLayers(list, label) {
+    if (!cur || !list.length) return null;
+    const c = { at: Date.now(), from: cur.id, W: cur.W, H: cur.H, layers: JSON.parse(JSON.stringify(list)) };
+    const s = JSON.stringify(c);
+    if (s.length > 2000000) { showToast('多すぎてコピーできませんでした', true); return null; }
+    try { localStorage.setItem(LS_CLIP, s); } catch (_) { showToast('コピーできませんでした', true); return null; }
+    updatePasteBtn();
+    showToast(`${label}をコピーしました。\n別の作品を開いて「貼り付け」（Ctrl+V）できます`);
+    return c;
+  }
+  // 大きさの違う作品へは、位置と大きさを下の画像の大きさに合わせる（差し替えと同じ合わせ方）
+  async function pasteClip() {
+    if (!cur) return;
+    const c = readClip();
+    if (!c) { showToast('コピーしたものがありません', true); return; }
+    const room = MAX_LAYERS - cur.layers.length;
+    if (room <= 0) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); return; }
+    let layers = c.layers.map(normLayer).filter(Boolean);
+    const over = Math.max(0, layers.length - room);
+    layers = layers.slice(0, room);
+    const sw = num(c.W, cur.W, 1, 1e5), sh = num(c.H, cur.H, 1, 1e5);
+    if (sw !== cur.W || sh !== cur.H) rescaleLayers(layers, sw, sh, cur.W, cur.H);
+    if (c.from === cur.id) layers.forEach((L) => { L.x += cur.W * 0.03; L.y += cur.H * 0.03; }); // 同じ作品なら少しずらす
+    await Promise.all(layers.filter((L) => L.type === 'image').map((L) => ensureImg(L.blobId)));
+    let missing = 0;
+    layers = layers.filter((L) => {
+      if (L.type !== 'image') return true;
+      const ci = imgCache.get(L.blobId);
+      if (ci && ci.img) return true;
+      missing++; return false;
+    });
+    if (!layers.length) { showToast('貼り付けられるものがありません（画像が見つかりません）', true); return; }
+    layers.forEach((L) => { L.id = genId(); });
+    cur.layers.push(...layers);
+    selId = layers[layers.length - 1].id;
+    changed(true); refreshProps();
+    ensureFonts(layers, 4000).then(requestRender);
+    let msg = `${layers.length} 個を貼り付けました（↶ で戻せます）`;
+    if (missing) msg += `\n画像 ${missing} 個は見つからないので飛ばしました`;
+    if (over) msg += `\n上限を超える ${over} 個は貼り付けていません`;
+    showToast(msg, !!(missing || over));
+  }
+  $('pCopy').addEventListener('click', () => { const L = selLayer(); if (L) copyLayers([L], `「${layerLabel(L)}」`); });
+  $('copyAllBtn').addEventListener('click', () => {
+    if (!cur || !cur.layers.length) { showToast('重ねたものがありません', true); return; }
+    copyLayers(cur.layers, `重ねたもの ${cur.layers.length} 個`);
+  });
+  $('pasteBtn').addEventListener('click', pasteClip);
+  // Ctrl+C：選んでいるものをコピー（文字を入力中は、ふつうのコピー）
+  document.addEventListener('copy', (e) => {
+    if (!editorOpen() || anyModalOpen()) return;
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+    const L = selLayer(); if (!L) return;
+    const c = copyLayers([L], `「${layerLabel(L)}」`);
+    if (!c || !e.clipboardData) return;
+    e.clipboardData.setData('text/plain', CLIP_MARK + c.at);
+    e.preventDefault();
   });
 
   // ドラッグ＆ドロップ・貼り付け
@@ -2506,29 +2611,61 @@
     if (editorOpen()) await addImageFiles(files);
     else await newProjectFromFile(files[0]);
   });
+  // Ctrl+V：OS のクリップボードに画像があれば画像として、PASTEUP でコピーした印があれば、そのコピーを貼り付ける
   document.addEventListener('paste', async (e) => {
     if (!editorOpen() || anyModalOpen()) return;
     const tag = (document.activeElement && document.activeElement.tagName) || '';
     if (/INPUT|TEXTAREA/.test(tag)) return;
+    const text = (e.clipboardData && e.clipboardData.getData('text/plain')) || '';
+    if (text.startsWith(CLIP_MARK)) { e.preventDefault(); await pasteClip(); return; }
     const files = [...((e.clipboardData && e.clipboardData.files) || [])].filter((f) => /^image\//.test(f.type));
-    if (!files.length) return;
-    e.preventDefault();
-    await addImageFiles(files.map((f, i) => (f.name ? f : new File([f], `貼り付け${i + 1}.png`, { type: f.type }))));
+    if (files.length) {
+      e.preventDefault();
+      await addImageFiles(files.map((f, i) => (f.name ? f : new File([f], `貼り付け${i + 1}.png`, { type: f.type }))));
+      return;
+    }
+    if (readClip()) { e.preventDefault(); await pasteClip(); } // ボタンでコピーしたとき（OS のクリップボードは空・文字だけ）
   });
 
-  /* ===================== スタイル（同期する） ===================== */
+  /* =====================================================================
+     テンプレート（同期する。DB のストア名は styles のまま）
+     最初の4つは決まった ID で一度だけ入れる。入れた印（__seeded__）も同期するので、
+     ほかの端末で同期のあとに開いても、もう一度は入れない（消したものが戻らない）。
+     同期の前に初めて開いた端末では入るが、ID が同じなので2つにはならない
+  ===================================================================== */
+  const SEED_ID = '__seeded__';
+  const DEFAULT_TPLS = [
+    ['tpl_round', '吹き出し（角丸）'],
+    ['tpl_think', '考え事（もくもく）'],
+    ['tpl_shout', '叫び（トゲトゲ）'],
+    ['tpl_caption', '字幕（白・黒い縁）'],
+  ];
+  async function seedTemplates(all) {
+    if (all.some((r) => r && r.id === SEED_ID)) return false;
+    const now = Date.now();
+    for (let i = 0; i < DEFAULT_TPLS.length; i++) {
+      const [id, name] = DEFAULT_TPLS[i];
+      const b = BUILTIN.find((t) => t.name === name);
+      if (!b || all.some((r) => r && r.id === id)) continue;
+      await putOne(db, S_STYLES, { id, name, st: normSt(b.st), baseRef: 1000, order: i - DEFAULT_TPLS.length, createdAt: now, updatedAt: now });
+    }
+    await putOne(db, S_STYLES, { id: SEED_ID, seeded: true, createdAt: now, updatedAt: now });
+    return true;
+  }
   async function loadStyles() {
     try {
-      styles = (await getAll(db, S_STYLES)).filter((s) => s && s.id && s.st)
-        .map((s) => Object.assign({}, s, { name: cleanName(s.name) || 'スタイル', st: normSt(s.st), baseRef: num(s.baseRef, 1000, 1, 1e5) }))
-        .sort((a, b) => (a.order - b.order) || (a.createdAt - b.createdAt));
+      let all = await getAll(db, S_STYLES);
+      if (await seedTemplates(all)) all = await getAll(db, S_STYLES);
+      styles = all.filter((s) => s && s.id && s.id !== SEED_ID && s.st)
+        .map((s) => Object.assign({}, s, { name: cleanName(s.name) || 'テンプレート', st: normSt(s.st), baseRef: num(s.baseRef, 1000, 1, 1e5) }))
+        .sort((a, b) => ((a.order || 0) - (b.order || 0)) || (a.createdAt - b.createdAt));
     } catch (_) { styles = []; }
   }
   function renderStyleSelect() {
     const sel = $('pStyleSel');
     const v = sel.value;
-    sel.innerHTML = '<optgroup label="ひな形">' + BUILTIN.map((b, i) => `<option value="b:${i}">${esc(b.name)}</option>`).join('') + '</optgroup>'
-      + (styles.length ? '<optgroup label="保存したスタイル">' + styles.map((s) => `<option value="s:${esc(s.id)}">${esc(s.name)}</option>`).join('') + '</optgroup>' : '');
+    sel.innerHTML = (styles.length ? '<optgroup label="テンプレート">' + styles.map((s) => `<option value="s:${esc(s.id)}">${esc(s.name)}</option>`).join('') + '</optgroup>' : '')
+      + '<optgroup label="見本集">' + BUILTIN.map((b, i) => `<option value="b:${i}">${esc(b.name)}</option>`).join('') + '</optgroup>';
     if ([...sel.options].some((o) => o.value === v)) sel.value = v;
   }
   $('pStyleApply').addEventListener('click', () => {
@@ -2545,36 +2682,42 @@
     if (hasTail(L) && !L.tail) L.tail = defaultTail(L);
     changed(true); refreshProps();
     ensureFonts([L], 4000).then(requestRender);
-    showToast('スタイルを当てました（↶ で戻せます）');
+    showToast('テンプレートの見た目を当てました（↶ で戻せます）');
   });
+  function tplFromLayer(L) { return { st: normSt(L.st), baseRef: Math.min(cur.W, cur.H) }; }
   $('pStyleSave').addEventListener('click', async () => {
     const L = selLayer(); if (!L || L.type !== 'text') return;
     bakeLayer(L);
-    const name = await promptBox('今の見た目をスタイルとして保存', '', '書体・色・縁取り・枠などを保存します（文字の中身は保存しません）。同期します');
+    const name = await promptBox('今の見た目をテンプレートに保存', '', '書体・色・縁取り・枠などを保存します（文字の中身は保存しません）。ほかの端末と同期します');
     if (!name) return;
+    await loadStyles();
     const same = styles.find((s) => s.name === name);
     if (same && !(await confirmBox(`「${name}」はもうあります。今の見た目で上書きしますか？`, '上書きする'))) return;
     const now = Date.now();
     const rec = same
-      ? Object.assign({}, same, { st: normSt(L.st), baseRef: Math.min(cur.W, cur.H), updatedAt: now })
-      : { id: genId(), name, st: normSt(L.st), baseRef: Math.min(cur.W, cur.H), order: styles.reduce((m, s) => Math.max(m, s.order || 0), -1) + 1, createdAt: now, updatedAt: now };
-    try { await putOne(db, S_STYLES, rec); await loadStyles(); renderStyleSelect(); $('pStyleSel').value = 's:' + rec.id; showToast('保存しました'); }
+      ? Object.assign({}, same, tplFromLayer(L), { updatedAt: now })
+      : Object.assign({ id: genId(), name, order: styles.reduce((m, s) => Math.max(m, s.order || 0), -1) + 1, createdAt: now, updatedAt: now }, tplFromLayer(L));
+    try { await putOne(db, S_STYLES, rec); await loadStyles(); renderStyleSelect(); $('pStyleSel').value = 's:' + rec.id; showToast('テンプレートに保存しました'); }
     catch (_) { showToast('保存できませんでした', true); }
   });
   async function renderStyleManager() {
     await loadStyles();
-    $('stList').innerHTML = styles.length ? styles.map((s, i) => `
+    const L = editorOpen() ? selLayer() : null;
+    const canOverwrite = !!(L && L.type === 'text');
+    $('stList').innerHTML = (canOverwrite ? '' : '<div class="field-hint" style="margin-bottom:8px">中身を上書きするには、編集の画面で文字を選んでから開いてください。</div>')
+      + (styles.length ? styles.map((s, i) => `
       <div class="lib-row" data-id="${esc(s.id)}">
-        <div class="lr-main"><div class="lr-name">${esc(s.name)}</div><div class="lr-sub">${esc((FONT_BY.get(s.st.font) || FONTS[0]).label)}・${esc((FRAMES.find((f) => f.key === s.st.frame) || FRAMES[0]).label)}</div></div>
+        <div class="lr-main"><div class="lr-name">${esc(s.name)}</div><div class="lr-sub">${esc(fontInfo(s.st.font).label)}・${esc((FRAMES.find((f) => f.key === s.st.frame) || FRAMES[0]).label)}</div></div>
         <div class="lr-actions">
           <button class="btn small" type="button" data-act="up"${i === 0 ? ' disabled' : ''}>▲</button>
           <button class="btn small" type="button" data-act="down"${i === styles.length - 1 ? ' disabled' : ''}>▼</button>
           <button class="btn small" type="button" data-act="rename">名前</button>
+          ${canOverwrite ? '<button class="btn small" type="button" data-act="overwrite" title="選んでいる文字の見た目で上書き">上書き</button>' : ''}
           <button class="btn small danger" type="button" data-act="del">削除</button>
         </div>
-      </div>`).join('') : '<div class="field-hint">まだありません。文字を選んで「調整」の「今の見た目を保存」から作れます。</div>';
+      </div>`).join('') : '<div class="field-hint">テンプレートがありません。［＋文字］の「見本集から足す」か、文字を選んで「今の見た目をテンプレートに保存」で作れます。</div>');
   }
-  $('miStyles').addEventListener('click', async () => { await renderStyleManager(); openModal('mStyles'); });
+  $('miStyles').addEventListener('click', async () => { closeMenus(); await renderStyleManager(); openModal('mStyles'); });
   $('stList').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]'); const row = e.target.closest('.lib-row');
     if (!b || !row) return;
@@ -2588,17 +2731,26 @@
         const now = Date.now();
         for (let k = 0; k < list.length; k++) if (list[k].order !== k) { list[k].order = k; list[k].updatedAt = now; await putOne(db, S_STYLES, list[k]); }
       } else if (b.dataset.act === 'rename') {
-        const name = await promptBox('スタイルの名前', s.name);
+        const name = await promptBox('テンプレートの名前', s.name);
         if (!name) { openModal('mStyles'); return; }
-        if (styles.some((x) => x.name === name && x.id !== s.id)) { showToast('同じ名前のスタイルがあります', true); }
+        if (styles.some((x) => x.name === name && x.id !== s.id)) { showToast('同じ名前のテンプレートがあります', true); }
         else { s.name = name; s.updatedAt = Date.now(); await putOne(db, S_STYLES, s); }
         openModal('mStyles');
+      } else if (b.dataset.act === 'overwrite') {
+        const L = selLayer(); if (!L || L.type !== 'text') return;
+        if (!(await confirmBox(`テンプレート「${s.name}」の中身を、選んでいる文字の見た目で上書きしますか？\n（ほかの端末にも同期します）`, '上書きする'))) return;
+        bakeLayer(L);
+        Object.assign(s, tplFromLayer(L), { updatedAt: Date.now() });
+        await putOne(db, S_STYLES, s);
+        showToast('上書きしました');
       } else if (b.dataset.act === 'del') {
-        if (!(await confirmBox(`スタイル「${s.name}」を削除しますか？\n（使っている文字の見た目は変わりません。ほかの端末からも消えます）`, '削除する'))) return;
+        if (!(await confirmBox(`テンプレート「${s.name}」を削除しますか？\n（置いてある文字の見た目は変わりません。ほかの端末からも消えます。見本集にあるものは、見本集から足し直せます）`, '削除する'))) return;
         await delOne(db, S_STYLES, s.id);
       }
     } catch (_) { showToast('保存できませんでした', true); }
     await renderStyleManager();
+    if ($('mAddText').classList.contains('is-open')) renderTextPicker();
+    if (editorOpen()) renderStyleSelect();
   });
 
   /* ===================== 書き出す ===================== */
@@ -2678,6 +2830,7 @@
     layers.forEach((L) => {
       L.x *= sx; L.y *= sy;
       if (L.type === 'image') L.scale = clamp(L.scale * k, 0.005, 200);
+      else if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); L.block = clamp(L.block * k, 2, 400); L.blur = clamp(L.blur * k, 1, 200); }
       else { scaleSt(L.st, k); if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k }; }
     });
   }
@@ -2892,6 +3045,9 @@
     const projs = await getAll(wdb, S_PROJ);
     const refs = new Set();
     projs.forEach((p) => { refs.add(p.baseId); (p.layers || []).forEach((l) => { if (l && l.type === 'image') refs.add(l.blobId); }); });
+    // コピーしてまだ貼り付けていない画像も残す（コピー元の作品を消したあとでも貼り付けられるように）
+    const clip = readClip();
+    if (clip) clip.layers.forEach((l) => { if (l && l.type === 'image' && typeof l.blobId === 'string') refs.add(l.blobId); });
     const keys = await getAllKeys(wdb, S_BLOBS);
     const now = Date.now();
     for (const k of keys) {
