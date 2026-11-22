@@ -141,6 +141,14 @@
   .ed-main { flex: 1; min-height: 0; display: flex; }
   .stage-wrap { flex: 1; min-width: 0; min-height: 0; position: relative; background: var(--bg-alt); overflow: hidden; }
   .stage-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; outline: none; }
+  .brush-bar {
+    position: absolute; left: 8px; right: 8px; top: 8px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    background: rgba(var(--panel-rgb), .95); border: 1px solid var(--amber-dim); padding: 6px 8px; font-size: 11px; color: var(--text-dim);
+  }
+  .brush-bar .bb-target { color: var(--amber); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brush-bar .bb-size { display: inline-flex; align-items: center; gap: 4px; }
+  .brush-bar .bb-size input { width: 110px; accent-color: var(--amber); }
+  .brush-bar input[type=color] { width: 30px; height: 24px; border: 1px solid var(--line); background: var(--bg-alt); padding: 1px; }
   .side { width: 310px; flex-shrink: 0; border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
   .side-tabs { display: none; }
   .side-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 8px 12px 6px; font-size: 10.5px; color: var(--text-faint); letter-spacing: .04em; }
@@ -293,6 +301,7 @@
     .proj-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
     .ed-bar { padding: 6px 8px; gap: 4px; flex-wrap: wrap; }
     .ed-bar .btn { padding: 5px 8px; }
+    .ed-tools { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
     .ed-status { display: none; }
     .ed-main { flex-direction: column; }
     .side { width: auto; border-left: none; border-top: 1px solid var(--line); height: 44%; flex-shrink: 0; }
@@ -343,6 +352,7 @@
       <button class="btn small" id="addImgBtn" type="button">＋画像</button>
       <button class="btn small" id="addTextBtn" type="button">＋文字</button>
       <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶしの範囲を足す">＋モザイク</button>
+      <button class="btn small" id="brushBtn" type="button" title="消しゴム・ペン（選んでいる画像・文字、選んでいなければ下の画像）">消しゴム</button>
       <button class="btn small primary" id="exportBtn" type="button">書き出す</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="edMenuBtn" type="button" title="メニュー">☰</button>
@@ -357,7 +367,16 @@
     </div>
   </div>
   <div class="ed-main">
-    <div class="stage-wrap" id="stageWrap"><canvas id="cv" tabindex="0"></canvas></div>
+    <div class="stage-wrap" id="stageWrap"><canvas id="cv" tabindex="0"></canvas>
+      <div class="brush-bar" id="brushBar" hidden>
+        <span class="bb-target" id="bbTarget"></span>
+        <span class="seg" id="bbMode"><button class="btn" type="button" data-v="e" title="なぞったところを透明にする">消す</button><button class="btn" type="button" data-v="r" title="消したところを元に戻す">戻す</button><button class="btn" type="button" data-v="p" title="色で塗って隠す">塗る</button></span>
+        <input type="color" id="bbColor" value="#ffffff" title="塗る色">
+        <label class="bb-size">太さ <input type="range" id="bbSize" min="2" max="160" step="1"> <span id="bbSizeV"></span></label>
+        <button class="btn small" id="bbClear" type="button" title="この相手の消し跡・塗った跡を全部なくす（↶ で戻せる）">跡を全部なくす</button>
+        <button class="btn small primary" id="bbDone" type="button">終わる</button>
+      </div>
+    </div>
     <div class="side" id="side" data-tab="layers">
       <div class="side-tabs">
         <button type="button" data-tab="layers" class="is-active">レイヤー</button>
@@ -419,7 +438,7 @@
           <div class="p-sec" id="secBase">
             <div class="p-sec-title">下の画像</div>
             <div class="p-hint" id="pBaseInfo"></div>
-            <div class="p-row"><button class="btn small" id="pBaseSwap" type="button">下の画像を差し替える</button></div>
+            <div class="p-row"><button class="btn small" id="pBaseSwap" type="button">下の画像を差し替える</button><button class="btn small" id="pBaseBrush" type="button">消しゴム・ペン</button></div>
           </div>
           <div class="p-sec" id="secFx">
             <div class="p-sec-title">フィルター</div>
@@ -446,6 +465,7 @@
             <div class="p-row"><label class="p-lab">不透明度</label><input type="range" id="pOpacity" min="0" max="100" step="1"><input type="number" id="pOpacityN" min="0" max="100" step="1"></div>
             <div class="p-row"><label class="p-lab">回転 °</label><input type="range" id="pRotR" min="-180" max="180" step="1"><input type="number" id="pRot" min="-180" max="180" step="1"></div>
             <div class="p-row"><button class="btn small" id="pCenterX" type="button">横の中央へ</button><button class="btn small" id="pCenterY" type="button">縦の中央へ</button><button class="btn small" id="pRot0" type="button">回転を0に</button></div>
+            <div class="p-row" id="pBrushRow"><button class="btn small" id="pBrush" type="button">消しゴム・ペン</button><span class="p-hint" style="margin:0" id="pMarksInfo"></span></div>
             <div class="p-row"><button class="btn small" id="pFront" type="button">手前へ</button><button class="btn small" id="pBack" type="button">奥へ</button><button class="btn small" id="pDup" type="button">複製</button><button class="btn small" id="pCopy" type="button" title="コピーして、別の作品に貼り付けられる（Ctrl+C）">コピー</button><button class="btn small danger" id="pDel" type="button">削除</button></div>
           </div>
         </div>
@@ -879,6 +899,7 @@
   window.SideOpsBack = function () {
     if (anyModalOpen()) return false; // いつもの閉じ方に任せる
     if (document.querySelector('.menu-panel.is-open')) { closeMenus(); return true; }
+    if (brush.on) { exitBrush(); return true; }
     if (editorOpen()) { closeEditor(); return true; }
     return false;
   };
@@ -1017,6 +1038,34 @@
     if (fx.bl !== undefined && fx.bl > 0) a.push(`blur(${(fx.bl * (k || 1)).toFixed(2)}px)`);
     return a.length ? a.join(' ') : 'none';
   }
+  // 消しゴム・ペンの跡（なぞった線）。元の画像は書き換えず、線だけを持つ（↶ や「戻す」で元に戻せる）
+  //   { m:'e'（消す＝透明に）|'r'（戻す）|'p'（色で塗る）, w：太さ（その相手の座標）, c：色（塗るとき）, p:[x0,y0,x1,y1,…] }
+  const MAX_MARKS = 1500, MAX_MARK_PTS = 5000, MAX_MARK_TOTAL = 400000; // 線の本数・1本の点の数・相手ごとの数字の合計
+  function normMarks(a) {
+    if (!Array.isArray(a)) return [];
+    const out = [];
+    let total = 0;
+    for (const s of a.slice(0, MAX_MARKS)) {
+      if (!s || !Array.isArray(s.p)) continue;
+      const m = s.m === 'r' ? 'r' : s.m === 'p' ? 'p' : 'e';
+      const p = [];
+      for (let i = 0; i + 1 < s.p.length && p.length < MAX_MARK_PTS * 2; i += 2) {
+        const x = Number(s.p[i]), y = Number(s.p[i + 1]);
+        if (isFinite(x) && isFinite(y) && Math.abs(x) < 1e6 && Math.abs(y) < 1e6) p.push(x, y);
+      }
+      if (!p.length) continue;
+      total += p.length;
+      if (total > MAX_MARK_TOTAL) break;
+      const o = { m, w: num(s.w, 10, 0.3, 1e4), p };
+      if (m === 'p') o.c = isColor(s.c) ? s.c : '#ffffff';
+      out.push(o);
+    }
+    return out;
+  }
+  function markCount(marks) { return (marks || []).reduce((a, s) => a + s.p.length, 0); }
+  function scaleMarks(marks, k) {
+    (marks || []).forEach((s) => { s.w = clamp(s.w * k, 0.3, 1e4); for (let i = 0; i < s.p.length; i++) s.p[i] = Math.round(s.p[i] * k * 10) / 10; });
+  }
   // canvas の filter が使えるか（使えない端末ではフィルター・ぼかしを別のやり方に）
   const FILTER_OK = (() => {
     try { const g = document.createElement('canvas').getContext('2d'); if (typeof g.filter !== 'string') return false; g.filter = 'blur(2px)'; return g.filter === 'blur(2px)'; }
@@ -1039,7 +1088,7 @@
     };
     if (l.type === 'image') {
       if (typeof l.blobId !== 'string') return null;
-      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx) });
+      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx), marks: normMarks(l.marks) });
     }
     if (l.type === 'mosaic') { // モザイク・ぼかし・塗りつぶし（下にあるものすべてにかかる）
       return Object.assign(base, {
@@ -1053,7 +1102,7 @@
     }
     if (l.type === 'text') {
       const t = l.tail && typeof l.tail === 'object' ? { x: num(l.tail.x, 0, -1e6, 1e6), y: num(l.tail.y, 0, -1e6, 1e6) } : null;
-      return Object.assign(base, { type: 'text', text: String(l.text || '').slice(0, MAX_TEXT), st: normSt(l.st), tail: t });
+      return Object.assign(base, { type: 'text', text: String(l.text || '').slice(0, MAX_TEXT), st: normSt(l.st), tail: t, marks: normMarks(l.marks) });
     }
     return null;
   }
@@ -1417,15 +1466,96 @@
     ctx.globalAlpha = L.opacity;
     if (L.type === 'image') {
       const c = imgCache.get(L.blobId);
-      if (c && c.img) drawImageFx(ctx, c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0, L.fx);
-      else drawMissing(ctx, L.w0, L.h0);
+      const content = (g) => { if (c && c.img) drawImageFx(g, c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0, L.fx); else drawMissing(g, L.w0, L.h0); };
+      if (L.marks && L.marks.length) drawMarked(ctx, L.marks, { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 }, content);
+      else content(ctx);
     } else if (L.type === 'mosaic') {
       drawMosaic(ctx, L);
     } else {
       const info = shapeInfo(L);
-      drawFrame(ctx, L, info);
-      drawTextBody(ctx, L, info);
+      const content = (g) => { drawFrame(g, L, info); drawTextBody(g, L, info); };
+      if (L.marks && L.marks.length) drawMarked(ctx, L.marks, markBox(L), content);
+      else content(ctx);
     }
+    ctx.restore();
+  }
+  // 消しゴム・ペンが届く範囲（レイヤーの座標）。文字は影・縁取り・しっぽの先まで
+  function markBox(L) {
+    if (L.type === 'image') return { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 };
+    const i = shapeInfo(L), st = L.st;
+    const mg = st.size * 0.8 + st.strokeW + st.lineW * 2;
+    let x0 = -i.bw / 2 - mg, x1 = i.bw / 2 + mg, y0 = -i.bh / 2 - mg, y1 = i.bh / 2 + mg;
+    if (hasTail(L) && L.tail) { x0 = Math.min(x0, L.tail.x - mg); x1 = Math.max(x1, L.tail.x + mg); y0 = Math.min(y0, L.tail.y - mg); y1 = Math.max(y1, L.tail.y + mg); }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  // 作業用のキャンバス（大きくなったときだけ作り直す）
+  const pool = new Map();
+  function poolCanvas(key, w, h) {
+    let c = pool.get(key);
+    if (!c) { c = document.createElement('canvas'); pool.set(key, c); }
+    if (c.width < w || c.height < h) { c.width = Math.max(c.width, w); c.height = Math.max(c.height, h); }
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, w, h);
+    return { c, g };
+  }
+  function markPath(s) {
+    const p = new Path2D();
+    p.moveTo(s.p[0], s.p[1]);
+    if (s.p.length === 2) p.lineTo(s.p[0] + 0.01, s.p[1]); // 1点だけ（ちょんと押した）でも丸く描く
+    for (let i = 2; i < s.p.length; i += 2) p.lineTo(s.p[i], s.p[i + 1]);
+    return p;
+  }
+  // 中身を別のキャンバスに描いてから、線を順番に当てる（消す＝透明に・戻す＝元の中身を線の形で描き直す・塗る＝色）。
+  // できたものを、いまの不透明度で重ねる。box＝中身のある範囲（ctx の座標）。キャンバスの外は作らない
+  function drawMarked(ctx, marks, box, content) {
+    const m = ctx.getTransform(), cv = ctx.canvas;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    [[box.x, box.y], [box.x + box.w, box.y], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]].forEach(([x, y]) => {
+      const q = m.transformPoint(new DOMPoint(x, y));
+      x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+    });
+    const sx = Math.max(0, Math.floor(x0) - 2), sy = Math.max(0, Math.floor(y0) - 2);
+    const sw = Math.min(cv.width, Math.ceil(x1) + 2) - sx, sh = Math.min(cv.height, Math.ceil(y1) + 2) - sy;
+    if (sw < 1 || sh < 1) return;
+    const off = new DOMMatrix([m.a, m.b, m.c, m.d, m.e - sx, m.f - sy]);
+    const A = poolCanvas('mk_main', sw, sh);
+    A.g.setTransform(off);
+    content(A.g);
+    let O = null;
+    if (marks.some((s) => s.m === 'r')) { O = poolCanvas('mk_orig', sw, sh); O.g.setTransform(off); content(O.g); }
+    const g = A.g;
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const s of marks) {
+      const path = markPath(s);
+      g.setTransform(off);
+      if (s.m === 'e') {
+        g.globalCompositeOperation = 'destination-out';
+        g.strokeStyle = '#000'; g.lineWidth = s.w; g.stroke(path);
+        g.globalCompositeOperation = 'source-over';
+      } else if (s.m === 'p') {
+        g.save();
+        g.beginPath(); g.rect(box.x, box.y, box.w, box.h); g.clip();
+        g.strokeStyle = s.c; g.lineWidth = s.w; g.stroke(path);
+        g.restore();
+      } else if (O) {
+        const T = poolCanvas('mk_tmp', sw, sh);
+        T.g.setTransform(off);
+        T.g.lineCap = 'round'; T.g.lineJoin = 'round';
+        T.g.strokeStyle = '#000'; T.g.lineWidth = s.w; T.g.stroke(path);
+        T.g.setTransform(1, 0, 0, 1, 0, 0);
+        T.g.globalCompositeOperation = 'source-in';
+        T.g.drawImage(O.c, 0, 0);
+        T.g.globalCompositeOperation = 'source-over';
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.drawImage(T.c, 0, 0, sw, sh, 0, 0, sw, sh);
+      }
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(A.c, 0, 0, sw, sh, sx, sy, sw, sh);
     ctx.restore();
   }
   function hasFx(fx) { return !!fx && Object.keys(fx).length > 0; }
@@ -1482,8 +1612,12 @@
   }
   function drawScene(ctx, p, opts) {
     const c = imgCache.get(p.baseId);
-    if (c && c.img) drawImageFx(ctx, opts && opts.baseImg || c.img, 0, 0, p.W, p.H, p.baseFx);
-    else { ctx.save(); ctx.translate(p.W / 2, p.H / 2); drawMissing(ctx, p.W, p.H); ctx.restore(); }
+    const base = (g) => {
+      if (c && c.img) drawImageFx(g, opts && opts.baseImg || c.img, 0, 0, p.W, p.H, p.baseFx);
+      else { g.save(); g.translate(p.W / 2, p.H / 2); drawMissing(g, p.W, p.H); g.restore(); }
+    };
+    if (p.baseMarks && p.baseMarks.length) drawMarked(ctx, p.baseMarks, { x: 0, y: 0, w: p.W, h: p.H }, base);
+    else base(ctx);
     const lo = { clipW: p.W, clipH: p.H };
     p.layers.forEach((L) => drawLayer(ctx, L, lo));
   }
@@ -1623,7 +1757,8 @@
       ctx.stroke(); ctx.setLineDash([]);
     }
     const L = selLayer();
-    if (L && !L.hidden) drawHandles(L);
+    if (brush.on) drawBrushOverlay();
+    else if (L && !L.hidden) drawHandles(L);
   }
   function handlePoints(L) {
     const b = layerBox(L), hw = b.w / 2, hh = b.h / 2;
@@ -1691,9 +1826,20 @@
     if (!cur) return;
     if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
     cv.focus({ preventScroll: true });
+    // 画面の大きさが変わったのに測り直しが間に合っていなければ、ここで測り直す（スマホの向きを変えた直後など）
+    const cr = cv.getBoundingClientRect();
+    if (Math.abs(cr.width - view.cw) > 1 || Math.abs(cr.height - view.ch) > 1) { fitView(); render(); }
     const p = evPos(e);
     pointers.set(e.pointerId, p);
     try { cv.setPointerCapture(e.pointerId); } catch (_) { /* 何もしない */ }
+    if (brush.on) {
+      if (pointers.size > 1) { // 2本指になったら、なぞりかけの線は取り消す（うっかり線を防ぐ）
+        if (drag && drag.kind === 'brush') { const i = drag.marks.indexOf(drag.s); if (i >= 0) drag.marks.splice(i, 1); drag = null; requestRender(); }
+        return;
+      }
+      brushDown(p);
+      return;
+    }
     const L = selLayer();
     // 2本目の指：選んでいるものを2本指で大きさ・向き・位置
     if (pointers.size === 2) {
@@ -1731,6 +1877,7 @@
     const p = evPos(e);
     pointers.set(e.pointerId, p);
     if (!drag) return;
+    if (drag.kind === 'brush') { brushMove(p); return; }
     const L = drag.L;
     if (drag.kind === 'pinch') {
       if (pointers.size < 2) return;
@@ -1777,6 +1924,7 @@
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (!drag) return;
+    if (drag.kind === 'brush') { if (!pointers.size) { drag = null; changed(true); refreshProps(); } return; }
     if (drag.kind === 'pinch' && pointers.size === 1) { // 1本残ったら、そこから移動を続ける
       const L = drag.L; bakeLayer(L);
       const p = [...pointers.values()][0];
@@ -1806,16 +1954,157 @@
     if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); return; }
     scaleSt(L.st, k);
     if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k };
+    scaleMarks(L.marks, k);
   }
+
+  /* =====================================================================
+     消しゴム・ペン（ブラシ）
+     相手：選んでいる画像・文字（なければ下の画像）。なぞった線を相手の座標で持つ（相手を動かしても跡が付いてくる）。
+     太さは画面のピクセルで決め、相手の座標に直して持つ。1本なぞるごとに1回分の「元に戻す」
+  ===================================================================== */
+  const LS_BRUSH = 'sideops_pasteup_brush';
+  const brush = { on: false, target: null, mode: 'e', size: 30, color: '#ffffff', hover: null };
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_BRUSH) || 'null');
+    if (v) { brush.mode = ['e', 'r', 'p'].includes(v.mode) ? v.mode : 'e'; brush.size = num(v.size, 30, 2, 160); brush.color = isColor(v.color) ? v.color : '#ffffff'; }
+  } catch (_) { /* 既定のまま */ }
+  function saveBrushPrefs() { try { localStorage.setItem(LS_BRUSH, JSON.stringify({ mode: brush.mode, size: brush.size, color: brush.color })); } catch (_) { /* 何もしない */ } }
+  function brushable(id) {
+    if (id === BASE_SEL) return true;
+    const L = layerById(id);
+    return !!L && (L.type === 'image' || L.type === 'text');
+  }
+  function brushTarget() {
+    if (!cur || !brush.on) return null;
+    if (brush.target === BASE_SEL) return { kind: 'base' };
+    const L = layerById(brush.target);
+    return L && (L.type === 'image' || L.type === 'text') ? { kind: 'layer', L } : null;
+  }
+  function targetMarks(t) {
+    if (t.kind === 'base') { if (!Array.isArray(cur.baseMarks)) cur.baseMarks = []; return cur.baseMarks; }
+    if (!Array.isArray(t.L.marks)) t.L.marks = [];
+    return t.L.marks;
+  }
+  function brushLabel(id) {
+    if (id === BASE_SEL) return '下の画像';
+    const L = layerById(id); return L ? `${KIND_LABEL[L.type]}「${layerLabel(L)}」` : '';
+  }
+  function updateBrushBar() {
+    $('brushBar').hidden = !brush.on;
+    if (!brush.on) return;
+    $('bbTarget').textContent = '消しゴム・ペン：' + brushLabel(brush.target);
+    $('bbMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === brush.mode));
+    $('bbColor').hidden = brush.mode !== 'p';
+    $('bbColor').value = brush.color;
+    $('bbSize').value = brush.size; $('bbSizeV').textContent = brush.size + 'px';
+    disarm($('bbClear'));
+  }
+  function startBrush(id) {
+    if (!cur) return;
+    if (!id) { const L = selLayer(); id = selId === BASE_SEL ? BASE_SEL : L ? L.id : BASE_SEL; }
+    if (!brushable(id)) { showToast('消しゴムは、画像・文字・下の画像に使えます（モザイクには使えません）', true); return; }
+    const L = layerById(id);
+    if (L && L.hidden) { showToast('隠しているものには使えません。［見］で表示してから', true); return; }
+    brush.on = true; brush.target = id;
+    selId = id;
+    renderLayerList(); refreshProps();
+    updateBrushBar();
+    requestRender();
+    showToast(`${brushLabel(id)}をなぞって消します。終わったら［終わる］`);
+  }
+  function exitBrush() {
+    if (!brush.on) return;
+    if (drag && drag.kind === 'brush') drag = null;
+    brush.on = false; brush.hover = null;
+    updateBrushBar();
+    refreshProps();
+    requestRender();
+  }
+  // 画面の点 → 相手の座標（画像を左右反転していれば、反転した中身の座標に）。k＝相手の1単位が画面で何px か
+  function toTargetLocal(t, sx, sy) {
+    const bp = screenToBase(sx, sy);
+    if (t.kind === 'base') return { x: bp.x, y: bp.y, k: view.s };
+    const L = t.L, lp = baseToLocal(L, bp.x, bp.y);
+    if (L.type === 'image' && L.flipX) lp.x = -lp.x;
+    return { x: lp.x, y: lp.y, k: view.s * L.scale };
+  }
+  const r1 = (v) => Math.round(v * 10) / 10;
+  function brushDown(p) {
+    const t = brushTarget();
+    if (!t) { exitBrush(); return; }
+    const marks = targetMarks(t);
+    if (marks.length >= MAX_MARKS || markCount(marks) > MAX_MARK_TOTAL - 2000) {
+      showToast('跡が多すぎて、これ以上なぞれません。［跡を全部なくす］か、↶ で減らしてください', true); return;
+    }
+    const q = toTargetLocal(t, p.x, p.y);
+    const s = { m: brush.mode, w: Math.max(0.3, r1(brush.size / q.k)), p: [r1(q.x), r1(q.y)] };
+    if (s.m === 'p') s.c = brush.color;
+    marks.push(s);
+    drag = { kind: 'brush', t, s, marks, moved: true };
+    requestRender();
+  }
+  function brushMove(p) {
+    const s = drag.s;
+    if (s.p.length >= MAX_MARK_PTS * 2) return;
+    const q = toTargetLocal(drag.t, p.x, p.y);
+    const lx = s.p[s.p.length - 2], ly = s.p[s.p.length - 1];
+    if (Math.hypot(q.x - lx, q.y - ly) < Math.max(0.3, s.w * 0.12)) return;
+    s.p.push(r1(q.x), r1(q.y));
+    requestRender();
+  }
+  function drawBrushOverlay() {
+    const t = brushTarget(); if (!t) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,176,32,.95)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+    if (t.kind === 'base') ctx.strokeRect(view.ox, view.oy, cur.W * view.s, cur.H * view.s);
+    else {
+      const b = layerBox(t.L), hw = b.w / 2, hh = b.h / 2;
+      const pts = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => toScreen(t.L, x, y));
+      ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    if (brush.hover) { // ブラシの大きさの丸
+      const r = brush.size / 2;
+      ctx.beginPath(); ctx.arc(brush.hover.x, brush.hover.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = brush.mode === 'p' ? brush.color : brush.mode === 'r' ? '#00f0d0' : '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.restore();
+  }
+  cv.addEventListener('pointermove', (e) => { if (brush.on && e.pointerType === 'mouse') { brush.hover = evPos(e); requestRender(); } });
+  cv.addEventListener('pointerleave', () => { if (brush.hover) { brush.hover = null; requestRender(); } });
+  $('brushBtn').addEventListener('click', () => { if (brush.on) exitBrush(); else startBrush(); });
+  $('pBrush').addEventListener('click', () => startBrush(selId));
+  $('pBaseBrush').addEventListener('click', () => startBrush(BASE_SEL));
+  $('bbDone').addEventListener('click', exitBrush);
+  $('bbMode').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'); if (!b) return;
+    brush.mode = b.dataset.v; saveBrushPrefs(); updateBrushBar(); requestRender();
+  });
+  $('bbColor').addEventListener('input', () => { if (isColor($('bbColor').value)) { brush.color = $('bbColor').value.toLowerCase(); saveBrushPrefs(); } });
+  $('bbSize').addEventListener('input', () => { brush.size = num($('bbSize').value, 30, 2, 160); $('bbSizeV').textContent = brush.size + 'px'; saveBrushPrefs(); requestRender(); });
+  $('bbClear').addEventListener('click', () => {
+    const t = brushTarget(); if (!t) return;
+    const marks = targetMarks(t);
+    if (!marks.length) { showToast('跡はありません'); return; }
+    armTwice($('bbClear'), 'もう一度で全部なくす', () => {
+      marks.length = 0; changed(true); refreshProps();
+      showToast('跡を全部なくしました（↶ で戻せます）');
+    });
+  });
 
   /* ===================== 選択・やり直し・保存 ===================== */
   function select(id) {
+    if (brush.on) {
+      if (id && brushable(id) && !(layerById(id) || {}).hidden) { brush.target = id; updateBrushBar(); }
+      else exitBrush();
+    }
     selId = id;
     renderLayerList();
     refreshProps();
     requestRender();
   }
-  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, layers: cur.layers }); }
+  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, layers: cur.layers }); }
   // 変えたら呼ぶ。少し待って（またはすぐ）1回分の「元に戻す」に積む
   function changed(immediate) {
     requestRender();
@@ -1841,7 +2130,7 @@
   async function applySnap(s) {
     const o = JSON.parse(s);
     const baseChanged = o.baseId !== cur.baseId;
-    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx);
+    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx); cur.baseMarks = normMarks(o.baseMarks);
     cur.layers = o.layers;
     if (!layerById(selId)) selId = null;
     await loadImagesFor(cur);
@@ -1873,7 +2162,7 @@
     saveTimer = setTimeout(flushSave, 800);
   }
   function projRecord(p) {
-    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
+    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, baseMarks: p.baseMarks || [], layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
   }
   // quick：画面を離れるとき（再読み込み・アプリを閉じる）。見本の画像を作るのを待たずに、すぐ書く
   // （待っている間にページが消えると、最後の変更が残らない）。見本は次に保存するときに作り直す
@@ -1912,7 +2201,7 @@
   function writeRescue() {
     if (!cur || !dirty) return;
     try {
-      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, layers: cur.layers, updatedAt: Date.now() });
+      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, layers: cur.layers, updatedAt: Date.now() });
       if (s.length < 2000000) localStorage.setItem(LS_RESCUE, s);
     } catch (_) { /* 控えを書けなくても、いつもの保存はする */ }
   }
@@ -1931,7 +2220,7 @@
       if (rec && (rec.updatedAt || 0) < r.updatedAt && Array.isArray(r.layers)) {
         rec.layers = r.layers.map(normLayer).filter(Boolean);
         if (typeof r.baseId === 'string') { rec.baseId = r.baseId; rec.W = num(r.W, rec.W, 1, 1e5); rec.H = num(r.H, rec.H, 1, 1e5); }
-        rec.baseFx = normFx(r.baseFx); rec.name = cleanName(r.name) || rec.name;
+        rec.baseFx = normFx(r.baseFx); rec.baseMarks = normMarks(r.baseMarks); rec.name = cleanName(r.name) || rec.name;
         rec.updatedAt = r.updatedAt;
         await putOne(wdb, S_PROJ, rec);
       }
@@ -1979,7 +2268,7 @@
       cur = {
         id: rec.id, name: cleanName(rec.name) || '無題', baseId: rec.baseId, W: num(rec.W, 1, 1, 1e5), H: num(rec.H, 1, 1, 1e5),
         layers: (Array.isArray(rec.layers) ? rec.layers : []).map(normLayer).filter(Boolean),
-        baseFx: normFx(rec.baseFx), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
+        baseFx: normFx(rec.baseFx), baseMarks: normMarks(rec.baseMarks), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
       };
       clearImgCache();
       await loadImagesFor(cur);
@@ -2000,6 +2289,7 @@
     } finally { busy(false); }
   }
   async function closeEditor() {
+    exitBrush();
     commitHist();
     await flushSave();
     $('editor').classList.remove('is-open');
@@ -2026,11 +2316,11 @@
     const rows = [...cur.layers].reverse().map((L) => `
       <div class="layer-item${L.id === selId ? ' is-active' : ''}${L.hidden ? ' is-hidden' : ''}" data-id="${esc(L.id)}">
         <span class="li-kind">${KIND_LABEL[L.type] || ''}</span>
-        <span class="li-name">${esc(layerLabel(L))}</span>
+        <span class="li-name">${esc(layerLabel(L))}${L.marks && L.marks.length ? ' ✎' : ''}</span>
         <button class="icon-btn${L.hidden ? ' is-off' : ''}" type="button" data-act="eye" title="${L.hidden ? '表示する' : '隠す'}">${L.hidden ? '隠' : '見'}</button>
         <button class="icon-btn${L.locked ? ' is-on' : ''}" type="button" data-act="lock" title="${L.locked ? '固定を外す' : '固定する（画面の上で動かなくする）'}">${L.locked ? '固' : '動'}</button>
       </div>`).join('');
-    const fx = hasFx(cur.baseFx) ? '・フィルター' : '';
+    const fx = (hasFx(cur.baseFx) ? '・フィルター' : '') + (cur.baseMarks && cur.baseMarks.length ? ' ✎' : '');
     box.innerHTML = rows + `<div class="layer-item${selId === BASE_SEL ? ' is-active' : ''}" data-id="${BASE_SEL}"><span class="li-kind">下</span><span class="li-name">下の画像 ${cur.W}×${cur.H}${fx}</span></div>`;
     $('layerCount').textContent = `${cur.layers.length} / ${MAX_LAYERS}`;
   }
@@ -2101,6 +2391,9 @@
     $('secBase').hidden = type !== 'base';
     $('secFx').hidden = type !== 'image' && type !== 'base';
     $('secCommon').hidden = type === 'base';
+    $('pBrushRow').hidden = type !== 'image' && type !== 'text';
+    const mk = type === 'base' ? cur.baseMarks : L ? L.marks : null;
+    $('pMarksInfo').textContent = mk && mk.length ? `跡 ${mk.length} 本` : '';
     if (isBase) {
       $('pBaseInfo').textContent = `${cur.W}×${cur.H}。ここでのフィルターは下の画像だけにかかります（重ねたものにはかかりません）。`;
       refreshFx();
@@ -2357,6 +2650,7 @@
       const open = [...document.querySelectorAll('.modal-overlay.is-open')];
       if (open.length) { const ov = open[open.length - 1]; closeModal(ov.id); cancelModal(ov.id); return; }
       if (document.querySelector('.menu-panel.is-open')) { closeMenus(); return; }
+      if (editorOpen() && brush.on) { exitBrush(); return; }
       if (editorOpen() && selId) { select(null); return; }
       return;
     }
@@ -2370,6 +2664,7 @@
     const L = selLayer();
     if (!L) return;
     if (mod && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicateLayer(L); return; }
+    if (brush.on) return; // ブラシ中は、キーで消したり動かしたりしない
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteLayer(L); return; }
     const step = e.shiftKey ? 10 : 1;
     const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
@@ -2831,7 +3126,7 @@
       L.x *= sx; L.y *= sy;
       if (L.type === 'image') L.scale = clamp(L.scale * k, 0.005, 200);
       else if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); L.block = clamp(L.block * k, 2, 400); L.blur = clamp(L.blur * k, 1, 200); }
-      else { scaleSt(L.st, k); if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k }; }
+      else { scaleSt(L.st, k); if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k }; scaleMarks(L.marks, k); }
     });
   }
   $('emSwap').addEventListener('click', () => { closeMenus(); $('fileBase').click(); });
@@ -2844,7 +3139,9 @@
       imgCache.set(r.rec.id, { img: r.img, url: r.url });
       commitHist();
       rescaleLayers(cur.layers, cur.W, cur.H, r.rec.w, r.rec.h);
-      cur.baseId = r.rec.id; cur.W = r.rec.w; cur.H = r.rec.h;
+      const hadMarks = !!(cur.baseMarks && cur.baseMarks.length);
+      cur.baseId = r.rec.id; cur.W = r.rec.w; cur.H = r.rec.h; cur.baseMarks = [];
+      if (hadMarks) r.note = (r.note ? r.note + '\n' : '') + '前の下の画像に付けた消し跡・塗った跡はなくしました';
       fitView(); changed(true); refreshProps();
       showToast((r.note ? r.note + '\n' : '') + '下の画像を差し替えました（↶ で戻せます）');
     } catch (err) { showToast(err.message || String(err), true); }
