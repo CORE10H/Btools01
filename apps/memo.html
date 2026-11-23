@@ -285,6 +285,63 @@
   .card-delete-btn:hover { border-color: var(--magenta-dim); color: var(--magenta); }
   .card.select-target .card-delete-btn { display: none; }
 
+  /* ---- ピン止め（2026-11-23）。留めたメモは、どの並び順でも一番上に出る ---- */
+  .card-pin-btn {
+    position: absolute; top: 8px; right: 32px; width: 20px; height: 20px;
+    background: var(--bg); border: 1px solid var(--line); color: var(--text-faint);
+    font-size: 10px; cursor: pointer; opacity: 0; transition: opacity .12s ease;
+    display: flex; align-items: center; justify-content: center; filter: grayscale(1);
+  }
+  .card:hover .card-pin-btn { opacity: 1; }
+  .card-pin-btn:hover { border-color: var(--cyan-dim); }
+  .card.is-pinned { border-color: var(--cyan-dim); box-shadow: inset 3px 0 0 var(--cyan); }
+  .card.is-pinned .card-pin-btn { opacity: 1; filter: none; border-color: var(--cyan-dim); }
+  .card.is-pinned .card-title { padding-right: 48px; }
+  .card.select-target .card-pin-btn { display: none; }
+  /* 指で使う端末にはホバーがないので、留めていないメモにも薄く出しておく */
+  @media (hover: none) { .card-pin-btn { opacity: .55; } }
+  .card-date { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+  /* ---- フォルダ（2026-11-23）。1段だけ（フォルダの中にフォルダは作らない） ---- */
+  .folder-bar {
+    display: flex; align-items: center; gap: 6px; padding: 7px 16px; flex-shrink: 0;
+    border-bottom: 1px solid var(--line-soft); overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .folder-bar::-webkit-scrollbar { height: 4px; }
+  .folder-bar::-webkit-scrollbar-thumb { background: var(--line); }
+  .folder-bar.is-locked { opacity: .4; pointer-events: none; }
+  .folder-chip {
+    flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+    font-size: 11px; padding: 4px 10px; border: 1px solid var(--line); background: transparent;
+    color: var(--text-dim); cursor: pointer; white-space: nowrap; max-width: 200px;
+  }
+  .folder-chip .fc-name { overflow: hidden; text-overflow: ellipsis; }
+  .folder-chip .fc-count { font-size: 9.5px; color: var(--text-faint); }
+  .folder-chip:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .folder-chip.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .folder-chip.active .fc-count { color: var(--cyan); }
+  .folder-chip.fc-manage { border-style: dashed; color: var(--text-faint); }
+  @media (max-width: 640px) { .folder-bar { padding: 6px 12px; } }
+
+  .folder-list { display: flex; flex-direction: column; gap: 6px; }
+  .folder-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+  .folder-row .fr-name {
+    flex: 1 1 auto; min-width: 0; background: var(--bg-alt); border: 1px solid var(--line); padding: 5px 8px;
+    font-size: 11px; color: var(--text); outline: none;
+  }
+  .folder-row .fr-name:focus { border-color: var(--cyan-dim); }
+  .folder-row .fr-count { font-size: 10px; color: var(--text-faint); white-space: nowrap; min-width: 30px; text-align: right; }
+  .folder-row button {
+    flex-shrink: 0; height: 24px; min-width: 24px; padding: 0 6px; background: transparent; border: 1px solid var(--line);
+    color: var(--text-faint); font-size: 10px; cursor: pointer; white-space: nowrap;
+  }
+  .folder-row button:hover:not(:disabled) { border-color: var(--cyan-dim); color: var(--cyan); }
+  .folder-row button:disabled { opacity: .3; cursor: default; }
+  .folder-row .fr-del:hover, .folder-row .fr-del.is-armed { border-color: var(--magenta); color: var(--magenta); }
+  .move-list { display: flex; flex-direction: column; gap: 6px; }
+  .move-list .folder-chip { width: 100%; max-width: none; justify-content: space-between; }
+
   /* ---- エディタ画面（クリックで全面展開） ---- */
   .editor-overlay {
     position: fixed; inset: 0; background: rgba(var(--scrim-rgb),.72); display: none;
@@ -341,6 +398,21 @@
     font-size: 11px; cursor: pointer; font-family: inherit; white-space: nowrap;
   }
   .editor-copy:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  /* フォルダとピン止め（2026-11-23）。タイトルの下の1行 */
+  .editor-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 8px; flex-shrink: 0; }
+  .editor-folder { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-faint); min-width: 0; }
+  .editor-folder select {
+    font-family: inherit; font-size: 11px; color: var(--text-dim); background: var(--bg-alt);
+    border: 1px solid var(--line); padding: 3px 4px; outline: none; max-width: 180px; cursor: pointer;
+  }
+  .editor-folder select:focus, .editor-folder select:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .editor-folder select option { background: var(--panel); color: var(--text); }
+  .editor-pin {
+    font-family: inherit; font-size: 11px; padding: 3px 10px; background: transparent; cursor: pointer;
+    border: 1px solid var(--line); color: var(--text-faint);
+  }
+  .editor-pin:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .editor-pin.is-on { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
   .freq-tag-picker.editor-picker { padding: 0 16px 10px; margin-top: 0; }
 
   .editor-body-input {
@@ -400,19 +472,24 @@
       <div class="menu-wrap">
         <button class="hamburger-btn" id="hamburgerBtn" title="設定メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="menuItemFolders" type="button">フォルダの管理</button>
           <button class="menu-panel-item" id="menuItemFreqTags" type="button">よく使うタグ</button>
           <button class="menu-panel-item" id="menuItemTagColors" type="button">タグの色</button>
-          <button class="menu-panel-item" id="menuItemSelectMode" type="button">選択して削除</button>
+          <button class="menu-panel-item" id="menuItemSelectMode" type="button">選んで削除・移動</button>
         </div>
         <div class="menu-panel" id="selectModeMenuPanel">
           <button class="menu-panel-item" id="menuItemExitSelect" type="button">モード解除</button>
+          <button class="menu-panel-item" id="menuItemMoveSelected" type="button">フォルダへ移動…</button>
           <button class="menu-panel-item danger" id="menuItemDeleteSelected" type="button">削除</button>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="select-mode-hint" id="selectModeHint">選択削除モード：削除したいカードをクリックして選択してください。</div>
+  <!-- フォルダの帯（2026-11-23）。すべて・未分類・各フォルダ・管理 -->
+  <div class="folder-bar" id="folderBar" role="tablist" aria-label="フォルダ"></div>
+
+  <div class="select-mode-hint" id="selectModeHint">選択モード：カードを押して選び、☰ から「削除」か「フォルダへ移動」を選んでください。</div>
 
   <div class="app-body">
     <div class="grid" id="grid"></div>
@@ -431,6 +508,11 @@
       </div>
     </div>
     <input type="text" class="editor-title-input" id="editorTitleInput" maxlength="80" placeholder="タイトル（未入力の場合は本文冒頭を使用）">
+    <!-- フォルダ・ピン止め（2026-11-23）。Tabの巡回は変えないので tabindex="-1" -->
+    <div class="editor-meta-row">
+      <label class="editor-folder" title="入れるフォルダ"><span aria-hidden="true">📁</span><select id="editorFolderSelect" tabindex="-1" aria-label="フォルダ"></select></label>
+      <button class="editor-pin" id="editorPinBtn" type="button" tabindex="-1" aria-pressed="false" title="一覧の一番上に留める">📌 ピン止め</button>
+    </div>
     <div class="editor-tags-row" id="editorTagsRow">
       <textarea class="editor-tag-input" id="editorTagInput" rows="1" wrap="off" placeholder="タグを入力してEnter" aria-label="タグを入力"></textarea>
       <button class="editor-tag-add" id="editorTagAddBtn" type="button" tabindex="-1" title="入力中の文字をタグにする">＋追加</button>
@@ -487,6 +569,37 @@
   </div>
 </div>
 
+<!-- サブモーダル：フォルダの管理（2026-11-23） -->
+<div class="modal-overlay" id="folderModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:420px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft); flex-shrink:0;">
+      <span class="modal-title" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">フォルダの管理</span>
+      <button class="modal-close" id="folderModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
+    </div>
+    <div class="sub-modal-body">
+      <div class="freq-tag-add-row">
+        <input type="text" id="folderAddInput" maxlength="30" placeholder="新しいフォルダの名前" enterkeyhint="done">
+        <button class="btn" id="folderAddBtn" type="button">追加</button>
+      </div>
+      <div class="folder-list" id="folderList"></div>
+      <div class="menu-empty-hint" style="margin-top:12px;">名前は欄を直すと変わります。フォルダを消しても、中のメモは消えずに「未分類」へ移ります。</div>
+    </div>
+  </div>
+</div>
+
+<!-- サブモーダル：選んだメモをフォルダへ移動（2026-11-23） -->
+<div class="modal-overlay" id="moveModalOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:50; padding:20px;">
+  <div class="modal sub-modal" style="width:100%; max-width:360px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); padding:18px 20px 20px;">
+    <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line-soft); flex-shrink:0;">
+      <span class="modal-title" id="moveModalTitle" style="font-family:var(--font-display); font-size:13px; color:var(--text); letter-spacing:.04em;">フォルダへ移動</span>
+      <button class="modal-close" id="moveModalCloseBtn" style="width:22px; height:22px; background:transparent; border:1px solid var(--line); color:var(--text-faint); font-size:12px; cursor:pointer;">✕</button>
+    </div>
+    <div class="sub-modal-body">
+      <div class="move-list" id="moveList"></div>
+    </div>
+  </div>
+</div>
+
 <!-- 削除確認ダイアログ -->
 <div class="confirm-overlay" id="confirmOverlay">
   <div class="confirm-box">
@@ -508,7 +621,11 @@
      IndexedDB レイヤー
      プロンプトギャラリー（apps/prompt-gallery.html）と同じ設計方針を踏襲。
      画像を扱わないため保存内容はすべてテキスト（Blobなし）。
-     1件 = { id, title, body, tags: string[], createdAt, updatedAt }
+     1件 = { id, title, body, tags: string[], createdAt, updatedAt, folderId?, pinned? }
+       folderId：入れているフォルダのid（無い・消えたフォルダなら「未分類」）。2026-11-23〜
+       pinned：true なら一覧の一番上に留める。2026-11-23〜
+       ※フォルダとピンの変更では updatedAt を変えない（「更新」は中身を書き換えた日時のまま）
+     フォルダの一覧は settings ストアの key 'folders'：[{ id, name }]（並びがそのまま表示順）
   ===================================================================== */
   const DB_NAME = 'sideops_memo';
   const DB_VERSION = 1;
@@ -590,6 +707,16 @@
   let selectMode = false;
   let selectedForDelete = new Set();
 
+  /* フォルダ（2026-11-23）。1段だけ。どのフォルダを見ているかは端末ごとの好みなので localStorage に覚える */
+  const FOLDER_VIEW_KEY = 'sideops_memo_folder';
+  const FOLDER_NAME_MAX = 30;
+  const FOLDER_MAX = 50;
+  let folders = [];             // [{ id, name }]
+  let activeFolder = 'all';     // 'all'（すべて）| 'none'（未分類）| フォルダのid
+  try { activeFolder = localStorage.getItem(FOLDER_VIEW_KEY) || 'all'; } catch (err) { /* 覚えられない環境では「すべて」 */ }
+  let editFolderId = null;      // まだ保存していない新規メモのフォルダ
+  let editPinned = false;       // まだ保存していない新規メモのピン
+
   /* 並び順（2026-10-10）。端末ごとの好みなので、同期されるDB（settingsストア）ではなく
      localStorage に覚える。読めない値・使えない環境では「更新が新しい順」（以前の並び）に戻す */
   const SORT_KEY = 'sideops_memo_sort';
@@ -634,6 +761,20 @@
   const menuItemExitSelect = document.getElementById('menuItemExitSelect');
   const menuItemDeleteSelected = document.getElementById('menuItemDeleteSelected');
   const selectModeHint = document.getElementById('selectModeHint');
+  const menuItemFolders = document.getElementById('menuItemFolders');
+  const menuItemMoveSelected = document.getElementById('menuItemMoveSelected');
+  const folderBar = document.getElementById('folderBar');
+  const folderModalOverlay = document.getElementById('folderModalOverlay');
+  const folderModalCloseBtn = document.getElementById('folderModalCloseBtn');
+  const folderAddInput = document.getElementById('folderAddInput');
+  const folderAddBtn = document.getElementById('folderAddBtn');
+  const folderList = document.getElementById('folderList');
+  const moveModalOverlay = document.getElementById('moveModalOverlay');
+  const moveModalCloseBtn = document.getElementById('moveModalCloseBtn');
+  const moveModalTitle = document.getElementById('moveModalTitle');
+  const moveList = document.getElementById('moveList');
+  const editorFolderSelect = document.getElementById('editorFolderSelect');
+  const editorPinBtn = document.getElementById('editorPinBtn');
 
   const freqTagModalOverlay = document.getElementById('freqTagModalOverlay');
   const freqTagModalCloseBtn = document.getElementById('freqTagModalCloseBtn');
@@ -707,6 +848,7 @@
     entries = await dbGetAll();
     entries.sort((a, b) => b.updatedAt - a.updatedAt);
     renderTagChips();
+    renderFolderBar();
     renderGrid();
   }
 
@@ -815,7 +957,59 @@
   tagMoreModalCloseBtn.addEventListener('click', closeTagMoreModal);
   tagMoreModalOverlay.addEventListener('click', (e) => { if (e.target === tagMoreModalOverlay) closeTagMoreModal(); });
 
+  /* ===================== フォルダ（2026-11-23） ===================== */
+  // メモが入っているフォルダ。無い・消えたフォルダ（ほかの端末で消した等）なら null（＝未分類として見せる）
+  function folderOf(entry) {
+    const id = entry && entry.folderId;
+    return id && folders.some(f => f.id === id) ? id : null;
+  }
+  function folderName(id) {
+    const f = folders.find(x => x.id === id);
+    return f ? f.name : '未分類';
+  }
+  function setActiveFolder(key) {
+    activeFolder = key;
+    try { localStorage.setItem(FOLDER_VIEW_KEY, key); } catch (err) { /* 覚えられなくても切り替える */ }
+    renderFolderBar();
+    renderGrid();
+  }
+  function renderFolderBar() {
+    // 歯止め：消えたフォルダを見ていたら「すべて」に戻す
+    if (activeFolder !== 'all' && activeFolder !== 'none' && !folders.some(f => f.id === activeFolder)) activeFolder = 'all';
+    const counts = new Map();
+    let none = 0;
+    entries.forEach(e => {
+      const f = folderOf(e);
+      if (f) counts.set(f, (counts.get(f) || 0) + 1); else none++;
+    });
+    folderBar.innerHTML = '';
+    const add = (key, label, count, extraClass) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'folder-chip' + (extraClass ? ' ' + extraClass : '') + (key === activeFolder ? ' active' : '');
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(key === activeFolder));
+      b.dataset.folder = key;
+      b.innerHTML = `<span class="fc-name">${escapeHtml(label)}</span>` + (count == null ? '' : `<span class="fc-count">${count}</span>`);
+      b.title = label;
+      b.addEventListener('click', () => {
+        if (key === '__manage__') { openFolderModal(); return; }
+        setActiveFolder(key);
+      });
+      folderBar.appendChild(b);
+      return b;
+    };
+    add('all', 'すべて', entries.length);
+    folders.forEach(f => add(f.id, f.name, counts.get(f.id) || 0));
+    add('none', '未分類', none);
+    add('__manage__', folders.length ? '＋ ／ 編集' : '＋ フォルダを作る', null, 'fc-manage');
+    const act = folderBar.querySelector('.folder-chip.active');
+    if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
   function matchesFilter(entry) {
+    if (activeFolder === 'none' && folderOf(entry)) return false;
+    if (activeFolder !== 'all' && activeFolder !== 'none' && folderOf(entry) !== activeFolder) return false;
     if (activeTagFilter && !(entry.tags || []).includes(activeTagFilter)) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -856,7 +1050,8 @@
   });
 
   function renderGrid() {
-    const list = entries.filter(matchesFilter).sort(compareEntries);
+    // ピン止めしたメモは、どの並び順でも一番上（その中は選んだ並び順）
+    const list = entries.filter(matchesFilter).sort((a, b) => (!!b.pinned - !!a.pinned) || compareEntries(a, b));
     const bodyEl = grid.parentElement;
     const existingEmpty = bodyEl.querySelector('.empty-state');
     if (existingEmpty) existingEmpty.remove();
@@ -879,7 +1074,9 @@
       empty.className = 'empty-state';
       empty.innerHTML = `
         <div class="big">該当するメモがありません</div>
-        <div class="small">検索条件やタグ絞り込みを変えてみてください。</div>
+        <div class="small">${activeFolder !== 'all' && !searchQuery && !activeTagFilter
+          ? `「${escapeHtml(activeFolder === 'none' ? '未分類' : folderName(activeFolder))}」にはメモがありません。ここで「＋ 新規メモ」を押すと、このフォルダに作られます。`
+          : `検索条件やタグ絞り込み${activeFolder !== 'all' ? '・フォルダ' : ''}を変えてみてください。`}</div>
       `;
       bodyEl.appendChild(empty);
       return;
@@ -888,21 +1085,25 @@
     grid.innerHTML = '';
     list.forEach(entry => {
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card' + (entry.pinned ? ' is-pinned' : '');
       card.dataset.id = entry.id;
 
       const tagsHtml = (entry.tags || []).map(t => `<span class="tag-pill"${tagPillStyle(t)}>${escapeHtml(t)}</span>`).join('');
       const isMarked = selectedForDelete.has(entry.id);
+      // 「すべて」を見ているときは、どのフォルダのメモかを日時の前に出す
+      const fid = folderOf(entry);
+      const folderLabel = activeFolder === 'all' && fid ? `📁${escapeHtml(folderName(fid))} · ` : '';
 
       card.innerHTML = `
         <div class="card-title">${escapeHtml(displayTitle(entry))}</div>
         <div class="card-excerpt">${escapeHtml(entry.body || '')}</div>
         <div class="card-meta">
-          <span class="card-date">${formatDate(entry.updatedAt)}</span>
+          <span class="card-date">${folderLabel}${formatDate(entry.updatedAt)}</span>
           <div class="card-tags">${tagsHtml}</div>
         </div>
+        <button class="card-pin-btn" type="button" title="${entry.pinned ? 'ピン止めを外す' : '一番上に留める（ピン止め）'}" aria-pressed="${entry.pinned ? 'true' : 'false'}">📌</button>
         <button class="card-delete-btn" type="button" title="削除">🗑</button>
-        <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">消去</span></div>
+        <div class="card-erase-overlay${isMarked ? ' is-marked' : ''}"><span class="erase-label">選択</span></div>
       `;
 
       if (selectMode) {
@@ -910,6 +1111,13 @@
         card.addEventListener('click', () => toggleSelectForDelete(entry.id));
       } else {
         card.addEventListener('click', () => openEditor(entry));
+        card.querySelector('.card-pin-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const on = !entry.pinned;
+          setMeta(entry.id, { pinned: on });
+          showToast(on ? '一番上に留めました' : 'ピン止めを外しました');
+          renderGrid();
+        });
         card.querySelector('.card-delete-btn').addEventListener('click', (e) => {
           e.stopPropagation();
           openConfirmDelete(entry.id);
@@ -981,7 +1189,9 @@
     setEditorStatus('保存中…', 'saving');
 
     const existing = editingId ? entries.find(e => e.id === editingId) : null;
+    // 既存のメモは、ここで扱わない項目（フォルダ・ピン、これから増える項目）をそのまま引き継ぐ（2026-11-23）
     const entry = {
+      ...(existing || {}),
       id: editingId || ('m_' + now + '_' + Math.random().toString(36).slice(2, 8)),
       title,
       body,
@@ -989,6 +1199,10 @@
       createdAt: existing ? existing.createdAt : now,
       updatedAt: now,
     };
+    if (!existing) {
+      if (editFolderId) entry.folderId = editFolderId;
+      if (editPinned) entry.pinned = true;
+    }
 
     try {
       await dbPut(entry);
@@ -1124,8 +1338,70 @@
     });
   }
 
+  /* フォルダ・ピンだけを書き換える（2026-11-23）。中身の「更新」日時は変えない。
+     画面の値（entries）はすぐ変え、DBへの書き込みは自動保存と同じ列（savePromiseChain）に並べる。
+     書き込む直前に entries から読み直すので、先に並んだ本文の保存を古い本文で上書きしない */
+  function setMeta(id, patch) {
+    const idx = entries.findIndex(e => e.id === id);
+    if (idx < 0) return Promise.resolve(false);
+    entries[idx] = { ...entries[idx], ...patch };
+    if (patch.pinned === false) delete entries[idx].pinned;
+    if (patch.folderId === null) delete entries[idx].folderId;
+    savePromiseChain = savePromiseChain.then(async () => {
+      const cur = entries.find(e => e.id === id);
+      if (cur) await dbPut(cur);
+      return true;
+    }).catch((err) => {
+      console.error(err);
+      showToast('保存に失敗しました');
+      return false;
+    });
+    return savePromiseChain;
+  }
+
+  function fillEditorFolderSelect(value) {
+    editorFolderSelect.innerHTML = '';
+    const opt = (v, label) => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = label;
+      editorFolderSelect.appendChild(o);
+    };
+    opt('', '未分類');
+    folders.forEach(f => opt(f.id, f.name));
+    editorFolderSelect.value = value || '';
+  }
+  function editorIsPinned() {
+    if (!editingId) return editPinned;
+    const e = entries.find(x => x.id === editingId);
+    return !!(e && e.pinned);
+  }
+  function syncEditorPinBtn() {
+    const on = editorIsPinned();
+    editorPinBtn.classList.toggle('is-on', on);
+    editorPinBtn.setAttribute('aria-pressed', String(on));
+    editorPinBtn.textContent = on ? '📌 ピン止め中' : '📌 ピン止め';
+  }
+  editorFolderSelect.addEventListener('change', () => {
+    const v = editorFolderSelect.value || null;
+    if (v && !folders.some(f => f.id === v)) return;
+    if (editingId) setMeta(editingId, { folderId: v });
+    else editFolderId = v;
+    showToast(`「${v ? folderName(v) : '未分類'}」に入れました`);
+  });
+  editorPinBtn.addEventListener('click', () => {
+    const on = !editorIsPinned();
+    if (editingId) setMeta(editingId, { pinned: on });
+    else editPinned = on;
+    syncEditorPinBtn();
+  });
+
   function openEditor(entry) {
     editingId = entry ? entry.id : null;
+    // 新規メモは、いま見ているフォルダに作る（「すべて」「未分類」なら未分類）
+    editFolderId = entry ? null : (folders.some(f => f.id === activeFolder) ? activeFolder : null);
+    editPinned = false;
+    fillEditorFolderSelect(entry ? folderOf(entry) : editFolderId);
+    syncEditorPinBtn();
     editTags = entry ? [...(entry.tags || [])] : [];
     editorTitleInput.value = entry ? (entry.title || '') : '';
     editorBodyInput.value = entry ? (entry.body || '') : '';
@@ -1163,7 +1439,10 @@
 
     editingId = null;
     editTags = [];
+    editFolderId = null;
+    editPinned = false;
     renderTagChips();
+    renderFolderBar();
     renderGrid();
   }
 
@@ -1234,6 +1513,7 @@
       }
       if (wasMultiple) exitSelectMode();
       renderTagChips();
+      renderFolderBar();
       renderGrid();
     }
   });
@@ -1268,6 +1548,8 @@
       else if (editorOverlay.classList.contains('is-open')) closeEditor();
       else if (freqTagModalOverlay.classList.contains('is-open')) closeFreqTagModal();
       else if (tagColorModalOverlay.classList.contains('is-open')) closeTagColorModal();
+      else if (moveModalOverlay.classList.contains('is-open')) closeMoveModal();
+      else if (folderModalOverlay.classList.contains('is-open')) closeFolderModal();
       else if (tagMoreModalOverlay.classList.contains('is-open')) closeTagMoreModal();
       else if (menuPanel.classList.contains('is-open') || selectModeMenuPanel.classList.contains('is-open')) closeMenu();
     }
@@ -1407,8 +1689,194 @@
     });
   }
 
+  /* ===================== メニュー項目：フォルダの管理（2026-11-23） =====================
+     歯止め：
+       ・名前は空・同じ名前・30文字より長いものを受け付けない（長い分は切る）。50個まで
+       ・消すのは2回押し（1回目で「もう一度で削除」、3秒で元に戻る）。中のメモは消さずに「未分類」へ移す
+       ・フォルダを先に消してからメモの印を外す。途中で止まっても、消えたフォルダの印は「未分類」として見える */
+  function sanitizeFolders(v) {
+    if (!Array.isArray(v)) return [];
+    const seen = new Set();
+    return v.filter(f => f && typeof f.id === 'string' && typeof f.name === 'string' && f.name.trim() && !seen.has(f.id) && seen.add(f.id))
+      .map(f => ({ id: f.id, name: f.name.trim().slice(0, FOLDER_NAME_MAX) }));
+  }
+  function normFolderName(s) { return String(s || '').replace(/\s+/g, ' ').trim().slice(0, FOLDER_NAME_MAX); }
+  function folderNameError(name, exceptId) {
+    if (!name) return 'フォルダの名前を入れてください';
+    if (name === 'すべて' || name === '未分類') return `「${name}」は使えない名前です`;
+    if (folders.some(f => f.name === name && f.id !== exceptId)) return '同じ名前のフォルダがあります';
+    return '';
+  }
+  async function saveFolders() {
+    try { await dbSetSetting('folders', folders); return true; }
+    catch (err) { console.error(err); showToast('フォルダを保存できませんでした'); return false; }
+  }
+  function refreshAfterFolderChange() {
+    renderFolderList();
+    renderFolderBar();
+    renderGrid();
+    if (editorIsOpen) fillEditorFolderSelect(editingId ? folderOf(entries.find(e => e.id === editingId)) : editFolderId);
+  }
+
+  function openFolderModal() {
+    closeMenu();
+    renderFolderList();
+    folderModalOverlay.classList.add('is-open');
+    if (window.matchMedia('(pointer: fine)').matches) folderAddInput.focus();
+  }
+  function closeFolderModal() {
+    disarmFolderDelete();
+    folderModalOverlay.classList.remove('is-open');
+  }
+  menuItemFolders.addEventListener('click', openFolderModal);
+  folderModalCloseBtn.addEventListener('click', closeFolderModal);
+  folderModalOverlay.addEventListener('click', (e) => { if (e.target === folderModalOverlay) closeFolderModal(); });
+
+  async function addFolder() {
+    const name = normFolderName(folderAddInput.value);
+    const err = folderNameError(name, null);
+    if (err) { showToast(err); return; }
+    if (folders.length >= FOLDER_MAX) { showToast(`フォルダは${FOLDER_MAX}個までです`); return; }
+    folders.push({ id: 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), name });
+    if (!(await saveFolders())) { folders.pop(); return; }
+    folderAddInput.value = '';
+    showToast(`「${name}」を作りました`);
+    refreshAfterFolderChange();
+  }
+  folderAddBtn.addEventListener('click', addFolder);
+  // Enter でも作れる（変換の確定では動かない）。スマホのキーボードは Enter を知らせないことがあるので、「追加」ボタンが確実な手段
+  folderAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !isComposingKey(e)) { e.preventDefault(); addFolder(); }
+  });
+
+  let folderDelArmed = null; // { id, timer }
+  function disarmFolderDelete() {
+    if (!folderDelArmed) return;
+    clearTimeout(folderDelArmed.timer);
+    folderDelArmed = null;
+    folderList.querySelectorAll('.fr-del.is-armed').forEach(b => { b.classList.remove('is-armed'); b.textContent = '削除'; });
+  }
+
+  function renderFolderList() {
+    folderDelArmed && clearTimeout(folderDelArmed.timer);
+    folderDelArmed = null;
+    folderList.innerHTML = '';
+    if (folders.length === 0) {
+      folderList.innerHTML = '<div class="menu-empty-hint">まだフォルダがありません。上の欄に名前を入れて追加してください。</div>';
+      return;
+    }
+    const counts = new Map();
+    entries.forEach(e => { const f = folderOf(e); if (f) counts.set(f, (counts.get(f) || 0) + 1); });
+    folders.forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'folder-row';
+      row.dataset.id = f.id;
+      const name = document.createElement('input');
+      name.type = 'text'; name.className = 'fr-name'; name.value = f.name; name.maxLength = FOLDER_NAME_MAX;
+      name.setAttribute('aria-label', 'フォルダの名前');
+      // 名前の変更：欄を離れたとき・Enter（change）で確定。だめな名前なら元に戻す
+      name.addEventListener('change', async () => {
+        const nn = normFolderName(name.value);
+        if (nn === f.name) { name.value = f.name; return; }
+        const err = folderNameError(nn, f.id);
+        if (err) { showToast(err); name.value = f.name; return; }
+        const old = f.name;
+        f.name = nn;
+        if (!(await saveFolders())) { f.name = old; name.value = old; return; }
+        name.value = nn;
+        showToast('名前を変えました');
+        renderFolderBar();
+        renderGrid();
+        if (editorIsOpen) fillEditorFolderSelect(editingId ? folderOf(entries.find(e => e.id === editingId)) : editFolderId);
+      });
+      name.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !isComposingKey(e)) { e.preventDefault(); name.blur(); }
+      });
+      const count = document.createElement('span');
+      count.className = 'fr-count';
+      count.textContent = `${counts.get(f.id) || 0}件`;
+      const mk = (label, title, cls) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = label; b.title = title;
+        if (cls) b.className = cls;
+        return b;
+      };
+      const up = mk('↑', '上へ');
+      const down = mk('↓', '下へ');
+      up.disabled = idx === 0;
+      down.disabled = idx === folders.length - 1;
+      const swap = async (j) => {
+        [folders[idx], folders[j]] = [folders[j], folders[idx]];
+        if (!(await saveFolders())) [folders[idx], folders[j]] = [folders[j], folders[idx]];
+        refreshAfterFolderChange();
+      };
+      up.addEventListener('click', () => swap(idx - 1));
+      down.addEventListener('click', () => swap(idx + 1));
+      const del = mk('削除', 'フォルダを消す（2回押す。中のメモは「未分類」へ）', 'fr-del');
+      del.addEventListener('click', async () => {
+        if (!folderDelArmed || folderDelArmed.id !== f.id) {
+          disarmFolderDelete();
+          const n = counts.get(f.id) || 0;
+          del.classList.add('is-armed');
+          del.textContent = n ? `もう一度で削除（${n}件は未分類へ）` : 'もう一度で削除';
+          folderDelArmed = { id: f.id, timer: setTimeout(disarmFolderDelete, 3000) };
+          return;
+        }
+        disarmFolderDelete();
+        const removed = f;
+        folders = folders.filter(x => x.id !== removed.id);
+        if (!(await saveFolders())) { folders.splice(idx, 0, removed); refreshAfterFolderChange(); return; }
+        const inside = entries.filter(e => e.folderId === removed.id).map(e => e.id);
+        inside.forEach(id => setMeta(id, { folderId: null }));
+        if (editFolderId === removed.id) editFolderId = null;
+        if (activeFolder === removed.id) setActiveFolder('all');
+        showToast(`「${removed.name}」を消しました${inside.length ? `（${inside.length}件は未分類へ）` : ''}`);
+        refreshAfterFolderChange();
+      });
+      row.append(name, count, up, down, del);
+      folderList.appendChild(row);
+    });
+  }
+
+  /* ---- 選んだメモをフォルダへ移動（選択モード。2026-11-23） ---- */
+  function openMoveModal() {
+    closeMenu();
+    if (selectedForDelete.size === 0) { showToast('移動するメモを選んでください'); return; }
+    moveModalTitle.textContent = `${selectedForDelete.size}件をフォルダへ移動`;
+    moveList.innerHTML = '';
+    const add = (id, label) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'folder-chip';
+      b.innerHTML = `<span class="fc-name">${escapeHtml(label)}</span>`;
+      b.addEventListener('click', () => {
+        const ids = Array.from(selectedForDelete);
+        ids.forEach(x => setMeta(x, { folderId: id }));
+        closeMoveModal();
+        showToast(`${ids.length}件を「${label}」へ移動しました`);
+        exitSelectMode();
+        renderFolderBar();
+      });
+      moveList.appendChild(b);
+    };
+    folders.forEach(f => add(f.id, f.name));
+    add(null, '未分類');
+    if (!folders.length) {
+      const hint = document.createElement('div');
+      hint.className = 'menu-empty-hint';
+      hint.textContent = 'まだフォルダがありません。☰ →「フォルダの管理」で作れます。';
+      moveList.prepend(hint);
+    }
+    moveModalOverlay.classList.add('is-open');
+  }
+  function closeMoveModal() { moveModalOverlay.classList.remove('is-open'); }
+  menuItemMoveSelected.addEventListener('click', openMoveModal);
+  moveModalCloseBtn.addEventListener('click', closeMoveModal);
+  moveModalOverlay.addEventListener('click', (e) => { if (e.target === moveModalOverlay) closeMoveModal(); });
+
   /* ===================== メニュー項目：選択削除モード ===================== */
   function setSelectModeUiLock(locked) {
+    // 歯止め：選んでいる間はフォルダを切り替えない（見えていないメモを選んだまま消さないように）
+    folderBar.classList.toggle('is-locked', locked);
     searchInput.disabled = locked;
     addBtn.disabled = locked;
     addBtn.style.opacity = locked ? '.4' : '';
@@ -1471,6 +1939,7 @@
     const savedTagColors = await dbGetSetting('tagColors');
     frequentTags = Array.isArray(savedFreqTags) ? savedFreqTags : [];
     tagColors = (savedTagColors && typeof savedTagColors === 'object') ? savedTagColors : {};
+    folders = sanitizeFolders(await dbGetSetting('folders'));
     await loadAndRender();
   }).catch((err) => {
     console.error('IndexedDBの初期化に失敗しました', err);
