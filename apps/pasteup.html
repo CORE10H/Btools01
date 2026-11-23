@@ -193,6 +193,9 @@
   .seg { display: inline-flex; }
   .seg .btn { padding: 4px 9px; font-size: 10.5px; }
   .seg .btn + .btn { border-left: none; }
+  /* 選ぶものが多いときは折り返す（スマホの幅からはみ出さないように） */
+  .seg.seg-wrap { display: inline-flex; flex-wrap: wrap; flex: 1; min-width: 0; gap: 3px; }
+  .seg.seg-wrap .btn + .btn { border-left: 1px solid var(--line); }
 
   /* ---- モーダル共通 ---- */
   .modal-overlay {
@@ -351,7 +354,7 @@
       <button class="btn small" id="redoBtn" type="button" title="やり直す（Ctrl+Y）">↷</button>
       <button class="btn small" id="addImgBtn" type="button">＋画像</button>
       <button class="btn small" id="addTextBtn" type="button">＋文字</button>
-      <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶしの範囲を足す">＋モザイク</button>
+      <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶし・すりガラス・湯気・光の帯の範囲を足す">＋モザイク</button>
       <button class="btn small" id="brushBtn" type="button" title="消しゴム・ペン（選んでいる画像・文字、選んでいなければ下の画像）">消しゴム</button>
       <button class="btn small primary" id="exportBtn" type="button">書き出す</button>
       <div class="menu-wrap">
@@ -448,16 +451,21 @@
           </div>
           <!-- モザイク -->
           <div class="p-sec" id="secMosaic">
-            <div class="p-sec-title">モザイク・ぼかし</div>
+            <div class="p-sec-title">モザイク・効果</div>
             <div class="p-row"><label class="p-lab">種類</label>
-              <span class="seg" id="pMoMode"><button class="btn" type="button" data-v="pixel">モザイク</button><button class="btn" type="button" data-v="blur">ぼかし</button><button class="btn" type="button" data-v="fill">塗りつぶし</button></span></div>
+              <span class="seg seg-wrap" id="pMoMode"><button class="btn" type="button" data-v="pixel">モザイク</button><button class="btn" type="button" data-v="blur">ぼかし</button><button class="btn" type="button" data-v="fill">塗りつぶし</button><button class="btn" type="button" data-v="frost">すりガラス</button><button class="btn" type="button" data-v="steam">湯気</button><button class="btn" type="button" data-v="light">光の帯</button></span></div>
             <div class="p-row"><label class="p-lab">形</label>
               <span class="seg" id="pMoShape"><button class="btn" type="button" data-v="rect">四角</button><button class="btn" type="button" data-v="ellipse">だ円</button></span></div>
             <div class="p-row" id="pMoBlockRow"><label class="p-lab">粗さ</label><input type="range" id="pMoBlockR" min="2" max="120" step="1"><input type="number" id="pMoBlock" min="2" max="400" step="1"></div>
             <div class="p-row" id="pMoBlurRow"><label class="p-lab">強さ</label><input type="range" id="pMoBlurR" min="1" max="100" step="1"><input type="number" id="pMoBlur" min="1" max="200" step="1"></div>
+            <div class="p-row" id="pMoHazeRow"><label class="p-lab">白さ</label><input type="range" id="pMoHazeR" min="0" max="90" step="1"><input type="number" id="pMoHaze" min="0" max="90" step="1"></div>
+            <div class="p-row" id="pMoGrainRow"><label class="p-lab">ざらつき</label><input type="range" id="pMoGrainR" min="0" max="100" step="1"><input type="number" id="pMoGrain" min="0" max="100" step="1"></div>
+            <div class="p-row" id="pMoDensRow"><label class="p-lab">濃さ</label><input type="range" id="pMoDensR" min="10" max="100" step="1"><input type="number" id="pMoDens" min="10" max="100" step="1"><button class="btn small" id="pMoSeed" type="button" title="湯気の形を作り直す">形を変える</button></div>
+            <div class="p-row" id="pMoCoreRow"><label class="p-lab">芯の太さ</label><input type="range" id="pMoCoreR" min="5" max="100" step="1"><input type="number" id="pMoCore" min="5" max="100" step="1"></div>
             <div class="p-row" id="pMoColorRow"><label class="p-lab">色</label><input type="color" id="pMoColor"></div>
+            <div class="p-row" id="pMoGlowRow"><label class="p-lab">光の色</label><input type="color" id="pMoGlow"></div>
             <div class="p-row"><label class="p-lab">幅・高さ</label><input type="number" id="pMoW" min="4" max="100000" step="1"><span class="p-hint" style="margin:0">×</span><input type="number" id="pMoH" min="4" max="100000" step="1"></div>
-            <div class="p-hint">下にあるもの（画像・文字）すべてにかかります。四隅の□で幅と高さを変えられます。</div>
+            <div class="p-hint" id="pMoHint">下にあるもの（画像・文字）すべてにかかります。四隅の□で幅と高さを変えられます。</div>
           </div>
           <!-- 共通 -->
           <div class="p-sec" id="secCommon">
@@ -1067,6 +1075,7 @@
     (marks || []).forEach((s) => { s.w = clamp(s.w * k, 0.3, 1e4); for (let i = 0; i < s.p.length; i++) s.p[i] = Math.round(s.p[i] * k * 10) / 10; });
   }
   // canvas の filter が使えるか（使えない端末ではフィルター・ぼかしを別のやり方に）
+  const MOSAIC_MODES = ['pixel', 'blur', 'fill', 'frost', 'steam', 'light'];
   const FILTER_OK = (() => {
     try { const g = document.createElement('canvas').getContext('2d'); if (typeof g.filter !== 'string') return false; g.filter = 'blur(2px)'; return g.filter === 'blur(2px)'; }
     catch (_) { return false; }
@@ -1095,9 +1104,13 @@
         type: 'mosaic', scale: 1,
         w: num(l.w, 100, 4, 1e5), h: num(l.h, 100, 4, 1e5),
         shape: l.shape === 'ellipse' ? 'ellipse' : 'rect',
-        mode: ['pixel', 'blur', 'fill'].includes(l.mode) ? l.mode : 'pixel',
+        mode: MOSAIC_MODES.includes(l.mode) ? l.mode : 'pixel',
         block: num(l.block, 12, 2, 400), blur: num(l.blur, 12, 1, 200),
         color: isColor(l.color) ? l.color : '#000000',
+        // すりガラス：白さ・ざらつき（%）／湯気：濃さ（%）と形の種／光の帯：芯の太さ（%）と光の色
+        haze: num(l.haze, 35, 0, 90), grain: num(l.grain, 40, 0, 100),
+        dens: num(l.dens, 70, 10, 100), seed: Math.round(num(l.seed, 1, 1, 1e9)),
+        core: num(l.core, 40, 5, 100), glow: isColor(l.glow) ? l.glow : '#cfe6ff',
       });
     }
     if (l.type === 'text') {
@@ -1571,13 +1584,17 @@
   // モザイク・ぼかし・塗りつぶし：いまキャンバスに描けている「下のもの」を、その形の中だけ加工して描き直す
   const mosaicTmp = document.createElement('canvas');
   const mosaicSmall = document.createElement('canvas');
+  const steamTmp = document.createElement('canvas');
   function drawMosaic(ctx, L) {
     const shape = new Path2D();
     if (L.shape === 'ellipse') shape.ellipse(0, 0, L.w / 2, L.h / 2, 0, 0, Math.PI * 2);
     else shape.rect(-L.w / 2, -L.h / 2, L.w, L.h);
     if (L.mode === 'fill') { ctx.fillStyle = L.color; ctx.fill(shape); return; }
+    if (L.mode === 'light') { drawLightBand(ctx, L); return; }
     const m = ctx.getTransform(), cv = ctx.canvas, k = transformScale(ctx);
-    const pad = L.mode === 'blur' ? Math.ceil(L.blur * k * 2) : 0;
+    // 湯気は下を少しぼかす（濃いほど強く）。ぼかしの量は画像の座標
+    const steamBlur = Math.max(1, Math.min(L.w, L.h) * 0.06 * L.dens / 100);
+    const pad = (L.mode === 'blur' || L.mode === 'frost') ? Math.ceil(L.blur * k * 2) : L.mode === 'steam' ? Math.ceil(steamBlur * k * 2) : 0;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b]) => {
       const p = m.transformPoint(new DOMPoint(a * L.w / 2, b * L.h / 2));
@@ -1606,8 +1623,128 @@
       ctx.drawImage(mosaicSmall, 0, 0, cw, ch, sx, sy, cw * bs, ch * bs);
     };
     if (L.mode === 'pixel') smallDraw(Math.max(1, L.block * k), false);
+    else if (L.mode === 'steam') {
+      // 下のぼかしを、ふちほど薄くして重ねる（範囲の境目が見えないように）
+      steamTmp.width = sw; steamTmp.height = sh;
+      const st = steamTmp.getContext('2d');
+      st.clearRect(0, 0, sw, sh);
+      if (FILTER_OK) st.filter = `blur(${(steamBlur * k).toFixed(2)}px)`;
+      st.drawImage(mosaicTmp, 0, 0);
+      st.filter = 'none';
+      st.globalCompositeOperation = 'destination-in';
+      st.setTransform(m.a, m.b, m.c, m.d, m.e - sx, m.f - sy);
+      st.scale(L.w / 2, L.h / 2);
+      const fm = st.createRadialGradient(0, 0, 0, 0, 0, 1);
+      fm.addColorStop(0, 'rgba(0,0,0,1)'); fm.addColorStop(0.55, 'rgba(0,0,0,0.85)'); fm.addColorStop(1, 'rgba(0,0,0,0)');
+      st.fillStyle = fm; st.fillRect(-1, -1, 2, 2);
+      st.setTransform(1, 0, 0, 1, 0, 0); st.globalCompositeOperation = 'source-over';
+      ctx.drawImage(steamTmp, sx, sy);
+      ctx.setTransform(m);
+      drawSteam(ctx, L, k);
+    }
+    else if (L.mode === 'frost') {
+      // すりガラス：ぼかして、白くくもらせ、細かいざらつきを重ねる
+      if (FILTER_OK) { ctx.filter = `blur(${(L.blur * k).toFixed(2)}px)`; ctx.drawImage(mosaicTmp, sx, sy); ctx.filter = 'none'; }
+      else smallDraw(Math.max(1, L.blur * k * 0.8), true);
+      ctx.setTransform(m);
+      if (L.haze > 0) { ctx.fillStyle = `rgba(255,255,255,${(L.haze / 100).toFixed(3)})`; ctx.fill(shape); }
+      if (L.grain > 0) {
+        const pat = ctx.createPattern(noiseTile(), 'repeat');
+        if (pat) {
+          // 粒の大きさは画像の座標で決める（書き出しの解像度が変わっても同じ見え方に）
+          const g = Math.max(0.6, L.blur * 0.08);
+          if (pat.setTransform) pat.setTransform(new DOMMatrix().scaleSelf(g, g));
+          const a0 = ctx.globalAlpha;
+          ctx.globalAlpha = a0 * Math.min(1, L.grain / 100 * 0.9);
+          ctx.globalCompositeOperation = 'overlay';
+          ctx.fillStyle = pat; ctx.fill(shape);
+          ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a0;
+        }
+      }
+    }
     else if (FILTER_OK) { ctx.filter = `blur(${(L.blur * k).toFixed(2)}px)`; ctx.drawImage(mosaicTmp, sx, sy); ctx.filter = 'none'; }
     else smallDraw(Math.max(1, L.blur * k * 0.8), true); // filter が使えない端末：縮めて広げる（ぼけて見える）
+    ctx.restore();
+  }
+  // 決まった並びの乱数（同じ種なら毎回同じ形になる。書き出しと編集の画面で見え方をそろえる）
+  function seededRand(seed) {
+    let t = (seed >>> 0) || 1;
+    return () => { t = (t + 0x6D2B79F5) >>> 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+  }
+  let noiseCanvas = null;
+  function noiseTile() { // すりガラスのざらつき（灰色の点。overlay で重ねると明るい点・暗い点になる）
+    if (noiseCanvas) return noiseCanvas;
+    const n = 96, c = document.createElement('canvas'); c.width = n; c.height = n;
+    const g = c.getContext('2d'), id = g.createImageData(n, n), rnd = seededRand(20261124);
+    for (let i = 0; i < n * n; i++) { const v = 128 + Math.round((rnd() - 0.5) * 2 * 110); id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255; }
+    g.putImageData(id, 0, 0);
+    return (noiseCanvas = c);
+  }
+  // 光の帯：真ん中は真っ白（下は見えない）、外へ向かって光の色でふわっと消える。
+  // 下と「スクリーン」で重ねるので、ふちは下の絵が明るく光って見える。四角＝帯（回転で斜めに）、だ円＝丸い光
+  function drawLightBand(ctx, L) {
+    const c = L.core / 200, e = 0.5 - c, col = L.glow;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    if (L.shape === 'ellipse') {
+      ctx.scale(L.w / 2, L.h / 2);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      const r = c * 2; // 芯の半径（0〜1）
+      g.addColorStop(0, '#ffffff'); g.addColorStop(r, '#ffffff');
+      g.addColorStop(r + (1 - r) * 0.25, hexA(col, 0.75)); g.addColorStop(r + (1 - r) * 0.6, hexA(col, 0.28));
+      g.addColorStop(1, hexA(col, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const g = ctx.createLinearGradient(0, -L.h / 2, 0, L.h / 2);
+      g.addColorStop(0, hexA(col, 0));
+      g.addColorStop(e * 0.4, hexA(col, 0.28)); g.addColorStop(e * 0.75, hexA(col, 0.75));
+      g.addColorStop(e, '#ffffff'); g.addColorStop(1 - e, '#ffffff');
+      g.addColorStop(1 - e * 0.75, hexA(col, 0.75)); g.addColorStop(1 - e * 0.4, hexA(col, 0.28));
+      g.addColorStop(1, hexA(col, 0));
+      ctx.fillStyle = g; ctx.fillRect(-L.w / 2, -L.h / 2, L.w, L.h);
+    }
+    ctx.restore();
+  }
+  // 湯気：白いもやを、縦長のかたまりをいくつも重ねて作る。かたまりは範囲の内側で消えるので、ふちがくっきりしない
+  function drawSteam(ctx, L, k) {
+    const rnd = seededRand(L.seed), a0 = L.dens / 100, hw = L.w / 2, hh = L.h / 2;
+    ctx.save();
+    // 全体の薄いもや（真ん中ほど濃い）
+    ctx.save(); ctx.scale(hw, hh);
+    const v = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    v.addColorStop(0, `rgba(255,255,255,${(a0 * 0.85).toFixed(3)})`); v.addColorStop(0.55, `rgba(255,255,255,${(a0 * 0.55).toFixed(3)})`); v.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = v; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    const n = Math.round(10 + L.dens * 0.3), short = Math.min(L.w, L.h);
+    for (let i = 0; i < n; i++) {
+      let rx = short * (0.1 + rnd() * 0.14), ry = rx * (1.2 + rnd() * 0.8);
+      rx = Math.min(rx, hw * 0.9); ry = Math.min(ry, hh * 0.9);
+      const ax = Math.max(0, hw - rx), ay = Math.max(0, hh - ry);
+      // 置く場所：だ円なら円の中、四角なら四角の中（かたまりがはみ出さない範囲）
+      let ux = rnd() * 2 - 1, uy = rnd() * 2 - 1;
+      if (L.shape === 'ellipse') { const d = Math.hypot(ux, uy); if (d > 1) { ux /= d; uy /= d; } ux *= 0.75; uy *= 0.75; }
+      const alpha = a0 * (0.25 + rnd() * 0.45);
+      ctx.save(); ctx.translate(ux * ax, uy * ay); ctx.rotate((rnd() - 0.5) * 0.6); ctx.scale(rx, ry);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`); g.addColorStop(0.5, `rgba(255,255,255,${(alpha * 0.55).toFixed(3)})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // 立ちのぼる筋（ゆらゆらした白い線をぼかして重ねる）
+    const wisps = Math.round(3 + L.dens / 20);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < wisps; i++) {
+      const lw = short * (0.04 + rnd() * 0.05);
+      const x0 = (rnd() * 2 - 1) * hw * 0.55, amp = hw * (0.08 + rnd() * 0.12) * (rnd() < 0.5 ? -1 : 1);
+      const yb = hh * (0.55 + rnd() * 0.25), yt = -hh * (0.55 + rnd() * 0.3), dy = yt - yb;
+      ctx.strokeStyle = `rgba(255,255,255,${(a0 * (0.35 + rnd() * 0.3)).toFixed(3)})`;
+      ctx.lineWidth = lw;
+      if (FILTER_OK) ctx.filter = `blur(${(lw * 0.7 * (k || 1)).toFixed(2)}px)`;
+      ctx.beginPath(); ctx.moveTo(x0, yb);
+      ctx.bezierCurveTo(x0 + amp, yb + dy * 0.33, x0 - amp, yb + dy * 0.66, x0 + amp * 0.5, yt);
+      ctx.stroke();
+      ctx.filter = 'none';
+    }
     ctx.restore();
   }
   function drawScene(ctx, p, opts) {
@@ -2303,7 +2440,13 @@
 
   /* ===================== レイヤーの一覧 ===================== */
   const KIND_LABEL = { image: '画像', text: '文字', mosaic: '効果' };
-  const MOSAIC_LABEL = { pixel: 'モザイク', blur: 'ぼかし', fill: '塗りつぶし' };
+  const MOSAIC_HINT = {
+    pixel: '下にあるもの（画像・文字）すべてにかかります。四隅の□で幅と高さを変えられます。',
+    steam: '白いもやを重ねます。濃さを上げると下が見えなくなります。［形を変える］でもやの形を作り直します。',
+    light: '真ん中は真っ白で下は見えません。「共通」の回転で斜めの帯にできます。だ円にすると丸い光になります。',
+  };
+  MOSAIC_HINT.blur = MOSAIC_HINT.fill = MOSAIC_HINT.frost = MOSAIC_HINT.pixel;
+  const MOSAIC_LABEL = { pixel: 'モザイク', blur: 'ぼかし', fill: '塗りつぶし', frost: 'すりガラス', steam: '湯気', light: '光の帯' };
   function layerLabel(L) {
     if (L.type === 'image') return L.name || '画像';
     if (L.type === 'mosaic') return MOSAIC_LABEL[L.mode] + (L.shape === 'ellipse' ? '（だ円）' : '（四角）');
@@ -2432,7 +2575,16 @@
     } else if (type === 'mosaic') {
       $('pMoMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.mode));
       $('pMoShape').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.shape));
-      $('pMoBlockRow').hidden = L.mode !== 'pixel'; $('pMoBlurRow').hidden = L.mode !== 'blur'; $('pMoColorRow').hidden = L.mode !== 'fill';
+      $('pMoBlockRow').hidden = L.mode !== 'pixel'; $('pMoBlurRow').hidden = !(L.mode === 'blur' || L.mode === 'frost'); $('pMoColorRow').hidden = L.mode !== 'fill';
+      $('pMoHazeRow').hidden = $('pMoGrainRow').hidden = L.mode !== 'frost';
+      $('pMoDensRow').hidden = L.mode !== 'steam';
+      $('pMoCoreRow').hidden = $('pMoGlowRow').hidden = L.mode !== 'light';
+      $('pMoHint').textContent = MOSAIC_HINT[L.mode] || MOSAIC_HINT.pixel;
+      setVal('pMoHaze', Math.round(L.haze)); setVal('pMoHazeR', Math.round(L.haze));
+      setVal('pMoGrain', Math.round(L.grain)); setVal('pMoGrainR', Math.round(L.grain));
+      setVal('pMoDens', Math.round(L.dens)); setVal('pMoDensR', Math.round(L.dens));
+      setVal('pMoCore', Math.round(L.core)); setVal('pMoCoreR', Math.round(L.core));
+      $('pMoGlow').value = L.glow;
       setVal('pMoBlock', Math.round(L.block)); setVal('pMoBlockR', Math.round(L.block));
       setVal('pMoBlur', Math.round(L.blur)); setVal('pMoBlurR', Math.round(L.blur));
       $('pMoColor').value = L.color;
@@ -2592,6 +2744,19 @@
   bindNum(['pMoBlock', 'pMoBlockR'], M((L, v) => { L.block = clamp(v, 2, 400); }));
   bindNum(['pMoBlur', 'pMoBlurR'], M((L, v) => { L.blur = clamp(v, 1, 200); }));
   bindNum(['pMoW'], M((L, v) => { L.w = clamp(v, 4, 1e5); }));
+  bindNum(['pMoHaze', 'pMoHazeR'], M((L, v) => { L.haze = clamp(v, 0, 90); }));
+  bindNum(['pMoGrain', 'pMoGrainR'], M((L, v) => { L.grain = clamp(v, 0, 100); }));
+  bindNum(['pMoDens', 'pMoDensR'], M((L, v) => { L.dens = clamp(v, 10, 100); }));
+  bindNum(['pMoCore', 'pMoCoreR'], M((L, v) => { L.core = clamp(v, 5, 100); }));
+  $('pMoSeed').addEventListener('click', () => {
+    const L = selLayer(); if (!L || L.type !== 'mosaic') return;
+    L.seed = 1 + Math.floor(Math.random() * 1e9); changed(true);
+  });
+  $('pMoGlow').addEventListener('input', () => {
+    const L = selLayer(); if (!L || L.type !== 'mosaic' || !isColor($('pMoGlow').value)) return;
+    L.glow = $('pMoGlow').value.toLowerCase(); changed();
+  });
+  $('pMoGlow').addEventListener('change', () => commitHist());
   bindNum(['pMoH'], M((L, v) => { L.h = clamp(v, 4, 1e5); }));
   $('pMoColor').addEventListener('input', () => {
     const L = selLayer(); if (!L || L.type !== 'mosaic' || !isColor($('pMoColor').value)) return;
@@ -2602,7 +2767,12 @@
     $(id).addEventListener('click', (e) => {
       const b = e.target.closest('.btn'), L = selLayer();
       if (!b || !L || L.type !== 'mosaic') return;
-      L[key] = b.dataset.v; changed(true); refreshProps();
+      const was = L[key];
+      L[key] = b.dataset.v;
+      // 光の帯に切り替えたとき、四角が太すぎれば横長の帯に整える（中心はそのまま）
+      if (key === 'mode' && was !== 'frost' && L.mode === 'frost' && cur) L.blur = Math.max(L.blur, Math.round(Math.min(cur.W, cur.H) / 40));
+      if (key === 'mode' && was !== 'light' && L.mode === 'light' && L.shape === 'rect' && L.h > L.w * 0.5) L.h = Math.max(4, L.w * 0.3);
+      changed(true); refreshProps();
     });
   });
   $('addMosaicBtn').addEventListener('click', () => {
