@@ -663,6 +663,7 @@
   .temp-memo.is-shown { display: flex; }
   .temp-memo-bar {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    flex-wrap: wrap; row-gap: 4px; /* 狭いときはボタンを2段目へ（はみ出さないように。2026-11-24） */
     padding: 5px 6px 5px 10px; border-bottom: 1px solid rgba(var(--cyan-rgb), .35);
     background: rgba(var(--cyan-rgb), .1); /* つまみ（上の帯）を色付きにして、ひと目で一時メモと分かるように */
     cursor: move; user-select: none; -webkit-user-select: none;
@@ -670,7 +671,7 @@
   }
   .temp-memo-title { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--cyan); letter-spacing: .04em; white-space: nowrap; }
   .temp-memo-hint {
-    flex: 1 1 auto; min-width: 0; font-size: 9.5px; color: var(--text-faint);
+    flex: 1 1 0; min-width: 0; font-size: 9.5px; color: var(--text-faint);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .temp-memo-hint.is-flash { color: var(--cyan); }
@@ -680,6 +681,9 @@
   }
   .temp-memo-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
   .temp-memo-btn.danger:hover, .temp-memo-btn.is-armed { border-color: var(--magenta); color: var(--magenta); }
+  .temp-memo-btn.accent { border-color: var(--cyan-dim); color: var(--cyan); }
+  .temp-memo-btn.accent:hover { background: var(--cyan-dim); }
+  .temp-memo-btn:disabled { opacity: .45; cursor: wait; }
   .temp-memo-text {
     flex: 1 1 auto; min-height: 0; width: 100%; resize: none;
     border: none; outline: none; background: transparent; color: var(--text);

@@ -1,5 +1,5 @@
 /* =====================================================================
-   SIDE-OPS：一時メモ（2026-10-10）
+   SIDE-OPS：一時メモ（2026-10-10。「ノートへ」は 2026-11-24）
    ヘッダーの ✎（Stageを開いているときは Stage の ✎）で出し入れする、画面に浮かぶ小さなメモ。
    メモアプリとは別物で、Stageには開かない。書き留めておくだけの「その場のメモ」。
 
@@ -38,6 +38,7 @@
   const grip = document.getElementById('tempMemoGrip');
   const hint = document.getElementById('tempMemoHint');
   const copyBtn = document.getElementById('tempMemoCopyBtn');
+  const saveBtn = document.getElementById('tempMemoSaveBtn');
   const clearBtn = document.getElementById('tempMemoClearBtn');
   const hideBtn = document.getElementById('tempMemoHideBtn');
   const toggles = [document.getElementById('tempMemoBtn'), document.getElementById('stageTempMemoBtn')].filter(Boolean);
@@ -199,6 +200,95 @@
       let ok = false;
       try { ok = document.execCommand('copy'); } catch (err2) { ok = false; }
       flash(ok ? 'コピーしました' : 'コピーできませんでした');
+    }
+  });
+
+  /* ---- FIELDNOTES（メモアプリ）に保存（2026-11-24） ----
+     ユーザーの希望：「メモアプリに保存」ボタン。保存したら一時メモは空にする（ユーザーの選択）。
+     ・書き込み先はメモアプリと同じ DB（sideops_memo の entries）。レコードの形もメモアプリと同じ
+       { id: 'm_…', title: '', body, tags: [], createdAt, updatedAt }（タイトルは空＝一覧では本文の1行目が出る。フォルダは未分類）
+     ・同期の「変えたよ」の印は、本体ページの書き込みにも js/sync.js が付ける（IDBObjectStore.put を包んでいる）
+     ・DB がまだ無い端末（メモアプリを一度も開いていない）では、メモアプリと同じ形（版1・同じストアと索引）で作る
+     ・Stage でメモアプリを開いていれば、増えたことを知らせる（アプリは足りないメモだけを読み足す）
+     歯止め：
+     ・空なら保存しない／保存中はボタンを押せない（二重に保存しない）
+     ・保存できたと確かめてから空にする。失敗したら中身は残す */
+  const MEMO_DB = 'sideops_memo';
+  const MEMO_STORE = 'entries';
+  function openMemoDb() {
+    return new Promise((resolve, reject) => {
+      let req;
+      try { req = indexedDB.open(MEMO_DB); } catch (err) { reject(err); return; }
+      req.onupgradeneeded = () => {
+        // まだ無い：メモアプリ（apps/memo.html の openDb）と同じ形で作る
+        const d = req.result;
+        if (!d.objectStoreNames.contains(MEMO_STORE)) {
+          const os = d.createObjectStore(MEMO_STORE, { keyPath: 'id' });
+          os.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+        if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'key' });
+      };
+      req.onsuccess = () => {
+        const d = req.result;
+        d.onversionchange = () => d.close();
+        if (!d.objectStoreNames.contains(MEMO_STORE)) { d.close(); reject(new Error('no store')); return; }
+        resolve(d);
+      };
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error('blocked'));
+    });
+  }
+  async function saveToNotes(body) {
+    const d = await openMemoDb();
+    try {
+      const now = Date.now();
+      const entry = { id: 'm_' + now + '_' + Math.random().toString(36).slice(2, 8), title: '', body, tags: [], createdAt: now, updatedAt: now };
+      await new Promise((resolve, reject) => {
+        const tx = d.transaction(MEMO_STORE, 'readwrite');
+        tx.objectStore(MEMO_STORE).put(entry);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('abort'));
+      });
+      return entry;
+    } finally {
+      d.close();
+    }
+  }
+  function tellNotesApp(id) {
+    document.querySelectorAll('iframe').forEach((f) => {
+      try { f.contentWindow.postMessage({ type: 'sideops:memo-added', id }, location.origin); } catch (err) { /* 送れなければ、アプリを開き直したときに出る */ }
+    });
+  }
+  const PLACEHOLDER = text.getAttribute('placeholder') || '';
+  let placeholderTimer = null;
+  let saving = false;
+  saveBtn.addEventListener('click', async () => {
+    if (saving) return;
+    const body = text.value;
+    if (!body.trim()) { flash('中身がありません'); return; }
+    saving = true;
+    saveBtn.disabled = true;
+    try {
+      const entry = await saveToNotes(body);
+      // 保存のあいだに書き足していたら、その分は消さない（保存した中身と同じときだけ空にする）
+      if (text.value === body) {
+        text.value = '';
+        saveText();
+      }
+      disarm();
+      tellNotesApp(entry.id);
+      flash('FIELDNOTES に保存しました');
+      // 帯が狭いと知らせが見えないので、空になった欄にも出す
+      text.setAttribute('placeholder', 'FIELDNOTES に保存しました（未分類）');
+      clearTimeout(placeholderTimer);
+      placeholderTimer = setTimeout(() => text.setAttribute('placeholder', PLACEHOLDER), 3000);
+    } catch (err) {
+      console.warn('一時メモを FIELDNOTES に保存できませんでした', err);
+      flash('保存できませんでした（中身は残しています）');
+    } finally {
+      saving = false;
+      saveBtn.disabled = false;
     }
   });
 

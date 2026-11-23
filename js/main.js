@@ -1127,7 +1127,7 @@
     { name: 'PROMPTGALLERY RED', src: 'apps/prompt-gallery-red.html', coverImg: 'apps/img/prompt-gallery-red.jpg' },
     { name: 'MANUSCRIPT', src: 'apps/manuscript.html', coverImg: 'apps/img/manuscript.jpg' },
     { name: 'SCAFFOLD', src: 'apps/scaffold.html', coverImg: 'apps/img/scaffold.jpg' },
-    { name: 'メモ', src: 'apps/memo.html', coverImg: 'apps/img/memo.jpg' },
+    { name: 'FIELDNOTES', src: 'apps/memo.html', coverImg: 'apps/img/memo.jpg' },
     { name: 'Discotica', src: 'apps/discotica.html', coverImg: 'apps/img/discotica.jpg' },
     { name: 'DONE MORE', src: 'apps/done-more.html', coverImg: 'apps/img/done-more.jpg' },
     { name: 'SCRIBIT', src: 'apps/scribit.html', coverImg: 'apps/img/scribit.jpg' },

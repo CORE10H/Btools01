@@ -78,7 +78,7 @@
       // 壁紙（選択・アップロード画像）とパネルの透過率は端末ごと。新しい項目は
       // ここに書き足さない限り同期されない（＝端末ごと）
       only: { settings: { main: ['themeKey', 'customThemeTokens', 'eyedropperThemeTokens'] } } },
-    { name: 'sideops_memo', label: 'メモ', version: 1 },
+    { name: 'sideops_memo', label: 'FIELDNOTES（メモ）', version: 1 },
     { name: 'sideops_prompt_gallery', label: 'PROMPTGALLERY', version: 2 },
     { name: 'sideops_prompt_gallery_red', label: 'PROMPTGALLERY RED', version: 2 },
     { name: 'sideops_scaffold', label: 'SCAFFOLD', version: 1 },

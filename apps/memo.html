@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>メモ</title>
+<title>FIELDNOTES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -451,7 +451,7 @@
 <body>
 <div class="app-shell">
   <div class="app-bar">
-    <span class="app-title">// MEMO</span>
+    <span class="app-title">// FIELDNOTES</span>
     <div class="bar-right">
       <div class="bar-filter">
         <div class="search-box">
@@ -1930,6 +1930,28 @@
       e.preventDefault();
       e.returnValue = '';
     }
+  });
+
+  /* ===================== 一時メモから届いたメモ（2026-11-24） =====================
+     本体の一時メモの「ノートへ」は、このアプリと同じ DB に直接書き込み、Stage のこのアプリへ知らせる。
+     知らせが来たら、DB から「まだ持っていないメモ」だけを読み足す（持っているメモは置き換えない。
+     編集中・フォルダやピンの書き込み待ちの値を古い値で上書きしないように） */
+  async function addMissingFromDb() {
+    if (!db) return;
+    const all = await dbGetAll();
+    const have = new Set(entries.map(e => e.id));
+    const fresh = all.filter(e => e && !have.has(e.id));
+    if (!fresh.length) return;
+    entries.push(...fresh);
+    renderTagChips();
+    renderFolderBar();
+    renderGrid();
+    showToast('一時メモから届きました');
+  }
+  window.addEventListener('message', (e) => {
+    if (e.source !== window.parent || e.origin !== location.origin) return;
+    if (!e.data || e.data.type !== 'sideops:memo-added') return;
+    addMissingFromDb().catch((err) => console.error(err));
   });
 
   /* ===================== 初期化 ===================== */
