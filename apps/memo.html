@@ -326,7 +326,21 @@
   .editor-tag-input {
     min-width: 90px; background: transparent; border: none; outline: none; font-size: 11px; color: var(--text);
     border-bottom: 1px dashed var(--line);
+    /* 1行の textarea（2026-11-23。スマホの「決定・改行」でも確実にタグにするため。JS側の説明を参照） */
+    font-family: inherit; line-height: 1.6; height: 1.6em; padding: 0; resize: none; overflow: hidden; white-space: nowrap;
   }
+  .editor-tag-add {
+    display: none; font-size: 10px; padding: 1px 8px; background: transparent; cursor: pointer;
+    border: 1px solid var(--cyan-dim); color: var(--cyan); font-family: inherit;
+  }
+  .editor-tag-add.is-shown { display: inline-block; }
+  .editor-tag-add:hover { background: var(--cyan-dim); }
+  .editor-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .editor-copy {
+    height: 24px; padding: 0 10px; background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 11px; cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+  .editor-copy:hover { border-color: var(--cyan-dim); color: var(--cyan); }
   .freq-tag-picker.editor-picker { padding: 0 16px 10px; margin-top: 0; }
 
   .editor-body-input {
@@ -410,11 +424,16 @@
   <div class="editor-box">
     <div class="editor-head">
       <span class="editor-status" id="editorStatus">&nbsp;</span>
-      <button class="editor-close" id="editorCloseBtn" title="一覧へ戻る（Esc）" aria-label="一覧へ戻る">✕</button>
+      <div class="editor-head-actions">
+        <!-- 本文をコピー（2026-11-23）。Tabの巡回（タイトル→タグ→本文→✕）は変えないので tabindex="-1" -->
+        <button class="editor-copy" id="editorCopyBtn" type="button" tabindex="-1" title="本文をコピー">コピー</button>
+        <button class="editor-close" id="editorCloseBtn" title="一覧へ戻る（Esc）" aria-label="一覧へ戻る">✕</button>
+      </div>
     </div>
     <input type="text" class="editor-title-input" id="editorTitleInput" maxlength="80" placeholder="タイトル（未入力の場合は本文冒頭を使用）">
     <div class="editor-tags-row" id="editorTagsRow">
-      <input type="text" class="editor-tag-input" id="editorTagInput" placeholder="タグを入力してEnter">
+      <textarea class="editor-tag-input" id="editorTagInput" rows="1" wrap="off" placeholder="タグを入力してEnter" aria-label="タグを入力"></textarea>
+      <button class="editor-tag-add" id="editorTagAddBtn" type="button" tabindex="-1" title="入力中の文字をタグにする">＋追加</button>
     </div>
     <div class="freq-tag-picker editor-picker" id="freqTagPicker"></div>
     <textarea class="editor-body-input" id="editorBodyInput" placeholder="本文を入力…（入力は自動保存されます）"></textarea>
@@ -601,6 +620,8 @@
   const editorBodyInput = document.getElementById('editorBodyInput');
   const editorTagsRow = document.getElementById('editorTagsRow');
   const editorTagInput = document.getElementById('editorTagInput');
+  const editorTagAddBtn = document.getElementById('editorTagAddBtn');
+  const editorCopyBtn = document.getElementById('editorCopyBtn');
   const freqTagPicker = document.getElementById('freqTagPicker');
   const editorDeleteBtn = document.getElementById('editorDeleteBtn');
 
@@ -1002,19 +1023,77 @@
     });
   }
 
+  /* タグの入力（2026-11-23 改修）
+     スマホ（Android の日本語キーボードなど）は、キーを押したときの keydown で Enter を知らせないことがある
+     （key が "Unidentified"・keyCode が 229 で届く）。そのため以前の「keydown の Enter でタグにする」だけでは、
+     スマホで決定（改行）を押してもタグにならなかった。
+     いまは入力欄を1行の textarea にして、「改行が入った」ことを input で見てタグにする。
+     改行の入力はどのキーボードでも input で届くので、keydown の届き方に左右されない。
+       ・PC：Enter（keydown）でタグにする。改行は入れない（以前と同じ）
+       ・スマホ：決定・改行で入った改行を input で見つけてタグにする。改行は残さない
+       ・貼り付けた文字に改行があれば、行ごとに別のタグにする
+       ・入力中だけ「＋追加」ボタンを出す（キーボードに頼らない、確実な逃げ道）
+     歯止め：日本語の変換中（変換を確定するEnter）では追加しない（変換前の文字がタグになってしまうため。2026-10-10） */
+  function addTagsFromText(raw) {
+    const parts = String(raw).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+    let added = false;
+    parts.forEach(val => {
+      if (!editTags.includes(val)) { editTags.push(val); added = true; }
+    });
+    if (added) {
+      renderTagInputRow();
+      renderFreqTagPicker();
+      scheduleSave();
+    }
+    return parts.length > 0;
+  }
+  function commitTagInput() {
+    addTagsFromText(editorTagInput.value);
+    editorTagInput.value = '';
+    syncTagAddBtn();
+  }
+  function syncTagAddBtn() {
+    editorTagAddBtn.classList.toggle('is-shown', editorTagInput.value.trim() !== '');
+  }
   editorTagInput.addEventListener('keydown', (e) => {
-    // 歯止め：日本語の変換を確定するEnterでは追加しない（変換前の文字がタグになってしまうため。2026-10-10）
     if (e.key === 'Enter' && !isComposingKey(e)) {
       e.preventDefault();
-      const val = editorTagInput.value.trim();
-      if (val && !editTags.includes(val)) {
-        editTags.push(val);
-        renderTagInputRow();
-        renderFreqTagPicker();
-        scheduleSave();
-      }
-      editorTagInput.value = '';
+      commitTagInput();
     }
+  });
+  function checkTagNewline(e) {
+    if (e && e.isComposing) return; // 変換中は待つ（compositionend でもう一度見る）
+    if (/[\r\n]/.test(editorTagInput.value)) commitTagInput();
+    else syncTagAddBtn();
+  }
+  editorTagInput.addEventListener('input', checkTagNewline);
+  editorTagInput.addEventListener('compositionend', () => setTimeout(checkTagNewline, 0));
+  // 押したときに入力欄からフォーカスを外さない（スマホでキーボードが閉じないように）
+  editorTagAddBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  editorTagAddBtn.addEventListener('click', () => {
+    commitTagInput();
+    editorTagInput.focus();
+  });
+
+  /* 本文をコピー（2026-11-23）。クリップボードの許可がない環境では、古い方法でも試す */
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+    } catch (_) { /* 下の方法で */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (_) { return false; }
+  }
+  editorCopyBtn.addEventListener('click', async () => {
+    const body = editorBodyInput.value;
+    if (!body.trim()) { showToast('本文がありません'); return; }
+    const ok = await copyText(body);
+    showToast(ok ? '本文をコピーしました' : 'コピーできませんでした');
   });
 
   function renderFreqTagPicker() {
@@ -1051,6 +1130,7 @@
     editorTitleInput.value = entry ? (entry.title || '') : '';
     editorBodyInput.value = entry ? (entry.body || '') : '';
     editorTagInput.value = '';
+    syncTagAddBtn();
     renderTagInputRow();
     renderFreqTagPicker();
     setEditorStatus(entry ? '\u00A0' : '新規メモ', null);

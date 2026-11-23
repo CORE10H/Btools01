@@ -650,13 +650,21 @@
     width: 300px; height: 220px;
     display: none; flex-direction: column;
     background: rgba(var(--panel-rgb), .97);
-    border: 1px solid var(--cyan-dim);
-    box-shadow: 0 8px 28px rgba(var(--shadow-rgb), .55);
+    /* 縁を目立たせる（2026-11-23）。同じ色のパネルに重なっても溶け込まないように、
+       アクセント色の線・その外側に背景色の細い輪（線と下の画面を切り離す）・ほのかな光・影の4重にする。
+       色はすべてテーマの変数なので、どのテーマでも同じ考え方で効く */
+    border: 1px solid var(--cyan);
+    box-shadow:
+      0 0 0 2px rgba(var(--bg-rgb), .92),
+      0 0 0 3px rgba(var(--cyan-rgb), .35),
+      0 0 18px rgba(var(--cyan-rgb), .22),
+      0 10px 30px rgba(var(--shadow-rgb), .6);
   }
   .temp-memo.is-shown { display: flex; }
   .temp-memo-bar {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-    padding: 5px 6px 5px 10px; border-bottom: 1px solid var(--line-soft);
+    padding: 5px 6px 5px 10px; border-bottom: 1px solid rgba(var(--cyan-rgb), .35);
+    background: rgba(var(--cyan-rgb), .1); /* つまみ（上の帯）を色付きにして、ひと目で一時メモと分かるように */
     cursor: move; user-select: none; -webkit-user-select: none;
     touch-action: none; /* 指でつまんで動かすとき、画面がスクロールしないように */
   }
