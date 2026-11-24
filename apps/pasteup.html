@@ -333,6 +333,7 @@
   <div class="app-bar">
     <span class="app-title">// PASTEUP</span>
     <div class="bar-right">
+      <button class="btn" id="newMangaBtn" type="button" title="コマ割りのある漫画のページを作る">＋ 漫画のページ</button>
       <button class="btn primary" id="newBtn" type="button">＋ 新しく作る</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="menuBtn" type="button" title="メニュー">☰</button>
@@ -359,6 +360,7 @@
     <div class="ed-tools">
       <button class="btn small" id="undoBtn" type="button" title="元に戻す（Ctrl+Z）">↶</button>
       <button class="btn small" id="redoBtn" type="button" title="やり直す（Ctrl+Y）">↷</button>
+      <button class="btn small" id="addPanelBtn" type="button" title="コマを足す" hidden>＋コマ</button>
       <button class="btn small" id="addImgBtn" type="button">＋画像</button>
       <button class="btn small" id="addTextBtn" type="button">＋文字</button>
       <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶし・すりガラス・湯気・光の帯の範囲を足す">＋モザイク</button>
@@ -445,6 +447,29 @@
             <div class="p-row"><button class="btn small" id="pFlip" type="button">左右反転</button><button class="btn small" id="pFit" type="button">画面いっぱいに</button><button class="btn small" id="pToLib" type="button">素材に登録</button></div>
             <div class="p-row"><button class="btn small" id="pBgCut" type="button">背景を透過…</button></div>
           </div>
+          <!-- コマ（漫画のページ） -->
+          <div class="p-sec" id="secPanel">
+            <div class="p-sec-title">コマ</div>
+            <div class="p-row"><button class="btn small primary" id="pPanImg" type="button">画像を入れる</button><button class="btn small" id="pPanFit" type="button" title="画像をコマいっぱいに合わせる">コマに合わせる</button><button class="btn small" id="pPanImgDel" type="button">画像を外す</button></div>
+            <div class="p-row" id="pPanAdjRow"><label class="p-hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pPanAdjust"> 中の画像を動かす（ドラッグで位置・2本指で大きさ）</label></div>
+            <div class="p-row" id="pPanSRow"><label class="p-lab">画像 %</label><input type="range" id="pPanSR" min="5" max="400" step="1"><input type="number" id="pPanS" min="1" max="10000" step="1"></div>
+            <div class="p-row" id="pPanRRow"><label class="p-lab">画像 回転</label><input type="range" id="pPanRR" min="-180" max="180" step="1"><input type="number" id="pPanR" min="-180" max="180" step="1"></div>
+            <div class="p-row"><label class="p-lab">枠線</label><input type="range" id="pPanBwR" min="0" max="40" step="1"><input type="number" id="pPanBw" min="0" max="500" step="1"><input type="color" id="pPanBc"></div>
+            <div class="p-row"><label class="p-lab">中の色</label><span class="seg" id="pPanFillMode"><button class="btn" type="button" data-v="white">白</button><button class="btn" type="button" data-v="none">なし</button><button class="btn" type="button" data-v="color">色</button></span><input type="color" id="pPanFill"></div>
+            <div class="p-row"><button class="btn small" id="pPanSplitV" type="button" title="左右に分ける（間隔はページの設定）">左右に分ける</button><button class="btn small" id="pPanSplitH" type="button" title="上下に分ける（間隔はページの設定）">上下に分ける</button></div>
+            <div class="p-row"><button class="btn small" id="pPanAddPt" type="button">角を足す</button><button class="btn small" id="pPanDelPt" type="button">角を減らす</button><button class="btn small" id="pPanRect" type="button">四角に戻す</button></div>
+            <div class="p-hint">角の□をドラッグで形を変えます（ほかのコマ・余白の線に吸い付きます。Alt キーで吸い付かない）。2回タップで「中の画像を動かす」を切り替え。</div>
+          </div>
+          <!-- 漫画のページの設定 -->
+          <div class="p-sec" id="secPage">
+            <div class="p-sec-title">ページ（漫画）</div>
+            <div class="p-row"><label class="p-lab">余白</label><input type="range" id="pPgMR" min="0" max="400" step="1"><input type="number" id="pPgM" min="0" max="4000" step="1"></div>
+            <div class="p-row"><label class="p-lab">間隔</label><input type="range" id="pPgGR" min="0" max="200" step="1"><input type="number" id="pPgG" min="0" max="2000" step="1"></div>
+            <div class="p-row"><label class="p-lab">枠線</label><input type="range" id="pPgBwR" min="0" max="40" step="1"><input type="number" id="pPgBw" min="0" max="500" step="1"><input type="color" id="pPgBc"></div>
+            <div class="p-row"><button class="btn small" id="pPgApply" type="button" title="今ある全部のコマの枠線を、この太さ・色にする">全部のコマの枠線に当てる</button></div>
+            <div class="p-row"><select id="pPgLayout" class="p-select" style="flex:1"></select><button class="btn small" id="pPgRelayout" type="button">コマ割りを作り直す</button></div>
+            <div class="p-hint">余白は編集の画面だけに点線で出ます（書き出されません）。コマを分けるときの間隔・吸い付きに使います。作り直すと、入れた画像は新しいコマに順に入ります。</div>
+          </div>
           <!-- フィルター（画像・下の画像） -->
           <div class="p-sec" id="secBase">
             <div class="p-sec-title">下の画像</div>
@@ -518,6 +543,29 @@
       <div class="field-hint" style="margin-bottom:8px">押すと、上の「テンプレート」に足します（文字はまだ置きません）。消したテンプレートも、ここから足し直せます。</div>
       <div class="pick-grid tpl-grid" id="atBuiltin"></div>
     </div>
+  </div>
+</div>
+
+<!-- 漫画のページを作る -->
+<div class="modal-overlay" id="mManga">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">漫画のページを作る</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group">
+      <div class="field-label">ページの大きさ</div>
+      <select class="field-select" id="mgSize"></select>
+      <div class="p-row" id="mgCustom" style="margin:6px 0 0"><input class="field-input" id="mgW" type="number" min="200" max="8192" step="1" style="flex:1"><span class="p-hint" style="margin:0">×</span><input class="field-input" id="mgH" type="number" min="200" max="8192" step="1" style="flex:1"></div>
+      <div class="field-hint" id="mgSizeHint"></div>
+    </div>
+    <div class="field-group">
+      <div class="field-label">コマ割り（あとから自由に変えられます）</div>
+      <select class="field-select" id="mgLayout"></select>
+    </div>
+    <div class="field-group">
+      <div class="p-row" style="margin:0"><label class="p-lab">余白</label><input class="field-input" id="mgM" type="number" min="0" max="4000" style="flex:1"><label class="p-lab">間隔</label><input class="field-input" id="mgG" type="number" min="0" max="2000" style="flex:1"></div>
+      <div class="p-row" style="margin:6px 0 0"><label class="p-lab">枠線</label><input class="field-input" id="mgBw" type="number" min="0" max="500" style="flex:1"><input type="color" id="mgBc" value="#000000"></div>
+      <div class="field-hint">数字はピクセル。大きさを選ぶと、その大きさに合う値に変わります。</div>
+    </div>
+    <div class="modal-footer"><button class="btn primary" id="mgCreate" type="button">作る</button></div>
   </div>
 </div>
 
@@ -671,6 +719,7 @@
 </div>
 
 <input type="file" id="fileNew" accept="image/*" hidden>
+<input type="file" id="filePanel" accept="image/*" hidden>
 <input type="file" id="fileAdd" accept="image/*" hidden multiple>
 <input type="file" id="fileBase" accept="image/*" hidden>
 <input type="file" id="fileReuse" accept="image/*" hidden>
@@ -1106,6 +1155,11 @@
   }
   // canvas の filter が使えるか（使えない端末ではフィルター・ぼかしを別のやり方に）
   const MOSAIC_MODES = ['pixel', 'blur', 'fill', 'frost', 'steam', 'light'];
+  const MAX_PANEL_PTS = 16;
+  function normManga(m) {
+    if (!m || typeof m !== 'object') return null;
+    return { margin: num(m.margin, 60, 0, 4000), gutter: num(m.gutter, 20, 0, 2000), bw: num(m.bw, 6, 0, 500), bc: isColor(m.bc) ? m.bc : '#000000' };
+  }
   const MAX_STROKES = 400, MAX_STROKE_PTS = 4000;
   function normStrokes(a) {
     if (!Array.isArray(a)) return [];
@@ -1140,6 +1194,16 @@
     if (l.type === 'image') {
       if (typeof l.blobId !== 'string') return null;
       return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx), marks: normMarks(l.marks) });
+    }
+    if (l.type === 'panel') { // 漫画のコマ：pts は中心からの角の位置。img は中に入れた画像（位置・大きさはコマの座標）
+      const pts = (Array.isArray(l.pts) ? l.pts : []).slice(0, MAX_PANEL_PTS)
+        .filter((p) => Array.isArray(p) && Number.isFinite(+p[0]) && Number.isFinite(+p[1])).map((p) => [num(p[0], 0, -1e6, 1e6), num(p[1], 0, -1e6, 1e6)]);
+      if (pts.length < 3) return null;
+      const m = l.img && typeof l.img === 'object' && typeof l.img.blobId === 'string' ? l.img : null;
+      const img = m ? { blobId: m.blobId, name: cleanName(m.name) || '画像', w0: num(m.w0, 100, 1, 1e5), h0: num(m.h0, 100, 1, 1e5),
+        ox: num(m.ox, 0, -1e6, 1e6), oy: num(m.oy, 0, -1e6, 1e6), s: num(m.s, 1, 0.001, 1000), r: num(m.r, 0, -180, 180) } : null;
+      return Object.assign(base, { type: 'panel', pts, bw: num(l.bw, 6, 0, 500), bc: isColor(l.bc) ? l.bc : '#000000',
+        fill: l.fill === 'none' ? 'none' : isColor(l.fill) ? l.fill : '#ffffff', img });
     }
     if (l.type === 'mosaic') { // モザイク・ぼかし・塗りつぶし（下にあるものすべてにかかる）
       return Object.assign(base, {
@@ -1251,6 +1315,7 @@
   }
   function layerBox(L) { // ローカル座標（中心0・拡大前）での幅と高さ
     if (L.type === 'image') return { w: L.w0, h: L.h0 };
+    if (L.type === 'panel') { const b = ptsBox(L.pts); return { w: Math.max(1, b.x1 - b.x0), h: Math.max(1, b.y1 - b.y0) }; }
     if (L.type === 'mosaic') return { w: L.w, h: L.h };
     const i = shapeInfo(L); return { w: i.bw, h: i.bh };
   }
@@ -1528,6 +1593,8 @@
       else content(ctx);
     } else if (L.type === 'mosaic') {
       drawMosaic(ctx, L);
+    } else if (L.type === 'panel') {
+      drawPanel(ctx, L);
     } else {
       const info = shapeInfo(L);
       const content = (g) => { drawFrame(g, L, info); drawTextBody(g, L, info); };
@@ -1740,6 +1807,36 @@
     ctx.restore();
     if (L.mode === 'steam' && L.shape === 'brush') ctx.restore();
   }
+  /* ---------- 漫画のコマ ---------- */
+  function ptsBox(pts) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    pts.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); });
+    return { x0, y0, x1, y1 };
+  }
+  function panelPath(L) { const p = new Path2D(); L.pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y))); p.closePath(); return p; }
+  function drawPanel(ctx, L) {
+    const path = panelPath(L);
+    if (L.fill !== 'none') { ctx.fillStyle = L.fill; ctx.fill(path); }
+    if (L.img) {
+      ctx.save(); ctx.clip(path);
+      const c = imgCache.get(L.img.blobId), m = L.img;
+      ctx.translate(m.ox, m.oy); ctx.rotate(m.r * Math.PI / 180); ctx.scale(m.s, m.s);
+      if (c && c.img) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(c.img, -m.w0 / 2, -m.h0 / 2, m.w0, m.h0); }
+      else drawMissing(ctx, m.w0, m.h0);
+      ctx.restore();
+    }
+    if (L.bw > 0) { ctx.lineWidth = L.bw; ctx.lineJoin = 'miter'; ctx.miterLimit = 8; ctx.strokeStyle = L.bc; ctx.stroke(path); }
+  }
+  // 点が多角形の中か（偶奇の規則）
+  function inPoly(pts, x, y) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i], [xj, yj] = pts[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi || 1e-9) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
   // 決まった並びの乱数（同じ種なら毎回同じ形になる。書き出しと編集の画面で見え方をそろえる）
   function seededRand(seed) {
     let t = (seed >>> 0) || 1;
@@ -1967,13 +2064,19 @@
       if (guides.h) { const y = view.oy + cur.H / 2 * view.s; ctx.moveTo(view.ox, y); ctx.lineTo(view.ox + cur.W * view.s, y); }
       ctx.stroke(); ctx.setLineDash([]);
     }
+    if (cur.manga && cur.manga.margin > 0) { // 漫画のページの余白（書き出さない）
+      const m = cur.manga.margin * view.s;
+      ctx.save(); ctx.strokeStyle = 'rgba(0,240,208,.45)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.strokeRect(view.ox + m, view.oy + m, cur.W * view.s - m * 2, cur.H * view.s - m * 2);
+      ctx.restore();
+    }
     const L = selLayer();
     if (brush.on) drawBrushOverlay();
     else if (L && !L.hidden) drawHandles(L);
   }
   function handlePoints(L) {
     const b = layerBox(L), hw = b.w / 2, hh = b.h / 2;
-    const corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => toScreen(L, x, y));
+    const corners = (L.type === 'panel' ? L.pts : [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]).map(([x, y]) => toScreen(L, x, y));
     const top = toScreen(L, 0, -hh);
     const a = L.rot * Math.PI / 180;
     const rotH = { x: top.x + Math.sin(a) * 26, y: top.y - Math.cos(a) * 26 };
@@ -1987,6 +2090,13 @@
     ctx.strokeStyle = L.locked ? 'rgba(255,176,32,.9)' : 'rgba(0,240,208,.95)';
     ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
     ctx.beginPath(); h.corners.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); ctx.stroke();
+    if (L.type === 'panel' && L.img && panelAdjust) { // 中の画像の外形
+      const m = L.img, a = m.r * Math.PI / 180, hw = m.w0 * m.s / 2, hh = m.h0 * m.s / 2;
+      const q = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => toScreen(L, m.ox + x * Math.cos(a) - y * Math.sin(a), m.oy + x * Math.sin(a) + y * Math.cos(a)));
+      ctx.strokeStyle = 'rgba(255,176,32,.95)';
+      ctx.beginPath(); q.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = L.locked ? 'rgba(255,176,32,.9)' : 'rgba(0,240,208,.95)';
+    }
     ctx.setLineDash([]);
     if (!L.locked) {
       ctx.beginPath(); ctx.moveTo(h.top.x, h.top.y); ctx.lineTo(h.rotH.x, h.rotH.y); ctx.stroke();
@@ -2015,6 +2125,7 @@
       const L = cur.layers[i];
       if (L.hidden || L.locked) continue;
       const p = baseToLocal(L, bx, by), b = layerBox(L);
+      if (L.type === 'panel') { if (inPoly(L.pts, p.x, p.y)) return L; continue; }
       if (Math.abs(p.x) <= b.w / 2 && Math.abs(p.y) <= b.h / 2) return L;
     }
     return null;
@@ -2030,6 +2141,7 @@
     const near = (q) => Math.hypot(q.x - p.x, q.y - p.y) <= rad;
     if (h.tail && near(h.tail)) return { kind: 'tail' };
     if (near(h.rotH)) return { kind: 'rotate' };
+    if (L.type === 'panel') { for (let i = 0; i < h.corners.length; i++) if (near(h.corners[i])) return { kind: 'vertex', i }; return null; }
     for (const c of h.corners) if (near(c)) return { kind: 'scale' };
     return null;
   }
@@ -2054,6 +2166,12 @@
     const L = selLayer();
     // 2本目の指：選んでいるものを2本指で大きさ・向き・位置
     if (pointers.size === 2) {
+      if (L && !L.locked && L.type === 'panel' && L.img && panelAdjust) { // コマの中の画像を2本指で
+        const [a, b] = [...pointers.values()];
+        drag = { kind: 'pinchImg', L, d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x),
+          m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, s0: L.img.s, r0: L.img.r, ox0: L.img.ox, oy0: L.img.oy, moved: true };
+        return;
+      }
       if (L && !L.locked) {
         const [a, b] = [...pointers.values()];
         drag = { kind: 'pinch', L, d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x),
@@ -2065,6 +2183,10 @@
     const rad = e.pointerType === 'mouse' ? 10 : 22;
     const hh = hitHandle(L, p, rad);
     const bp = screenToBase(p.x, p.y);
+    if (hh && hh.kind === 'vertex') { drag = { kind: 'vertex', L, i: hh.i, p0: p, moved: false }; lastVertex = hh.i; return; }
+    if (L && L.type === 'panel' && L.img && panelAdjust && !L.locked && inPoly(L.pts, ...Object.values(baseToLocal(L, bp.x, bp.y)))) {
+      drag = { kind: 'panImg', L, p0: p, ox0: L.img.ox, oy0: L.img.oy, moved: false }; return;
+    }
     if (hh) {
       const c = toScreen(L, 0, 0);
       drag = { kind: hh.kind, L, p0: p, c, s0: L.scale, r0: L.rot, d0: Math.hypot(p.x - c.x, p.y - c.y) || 1, a0: Math.atan2(p.y - c.y, p.x - c.x), moved: false };
@@ -2077,6 +2199,7 @@
       lastTap = { t: now, id: hit.id };
       select(hit.id);
       if (dbl && hit.type === 'text') { focusText(); drag = null; return; }
+      if (dbl && hit.type === 'panel' && hit.img) { panelAdjust = !panelAdjust; refreshProps(); requestRender(); showToast(panelAdjust ? '中の画像を動かします（もう一度2回タップで戻る）' : 'コマを動かします'); drag = null; return; }
       drag = { kind: 'move', L: hit, p0: p, x0: hit.x, y0: hit.y, moved: false };
     } else {
       select(null);
@@ -2090,6 +2213,17 @@
     if (!drag) return;
     if (drag.kind === 'brush') { brushMove(p); return; }
     const L = drag.L;
+    if (drag.kind === 'pinchImg') {
+      if (pointers.size < 2) return;
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(b.x - a.x, b.y - a.y) || 1, ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, im = L.img;
+      im.s = clamp(drag.s0 * d / drag.d0, 0.001, 1000);
+      im.r = normRot(drag.r0 + (ang - drag.a0) * 180 / Math.PI);
+      const dl = screenDeltaToLocal(L, m.x - drag.m0.x, m.y - drag.m0.y);
+      im.ox = drag.ox0 + dl.x; im.oy = drag.oy0 + dl.y;
+      requestRender(); syncPropsLive(); return;
+    }
     if (drag.kind === 'pinch') {
       if (pointers.size < 2) return;
       const [a, b] = [...pointers.values()];
@@ -2107,11 +2241,29 @@
       let nx = drag.x0 + (p.x - drag.p0.x) / view.s, ny = drag.y0 + (p.y - drag.p0.y) / view.s;
       guides = { v: false, h: false };
       const snap = 8 / view.s;
-      if (!e.altKey) {
+      if (L.type === 'panel' && !e.altKey && L.rot === 0 && L.scale === 1) {
+        // コマは、ふちを余白の線・ほかのコマのふち（間隔をあけた所）に吸い付ける
+        const b = ptsBox(L.pts), c = panelSnapLines(L);
+        const sx = snapEdges([nx + b.x0, nx + b.x1], c.xs, snap), sy = snapEdges([ny + b.y0, ny + b.y1], c.ys, snap);
+        if (sx !== null) nx += sx; if (sy !== null) ny += sy;
+      } else if (!e.altKey) {
         if (Math.abs(nx - cur.W / 2) < snap) { nx = cur.W / 2; guides.v = true; }
         if (Math.abs(ny - cur.H / 2) < snap) { ny = cur.H / 2; guides.h = true; }
       }
       L.x = nx; L.y = ny;
+    } else if (drag.kind === 'vertex') {
+      const bp = screenToBase(p.x, p.y);
+      let bx = bp.x, by = bp.y;
+      if (!e.altKey && L.rot === 0 && L.scale === 1) {
+        const c = panelSnapLines(L), snap = 10 / view.s;
+        const sx = snapEdges([bx], c.xs, snap), sy = snapEdges([by], c.ys, snap);
+        if (sx !== null) bx += sx; if (sy !== null) by += sy;
+      }
+      const lp = baseToLocal(L, bx, by);
+      L.pts[drag.i] = [lp.x, lp.y];
+    } else if (drag.kind === 'panImg') {
+      const dl = screenDeltaToLocal(L, p.x - drag.p0.x, p.y - drag.p0.y);
+      L.img.ox = drag.ox0 + dl.x; L.img.oy = drag.oy0 + dl.y;
     } else if (drag.kind === 'scale' && L.type === 'mosaic') {
       // モザイクは幅と高さを別々に（中心はそのまま、つかんだ角までの距離で決める）
       const bp = screenToBase(p.x, p.y), lp = baseToLocal(L, bp.x, bp.y);
@@ -2146,7 +2298,7 @@
     const L = drag.L, moved = drag.moved;
     drag = null;
     guides = { v: false, h: false };
-    if (moved) { bakeLayer(L); changed(true); refreshProps(); }
+    if (moved) { bakeLayer(L); if (L.type === 'panel') recenterPanel(L); changed(true); refreshProps(); }
     else requestRender();
   }
   cv.addEventListener('pointerup', endPointer);
@@ -2155,6 +2307,36 @@
     const p = evPos(e), bp = screenToBase(p.x, p.y), hit = hitLayer(bp.x, bp.y);
     if (hit && hit.type === 'text') { select(hit.id); focusText(); }
   });
+  // 画面での動き → レイヤーの座標での動き（回転・拡大を戻す）
+  function screenDeltaToLocal(L, dx, dy) {
+    const a = -L.rot * Math.PI / 180, k = view.s * L.scale;
+    return { x: (dx * Math.cos(a) - dy * Math.sin(a)) / k, y: (dx * Math.sin(a) + dy * Math.cos(a)) / k };
+  }
+  // コマの吸い付き先：余白の線、ほかのコマのふち（ちょうど・間隔をあけた所）
+  function panelSnapLines(L) {
+    const m = cur.manga || { margin: 0, gutter: 0 }, g = m.gutter;
+    const xs = [m.margin, cur.W - m.margin], ys = [m.margin, cur.H - m.margin];
+    cur.layers.forEach((P) => {
+      if (P === L || P.type !== 'panel' || P.hidden || P.rot !== 0 || P.scale !== 1) return;
+      P.pts.forEach(([x, y]) => { const X = P.x + x, Y = P.y + y; xs.push(X, X - g, X + g); ys.push(Y, Y - g, Y + g); });
+    });
+    return { xs, ys };
+  }
+  // 辺（の座標）のどれかが吸い付き先に近ければ、ずらす量を返す
+  function snapEdges(vals, cands, th) {
+    let best = null;
+    vals.forEach((v) => cands.forEach((c) => { const d = c - v; if (Math.abs(d) < th && (best === null || Math.abs(d) < Math.abs(best))) best = d; }));
+    return best;
+  }
+  // 角を動かしたあと、角を囲む四角の真ん中をコマの中心にする（画面の位置は変えない）
+  function recenterPanel(L) {
+    const b = ptsBox(L.pts), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    if (Math.abs(cx) < 1e-6 && Math.abs(cy) < 1e-6) return;
+    L.pts = L.pts.map(([x, y]) => [x - cx, y - cy]);
+    if (L.img) { L.img.ox -= cx; L.img.oy -= cy; }
+    const a = L.rot * Math.PI / 180, k = L.scale;
+    L.x += (cx * Math.cos(a) - cy * Math.sin(a)) * k; L.y += (cx * Math.sin(a) + cy * Math.cos(a)) * k;
+  }
   function normRot(r) { r = ((r + 180) % 360 + 360) % 360 - 180; return Math.round(r * 10) / 10; }
   // 文字は、ハンドルで大きくした分を文字の大きさに移す（スタイルの保存で大きさがずれないように）。
   // モザイクは2本指で大きくした分を幅・高さに移す
@@ -2163,6 +2345,11 @@
     const k = L.scale;
     L.scale = 1;
     if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); return; }
+    if (L.type === 'panel') {
+      L.pts = L.pts.map(([x, y]) => [x * k, y * k]); L.bw = clamp(L.bw * k, 0, 500);
+      if (L.img) { L.img.ox *= k; L.img.oy *= k; L.img.s = clamp(L.img.s * k, 0.001, 1000); }
+      return;
+    }
     scaleSt(L.st, k);
     if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k };
     scaleMarks(L.marks, k);
@@ -2349,7 +2536,9 @@
   });
 
   /* ===================== 選択・やり直し・保存 ===================== */
+  let panelAdjust = false, lastVertex = -1;
   function select(id) {
+    if (id !== selId) { panelAdjust = false; lastVertex = -1; }
     if (brush.on) {
       if (id && brushable(id) && !(layerById(id) || {}).hidden) { brush.target = id; updateBrushBar(); }
       else exitBrush();
@@ -2359,7 +2548,7 @@
     refreshProps();
     requestRender();
   }
-  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, layers: cur.layers }); }
+  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, manga: cur.manga, layers: cur.layers }); }
   // 変えたら呼ぶ。少し待って（またはすぐ）1回分の「元に戻す」に積む
   function changed(immediate) {
     requestRender();
@@ -2385,7 +2574,7 @@
   async function applySnap(s) {
     const o = JSON.parse(s);
     const baseChanged = o.baseId !== cur.baseId;
-    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx); cur.baseMarks = normMarks(o.baseMarks);
+    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx); cur.baseMarks = normMarks(o.baseMarks); cur.manga = normManga(o.manga);
     cur.layers = o.layers;
     if (!layerById(selId)) selId = null;
     await loadImagesFor(cur);
@@ -2417,7 +2606,7 @@
     saveTimer = setTimeout(flushSave, 800);
   }
   function projRecord(p) {
-    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, baseMarks: p.baseMarks || [], layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
+    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, baseMarks: p.baseMarks || [], manga: p.manga || null, layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
   }
   // quick：画面を離れるとき（再読み込み・アプリを閉じる）。見本の画像を作るのを待たずに、すぐ書く
   // （待っている間にページが消えると、最後の変更が残らない）。見本は次に保存するときに作り直す
@@ -2456,7 +2645,7 @@
   function writeRescue() {
     if (!cur || !dirty) return;
     try {
-      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, layers: cur.layers, updatedAt: Date.now() });
+      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, manga: cur.manga, layers: cur.layers, updatedAt: Date.now() });
       if (s.length < 2000000) localStorage.setItem(LS_RESCUE, s);
     } catch (_) { /* 控えを書けなくても、いつもの保存はする */ }
   }
@@ -2507,7 +2696,7 @@
   }
   async function loadImagesFor(p) {
     const ids = new Set([p.baseId]);
-    p.layers.forEach((L) => { if (L.type === 'image') ids.add(L.blobId); });
+    p.layers.forEach((L) => { if (L.type === 'image') ids.add(L.blobId); if (L.type === 'panel' && L.img) ids.add(L.img.blobId); });
     await Promise.all([...ids].map(ensureImg));
   }
   function clearImgCache() {
@@ -2523,7 +2712,7 @@
       cur = {
         id: rec.id, name: cleanName(rec.name) || '無題', baseId: rec.baseId, W: num(rec.W, 1, 1, 1e5), H: num(rec.H, 1, 1, 1e5),
         layers: (Array.isArray(rec.layers) ? rec.layers : []).map(normLayer).filter(Boolean),
-        baseFx: normFx(rec.baseFx), baseMarks: normMarks(rec.baseMarks), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
+        baseFx: normFx(rec.baseFx), baseMarks: normMarks(rec.baseMarks), manga: normManga(rec.manga), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
       };
       clearImgCache();
       await loadImagesFor(cur);
@@ -2557,7 +2746,7 @@
   new ResizeObserver(() => { if (editorOpen()) { fitView(); render(); } }).observe($('stageWrap'));
 
   /* ===================== レイヤーの一覧 ===================== */
-  const KIND_LABEL = { image: '画像', text: '文字', mosaic: '効果' };
+  const KIND_LABEL = { image: '画像', text: '文字', mosaic: '効果', panel: 'コマ' };
   const MOSAIC_HINT = {
     pixel: '下にあるもの（画像・文字）すべてにかかります。四隅の□で幅と高さを変えられます。',
     steam: '白いもやを重ねます。濃さを上げると下が見えなくなります。［形を変える］でもやの形を作り直します。',
@@ -2567,12 +2756,14 @@
   const MOSAIC_LABEL = { pixel: 'モザイク', blur: 'ぼかし', fill: '塗りつぶし', frost: 'すりガラス', steam: '湯気', light: '光の帯' };
   function layerLabel(L) {
     if (L.type === 'image') return L.name || '画像';
+    if (L.type === 'panel') { const n = cur ? cur.layers.filter((P) => P.type === 'panel').indexOf(L) + 1 : 0; return `コマ ${n || ''}` + (L.img ? `（${L.img.name}）` : '（空）'); }
     if (L.type === 'mosaic') return MOSAIC_LABEL[L.mode] + (L.shape === 'ellipse' ? '（だ円）' : L.shape === 'brush' ? '（なぞり）' : '（四角）');
     const t = (L.text || '').split('\n').find((s) => s.trim()) || '（空の文字）';
     return t.slice(0, 30);
   }
   function renderLayerList() {
     if (!cur) return;
+    $('addPanelBtn').hidden = !cur.manga;
     const box = $('layerList');
     const rows = [...cur.layers].reverse().map((L) => `
       <div class="layer-item${L.id === selId ? ' is-active' : ''}${L.hidden ? ' is-hidden' : ''}" data-id="${esc(L.id)}">
@@ -2650,11 +2841,20 @@
     $('secImage').hidden = type !== 'image';
     $('secMosaic').hidden = type !== 'mosaic';
     $('secBase').hidden = type !== 'base';
+    $('secPanel').hidden = type !== 'panel';
+    $('secPage').hidden = !(type === 'base' && cur && cur.manga);
     $('secFx').hidden = type !== 'image' && type !== 'base';
     $('secCommon').hidden = type === 'base';
     $('pBrushRow').hidden = type !== 'image' && type !== 'text';
     const mk = type === 'base' ? cur.baseMarks : L ? L.marks : null;
     $('pMarksInfo').textContent = mk && mk.length ? `跡 ${mk.length} 本` : '';
+    if (isBase && cur.manga) {
+      const m = cur.manga;
+      setVal('pPgM', Math.round(m.margin)); setVal('pPgMR', Math.round(m.margin)); $('pPgMR').max = Math.max(400, Math.round(m.margin));
+      setVal('pPgG', Math.round(m.gutter)); setVal('pPgGR', Math.round(m.gutter)); $('pPgGR').max = Math.max(200, Math.round(m.gutter));
+      setVal('pPgBw', Math.round(m.bw)); setVal('pPgBwR', Math.round(m.bw)); $('pPgBwR').max = Math.max(40, Math.round(m.bw));
+      $('pPgBc').value = m.bc;
+    }
     if (isBase) {
       $('pBaseInfo').textContent = `${cur.W}×${cur.H}。ここでのフィルターは下の画像だけにかかります（重ねたものにはかかりません）。`;
       refreshFx();
@@ -2685,6 +2885,18 @@
       $('pPadR').max = Math.max(200, Math.round(st.pad));
       $('pTail').checked = st.tail; $('pTail').disabled = NO_TAIL.has(st.frame);
       renderStyleSelect();
+    } else if (type === 'panel') {
+      const im = L.img;
+      $('pPanFit').hidden = $('pPanImgDel').hidden = $('pPanAdjRow').hidden = $('pPanSRow').hidden = $('pPanRRow').hidden = !im;
+      $('pPanImg').textContent = im ? '画像を入れ替える' : '画像を入れる';
+      $('pPanAdjust').checked = panelAdjust;
+      if (im) { const pct = Math.round(im.s * 100); setVal('pPanS', pct); setVal('pPanSR', Math.min(400, pct)); setVal('pPanR', Math.round(im.r)); setVal('pPanRR', Math.round(im.r)); }
+      setVal('pPanBw', Math.round(L.bw)); setVal('pPanBwR', Math.round(L.bw)); $('pPanBwR').max = Math.max(40, Math.round(L.bw));
+      $('pPanBc').value = L.bc;
+      const fm = L.fill === 'none' ? 'none' : L.fill === '#ffffff' ? 'white' : 'color';
+      $('pPanFillMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === fm));
+      $('pPanFill').hidden = fm !== 'color'; if (fm === 'color') $('pPanFill').value = L.fill;
+      $('pPanDelPt').disabled = L.pts.length <= 3; $('pPanAddPt').disabled = L.pts.length >= MAX_PANEL_PTS;
     } else if (type === 'image') {
       const pct = Math.round(L.scale * 100);
       setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct));
@@ -2717,6 +2929,7 @@
     const L = selLayer(); if (!L) return;
     setVal('pRot', Math.round(L.rot)); setVal('pRotR', Math.round(L.rot));
     if (L.type === 'image') { const pct = Math.round(L.scale * 100); setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct)); }
+    else if (L.type === 'panel') { if (L.img) { const pct = Math.round(L.img.s * 100); setVal('pPanS', pct); setVal('pPanSR', Math.min(400, pct)); setVal('pPanR', Math.round(L.img.r)); setVal('pPanRR', Math.round(L.img.r)); } }
     else if (L.type === 'mosaic') { setVal('pMoW', Math.round(L.w * L.scale)); setVal('pMoH', Math.round(L.h * L.scale)); }
     else { const sz = Math.round(L.st.size * L.scale); setVal('pSize', sz); setVal('pSizeR', sz); }
   }
@@ -3145,6 +3358,10 @@
     if (sw !== cur.W || sh !== cur.H) rescaleLayers(layers, sw, sh, cur.W, cur.H);
     if (c.from === cur.id) layers.forEach((L) => { L.x += cur.W * 0.03; L.y += cur.H * 0.03; }); // 同じ作品なら少しずらす
     await Promise.all(layers.filter((L) => L.type === 'image').map((L) => ensureImg(L.blobId)));
+    await Promise.all(layers.filter((L) => L.type === 'panel' && L.img).map((L) => ensureImg(L.img.blobId)));
+    layers.forEach((L) => { // コマの画像が見つからなければ、コマだけ貼る
+      if (L.type === 'panel' && L.img) { const ci = imgCache.get(L.img.blobId); if (!(ci && ci.img)) L.img = null; }
+    });
     let missing = 0;
     layers = layers.filter((L) => {
       if (L.type !== 'image') return true;
@@ -3338,6 +3555,238 @@
     if (editorOpen()) renderStyleSelect();
   });
 
+  /* ===================== 漫画のページ・コマ ===================== */
+  const PAGE_SIZES = [
+    ['web', 'Web（縦長）1200×1700', 1200, 1700],
+    ['webL', 'Web（縦長・大きめ）1600×2263', 1600, 2263],
+    ['phone', 'Web（スマホ全画面）1080×1920', 1080, 1920],
+    ['b5', 'B5（印刷 350dpi）2508×3541', 2508, 3541],
+    ['a5', 'A5（印刷 350dpi）2039×2894', 2039, 2894],
+    ['b6', 'B6（印刷 350dpi）1772×2508', 1772, 2508],
+    ['a4', 'A4（印刷 350dpi）2894×4093', 2894, 4093],
+    ['custom', '数字で決める', 0, 0],
+  ];
+  // コマ割り：行ごとの列の数（h は行の高さの比、slant は下の境目の傾き＝高さに対する割合）
+  const PAGE_LAYOUTS = [
+    ['r3', '3段', [{ c: 1 }, { c: 1 }, { c: 1 }]],
+    ['r2', '2段', [{ c: 1 }, { c: 1 }]],
+    ['r4', '4コマ（縦）', [{ c: 1 }, { c: 1 }, { c: 1 }, { c: 1 }]],
+    ['g22', '2×2', [{ c: 2 }, { c: 2 }]],
+    ['g32', '3段×2', [{ c: 2 }, { c: 2 }, { c: 2 }]],
+    ['m212', '3段（2・1・2）', [{ c: 2 }, { c: 1, h: 1.3 }, { c: 2 }]],
+    ['m12', '大ゴマ＋2', [{ c: 1, h: 1.6 }, { c: 2 }]],
+    ['slant', '斜めの境目', [{ c: 1, slant: 0.05 }, { c: 2, h: 1.2, slant: -0.05 }, { c: 1 }]],
+    ['one', '1コマ', [{ c: 1 }]],
+    ['none', 'コマなし（あとで足す）', []],
+  ];
+  // コマ割りの多角形（ページの座標）を作る
+  function makeLayout(key, W, H, m, g) {
+    const rows = (PAGE_LAYOUTS.find((l) => l[0] === key) || PAGE_LAYOUTS[0])[2];
+    if (!rows.length) return [];
+    const x0 = m, x1 = W - m, y0 = m, y1 = H - m, cw = x1 - x0, ch = y1 - y0;
+    const total = rows.reduce((a, r) => a + (r.h || 1), 0), usable = ch - g * (rows.length - 1);
+    let y = y0;
+    const lines = [() => y0]; // 行の上の線（x → y）
+    rows.forEach((r, i) => {
+      y += usable * (r.h || 1) / total;
+      if (i < rows.length - 1) {
+        const by = y + g / 2, sl = (r.slant || 0) * ch;
+        lines.push((x) => by + sl * (1 - 2 * (x - x0) / cw)); // 左が下がり右が上がる（slant が正のとき）
+        y += g;
+      } else lines.push(() => y1);
+    });
+    const polys = [];
+    rows.forEach((r, i) => {
+      const top = (x) => lines[i](x) + (i ? g / 2 : 0), bot = (x) => lines[i + 1](x) - (i < rows.length - 1 ? g / 2 : 0);
+      const colW = (cw - g * (r.c - 1)) / r.c;
+      for (let j = 0; j < r.c; j++) {
+        const xl = x0 + j * (colW + g), xr = xl + colW;
+        polys.push([[xl, top(xl)], [xr, top(xr)], [xr, bot(xr)], [xl, bot(xl)]]);
+      }
+    });
+    return polys;
+  }
+  function panelFromPoly(poly, st) {
+    const b = ptsBox(poly), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    return normLayer({ type: 'panel', x: cx, y: cy, pts: poly.map(([x, y]) => [x - cx, y - cy]), bw: st.bw, bc: st.bc, fill: '#ffffff' });
+  }
+  function pageDefaults(W, H) {
+    const s = Math.min(W, H);
+    return { margin: Math.round(s * 0.06), gutter: Math.round(s * 0.02), bw: Math.max(2, Math.round(s * 0.004)), bc: '#000000' };
+  }
+  function updMangaSize() {
+    const o = PAGE_SIZES.find((x) => x[0] === $('mgSize').value) || PAGE_SIZES[0];
+    $('mgCustom').hidden = o[0] !== 'custom';
+    if (o[0] !== 'custom') { $('mgW').value = o[2]; $('mgH').value = o[3]; }
+    const W = num($('mgW').value, 1200, 200, MAX_SIDE), H = num($('mgH').value, 1700, 200, MAX_SIDE), d = pageDefaults(W, H);
+    $('mgM').value = d.margin; $('mgG').value = d.gutter; $('mgBw').value = d.bw;
+    $('mgSizeHint').textContent = o[0].length === 2 ? '印刷用の大きさ（350dpi）。書き出しは PNG がおすすめです。' : '';
+  }
+  $('newMangaBtn').addEventListener('click', () => {
+    $('mgSize').innerHTML = PAGE_SIZES.map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
+    $('mgLayout').innerHTML = PAGE_LAYOUTS.map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
+    updMangaSize();
+    openModal('mManga');
+  });
+  $('mgSize').addEventListener('change', updMangaSize);
+  ['mgW', 'mgH'].forEach((id) => $(id).addEventListener('change', () => {
+    const W = num($('mgW').value, 1200, 200, MAX_SIDE), H = num($('mgH').value, 1700, 200, MAX_SIDE), d = pageDefaults(W, H);
+    $('mgM').value = d.margin; $('mgG').value = d.gutter; $('mgBw').value = d.bw;
+  }));
+  $('mgCreate').addEventListener('click', async () => {
+    let W = Math.round(num($('mgW').value, 1200, 200, MAX_SIDE)), H = Math.round(num($('mgH').value, 1700, 200, MAX_SIDE));
+    if (W * H > MAX_PIXELS) { showToast(`大きすぎます（${W}×${H}）。画素の数が ${MAX_PIXELS / 1e6 | 0}00万までの大きさにしてください`.replace('00万', '万'), true); return; }
+    const st = { margin: num($('mgM').value, 0, 0, Math.min(W, H) / 3), gutter: num($('mgG').value, 0, 0, Math.min(W, H) / 4), bw: num($('mgBw').value, 4, 0, 500), bc: isColor($('mgBc').value) ? $('mgBc').value : '#000000' };
+    closeModal('mManga');
+    busy(true, 'ページを作っています…');
+    let id = null;
+    try {
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+      const blob = await canvasToBlob(c, 'image/png');
+      const brec = { id: genId(), blob, type: 'image/png', w: W, h: H, name: '白いページ', lib: false, createdAt: Date.now() };
+      await putOne(wdb, S_BLOBS, brec);
+      const layers = makeLayout($('mgLayout').value, W, H, st.margin, st.gutter).map((p) => panelFromPoly(p, st)).filter(Boolean);
+      const now = Date.now(), d = new Date(now);
+      const rec = { id: genId(), name: `漫画 ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+        baseId: brec.id, W, H, layers, manga: st, thumb: null, createdAt: now, updatedAt: now };
+      await putOne(wdb, S_PROJ, rec);
+      id = rec.id;
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) { /* 何もしない */ }
+    } catch (err) { showToast('作れませんでした：' + (err && err.message || err), true); }
+    finally { busy(false); }
+    if (id) { await openEditor(id); scheduleSave(); showToast('コマを選んで［画像を入れる］。角の□で形を変えられます'); }
+  });
+  // コマを足す（余白の内側の真ん中に、内側の幅の 40%）
+  $('addPanelBtn').addEventListener('click', () => {
+    if (!cur || !cur.manga) return;
+    if (cur.layers.length >= MAX_LAYERS) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); return; }
+    const m = cur.manga, w = (cur.W - m.margin * 2) * 0.4, h = (cur.H - m.margin * 2) * 0.25, cx = cur.W / 2, cy = cur.H / 2;
+    const L = panelFromPoly([[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]], m);
+    const at = cur.layers.reduce((a, P, i) => (P.type === 'panel' ? i + 1 : a), 0); // コマの並びの一番上（吹き出しより下）
+    cur.layers.splice(at, 0, L);
+    selId = L.id; changed(true); refreshProps();
+    if (isNarrow()) setTab('props');
+  });
+  // コマに画像を入れる
+  function coverScale(L, w0, h0) { const b = ptsBox(L.pts); return Math.max((b.x1 - b.x0) / w0, (b.y1 - b.y0) / h0); }
+  $('pPanImg').addEventListener('click', () => { const L = selLayer(); if (L && L.type === 'panel') $('filePanel').click(); });
+  $('filePanel').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0]; e.target.value = '';
+    const L = selLayer(); if (!file || !L || L.type !== 'panel') return;
+    busy(true, '取り込んでいます…');
+    try {
+      const r = await importFile(file);
+      imgCache.set(r.rec.id, { img: r.img, url: r.url });
+      const b = ptsBox(L.pts);
+      L.img = { blobId: r.rec.id, name: r.rec.name, w0: r.rec.w, h0: r.rec.h, ox: (b.x0 + b.x1) / 2, oy: (b.y0 + b.y1) / 2, s: coverScale(L, r.rec.w, r.rec.h), r: 0 };
+      changed(true); refreshProps();
+      showToast(r.note || 'コマに入れました。2回タップで中の画像の位置を動かせます');
+    } catch (err) { showToast(err.message || String(err), true); }
+    finally { busy(false); }
+  });
+  $('pPanImgDel').addEventListener('click', () => { const L = selLayer(); if (L && L.type === 'panel' && L.img) { L.img = null; panelAdjust = false; changed(true); refreshProps(); showToast('画像を外しました（↶ で戻せます）'); } });
+  $('pPanFit').addEventListener('click', () => {
+    const L = selLayer(); if (!L || L.type !== 'panel' || !L.img) return;
+    const b = ptsBox(L.pts); L.img.ox = (b.x0 + b.x1) / 2; L.img.oy = (b.y0 + b.y1) / 2; L.img.r = 0; L.img.s = coverScale(L, L.img.w0, L.img.h0);
+    changed(true); refreshProps();
+  });
+  $('pPanAdjust').addEventListener('change', () => { panelAdjust = $('pPanAdjust').checked; requestRender(); });
+  const PN = (fn) => (L, v) => { if (L.type === 'panel') fn(L, v); };
+  bindNum(['pPanS', 'pPanSR'], PN((L, v) => { if (L.img) L.img.s = clamp(v / 100, 0.001, 1000); }));
+  bindNum(['pPanR', 'pPanRR'], PN((L, v) => { if (L.img) L.img.r = clamp(v, -180, 180); }));
+  bindNum(['pPanBw', 'pPanBwR'], PN((L, v) => { L.bw = clamp(v, 0, 500); }));
+  $('pPanBc').addEventListener('input', () => { const L = selLayer(); if (L && L.type === 'panel' && isColor($('pPanBc').value)) { L.bc = $('pPanBc').value.toLowerCase(); changed(); } });
+  $('pPanBc').addEventListener('change', () => commitHist());
+  $('pPanFillMode').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'), L = selLayer(); if (!b || !L || L.type !== 'panel') return;
+    L.fill = b.dataset.v === 'none' ? 'none' : b.dataset.v === 'white' ? '#ffffff' : (L.fill !== 'none' && L.fill !== '#ffffff' ? L.fill : '#dddddd');
+    changed(true); refreshProps();
+  });
+  $('pPanFill').addEventListener('input', () => { const L = selLayer(); if (L && L.type === 'panel' && isColor($('pPanFill').value)) { L.fill = $('pPanFill').value.toLowerCase(); changed(); } });
+  $('pPanFill').addEventListener('change', () => commitHist());
+  // 多角形を直線で切る（Sutherland–Hodgman。keep(x,y) が 0 以上の側を残す）
+  function clipHalf(pts, f) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length], fa = f(a), fb = f(b);
+      if (fa >= 0) out.push(a);
+      if ((fa >= 0) !== (fb >= 0)) { const t = fa / (fa - fb); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    }
+    return out;
+  }
+  function splitPanel(dir) {
+    const L = selLayer(); if (!L || L.type !== 'panel') return;
+    if (cur.layers.length >= MAX_LAYERS) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); return; }
+    const g = (cur.manga ? cur.manga.gutter : 0) / L.scale / 2, b = ptsBox(L.pts);
+    const c = dir === 'v' ? (b.x0 + b.x1) / 2 : (b.y0 + b.y1) / 2, k = dir === 'v' ? 0 : 1;
+    const A = clipHalf(L.pts, (p) => c - g - p[k]), B = clipHalf(L.pts, (p) => p[k] - (c + g));
+    if (A.length < 3 || B.length < 3 || (dir === 'v' ? b.x1 - b.x0 : b.y1 - b.y0) <= g * 2 + 2) { showToast('小さすぎて分けられません', true); return; }
+    const NB = normLayer(Object.assign(JSON.parse(JSON.stringify(L)), { id: genId(), pts: B, img: null }));
+    L.pts = A; recenterPanel(L); recenterPanel(NB);
+    cur.layers.splice(cur.layers.indexOf(L) + 1, 0, NB);
+    changed(true); refreshProps();
+    showToast(dir === 'v' ? '左右に分けました（↶ で戻せます）' : '上下に分けました（↶ で戻せます）');
+  }
+  $('pPanSplitV').addEventListener('click', () => splitPanel('v'));
+  $('pPanSplitH').addEventListener('click', () => splitPanel('h'));
+  $('pPanAddPt').addEventListener('click', () => { // いちばん長い辺の真ん中に角を足す
+    const L = selLayer(); if (!L || L.type !== 'panel' || L.pts.length >= MAX_PANEL_PTS) return;
+    let bi = 0, bl = -1;
+    L.pts.forEach((a, i) => { const b = L.pts[(i + 1) % L.pts.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > bl) { bl = l; bi = i; } });
+    const a = L.pts[bi], b = L.pts[(bi + 1) % L.pts.length];
+    L.pts.splice(bi + 1, 0, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]); lastVertex = bi + 1;
+    changed(true); refreshProps(); showToast('角を足しました。□をドラッグして形を作ります');
+  });
+  $('pPanDelPt').addEventListener('click', () => { // 最後に動かした角（なければ最後の角）を消す
+    const L = selLayer(); if (!L || L.type !== 'panel' || L.pts.length <= 3) return;
+    const i = lastVertex >= 0 && lastVertex < L.pts.length ? lastVertex : L.pts.length - 1;
+    L.pts.splice(i, 1); lastVertex = -1; recenterPanel(L);
+    changed(true); refreshProps();
+  });
+  $('pPanRect').addEventListener('click', () => {
+    const L = selLayer(); if (!L || L.type !== 'panel') return;
+    const b = ptsBox(L.pts); L.pts = [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]]; recenterPanel(L);
+    changed(true); refreshProps();
+  });
+  // ページの設定
+  function bindPage(ids, key, lo, hi) {
+    ids.forEach((id) => {
+      $(id).addEventListener('input', () => { if (!cur || !cur.manga) return; cur.manga[key] = clamp(num($(id).value, cur.manga[key], lo, hi), lo, hi); ids.forEach((o) => { if (o !== id) setVal(o, Math.round(cur.manga[key])); }); changed(); });
+      $(id).addEventListener('change', () => commitHist());
+    });
+  }
+  bindPage(['pPgM', 'pPgMR'], 'margin', 0, 4000);
+  bindPage(['pPgG', 'pPgGR'], 'gutter', 0, 2000);
+  bindPage(['pPgBw', 'pPgBwR'], 'bw', 0, 500);
+  $('pPgBc').addEventListener('input', () => { if (cur && cur.manga && isColor($('pPgBc').value)) { cur.manga.bc = $('pPgBc').value.toLowerCase(); changed(); } });
+  $('pPgBc').addEventListener('change', () => commitHist());
+  $('pPgApply').addEventListener('click', () => {
+    if (!cur || !cur.manga) return;
+    const ps = cur.layers.filter((L) => L.type === 'panel');
+    if (!ps.length) { showToast('コマがありません', true); return; }
+    ps.forEach((L) => { L.bw = cur.manga.bw / L.scale; L.bc = cur.manga.bc; });
+    changed(true); showToast(`${ps.length} 個のコマの枠線を変えました（↶ で戻せます）`);
+  });
+  $('pPgRelayout').addEventListener('click', () => {
+    if (!cur || !cur.manga) return;
+    armTwice($('pPgRelayout'), 'もう一度で作り直す', () => {
+      const old = cur.layers.filter((L) => L.type === 'panel'), imgs = old.map((L) => L.img).filter(Boolean);
+      const m = cur.manga, polys = makeLayout($('pPgLayout').value, cur.W, cur.H, m.margin, m.gutter);
+      const fresh = polys.map((p) => panelFromPoly(p, m)).filter(Boolean);
+      fresh.forEach((L, i) => { // 前のコマの画像を順に入れる（コマに合わせる）
+        const im = imgs[i]; if (!im) return;
+        const b = ptsBox(L.pts);
+        L.img = Object.assign({}, im, { ox: (b.x0 + b.x1) / 2, oy: (b.y0 + b.y1) / 2, r: 0, s: coverScale(L, im.w0, im.h0) });
+      });
+      const rest = cur.layers.filter((L) => L.type !== 'panel');
+      cur.layers = [...fresh, ...rest];
+      changed(true); refreshProps();
+      showToast(`コマ割りを作り直しました${imgs.length > fresh.length ? `（入りきらない画像 ${imgs.length - fresh.length} 枚は外しました）` : ''}（↶ で戻せます）`);
+    });
+  });
+  $('pPgLayout').innerHTML = PAGE_LAYOUTS.map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
+
   /* ===================== 効果セット =====================
      モザイク・効果の範囲だけを、画像の大きさに対する割合で保存する（LIGHTBOX の効果セットと同じ形 v:1）。
      位置・幅は画像の幅、縦・高さは画像の高さに対する割合。粗さ・強さは短い辺に対する割合
@@ -3519,6 +3968,10 @@
     layers.forEach((L) => {
       L.x *= sx; L.y *= sy;
       if (L.type === 'image') L.scale = clamp(L.scale * k, 0.005, 200);
+      else if (L.type === 'panel') {
+        L.pts = L.pts.map(([x, y]) => [x * sx, y * sy]); L.bw = clamp(L.bw * k, 0, 500);
+        if (L.img) { L.img.ox *= sx; L.img.oy *= sy; L.img.s = clamp(L.img.s * k, 0.001, 1000); }
+      }
       else if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); L.block = clamp(L.block * k, 2, 400); L.blur = clamp(L.blur * k, 1, 200); }
       else { scaleSt(L.st, k); if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k }; scaleMarks(L.marks, k); }
     });
@@ -3735,10 +4188,10 @@
   async function gcBlobs(graceMs) {
     const projs = await getAll(wdb, S_PROJ);
     const refs = new Set();
-    projs.forEach((p) => { refs.add(p.baseId); (p.layers || []).forEach((l) => { if (l && l.type === 'image') refs.add(l.blobId); }); });
+    projs.forEach((p) => { refs.add(p.baseId); (p.layers || []).forEach((l) => { if (l && l.type === 'image') refs.add(l.blobId); if (l && l.type === 'panel' && l.img && typeof l.img.blobId === 'string') refs.add(l.img.blobId); }); });
     // コピーしてまだ貼り付けていない画像も残す（コピー元の作品を消したあとでも貼り付けられるように）
     const clip = readClip();
-    if (clip) clip.layers.forEach((l) => { if (l && l.type === 'image' && typeof l.blobId === 'string') refs.add(l.blobId); });
+    if (clip) clip.layers.forEach((l) => { if (l && l.type === 'image' && typeof l.blobId === 'string') refs.add(l.blobId); if (l && l.type === 'panel' && l.img && typeof l.img.blobId === 'string') refs.add(l.img.blobId); });
     const keys = await getAllKeys(wdb, S_BLOBS);
     const now = Date.now();
     for (const k of keys) {
