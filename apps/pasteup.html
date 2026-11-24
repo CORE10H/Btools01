@@ -196,6 +196,13 @@
   /* 選ぶものが多いときは折り返す（スマホの幅からはみ出さないように） */
   .seg.seg-wrap { display: inline-flex; flex-wrap: wrap; flex: 1; min-width: 0; gap: 3px; }
   .seg.seg-wrap .btn + .btn { border-left: 1px solid var(--line); }
+  /* 書き出しの前の、隠し漏れの確認 */
+  .ex-check-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+  .ex-check-item { border: 1px solid var(--line); padding: 6px; }
+  .ex-check-item canvas { display: block; max-width: 100%; max-height: 220px; margin: 0 auto; background: #000; }
+  .ex-check-item .exc-name { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .ex-check-item .exc-warn { font-size: 11px; color: #ffb020; margin-top: 4px; }
+  .ex-confirm { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--text); }
 
   /* ---- モーダル共通 ---- */
   .modal-overlay {
@@ -364,6 +371,7 @@
           <button class="menu-panel-item" id="emSwap" type="button">下の画像を差し替える</button>
           <button class="menu-panel-item" id="emReuse" type="button">この配置で別の画像を使う（複製）</button>
           <button class="menu-panel-item" id="emFonts" type="button">書体の取り込み・管理</button>
+          <button class="menu-panel-item" id="emFxSets" type="button">効果セット（保存・当てる）</button>
           <div class="menu-note">差し替え・複製では、重ねたものの位置と大きさを新しい画像の大きさに合わせます。</div>
         </div>
       </div>
@@ -455,7 +463,8 @@
             <div class="p-row"><label class="p-lab">種類</label>
               <span class="seg seg-wrap" id="pMoMode"><button class="btn" type="button" data-v="pixel">モザイク</button><button class="btn" type="button" data-v="blur">ぼかし</button><button class="btn" type="button" data-v="fill">塗りつぶし</button><button class="btn" type="button" data-v="frost">すりガラス</button><button class="btn" type="button" data-v="steam">湯気</button><button class="btn" type="button" data-v="light">光の帯</button></span></div>
             <div class="p-row"><label class="p-lab">形</label>
-              <span class="seg" id="pMoShape"><button class="btn" type="button" data-v="rect">四角</button><button class="btn" type="button" data-v="ellipse">だ円</button></span></div>
+              <span class="seg" id="pMoShape"><button class="btn" type="button" data-v="rect">四角</button><button class="btn" type="button" data-v="ellipse">だ円</button><button class="btn" type="button" data-v="brush" title="指やマウスでなぞった形にする">なぞる</button></span>
+              <button class="btn small" id="pMoDraw" type="button" title="なぞった形に足す・減らす">なぞり直す</button></div>
             <div class="p-row" id="pMoBlockRow"><label class="p-lab">粗さ</label><input type="range" id="pMoBlockR" min="2" max="120" step="1"><input type="number" id="pMoBlock" min="2" max="400" step="1"></div>
             <div class="p-row" id="pMoBlurRow"><label class="p-lab">強さ</label><input type="range" id="pMoBlurR" min="1" max="100" step="1"><input type="number" id="pMoBlur" min="1" max="200" step="1"></div>
             <div class="p-row" id="pMoHazeRow"><label class="p-lab">白さ</label><input type="range" id="pMoHazeR" min="0" max="90" step="1"><input type="number" id="pMoHaze" min="0" max="90" step="1"></div>
@@ -512,10 +521,31 @@
   </div>
 </div>
 
+<!-- 効果セット -->
+<div class="modal-overlay" id="mFxSets">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">効果セット</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="note-box">モザイク・効果の範囲の組み合わせを保存して、別の作品に同じ配置で当てられます。位置と大きさは画像の幅・高さに合わせて伸び縮みします。この端末だけに保存します（同期しません）。</div>
+    <div class="sub-title">今の作品の効果を保存</div>
+    <div class="field-group">
+      <div class="p-row" style="margin:0"><input class="field-input" id="fsName" maxlength="40" placeholder="例：光の帯（斜め）" style="flex:1"><button class="btn primary" id="fsSave" type="button">保存</button></div>
+      <div class="field-hint" id="fsSaveHint"></div>
+    </div>
+    <div class="sub-title">保存したセット</div>
+    <div id="fsList"></div>
+  </div>
+</div>
+
 <!-- 書き出す -->
 <div class="modal-overlay" id="mExport">
   <div class="modal">
     <div class="modal-head"><span class="modal-title">書き出す</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-group" id="exCheck" hidden>
+      <div class="field-label">隠し漏れの確認（効果 <span id="exCheckN"></span> 個）</div>
+      <div class="p-row" style="margin:0 0 6px"><label class="field-hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="exCompare"> 効果をかける前と比べる</label></div>
+      <div id="exCheckList" class="ex-check-list"></div>
+      <label class="ex-confirm"><input type="checkbox" id="exConfirm"> 隠したい所が全部隠れているのを確かめた</label>
+    </div>
     <div class="field-group">
       <div class="field-label">形式</div>
       <select class="field-select" id="exFormat">
@@ -666,7 +696,7 @@
   ===================================================================== */
   const DB_NAME = 'sideops_pasteup', DB_VERSION = 1, S_STYLES = 'styles';
   // 版2（2026-11-20）：取り込んだ書体の fonts を足した
-  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 2, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts';
+  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 3, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts', S_FXSETS = 'fxsets';
   const LS_PREFS = 'sideops_pasteup_prefs'; // 端末ごとの設定（背景の透過を確かめるか など）
   const MAX_FONT_FILE = 50 * 1024 * 1024;
   const BASE_SEL = '__base__';            // レイヤーの一覧で「下の画像」を選んだとき
@@ -1076,6 +1106,18 @@
   }
   // canvas の filter が使えるか（使えない端末ではフィルター・ぼかしを別のやり方に）
   const MOSAIC_MODES = ['pixel', 'blur', 'fill', 'frost', 'steam', 'light'];
+  const MAX_STROKES = 400, MAX_STROKE_PTS = 4000;
+  function normStrokes(a) {
+    if (!Array.isArray(a)) return [];
+    const out = [];
+    for (const st of a.slice(0, MAX_STROKES)) {
+      if (!st || !Array.isArray(st.p)) continue;
+      const p = st.p.slice(0, MAX_STROKE_PTS * 2).map(Number);
+      if (p.length < 2 || p.length % 2 || !p.every(Number.isFinite)) continue;
+      out.push({ w: num(st.w, 10, 0.3, 1e5), p });
+    }
+    return out;
+  }
   const FILTER_OK = (() => {
     try { const g = document.createElement('canvas').getContext('2d'); if (typeof g.filter !== 'string') return false; g.filter = 'blur(2px)'; return g.filter === 'blur(2px)'; }
     catch (_) { return false; }
@@ -1103,7 +1145,9 @@
       return Object.assign(base, {
         type: 'mosaic', scale: 1,
         w: num(l.w, 100, 4, 1e5), h: num(l.h, 100, 4, 1e5),
-        shape: l.shape === 'ellipse' ? 'ellipse' : 'rect',
+        shape: ['ellipse', 'brush'].includes(l.shape) ? l.shape : 'rect',
+        // なぞった形：strokes は「なぞったときの座標」（中心が原点）。今の幅・高さ（w・h）と、そのときの幅・高さ（bw・bh）の比で伸び縮みする
+        strokes: normStrokes(l.strokes), bw: num(l.bw, num(l.w, 100, 4, 1e5), 0.5, 1e6), bh: num(l.bh, num(l.h, 100, 4, 1e5), 0.5, 1e6),
         mode: MOSAIC_MODES.includes(l.mode) ? l.mode : 'pixel',
         block: num(l.block, 12, 2, 400), blur: num(l.blur, 12, 1, 200),
         color: isColor(l.color) ? l.color : '#000000',
@@ -1585,12 +1629,41 @@
   const mosaicTmp = document.createElement('canvas');
   const mosaicSmall = document.createElement('canvas');
   const steamTmp = document.createElement('canvas');
-  function drawMosaic(ctx, L) {
+  // なぞった形：線に沿って丸を押していった形（丸を全部足し合わせる）。線が変わるまで作り直さない
+  const brushRawCache = new WeakMap();
+  function brushRawPath(L) {
+    const key = L.strokes.length + ':' + (L.strokes.length ? L.strokes[L.strokes.length - 1].p.length : 0);
+    const hit = brushRawCache.get(L.strokes);
+    if (hit && hit.key === key) return hit.path;
+    const path = new Path2D();
+    const dot = (x, y, r) => { path.moveTo(x + r, y); path.arc(x, y, r, 0, Math.PI * 2); };
+    for (const st of L.strokes) {
+      const r = st.w / 2, step = Math.max(0.3, r * 0.5), p = st.p;
+      dot(p[0], p[1], r);
+      for (let i = 2; i < p.length; i += 2) {
+        const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1];
+        const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step));
+        for (let j = 1; j <= n; j++) dot(x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n, r);
+      }
+    }
+    brushRawCache.set(L.strokes, { key, path });
+    return path;
+  }
+  function mosaicShape(L) {
     const shape = new Path2D();
-    if (L.shape === 'ellipse') shape.ellipse(0, 0, L.w / 2, L.h / 2, 0, 0, Math.PI * 2);
+    if (L.shape === 'brush') shape.addPath(brushRawPath(L), new DOMMatrix().scaleSelf(L.w / L.bw, L.h / L.bh));
+    else if (L.shape === 'ellipse') shape.ellipse(0, 0, L.w / 2, L.h / 2, 0, 0, Math.PI * 2);
     else shape.rect(-L.w / 2, -L.h / 2, L.w, L.h);
+    return shape;
+  }
+  function drawMosaic(ctx, L) {
+    const shape = mosaicShape(L);
     if (L.mode === 'fill') { ctx.fillStyle = L.color; ctx.fill(shape); return; }
-    if (L.mode === 'light') { drawLightBand(ctx, L); return; }
+    // 光の帯・湯気は、なぞった形のときはその形の中だけ
+    if (L.mode === 'light' || L.mode === 'steam') {
+      if (L.shape === 'brush') { ctx.save(); ctx.clip(shape); }
+    }
+    if (L.mode === 'light') { drawLightBand(ctx, L); if (L.shape === 'brush') ctx.restore(); return; }
     const m = ctx.getTransform(), cv = ctx.canvas, k = transformScale(ctx);
     // 湯気は下を少しぼかす（濃いほど強く）。ぼかしの量は画像の座標
     const steamBlur = Math.max(1, Math.min(L.w, L.h) * 0.06 * L.dens / 100);
@@ -1603,7 +1676,7 @@
     const sx = Math.max(0, Math.floor(x0) - pad), sy = Math.max(0, Math.floor(y0) - pad);
     const ex = Math.min(cv.width, Math.ceil(x1) + pad), ey = Math.min(cv.height, Math.ceil(y1) + pad);
     const sw = ex - sx, sh = ey - sy;
-    if (sw < 1 || sh < 1) return;
+    if (sw < 1 || sh < 1) { if (L.mode === 'steam' && L.shape === 'brush') ctx.restore(); return; }
     mosaicTmp.width = sw; mosaicTmp.height = sh;
     const tg = mosaicTmp.getContext('2d');
     tg.clearRect(0, 0, sw, sh);
@@ -1665,6 +1738,7 @@
     else if (FILTER_OK) { ctx.filter = `blur(${(L.blur * k).toFixed(2)}px)`; ctx.drawImage(mosaicTmp, sx, sy); ctx.filter = 'none'; }
     else smallDraw(Math.max(1, L.blur * k * 0.8), true); // filter が使えない端末：縮めて広げる（ぼけて見える）
     ctx.restore();
+    if (L.mode === 'steam' && L.shape === 'brush') ctx.restore();
   }
   // 決まった並びの乱数（同じ種なら毎回同じ形になる。書き出しと編集の画面で見え方をそろえる）
   function seededRand(seed) {
@@ -2109,15 +2183,17 @@
   function brushable(id) {
     if (id === BASE_SEL) return true;
     const L = layerById(id);
-    return !!L && (L.type === 'image' || L.type === 'text');
+    return !!L && (L.type === 'image' || L.type === 'text' || (L.type === 'mosaic' && L.shape === 'brush'));
   }
   function brushTarget() {
     if (!cur || !brush.on) return null;
     if (brush.target === BASE_SEL) return { kind: 'base' };
     const L = layerById(brush.target);
+    if (L && L.type === 'mosaic' && L.shape === 'brush') return { kind: 'mosaic', L };
     return L && (L.type === 'image' || L.type === 'text') ? { kind: 'layer', L } : null;
   }
   function targetMarks(t) {
+    if (t.kind === 'mosaic') return t.L.strokes;
     if (t.kind === 'base') { if (!Array.isArray(cur.baseMarks)) cur.baseMarks = []; return cur.baseMarks; }
     if (!Array.isArray(t.L.marks)) t.L.marks = [];
     return t.L.marks;
@@ -2129,9 +2205,11 @@
   function updateBrushBar() {
     $('brushBar').hidden = !brush.on;
     if (!brush.on) return;
-    $('bbTarget').textContent = '消しゴム・ペン：' + brushLabel(brush.target);
+    const mo = (layerById(brush.target) || {}).type === 'mosaic';
+    $('bbTarget').textContent = (mo ? 'なぞって範囲を作る：' : '消しゴム・ペン：') + brushLabel(brush.target);
+    $('bbMode').hidden = mo;
     $('bbMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === brush.mode));
-    $('bbColor').hidden = brush.mode !== 'p';
+    $('bbColor').hidden = mo || brush.mode !== 'p';
     $('bbColor').value = brush.color;
     $('bbSize').value = brush.size; $('bbSizeV').textContent = brush.size + 'px';
     disarm($('bbClear'));
@@ -2139,7 +2217,7 @@
   function startBrush(id) {
     if (!cur) return;
     if (!id) { const L = selLayer(); id = selId === BASE_SEL ? BASE_SEL : L ? L.id : BASE_SEL; }
-    if (!brushable(id)) { showToast('消しゴムは、画像・文字・下の画像に使えます（モザイクには使えません）', true); return; }
+    if (!brushable(id)) { showToast('消しゴムは、画像・文字・下の画像に使えます（モザイクは「形」の［なぞる］で）', true); return; }
     const L = layerById(id);
     if (L && L.hidden) { showToast('隠しているものには使えません。［見］で表示してから', true); return; }
     brush.on = true; brush.target = id;
@@ -2147,11 +2225,46 @@
     renderLayerList(); refreshProps();
     updateBrushBar();
     requestRender();
-    showToast(`${brushLabel(id)}をなぞって消します。終わったら［終わる］`);
+    showToast(L && L.type === 'mosaic' ? '隠したい所をなぞります。終わったら［終わる］' : `${brushLabel(id)}をなぞって消します。終わったら［終わる］`);
+  }
+  // モザイクを「なぞった形」にして、なぞり始める
+  function startMosaicBrush(L) {
+    if (L.shape !== 'brush') {
+      if (!L.strokes.length) { L.bw = L.w; L.bh = L.h; }
+      L.shape = 'brush';
+      changed(true);
+    }
+    startBrush(L.id);
+  }
+  // なぞり終わったら、なぞった形にぴったりの範囲（中心・幅・高さ）に直す。何もなぞっていなければ四角に戻す
+  function fitBrushMosaic(L) {
+    if (L.shape !== 'brush') return;
+    if (!L.strokes.length) { L.shape = 'rect'; L.w = Math.max(L.w, 4); L.h = Math.max(L.h, 4); return; }
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const st of L.strokes) {
+      const r = st.w / 2;
+      for (let i = 0; i < st.p.length; i += 2) {
+        x0 = Math.min(x0, st.p[i] - r); x1 = Math.max(x1, st.p[i] + r);
+        y0 = Math.min(y0, st.p[i + 1] - r); y1 = Math.max(y1, st.p[i + 1] + r);
+      }
+    }
+    const sx = L.w / L.bw, sy = L.h / L.bh, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    if (Math.abs(cx) < 0.01 && Math.abs(cy) < 0.01 && Math.abs(x1 - x0 - L.bw) < 0.01 && Math.abs(y1 - y0 - L.bh) < 0.01) return;
+    for (const st of L.strokes) for (let i = 0; i < st.p.length; i += 2) { st.p[i] = r1(st.p[i] - cx); st.p[i + 1] = r1(st.p[i + 1] - cy); }
+    const a = L.rot * Math.PI / 180, ox = cx * sx, oy = cy * sy;
+    L.x += ox * Math.cos(a) - oy * Math.sin(a); L.y += ox * Math.sin(a) + oy * Math.cos(a);
+    L.bw = Math.max(0.5, x1 - x0); L.bh = Math.max(0.5, y1 - y0);
+    L.w = clamp(L.bw * sx, 4, 1e5); L.h = clamp(L.bh * sy, 4, 1e5);
   }
   function exitBrush() {
     if (!brush.on) return;
     if (drag && drag.kind === 'brush') drag = null;
+    const BL = layerById(brush.target);
+    if (BL && BL.type === 'mosaic') {
+      const was = BL.shape;
+      fitBrushMosaic(BL); changed(true);
+      if (was === 'brush' && BL.shape !== 'brush') showToast('何もなぞらなかったので、四角に戻しました');
+    }
     brush.on = false; brush.hover = null;
     updateBrushBar();
     refreshProps();
@@ -2161,6 +2274,10 @@
   function toTargetLocal(t, sx, sy) {
     const bp = screenToBase(sx, sy);
     if (t.kind === 'base') return { x: bp.x, y: bp.y, k: view.s };
+    if (t.kind === 'mosaic') { // なぞったときの座標に（今の幅・高さとの比で割る）
+      const L = t.L, lp = baseToLocal(L, bp.x, bp.y), fx = L.w / L.bw, fy = L.h / L.bh;
+      return { x: lp.x / fx, y: lp.y / fy, k: view.s * Math.sqrt(fx * fy) };
+    }
     const L = t.L, lp = baseToLocal(L, bp.x, bp.y);
     if (L.type === 'image' && L.flipX) lp.x = -lp.x;
     return { x: lp.x, y: lp.y, k: view.s * L.scale };
@@ -2170,7 +2287,7 @@
     const t = brushTarget();
     if (!t) { exitBrush(); return; }
     const marks = targetMarks(t);
-    if (marks.length >= MAX_MARKS || markCount(marks) > MAX_MARK_TOTAL - 2000) {
+    if (t.kind === 'mosaic' ? (marks.length >= MAX_STROKES) : (marks.length >= MAX_MARKS || markCount(marks) > MAX_MARK_TOTAL - 2000)) {
       showToast('跡が多すぎて、これ以上なぞれません。［跡を全部なくす］か、↶ で減らしてください', true); return;
     }
     const q = toTargetLocal(t, p.x, p.y);
@@ -2182,7 +2299,7 @@
   }
   function brushMove(p) {
     const s = drag.s;
-    if (s.p.length >= MAX_MARK_PTS * 2) return;
+    if (s.p.length >= (drag.t.kind === 'mosaic' ? MAX_STROKE_PTS : MAX_MARK_PTS) * 2) return;
     const q = toTargetLocal(drag.t, p.x, p.y);
     const lx = s.p[s.p.length - 2], ly = s.p[s.p.length - 1];
     if (Math.hypot(q.x - lx, q.y - ly) < Math.max(0.3, s.w * 0.12)) return;
@@ -2213,6 +2330,7 @@
   $('brushBtn').addEventListener('click', () => { if (brush.on) exitBrush(); else startBrush(); });
   $('pBrush').addEventListener('click', () => startBrush(selId));
   $('pBaseBrush').addEventListener('click', () => startBrush(BASE_SEL));
+  $('pMoDraw').addEventListener('click', () => { const L = selLayer(); if (L && L.type === 'mosaic') startMosaicBrush(L); });
   $('bbDone').addEventListener('click', exitBrush);
   $('bbMode').addEventListener('click', (e) => {
     const b = e.target.closest('.btn'); if (!b) return;
@@ -2449,7 +2567,7 @@
   const MOSAIC_LABEL = { pixel: 'モザイク', blur: 'ぼかし', fill: '塗りつぶし', frost: 'すりガラス', steam: '湯気', light: '光の帯' };
   function layerLabel(L) {
     if (L.type === 'image') return L.name || '画像';
-    if (L.type === 'mosaic') return MOSAIC_LABEL[L.mode] + (L.shape === 'ellipse' ? '（だ円）' : '（四角）');
+    if (L.type === 'mosaic') return MOSAIC_LABEL[L.mode] + (L.shape === 'ellipse' ? '（だ円）' : L.shape === 'brush' ? '（なぞり）' : '（四角）');
     const t = (L.text || '').split('\n').find((s) => s.trim()) || '（空の文字）';
     return t.slice(0, 30);
   }
@@ -2579,7 +2697,8 @@
       $('pMoHazeRow').hidden = $('pMoGrainRow').hidden = L.mode !== 'frost';
       $('pMoDensRow').hidden = L.mode !== 'steam';
       $('pMoCoreRow').hidden = $('pMoGlowRow').hidden = L.mode !== 'light';
-      $('pMoHint').textContent = MOSAIC_HINT[L.mode] || MOSAIC_HINT.pixel;
+      $('pMoHint').textContent = (L.shape === 'brush' ? 'なぞった形にかかります。［なぞり直す］で足せます。' : '') + (MOSAIC_HINT[L.mode] || MOSAIC_HINT.pixel);
+      $('pMoDraw').hidden = L.shape !== 'brush';
       setVal('pMoHaze', Math.round(L.haze)); setVal('pMoHazeR', Math.round(L.haze));
       setVal('pMoGrain', Math.round(L.grain)); setVal('pMoGrainR', Math.round(L.grain));
       setVal('pMoDens', Math.round(L.dens)); setVal('pMoDensR', Math.round(L.dens));
@@ -2768,6 +2887,7 @@
       const b = e.target.closest('.btn'), L = selLayer();
       if (!b || !L || L.type !== 'mosaic') return;
       const was = L[key];
+      if (key === 'shape' && b.dataset.v === 'brush') { startMosaicBrush(L); return; }
       L[key] = b.dataset.v;
       // 光の帯に切り替えたとき、四角が太すぎれば横長の帯に整える（中心はそのまま）
       if (key === 'mode' && was !== 'frost' && L.mode === 'frost' && cur) L.blur = Math.max(L.blur, Math.round(Math.min(cur.W, cur.H) / 40));
@@ -3218,6 +3338,66 @@
     if (editorOpen()) renderStyleSelect();
   });
 
+  /* ===================== 効果セット =====================
+     モザイク・効果の範囲だけを、画像の大きさに対する割合で保存する（LIGHTBOX の効果セットと同じ形 v:1）。
+     位置・幅は画像の幅、縦・高さは画像の高さに対する割合。粗さ・強さは短い辺に対する割合
+  ===================================================================== */
+  const MAX_FXSETS = 100, FX_KEYS = ['rot', 'shape', 'mode', 'color', 'haze', 'grain', 'dens', 'seed', 'core', 'glow', 'opacity', 'bw', 'bh', 'strokes'];
+  function toFxItem(L, W, H) {
+    const short = Math.min(W, H), it = { x: L.x / W, y: L.y / H, w: L.w / W, h: L.h / H, block: L.block / short, blur: L.blur / short };
+    FX_KEYS.forEach((k) => { it[k] = L[k]; });
+    return JSON.parse(JSON.stringify(it));
+  }
+  function fromFxItem(it, W, H) {
+    if (!it || typeof it !== 'object') return null;
+    const short = Math.min(W, H), n = (v) => (Number.isFinite(+v) ? +v : NaN);
+    const l = { type: 'mosaic', x: n(it.x) * W, y: n(it.y) * H, w: n(it.w) * W, h: n(it.h) * H, block: n(it.block) * short, blur: n(it.blur) * short };
+    FX_KEYS.forEach((k) => { if (it[k] !== undefined) l[k] = it[k]; });
+    return normLayer(l);
+  }
+  async function renderFxSets() {
+    const n = cur ? cur.layers.filter((L) => L.type === 'mosaic').length : 0;
+    $('fsSave').disabled = !n;
+    $('fsSaveHint').textContent = n ? `今の作品のモザイク・効果 ${n} 個を保存します（［見］で隠しているものも入ります）。` : 'この作品にはモザイク・効果がありません。';
+    let sets = [];
+    try { sets = await getAll(wdb, S_FXSETS); } catch (_) { /* 読めなければ空 */ }
+    sets.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    $('fsList').innerHTML = sets.length ? sets.map((st) => `<div class="lib-row" data-id="${esc(st.id)}">
+        <div class="lr-main"><div class="lr-name">${esc(st.name)}</div><div class="lr-sub">効果 ${(st.items || []).length} 個</div></div>
+        <div class="lr-actions"><button class="btn small primary" type="button" data-act="apply">当てる</button><button class="btn small danger" type="button" data-act="del">削除</button></div>
+      </div>`).join('') : '<div class="field-hint">まだありません。</div>';
+  }
+  $('emFxSets').addEventListener('click', async () => { closeMenus(); $('fsName').value = ''; await renderFxSets(); openModal('mFxSets'); });
+  $('fsSave').addEventListener('click', async () => {
+    if (!cur) return;
+    const list = cur.layers.filter((L) => L.type === 'mosaic');
+    if (!list.length) return;
+    const all = await getAll(wdb, S_FXSETS).catch(() => []);
+    if (all.length >= MAX_FXSETS) { showToast(`効果セットは ${MAX_FXSETS} 個までです。いらないものを消してください`, true); return; }
+    const name = cleanName($('fsName').value).slice(0, 40) || `効果セット（${list.length}個）`;
+    const rec = { id: genId(), v: 1, name, items: list.map((L) => toFxItem(L, cur.W, cur.H)), createdAt: Date.now() };
+    try { await putOne(wdb, S_FXSETS, rec); $('fsName').value = ''; await renderFxSets(); showToast(`「${name}」を保存しました`); }
+    catch (_) { showToast('保存できませんでした', true); }
+  });
+  $('fsList').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-act]'); if (!b || !cur) return;
+    const id = b.closest('.lib-row').dataset.id;
+    const st = await getOne(wdb, S_FXSETS, id).catch(() => null);
+    if (!st) { await renderFxSets(); return; }
+    if (b.dataset.act === 'apply') {
+      const add = (st.items || []).map((it) => fromFxItem(it, cur.W, cur.H)).filter(Boolean);
+      if (!add.length) { showToast('このセットには当てられる効果がありません', true); return; }
+      if (cur.layers.length + add.length > MAX_LAYERS) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); return; }
+      add.forEach((L) => cur.layers.push(L));
+      selId = add[add.length - 1].id;
+      changed(true); refreshProps();
+      closeModal('mFxSets');
+      showToast(`「${st.name}」の効果を ${add.length} 個当てました（↶ で戻せます）`);
+    } else if (b.dataset.act === 'del') {
+      armTwice(b, 'もう一度で削除', async () => { await delOne(wdb, S_FXSETS, id).catch(() => null); await renderFxSets(); showToast('削除しました'); });
+    }
+  });
+
   /* ===================== 書き出す ===================== */
   function exportSizes() {
     const long = Math.max(cur.W, cur.H);
@@ -3234,15 +3414,58 @@
     const sizes = exportSizes();
     $('exSize').innerHTML = sizes.map((o) => `<option value="${o.v}">${esc(o.label)}</option>`).join('');
     $('exName').value = safeFileName(cur.name);
+    $('exConfirm').checked = false; $('exCompare').checked = false;
+    renderExportCheck();
     updExportUi();
     openModal('mExport');
   });
+  // 隠し漏れの確認：効果ごとに、そのまわりを書き出しと同じ描き方で拡大して見せる
+  function fxWarnings(L, short) {
+    const w = [];
+    if (L.hidden) w.push('［見］で隠しているので、書き出しには入りません');
+    if (L.opacity < 0.999 && L.mode !== 'light') w.push(`不透明度が ${Math.round(L.opacity * 100)}% なので透けます`);
+    if (L.mode === 'pixel' && L.block < short / 80) w.push('モザイクが細かいので、元が分かることがあります');
+    if ((L.mode === 'blur' || L.mode === 'frost') && L.blur < short / 100) w.push('ぼかしが弱いので、元が分かることがあります');
+    if (L.mode === 'steam' && L.dens < 70) w.push('湯気が薄いので、下が透けて見えます');
+    if (L.mode === 'light' && L.core < 15) w.push('光の芯が細いので、ふちから下が見えます');
+    return w;
+  }
+  function renderExportCheck() {
+    const list = cur.layers.filter((L) => L.type === 'mosaic');
+    $('exCheck').hidden = !list.length;
+    $('exCheckN').textContent = list.length;
+    if (!list.length) { $('exCheckList').innerHTML = ''; return; }
+    const short = Math.min(cur.W, cur.H), compare = $('exCompare').checked;
+    const scene = compare ? Object.assign({}, cur, { layers: cur.layers.filter((L) => L.type !== 'mosaic') }) : cur;
+    $('exCheckList').innerHTML = list.map((L, i) => `<div class="ex-check-item"><div class="exc-name">${i + 1}. ${esc(layerLabel(L))}</div><canvas data-i="${i}"></canvas>${fxWarnings(L, short).map((t) => `<div class="exc-warn">⚠ ${esc(t)}</div>`).join('')}</div>`).join('');
+    list.forEach((L, i) => {
+      // 回した範囲を囲む四角＋まわり 25%（画像の外は切る）
+      const a = L.rot * Math.PI / 180, hw = L.w / 2, hh = L.h / 2;
+      const ex = Math.abs(hw * Math.cos(a)) + Math.abs(hh * Math.sin(a)), ey = Math.abs(hw * Math.sin(a)) + Math.abs(hh * Math.cos(a));
+      const mx = Math.max(ex, ey) * 0.25 + 8;
+      const x0 = clamp(L.x - ex - mx, 0, cur.W), y0 = clamp(L.y - ey - mx, 0, cur.H);
+      const x1 = clamp(L.x + ex + mx, 0, cur.W), y1 = clamp(L.y + ey + mx, 0, cur.H);
+      const c = $('exCheckList').querySelector(`canvas[data-i="${i}"]`);
+      if (x1 - x0 < 1 || y1 - y0 < 1) { c.replaceWith(Object.assign(document.createElement('div'), { className: 'exc-warn', textContent: '⚠ 画像の外にあります' })); return; }
+      const s = Math.min(560 / (x1 - x0), 440 / (y1 - y0), 4);
+      c.width = Math.max(1, Math.round((x1 - x0) * s)); c.height = Math.max(1, Math.round((y1 - y0) * s));
+      const g = c.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.setTransform(s, 0, 0, s, -x0 * s, -y0 * s);
+      drawScene(g, scene);
+    });
+  }
+  $('exCompare').addEventListener('change', renderExportCheck);
+  $('exConfirm').addEventListener('change', updExportUi);
   function updExportUi() {
     const jpeg = $('exFormat').value === 'jpeg';
     $('exQualityRow').hidden = !jpeg;
     $('exQualityV').textContent = $('exQuality').value;
     $('exCopy').hidden = jpeg || !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
     $('exShare').hidden = !(navigator.share && navigator.canShare);
+    // 効果があるときは、確かめた印を付けるまで書き出せない（うっかり公開の歯止め）
+    const locked = !$('exCheck').hidden && !$('exConfirm').checked;
+    ['exSave', 'exShare', 'exCopy'].forEach((id) => { $(id).disabled = locked; });
   }
   $('exFormat').addEventListener('change', updExportUi);
   $('exQuality').addEventListener('input', updExportUi);
@@ -3263,6 +3486,7 @@
     return { blob, name, w, h };
   }
   async function withExport(fn) {
+    if (!$('exCheck').hidden && !$('exConfirm').checked) { showToast('隠し漏れを確かめて、印を付けてから書き出してください', true); return; }
     busy(true, '書き出しています…');
     try { const r = await makeExport(); await fn(r); }
     catch (err) { if (!(err && err.name === 'AbortError')) showToast('書き出せませんでした：' + (err && err.message || err), true); }
@@ -3907,7 +4131,7 @@
   /* ===================== 起動 ===================== */
   (async function init() {
     try {
-      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS]);
+      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS, S_FXSETS]);
       db = await openDb(DB_NAME, DB_VERSION, [S_STYLES]);
     } catch (err) {
       $('listBody').innerHTML = `<div class="empty-state"><div class="big">開けませんでした</div><div class="small">保存の場所（IndexedDB）が使えません：${esc(err && err.message || err)}</div></div>`;
