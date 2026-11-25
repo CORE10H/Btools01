@@ -191,6 +191,8 @@
   }
   .header-icon-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
   .header-icon-btn:active { background: var(--cyan-dim); }
+  /* ☁は長押しで「同期せずに☁の画面を開く」（2026-11-26）。長押しで文字の選択やメニューが出ないようにする */
+  #cloudSyncBtn { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .header-icon-btn.is-active { border-color: var(--cyan); color: var(--cyan); }
   .header-icon-btn[disabled] { opacity: .35; cursor: not-allowed; }
   .header-icon-btn[disabled]:hover { border-color: var(--line); color: var(--text-dim); }

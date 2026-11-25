@@ -2341,6 +2341,41 @@
       closeDiff();
       if (needReload) location.reload(); // ランチャー・本体の設定を受け取ったら、画面の表示を最新にする
     }
+    // ☁の画面を一番上から見せる（結果の「☁の画面を開く」）
+    function showScreenTop() {
+      overlay.scrollTop = 0;
+      const m = overlay.querySelector('.sync-modal');
+      if (m) m.scrollTop = 0;
+    }
+    // ☁の長押し（約0.5秒）・右クリック：同期を始めずに☁の画面だけ開く（設定を見る・変えるとき。2026-11-26）。
+    // 指が動いたら（スクロールなど）長押しにしない。
+    // 指を離したときに来る click は捨てる（☁ではなく、開いた☁の画面の背景に届いて画面を閉じてしまう・☁に届けば同期が始まるため）。
+    // 捨てるのは次に触れるまで（最長1.5秒）だけ。キーボードの Enter などは取りこぼさない
+    const LONG_PRESS_MS = 550;
+    let lpTimer = 0, lpAt = 0, lpX = 0, lpY = 0; // lpAt：長押しで開いた時刻（タイマーと contextmenu の二重開きを防ぐ）
+    const lpCancel = () => { clearTimeout(lpTimer); lpTimer = 0; };
+    const swallowClick = (e) => { e.stopPropagation(); e.preventDefault(); stopSwallow(); };
+    const stopSwallow = () => { window.removeEventListener('click', swallowClick, true); window.removeEventListener('pointerdown', stopSwallow, true); };
+    const lpOpen = () => {
+      lpCancel();
+      if (Date.now() - lpAt < 1500) return;
+      lpAt = Date.now();
+      stopSwallow();
+      window.addEventListener('click', swallowClick, true);
+      window.addEventListener('pointerdown', stopSwallow, true);
+      setTimeout(stopSwallow, 1500);
+      open({ autoSync: false });
+    };
+    openBtn.addEventListener('pointerdown', (e) => {
+      lpAt = 0;
+      lpCancel();
+      if (e.button !== 0) return;
+      lpX = e.clientX; lpY = e.clientY;
+      lpTimer = setTimeout(lpOpen, LONG_PRESS_MS);
+    });
+    openBtn.addEventListener('pointermove', (e) => { if (lpTimer && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 10) lpCancel(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => openBtn.addEventListener(t, lpCancel));
+    openBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); lpOpen(); });
     openBtn.addEventListener('click', () => open());
     $('syncCloseBtn').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
@@ -2524,6 +2559,8 @@
       // 両方の端末で変えていたデータがあれば「違いを見る」（1件ならそのまま開く。2026-10-10）
       if (fresh.length) acts.push({ id: 'syncProgressDiff', label: '違いを見る', onClick: () => { progClose(); showConflicts(fresh.length === 1 ? fresh[0] : null); } });
       if (ctx.fromOpen) acts.push({ id: 'syncProgressLog', label: 'ログを見る', onClick: () => { progClose(); showRunlog(); } });
+      // 「☁の画面を開く」：結果だけ閉じて☁の画面を一番上から見せる（設定を変えたいときの入口。OKだと☁の画面ごと閉じるため。2026-11-26）
+      if (ctx.fromOpen) acts.push({ id: 'syncProgressScreen', label: '☁の画面を開く', onClick: () => { progClose(); showScreenTop(); } });
       acts.push({ id: 'syncProgressOk', label: 'OK', cls: 'primary', onClick: () => { progClose(); if (ctx.fromOpen) close(); } });
       progActions(acts);
     }
@@ -2596,7 +2633,7 @@
         else if (stale) { cls = 'sync-warn'; title = `しばらく同期していません（最後の同期：${last}）`; }
         else if (p) { cls = 'sync-ok'; title = `${p.label}と同期しています（最後の同期：${last}）`; }
         if (cls) openBtn.classList.add(cls);
-        openBtn.title = title;
+        openBtn.title = title + (p ? '\n長押し：同期せずに☁の画面を開く' : '');
       } catch (err) { /* 印が出せなくても同期には影響しない */ }
     }
 
