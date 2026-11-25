@@ -334,6 +334,14 @@
     background-size: 16px 16px; background-position: 0 0, 8px 8px;
   }
   .bg-preview canvas { max-width: 100%; max-height: 46vh; display: block; }
+  /* 透過の確かめ用の背景（格子・白・黒・グリーンバック・ブルーバック・マゼンタ） */
+  .bg-preview[data-bgv="white"] { background: #ffffff; }
+  .bg-preview[data-bgv="black"] { background: #000000; }
+  .bg-preview[data-bgv="green"] { background: #00b140; }
+  .bg-preview[data-bgv="blue"] { background: #0047bb; }
+  .bg-preview[data-bgv="magenta"] { background: #ff00ff; }
+  .bgv-seg .btn { display: inline-flex; align-items: center; gap: 4px; }
+  .bgv-sw { width: 11px; height: 11px; border: 1px solid var(--line); display: inline-block; }
   .busy {
     position: fixed; inset: 0; z-index: 85; display: none; align-items: center; justify-content: center;
     background: rgba(var(--scrim-rgb), .45); color: var(--cyan); font-size: 12px;
@@ -599,7 +607,7 @@
   <div class="ed-main">
     <div class="stage-wrap" id="mkStage"><canvas id="mkCv" tabindex="0"></canvas>
       <div class="mk-empty" id="mkEmpty">「元の画像を開く」で、画像生成AIで作った画像などを開きます。<br>使う所を囲んで切り出し、背景を抜いて、パックに保存します。<br>1枚の画像から、いくつでも切り出せます。</div>
-      <div class="zoom-ctl"><button class="btn small" id="mkZoomOut" type="button" title="縮小">－</button><span class="zc-pct" id="mkZoomPct">100%</span><button class="btn small" id="mkZoomIn" type="button" title="拡大（2本指・ホイールでも）">＋</button><button class="btn small" id="mkZoomFit" type="button" title="全体を表示">全体</button></div>
+      <div class="zoom-ctl"><button class="btn small" id="mkBgCycle" type="button" title="見る背景を切り替える（消し残しを見つけやすく）">背景</button><button class="btn small" id="mkZoomOut" type="button" title="縮小">－</button><span class="zc-pct" id="mkZoomPct">100%</span><button class="btn small" id="mkZoomIn" type="button" title="拡大（2本指・ホイールでも）">＋</button><button class="btn small" id="mkZoomFit" type="button" title="全体を表示">全体</button></div>
     </div>
     <div class="side mk-side">
       <div class="props-pane">
@@ -632,6 +640,7 @@
           </div>
           <div class="p-sec">
             <div class="p-sec-title">3. 手で直す</div>
+            <div class="p-row"><label class="p-lab">見る背景</label><span class="seg seg-wrap bgv-seg" id="mkBgView"></span></div>
             <div class="p-row"><span class="seg" id="mkBrMode"><button class="btn" type="button" data-v="erase">消す</button><button class="btn" type="button" data-v="restore">戻す</button><button class="btn" type="button" data-v="pan">動かす</button></span></div>
             <div class="p-row"><label class="p-lab">太さ</label><input type="range" id="mkBrSize" min="4" max="120" step="1" value="28"><span class="p-hint" style="margin:0" id="mkBrSizeV"></span></div>
             <div class="p-row"><button class="btn small" id="mkBrUndo" type="button">ひとつ戻す</button><button class="btn small" id="mkBrClear" type="button">手直しを全部なくす</button></div>
@@ -813,7 +822,8 @@
 <div class="modal-overlay" id="mBgCut">
   <div class="modal wide">
     <div class="modal-head"><span class="modal-title">背景を透過する？</span><button class="modal-close" type="button" data-close>✕</button></div>
-    <div class="bg-preview"><canvas id="bgCanvas"></canvas></div>
+    <div class="bg-preview" id="bgPreviewBox"><canvas id="bgCanvas"></canvas></div>
+    <div class="p-row" style="margin-top:6px"><label class="p-lab">見る背景</label><span class="seg seg-wrap bgv-seg" id="bgView"></span></div>
     <div class="field-hint" id="bgInfo" style="margin:6px 0 10px"></div>
     <div class="p-row"><label class="p-check"><input type="checkbox" id="bgOn"> 背景を透過する</label></div>
     <div id="bgOpts">
@@ -5126,6 +5136,28 @@
   })();
   $('mkCat').innerHTML = $('piCat').innerHTML = PACK_CATS.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
   function makerOpen() { return $('maker').classList.contains('is-open'); }
+  // 透過を確かめるときの背景（端末ごとに覚える）。格子だけだと消し残しに気づきにくいので、色の背景も選べる
+  const BG_VIEWS = [['checker', '格子', ''], ['white', '白', '#ffffff'], ['black', '黒', '#000000'], ['green', 'グリーン', '#00b140'], ['blue', 'ブルー', '#0047bb'], ['magenta', 'マゼンタ', '#ff00ff']];
+  const LS_BGVIEW = 'sideops_pasteup_bgview';
+  let bgView = 'checker';
+  try { const v = localStorage.getItem(LS_BGVIEW); if (BG_VIEWS.some((b) => b[0] === v)) bgView = v; } catch (_) { /* 既定のまま */ }
+  function renderBgViews() {
+    const html = BG_VIEWS.map(([k, l, c]) => `<button class="btn${bgView === k ? ' is-on' : ''}" type="button" data-v="${k}"><span class="bgv-sw" style="${c ? 'background:' + c : 'background:repeating-conic-gradient(#c8c8c8 0 25%,#ececec 0 50%) 0 0/6px 6px'}"></span>${l}</button>`).join('');
+    $('mkBgView').innerHTML = html; $('bgView').innerHTML = html;
+    $('bgPreviewBox').dataset.bgv = bgView;
+    const cur = BG_VIEWS.find((b) => b[0] === bgView);
+    $('mkBgCycle').textContent = '背景：' + (cur ? cur[1] : '格子');
+  }
+  function setBgView(v) {
+    if (!BG_VIEWS.some((b) => b[0] === v)) return;
+    bgView = v;
+    try { localStorage.setItem(LS_BGVIEW, v); } catch (_) { /* 覚えられなくても動く */ }
+    renderBgViews(); mkRender();
+  }
+  $('mkBgView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) setBgView(b.dataset.v); });
+  $('bgView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) setBgView(b.dataset.v); });
+  $('mkBgCycle').addEventListener('click', () => { const i = BG_VIEWS.findIndex((b) => b[0] === bgView); setBgView(BG_VIEWS[(i + 1) % BG_VIEWS.length][0]); });
+  renderBgViews();
   function mkShown() { return mk.step === 'fin' ? mk.out : mk.src; }
   function mkFit() {
     const r = $('mkStage').getBoundingClientRect(), v = mk.v;
@@ -5160,7 +5192,8 @@
     $('mkEmpty').hidden = !!mk.src;
     if (!im) return;
     g.setTransform(d, 0, 0, d, 0, 0);
-    g.fillStyle = mkChecker; g.fillRect(v.ox, v.oy, im.width * v.s, im.height * v.s);
+    const bgc = (BG_VIEWS.find((b) => b[0] === bgView) || [])[2];
+    g.fillStyle = bgc || mkChecker; g.fillRect(v.ox, v.oy, im.width * v.s, im.height * v.s);
     g.setTransform(d * v.s, 0, 0, d * v.s, d * v.ox, d * v.oy);
     g.imageSmoothingEnabled = v.s < 2; g.imageSmoothingQuality = 'high';
     g.drawImage(im, 0, 0);
