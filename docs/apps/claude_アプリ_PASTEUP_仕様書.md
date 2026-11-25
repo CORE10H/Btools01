@@ -128,7 +128,8 @@
 - 文字：中身（改行可・2000字まで）・書体（ゴシック・明朝・丸ゴシック・極太・手書き風・筆＋取り込んだ書体。いちばん下の「＋ 書体を取り込む…」で取り込みの画面へ。取り込んだら、その文字に当てる）・太字・大きさ・文字の色・縦書き・揃え（縦書きでは左＝上、右＝下）・行間・字間・縁取り（色・太さ）・影
 - 枠：形（なし・吹き出し角丸・吹き出しだ円・考え事・叫び・爆発・ふるえ・ウニフラ・台紙角丸・四角）・塗り（色・濃さ。0で透明）・線（色・太さ。0で線なし）・線の種類（実線・手書き風・点線。ウニフラでは使わない）・余白・しっぽ（なし・ウニフラ以外の形に付く）
 - 画像：上に加えて「背景を透過…」（あとから透過する。透過した画像を新しく保存してつなぎ替えるので ↶ で戻せる）・フィルター
-- 下の画像：差し替える・フィルター（下の画像だけにかかる）
+- 下の画像：差し替える・フィルター。「かける相手」で［仕上がり全体］（重ねた画像・コマ・吹き出し・文字も含めて書き出す絵全体。作品の `pageFx`）と［下の画像だけ］（`baseFx`）を切り替える。漫画のページ（白い台紙）・全体フィルターだけ付いている作品では［仕上がり全体］で開く（2026-11-26）
+- コマ：中の画像にフィルター（コマの `fx`）。［全部のコマに同じフィルター］でほかのコマ（画像がまだないコマも）に写す（2026-11-26）
 - フィルター：まとめて当てる（なし・モノクロ・セピア・あざやか・やわらか・ひんやり・あたたか・レトロ・暗く）、1つずつ（明るさ・コントラスト・彩度・色相・モノクロ・セピア・ぼかし）、元に戻す
 - モザイク：種類・形・粗さ／強さ／色・幅と高さ
 - テンプレート：テンプレート・見本集から選んで「当てる」（文字の中身・位置・大きさはそのまま。太さ・余白は大きさの比で合わせる）。「今の見た目をテンプレートに保存」（名前を付ける。同じ名前は上書きを確かめる）
@@ -210,6 +211,8 @@ STAMPWORKS（`apps/stampworks.html`）の透過の処理（`detectKey`・`keyAlp
 
 ## フィルター
 
+- 仕上がり全体（`pageFx`）：画面と同じ大きさの別のキャンバスに全部（下の画像・レイヤー・モザイク）を描いてから、フィルターを付けて写す。書き出し・一覧の見本も同じ `drawScene` を通るので同じ見た目になる
+
 - canvas の `filter`（CSS のフィルターと同じ書き方）で描く。フィルターに対応していないブラウザ（古い Safari など）では効かない（調整の欄に注意書き）
 - ぼかしは画面のピクセルでかかるので、いまの拡大率を掛けて指定する（画面と書き出しで同じ見え方。2026-11-20 に確かめた）
 - 文字・モザイクにはかけない
@@ -232,7 +235,7 @@ STAMPWORKS（`apps/stampworks.html`）の透過の処理（`detectKey`・`keyAlp
 |---|---|
 | （projects の `manga`） | 漫画のページだけ `{ margin, gutter, bw, bc }`（余白・間隔・枠線の太さと色。2026-11-24） |
 | `fxsets` | 効果セット `{ id, v:1, name, items:[{ x, y, w, h, block, blur, rot, shape, mode, color, haze, grain, dens, seed, core, glow, opacity, bw, bh, strokes }], createdAt }`（x・w は幅、y・h は高さ、block・blur は短い辺に対する割合） |
-| `projects` | `{ id, name, baseId, W, H, baseFx, baseMarks, layers:[…], thumb, createdAt, updatedAt }`。`thumb`＝一覧の見本（長い辺360pxの JPEG の Blob）、`baseFx`＝下の画像のフィルター、`baseMarks`＝下の画像の消しゴム・ペンの跡（2026-11-22） |
+| `projects` | `{ id, name, baseId, W, H, baseFx, baseMarks, layers:[…], thumb, createdAt, updatedAt }`。`thumb`＝一覧の見本（長い辺360pxの JPEG の Blob）、`baseFx`＝下の画像のフィルター、`pageFx`＝仕上がり全体のフィルター（2026-11-26）、`baseMarks`＝下の画像の消しゴム・ペンの跡（2026-11-22） |
 | `blobs` | `{ id, blob, type, w, h, name, lib, createdAt }`。土台・重ねた画像・素材。`lib`＝素材 |
 | `fonts` | `{ id, kind:'file'|'google', name, blob（ファイルのときだけ）, createdAt }`。取り込んだ書体 |
 
@@ -245,7 +248,7 @@ STAMPWORKS（`apps/stampworks.html`）の透過の処理（`detectKey`・`keyAlp
 - コマ：`{ type:'panel', pts:[[x,y],…]（中心からの角。3〜16）, bw, bc, fill:'#rrggbb'|'none', img:{ blobId, name, w0, h0, ox, oy, s, r }|null }`（img の位置はコマの座標。片付け・コピーでも img の画像を使っているものとして扱う）
 - モザイク：`{ type:'mosaic', w, h, shape:'rect'|'ellipse', mode:'pixel'|'blur'|'fill'|'frost'|'steam'|'light', block, blur, color, haze, grain, dens, seed, core, glow }`（`scale` はいつも1。haze・grain はすりガラス、dens・seed は湯気、core・glow は光の帯。shape:'brush' のとき strokes:[{ w, p:[x,y,…] }]（なぞったときの座標）と bw・bh（そのときの幅・高さ。今の w・h との比で伸び縮み）。作業用DBだけで同期しない）
 
-フィルター `fx`（`baseFx` も同じ）：`{ b 明るさ%, c コントラスト%, s 彩度%, h 色相°, g モノクロ%, p セピア%, bl ぼかしpx }`。既定値の項目は持たない（`normFx`）。
+フィルター `fx`（`baseFx`・`pageFx`・コマの `fx` も同じ）：`{ b 明るさ%, c コントラスト%, s 彩度%, h 色相°, g モノクロ%, p セピア%, bl ぼかしpx }`。既定値の項目は持たない（`normFx`）。
 
 文字の見た目 `st`：`{ font, size, color, bold, lh, ls（字間。文字の大きさに対する割合）, align, vertical, strokeW, strokeC, shadow, frame（none/round/oval/think/shout/burst/wave/flash/plateRound/plate）, fill, fillA, line, lineW, pad, tail, lineStyle（solid/rough/dash） }`。`font` は用意した書体（sans/serif/maru/pop/hand/brush）・`u:<id>`・`g:<名前>`。読み込むときは`normSt`で範囲に収める（同期で来たおかしな値でも壊れない）。書体・枠・線の種類のキーの意味は変えない（保存したスタイルが同期されている）。`lineStyle`・新しい枠・取り込んだ書体のキーを足したので `SYNC_APP_BUILD` を 2026112003 に上げた（古い版がスタイルを読み直して、知らない値を消して書き戻すのを防ぐ）
 

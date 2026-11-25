@@ -478,8 +478,11 @@
           </div>
           <div class="p-sec" id="secFx">
             <div class="p-sec-title">フィルター</div>
+            <div class="p-row" id="pFxScopeRow"><label class="p-lab">かける相手</label><span class="seg" id="pFxScope"><button class="btn" type="button" data-v="page">仕上がり全体</button><button class="btn" type="button" data-v="base">下の画像だけ</button></span></div>
+            <div class="p-hint" id="pFxScopeHint"></div>
             <div class="p-row"><select id="pFxPreset" class="p-select" style="flex:1"></select><button class="btn small" id="pFxApply" type="button">当てる</button><button class="btn small" id="pFxReset" type="button">元に戻す</button></div>
             <div id="fxRows"></div>
+            <div class="p-row" id="pFxAllRow"><button class="btn small" id="pFxAllPanels" type="button" title="このコマのフィルターを、ほかの全部のコマにも当てる（画像がまだないコマにも。あとで入れた画像にかかります）">全部のコマに同じフィルター</button></div>
             <div class="p-hint" id="pFxNote"></div>
           </div>
           <!-- モザイク -->
@@ -1203,7 +1206,7 @@
       const img = m ? { blobId: m.blobId, name: cleanName(m.name) || '画像', w0: num(m.w0, 100, 1, 1e5), h0: num(m.h0, 100, 1, 1e5),
         ox: num(m.ox, 0, -1e6, 1e6), oy: num(m.oy, 0, -1e6, 1e6), s: num(m.s, 1, 0.001, 1000), r: num(m.r, 0, -180, 180) } : null;
       return Object.assign(base, { type: 'panel', pts, bw: num(l.bw, 6, 0, 500), bc: isColor(l.bc) ? l.bc : '#000000',
-        fill: l.fill === 'none' ? 'none' : isColor(l.fill) ? l.fill : '#ffffff', img });
+        fill: l.fill === 'none' ? 'none' : isColor(l.fill) ? l.fill : '#ffffff', img, fx: normFx(l.fx) }); // fx：中の画像にかけるフィルター
     }
     if (l.type === 'mosaic') { // モザイク・ぼかし・塗りつぶし（下にあるものすべてにかかる）
       return Object.assign(base, {
@@ -1821,7 +1824,7 @@
       ctx.save(); ctx.clip(path);
       const c = imgCache.get(L.img.blobId), m = L.img;
       ctx.translate(m.ox, m.oy); ctx.rotate(m.r * Math.PI / 180); ctx.scale(m.s, m.s);
-      if (c && c.img) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(c.img, -m.w0 / 2, -m.h0 / 2, m.w0, m.h0); }
+      if (c && c.img) { ctx.imageSmoothingQuality = 'high'; drawImageFx(ctx, c.img, -m.w0 / 2, -m.h0 / 2, m.w0, m.h0, L.fx); }
       else drawMissing(ctx, m.w0, m.h0);
       ctx.restore();
     }
@@ -1918,7 +1921,23 @@
     }
     ctx.restore();
   }
+  // 仕上がり全体のフィルター（pageFx）：いったん別のキャンバスに全部描いてから、フィルターをかけて写す
+  const pageTmp = document.createElement('canvas');
   function drawScene(ctx, p, opts) {
+    if (!hasFx(p.pageFx) || !FILTER_OK) { drawSceneRaw(ctx, p, opts); return; }
+    const cv = ctx.canvas, k = transformScale(ctx);
+    if (pageTmp.width !== cv.width || pageTmp.height !== cv.height) { pageTmp.width = cv.width; pageTmp.height = cv.height; }
+    const g = pageTmp.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
+    g.setTransform(ctx.getTransform());
+    drawSceneRaw(g, p, opts);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.filter = fxString(p.pageFx, k);
+    ctx.drawImage(pageTmp, 0, 0);
+    ctx.restore();
+  }
+  function drawSceneRaw(ctx, p, opts) {
     const c = imgCache.get(p.baseId);
     const base = (g) => {
       if (c && c.img) drawImageFx(g, opts && opts.baseImg || c.img, 0, 0, p.W, p.H, p.baseFx);
@@ -2539,6 +2558,8 @@
   let panelAdjust = false, lastVertex = -1;
   function select(id) {
     if (id !== selId) { panelAdjust = false; lastVertex = -1; }
+    // 下の画像を選んだときのフィルターの相手：漫画のページ（白い台紙）や、全体フィルターだけが付いているときは「仕上がり全体」
+    if (id === BASE_SEL && id !== selId && cur) fxScope = cur.manga || (hasFx(cur.pageFx) && !hasFx(cur.baseFx)) ? 'page' : 'base';
     if (brush.on) {
       if (id && brushable(id) && !(layerById(id) || {}).hidden) { brush.target = id; updateBrushBar(); }
       else exitBrush();
@@ -2548,7 +2569,7 @@
     refreshProps();
     requestRender();
   }
-  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, manga: cur.manga, layers: cur.layers }); }
+  function snapState() { return JSON.stringify({ baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, pageFx: cur.pageFx, baseMarks: cur.baseMarks, manga: cur.manga, layers: cur.layers }); }
   // 変えたら呼ぶ。少し待って（またはすぐ）1回分の「元に戻す」に積む
   function changed(immediate) {
     requestRender();
@@ -2574,7 +2595,7 @@
   async function applySnap(s) {
     const o = JSON.parse(s);
     const baseChanged = o.baseId !== cur.baseId;
-    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx); cur.baseMarks = normMarks(o.baseMarks); cur.manga = normManga(o.manga);
+    cur.baseId = o.baseId; cur.W = o.W; cur.H = o.H; cur.baseFx = normFx(o.baseFx); cur.pageFx = normFx(o.pageFx); cur.baseMarks = normMarks(o.baseMarks); cur.manga = normManga(o.manga);
     cur.layers = o.layers;
     if (!layerById(selId)) selId = null;
     await loadImagesFor(cur);
@@ -2606,7 +2627,7 @@
     saveTimer = setTimeout(flushSave, 800);
   }
   function projRecord(p) {
-    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, baseMarks: p.baseMarks || [], manga: p.manga || null, layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
+    return { id: p.id, name: p.name, baseId: p.baseId, W: p.W, H: p.H, baseFx: p.baseFx, pageFx: p.pageFx || {}, baseMarks: p.baseMarks || [], manga: p.manga || null, layers: p.layers, thumb: p.thumb, createdAt: p.createdAt, updatedAt: p.updatedAt };
   }
   // quick：画面を離れるとき（再読み込み・アプリを閉じる）。見本の画像を作るのを待たずに、すぐ書く
   // （待っている間にページが消えると、最後の変更が残らない）。見本は次に保存するときに作り直す
@@ -2645,7 +2666,7 @@
   function writeRescue() {
     if (!cur || !dirty) return;
     try {
-      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, baseMarks: cur.baseMarks, manga: cur.manga, layers: cur.layers, updatedAt: Date.now() });
+      const s = JSON.stringify({ id: cur.id, name: cur.name, baseId: cur.baseId, W: cur.W, H: cur.H, baseFx: cur.baseFx, pageFx: cur.pageFx, baseMarks: cur.baseMarks, manga: cur.manga, layers: cur.layers, updatedAt: Date.now() });
       if (s.length < 2000000) localStorage.setItem(LS_RESCUE, s);
     } catch (_) { /* 控えを書けなくても、いつもの保存はする */ }
   }
@@ -2664,7 +2685,7 @@
       if (rec && (rec.updatedAt || 0) < r.updatedAt && Array.isArray(r.layers)) {
         rec.layers = r.layers.map(normLayer).filter(Boolean);
         if (typeof r.baseId === 'string') { rec.baseId = r.baseId; rec.W = num(r.W, rec.W, 1, 1e5); rec.H = num(r.H, rec.H, 1, 1e5); }
-        rec.baseFx = normFx(r.baseFx); rec.baseMarks = normMarks(r.baseMarks); rec.name = cleanName(r.name) || rec.name;
+        rec.baseFx = normFx(r.baseFx); rec.pageFx = normFx(r.pageFx); rec.baseMarks = normMarks(r.baseMarks); rec.name = cleanName(r.name) || rec.name;
         rec.updatedAt = r.updatedAt;
         await putOne(wdb, S_PROJ, rec);
       }
@@ -2712,7 +2733,7 @@
       cur = {
         id: rec.id, name: cleanName(rec.name) || '無題', baseId: rec.baseId, W: num(rec.W, 1, 1, 1e5), H: num(rec.H, 1, 1, 1e5),
         layers: (Array.isArray(rec.layers) ? rec.layers : []).map(normLayer).filter(Boolean),
-        baseFx: normFx(rec.baseFx), baseMarks: normMarks(rec.baseMarks), manga: normManga(rec.manga), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
+        baseFx: normFx(rec.baseFx), pageFx: normFx(rec.pageFx), baseMarks: normMarks(rec.baseMarks), manga: normManga(rec.manga), thumb: rec.thumb || null, createdAt: rec.createdAt || Date.now(), updatedAt: rec.updatedAt || Date.now(),
       };
       clearImgCache();
       await loadImagesFor(cur);
@@ -2772,7 +2793,7 @@
         <button class="icon-btn${L.hidden ? ' is-off' : ''}" type="button" data-act="eye" title="${L.hidden ? '表示する' : '隠す'}">${L.hidden ? '隠' : '見'}</button>
         <button class="icon-btn${L.locked ? ' is-on' : ''}" type="button" data-act="lock" title="${L.locked ? '固定を外す' : '固定する（画面の上で動かなくする）'}">${L.locked ? '固' : '動'}</button>
       </div>`).join('');
-    const fx = (hasFx(cur.baseFx) ? '・フィルター' : '') + (cur.baseMarks && cur.baseMarks.length ? ' ✎' : '');
+    const fx = (hasFx(cur.baseFx) ? '・フィルター' : '') + (hasFx(cur.pageFx) ? '・全体フィルター' : '') + (cur.baseMarks && cur.baseMarks.length ? ' ✎' : '');
     box.innerHTML = rows + `<div class="layer-item${selId === BASE_SEL ? ' is-active' : ''}" data-id="${BASE_SEL}"><span class="li-kind">下</span><span class="li-name">下の画像 ${cur.W}×${cur.H}${fx}</span></div>`;
     $('layerCount').textContent = `${cur.layers.length} / ${MAX_LAYERS}`;
   }
@@ -2822,9 +2843,12 @@
   }
 
   function setVal(id, v) { const el = $(id); if (document.activeElement !== el) el.value = v; }
-  function fxTargetFx() { // フィルターをかける相手（下の画像・選んだ画像）の fx
-    if (selId === BASE_SEL) return cur.baseFx;
-    const L = selLayer(); return L && L.type === 'image' ? L.fx : null;
+  // 下の画像を選んだときのフィルターの相手：'page'＝仕上がり全体（重ねたもの・文字・コマも）／'base'＝下の画像だけ
+  // 漫画のページは下が白い台紙なので、開いたときは「仕上がり全体」（select で決める）
+  let fxScope = 'base';
+  function fxTargetFx() { // フィルターをかける相手（下の画像・仕上がり全体・選んだ画像・コマの中の画像）の fx
+    if (selId === BASE_SEL) return fxScope === 'page' ? (cur.pageFx || {}) : cur.baseFx;
+    const L = selLayer(); return L && (L.type === 'image' || L.type === 'panel') ? L.fx : null;
   }
   function refreshFx() {
     const fx = fxTargetFx() || {};
@@ -2843,7 +2867,13 @@
     $('secBase').hidden = type !== 'base';
     $('secPanel').hidden = type !== 'panel';
     $('secPage').hidden = !(type === 'base' && cur && cur.manga);
-    $('secFx').hidden = type !== 'image' && type !== 'base';
+    $('secFx').hidden = type !== 'image' && type !== 'base' && type !== 'panel';
+    $('pFxScopeRow').hidden = $('pFxScopeHint').hidden = type !== 'base';
+    $('pFxAllRow').hidden = type !== 'panel';
+    if (type === 'base') {
+      $('pFxScope').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === fxScope));
+      $('pFxScopeHint').textContent = fxScope === 'page' ? '重ねた画像・コマ・吹き出し・文字もまとめて、書き出す絵全体にかかります。' : '下の画像だけにかかります（重ねたものにはかかりません）。';
+    }
     $('secCommon').hidden = type === 'base';
     $('pBrushRow').hidden = type !== 'image' && type !== 'text';
     const mk = type === 'base' ? cur.baseMarks : L ? L.marks : null;
@@ -2856,7 +2886,7 @@
       $('pPgBc').value = m.bc;
     }
     if (isBase) {
-      $('pBaseInfo').textContent = `${cur.W}×${cur.H}。ここでのフィルターは下の画像だけにかかります（重ねたものにはかかりません）。`;
+      $('pBaseInfo').textContent = `${cur.W}×${cur.H}${cur.manga ? '（漫画のページの白い台紙）' : ''}`;
       refreshFx();
       return;
     }
@@ -2897,6 +2927,7 @@
       $('pPanFillMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === fm));
       $('pPanFill').hidden = fm !== 'color'; if (fm === 'color') $('pPanFill').value = L.fill;
       $('pPanDelPt').disabled = L.pts.length <= 3; $('pPanAddPt').disabled = L.pts.length >= MAX_PANEL_PTS;
+      refreshFx();
     } else if (type === 'image') {
       const pct = Math.round(L.scale * 100);
       setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct));
@@ -3047,10 +3078,21 @@
 
   // ---- フィルター（下の画像・重ねた画像） ----
   function setFx(fx) {
-    if (selId === BASE_SEL) cur.baseFx = fx;
-    else { const L = selLayer(); if (!L || L.type !== 'image') return false; L.fx = fx; }
+    if (selId === BASE_SEL) { if (fxScope === 'page') cur.pageFx = fx; else cur.baseFx = fx; }
+    else { const L = selLayer(); if (!L || (L.type !== 'image' && L.type !== 'panel')) return false; L.fx = fx; }
     return true;
   }
+  $('pFxScope').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'); if (!b || selId !== BASE_SEL) return;
+    fxScope = b.dataset.v === 'page' ? 'page' : 'base'; refreshProps();
+  });
+  $('pFxAllPanels').addEventListener('click', () => {
+    const L = selLayer(); if (!L || L.type !== 'panel') return;
+    const ps = cur.layers.filter((P) => P.type === 'panel' && P !== L);
+    if (!ps.length) { showToast('ほかのコマがありません'); return; }
+    ps.forEach((P) => { P.fx = normFx(L.fx); });
+    changed(true); showToast(`ほかの ${ps.length} コマにも同じフィルターを当てました（↶ で戻せます）`);
+  });
   FX_DEFS.forEach((d) => {
     ['fxR_' + d.k, 'fxN_' + d.k].forEach((id, i, ids) => {
       $(id).addEventListener('input', () => {
@@ -4009,7 +4051,7 @@
       layers.forEach((L) => { L.id = genId(); });
       rescaleLayers(layers, cur.W, cur.H, r.rec.w, r.rec.h);
       const now = Date.now();
-      const rec = { id: genId(), name: baseName(f.name), baseId: r.rec.id, W: r.rec.w, H: r.rec.h, baseFx: normFx(cur.baseFx), layers, thumb: null, createdAt: now, updatedAt: now };
+      const rec = { id: genId(), name: baseName(f.name), baseId: r.rec.id, W: r.rec.w, H: r.rec.h, baseFx: normFx(cur.baseFx), pageFx: normFx(cur.pageFx), layers, thumb: null, createdAt: now, updatedAt: now };
       await putOne(wdb, S_PROJ, rec);
       newId = rec.id;
       if (r.note) showToast(r.note);
