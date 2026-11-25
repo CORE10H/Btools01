@@ -148,6 +148,22 @@
   .zoom-ctl .zc-pct { font-size: 10.5px; color: var(--text-dim); min-width: 42px; text-align: center; }
   .zoom-ctl.is-zoomed .zc-pct { color: var(--amber); }
   .sheet-handle { display: none; }
+  /* 素材をつくる */
+  .mk-empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--text-faint); font-size: 12px; line-height: 1.9; padding: 20px; pointer-events: none;
+  }
+  #mkCv { cursor: crosshair; }
+  .mk-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+  .mk-title { cursor: default; }
+  .mk-title:hover { color: var(--text); }
+  .ai-tabs, .ai-cats { margin-bottom: 8px; width: 100%; }
+  .pk-img {
+    background-color: #c8c8c8;
+    background-image: linear-gradient(45deg, #e8e8e8 25%, transparent 25%, transparent 75%, #e8e8e8 75%),
+                      linear-gradient(45deg, #e8e8e8 25%, transparent 25%, transparent 75%, #e8e8e8 75%);
+    background-size: 12px 12px; background-position: 0 0, 6px 6px;
+  }
   .ed-main { flex: 1; min-height: 0; display: flex; }
   .stage-wrap { flex: 1; min-width: 0; min-height: 0; position: relative; background: var(--bg-alt); overflow: hidden; }
   .stage-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; outline: none; }
@@ -273,7 +289,7 @@
                       linear-gradient(45deg, #e8e8e8 25%, transparent 25%, transparent 75%, #e8e8e8 75%);
     background-size: 16px 16px; background-position: 0 0, 8px 8px;
   }
-  .pick-item .pi-img img, .pick-item .pi-img canvas { max-width: 100%; max-height: 100%; display: block; }
+  .pick-item .pi-img img, .pick-item .pi-img canvas { max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; display: block; }
   .pick-item .pi-name { font-size: 10.5px; color: var(--text-dim); padding: 5px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pick-item .pi-sub { font-size: 9.5px; color: var(--text-faint); padding: 0 6px 5px; }
   .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
@@ -362,6 +378,8 @@
     .p-hint { font-size: 11px; }
     .p-selname { font-size: 12.5px; }
     .zoom-ctl .btn { min-width: 40px; padding: 6px 8px; }
+    .mk-side { height: 46%; }
+    .app-bar .bar-right { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
     .side-tabs button.is-active { color: var(--cyan); border-bottom-color: var(--cyan); }
     .side[data-tab="layers"] .props-pane { display: none; }
     .side[data-tab="props"] .layer-pane { display: none; }
@@ -377,10 +395,12 @@
     <span class="app-title">// PASTEUP</span>
     <div class="bar-right">
       <button class="btn" id="newMangaBtn" type="button" title="コマ割りのある漫画のページを作る">＋ 漫画のページ</button>
-      <button class="btn primary" id="newBtn" type="button">＋ 新しく作る</button>
+      <button class="btn" id="newPackBtn" type="button" title="漫画に貼る効果音・擬音・手書きのセリフなどを作って、素材パックにまとめる">＋ 新しく素材を作る</button>
+      <button class="btn primary" id="newBtn" type="button">＋ 新しく編集する</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="menuBtn" type="button" title="メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="miPacks" type="button">素材パック（読み込み・書き出し）</button>
           <button class="menu-panel-item" id="miLib" type="button">素材（よく使う画像）の管理</button>
           <button class="menu-panel-item" id="miStyles" type="button">テンプレートの管理</button>
           <button class="menu-panel-item" id="miFonts" type="button">書体の取り込み・管理</button>
@@ -567,6 +587,69 @@
   </div>
 </div>
 
+<!-- 素材をつくる（素材パックに入れる画像を、元の画像から切り出して背景を抜く） -->
+<div class="editor-overlay" id="maker">
+  <div class="ed-bar">
+    <button class="btn small" id="mkBack" type="button" title="素材パックの一覧へ">← 戻る</button>
+    <span class="ed-name mk-title" id="mkTitle"></span>
+    <div class="ed-tools">
+      <button class="btn small primary" id="mkOpen" type="button">元の画像を開く</button>
+    </div>
+  </div>
+  <div class="ed-main">
+    <div class="stage-wrap" id="mkStage"><canvas id="mkCv" tabindex="0"></canvas>
+      <div class="mk-empty" id="mkEmpty">「元の画像を開く」で、画像生成AIで作った画像などを開きます。<br>使う所を囲んで切り出し、背景を抜いて、パックに保存します。<br>1枚の画像から、いくつでも切り出せます。</div>
+      <div class="zoom-ctl"><button class="btn small" id="mkZoomOut" type="button" title="縮小">－</button><span class="zc-pct" id="mkZoomPct">100%</span><button class="btn small" id="mkZoomIn" type="button" title="拡大（2本指・ホイールでも）">＋</button><button class="btn small" id="mkZoomFit" type="button" title="全体を表示">全体</button></div>
+    </div>
+    <div class="side mk-side">
+      <div class="props-pane">
+        <div id="mkStepCut">
+          <div class="p-sec">
+            <div class="p-sec-title">1. 使う所を囲む</div>
+            <div class="p-row"><span class="seg" id="mkShape"><button class="btn" type="button" data-v="rect">四角</button><button class="btn" type="button" data-v="lasso">なぞる</button></span></div>
+            <div class="p-hint" id="mkCutHint"></div>
+            <div class="p-row"><button class="btn small primary" id="mkCut" type="button" disabled>切り出す</button><button class="btn small" id="mkWhole" type="button">画像全体を使う</button></div>
+          </div>
+          <div class="p-sec">
+            <div class="p-sec-title">このパックの素材 <span id="mkCount"></span></div>
+            <div class="pick-grid mk-grid" id="mkItems"></div>
+            <div class="p-hint">押すと、名前・分類を変えたり、パックから外したりできます。</div>
+          </div>
+        </div>
+        <div id="mkStepFin" hidden>
+          <div class="p-sec">
+            <div class="p-sec-title">2. 背景を抜く</div>
+            <div class="p-row"><label class="p-check"><input type="checkbox" id="mkBgOn" checked> 背景を抜く</label></div>
+            <div id="mkBgOpts">
+              <div class="p-row"><label class="p-lab">消す色</label>
+                <select id="mkBgKey"><option value="auto">自動（まわりの色）</option><option value="white">白</option><option value="black">黒</option><option value="pick">色を指定</option></select>
+                <input type="color" id="mkBgColor" value="#00ff00"></div>
+              <div class="p-row"><label class="p-lab">強さ</label><input type="range" id="mkBgStrength" min="0" max="100" step="1" value="50"><span class="p-hint" style="margin:0" id="mkBgStrengthV"></span></div>
+              <div class="p-row"><label class="p-check"><input type="checkbox" id="mkBgFlood" checked> まわりとつながった部分だけ消す</label></div>
+              <div class="p-row"><label class="p-lab">ふちを削る</label><input type="range" id="mkBgErode" min="0" max="3" step="1" value="0"><span class="p-hint" style="margin:0" id="mkBgErodeV"></span></div>
+            </div>
+            <div class="p-hint" id="mkBgInfo"></div>
+          </div>
+          <div class="p-sec">
+            <div class="p-sec-title">3. 手で直す</div>
+            <div class="p-row"><span class="seg" id="mkBrMode"><button class="btn" type="button" data-v="erase">消す</button><button class="btn" type="button" data-v="restore">戻す</button><button class="btn" type="button" data-v="pan">動かす</button></span></div>
+            <div class="p-row"><label class="p-lab">太さ</label><input type="range" id="mkBrSize" min="4" max="120" step="1" value="28"><span class="p-hint" style="margin:0" id="mkBrSizeV"></span></div>
+            <div class="p-row"><button class="btn small" id="mkBrUndo" type="button">ひとつ戻す</button><button class="btn small" id="mkBrClear" type="button">手直しを全部なくす</button></div>
+            <div class="p-hint">背景が残った所は「消す」、消えすぎた所は「戻す」でなぞります。2本指・ホイールで拡大できます。</div>
+          </div>
+          <div class="p-sec">
+            <div class="p-sec-title">4. パックに保存</div>
+            <div class="p-row"><label class="p-lab">名前</label><input class="field-input" id="mkName" maxlength="60" style="flex:1;min-width:0"></div>
+            <div class="p-row"><label class="p-lab">分類</label><select id="mkCat" style="flex:1"></select></div>
+            <div class="p-row"><label class="p-check"><input type="checkbox" id="mkTrim" checked> 透明な余白を詰める</label></div>
+            <div class="p-row"><button class="btn small" id="mkFinBack" type="button">やめて囲み直す</button><button class="btn small primary" id="mkSave" type="button">パックに保存</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 画像を重ねる -->
 <div class="modal-overlay" id="mAddImage">
   <div class="modal wide">
@@ -578,7 +661,40 @@
       <div class="field-hint">PNG・WebP の透明な部分は、透明のまま重なります。PCは画面にドラッグ＆ドロップ・Ctrl+V の貼り付けでも足せます。</div>
     </div>
     <div class="sub-title">素材から選ぶ</div>
+    <div class="seg seg-wrap ai-tabs" id="aiTabs"></div>
+    <div class="seg seg-wrap ai-cats" id="aiCats" hidden></div>
     <div class="pick-grid" id="aiLib"></div>
+  </div>
+</div>
+
+<!-- 素材パック -->
+<div class="modal-overlay" id="mPacks">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">素材パック</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="note-box">漫画に貼る効果音・擬音・手書きのセリフなどの画像をまとめたものです。「素材を足す」で作り、「書き出す」でファイル（.pupack.zip）にして、ほかの端末で「パックを読み込む」から入れます（同期はしません）。<br>パックを削除・置き換えしても、作品に貼った素材はそのまま残ります。</div>
+    <div class="field-group">
+      <div class="p-row" style="margin:0">
+        <button class="btn primary" id="pkNew" type="button">＋ 新しいパック</button>
+        <button class="btn" id="pkImport" type="button">パックを読み込む…</button>
+        <button class="btn" id="pkFromLib" type="button" title="この端末の「素材」を1つのパックにまとめる（素材はそのまま残る）">今の素材をパックにまとめる</button>
+      </div>
+    </div>
+    <div id="pkList"></div>
+  </div>
+</div>
+
+<!-- パックの中の素材 -->
+<div class="modal-overlay" id="mPkItem">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">素材</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="bg-preview" style="margin-bottom:10px"><img id="piImg" alt="" style="max-width:100%;max-height:40vh;display:block"></div>
+    <div class="field-group"><div class="field-label">名前</div><input class="field-input" id="piName" maxlength="60"></div>
+    <div class="field-group"><div class="field-label">分類</div><select class="field-select" id="piCat"></select></div>
+    <div class="modal-footer">
+      <button class="btn danger" id="piDel" type="button">パックから外す</button>
+      <span class="spacer"></span>
+      <button class="btn primary" id="piSave" type="button">保存</button>
+    </div>
   </div>
 </div>
 
@@ -775,6 +891,8 @@
 <input type="file" id="fileBase" accept="image/*" hidden>
 <input type="file" id="fileReuse" accept="image/*" hidden>
 <input type="file" id="fileLib" accept="image/*" hidden multiple>
+<input type="file" id="fileMk" accept="image/*" hidden>
+<input type="file" id="filePack" accept=".zip,application/zip,application/x-zip-compressed" hidden>
 <input type="file" id="fileFont" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden>
 <div class="drop-hint" id="dropHint">ここに画像を落とす</div>
 <div class="busy" id="busy">処理しています…</div>
@@ -796,7 +914,8 @@
   ===================================================================== */
   const DB_NAME = 'sideops_pasteup', DB_VERSION = 1, S_STYLES = 'styles';
   // 版2（2026-11-20）：取り込んだ書体の fonts を足した
-  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 3, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts', S_FXSETS = 'fxsets';
+  // 版4（2026-11-26）：素材パックの packs を足した（同期しない。受け渡しはファイル）
+  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 4, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts', S_FXSETS = 'fxsets', S_PACKS = 'packs';
   const LS_PREFS = 'sideops_pasteup_prefs'; // 端末ごとの設定（背景の透過を確かめるか など）
   const MAX_FONT_FILE = 50 * 1024 * 1024;
   const BASE_SEL = '__base__';            // レイヤーの一覧で「下の画像」を選んだとき
@@ -1038,6 +1157,7 @@
     if (anyModalOpen()) return false; // いつもの閉じ方に任せる
     if (document.querySelector('.menu-panel.is-open')) { closeMenus(); return true; }
     if (brush.on) { exitBrush(); return true; }
+    if (makerOpen()) { mkClose(); return true; }
     if (editorOpen()) { closeEditor(); return true; }
     return false;
   };
@@ -3430,15 +3550,47 @@
     const all = await getAll(wdb, S_BLOBS);
     return all.filter((b) => b.lib && b.blob).sort((a, b) => b.createdAt - a.createdAt);
   }
+  // 素材のタブ：'lib'＝この端末の素材、ほかはパックの id。選んだタブと分類は端末ごとに覚える
+  const LS_AITAB = 'sideops_pasteup_aitab';
+  let aiTab = 'lib', aiCat = 'all';
+  try { aiTab = localStorage.getItem(LS_AITAB) || 'lib'; } catch (_) { /* 既定のまま */ }
   async function renderLibPicker() {
     revokeLibUrls();
-    const recs = await libRecs();
-    $('aiLib').innerHTML = recs.length ? recs.map((r) => {
-      const u = URL.createObjectURL(r.blob); libUrls.push(u);
-      return `<button class="pick-item" type="button" data-id="${esc(r.id)}"><span class="pi-img"><img src="${u}" alt=""></span><span class="pi-name">${esc(r.name)}</span><span class="pi-sub">${r.w}×${r.h}</span></button>`;
-    }).join('') : '<div class="field-hint">まだ素材がありません。上の「素材にも登録する」に印を付けて選ぶか、一覧の ☰「素材の管理」から登録できます。</div>';
+    await loadPacks();
+    if (aiTab !== 'lib' && !packById(aiTab)) aiTab = 'lib';
+    $('aiTabs').innerHTML = [`<button class="btn${aiTab === 'lib' ? ' is-on' : ''}" type="button" data-tab="lib">この端末の素材</button>`]
+      .concat(packs.map((p) => `<button class="btn${aiTab === p.id ? ' is-on' : ''}" type="button" data-tab="${esc(p.id)}">${esc(p.name)}（${p.items.length}）</button>`)).join('');
+    $('aiTabs').hidden = !packs.length;
+    if (aiTab === 'lib') {
+      $('aiCats').hidden = true;
+      const recs = await libRecs();
+      $('aiLib').innerHTML = recs.length ? recs.map((r) => {
+        const u = URL.createObjectURL(r.blob); libUrls.push(u);
+        return `<button class="pick-item" type="button" data-id="${esc(r.id)}"><span class="pi-img"><img src="${u}" alt=""></span><span class="pi-name">${esc(r.name)}</span><span class="pi-sub">${r.w}×${r.h}</span></button>`;
+      }).join('') : '<div class="field-hint">まだ素材がありません。上の「素材にも登録する」に印を付けて選ぶか、一覧の ☰「素材の管理」から登録できます。素材パックは ☰「素材パック」から読み込めます。</div>';
+    } else {
+      const p = packById(aiTab);
+      const cats = PACK_CATS.map((c) => c[0]).filter((c) => p.items.some((it) => it.cat === c));
+      if (aiCat !== 'all' && !cats.includes(aiCat)) aiCat = 'all';
+      $('aiCats').hidden = cats.length < 2;
+      $('aiCats').innerHTML = ['all'].concat(cats).map((c) => `<button class="btn${aiCat === c ? ' is-on' : ''}" type="button" data-cat="${c}">${c === 'all' ? 'すべて' : esc(PACK_CAT_BY.get(c))}</button>`).join('');
+      const html = [];
+      for (const it of p.items.filter((x) => aiCat === 'all' || x.cat === aiCat)) {
+        const r = await getOne(wdb, S_BLOBS, it.blobId); if (!r || !r.blob) continue;
+        const u = URL.createObjectURL(r.blob); libUrls.push(u);
+        html.push(`<button class="pick-item" type="button" data-id="${esc(r.id)}"><span class="pi-img"><img src="${u}" alt=""></span><span class="pi-name">${esc(it.name)}</span><span class="pi-sub">${esc(PACK_CAT_BY.get(it.cat) || 'その他')}</span></button>`);
+      }
+      $('aiLib').innerHTML = html.join('') || '<div class="field-hint">このパックには素材がありません。</div>';
+    }
     $('aiToLib').checked = false;
   }
+  $('aiTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab]'); if (!b) return;
+    aiTab = b.dataset.tab; aiCat = 'all';
+    try { localStorage.setItem(LS_AITAB, aiTab); } catch (_) { /* 覚えられなくても動く */ }
+    renderLibPicker();
+  });
+  $('aiCats').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (!b) return; aiCat = b.dataset.cat; renderLibPicker(); });
   $('aiLib').addEventListener('click', async (e) => {
     const b = e.target.closest('.pick-item'); if (!b) return;
     const rec = await getOne(wdb, S_BLOBS, b.dataset.id);
@@ -4405,6 +4557,8 @@
     // コピーしてまだ貼り付けていない画像も残す（コピー元の作品を消したあとでも貼り付けられるように）
     const clip = readClip();
     if (clip) clip.layers.forEach((l) => { if (l && l.type === 'image' && typeof l.blobId === 'string') refs.add(l.blobId); if (l && l.type === 'panel' && l.img && typeof l.img.blobId === 'string') refs.add(l.img.blobId); });
+    // 素材パックに入っている画像も残す
+    (await getAll(wdb, S_PACKS)).forEach((p) => (Array.isArray(p.items) ? p.items : []).forEach((it) => { if (it && typeof it.blobId === 'string') refs.add(it.blobId); }));
     const keys = await getAllKeys(wdb, S_BLOBS);
     const now = Date.now();
     for (const k of keys) {
@@ -4691,6 +4845,709 @@
     } finally { busy(false); }
   }
 
+  /* =====================================================================
+     素材パック（漫画に貼る効果音・擬音・手書きのセリフなどの画像をまとめたもの）
+     ・作るのは「素材をつくる」の画面（元の画像から切り出す → 背景を抜く → 手で直す → 余白を詰めて保存）
+     ・受け渡しはファイル（ZIP・圧縮なし。pack.json ＋ items/*.png）。同期はしない（画像は重いので）
+     ・作品に貼った素材は、作品からも参照されるので、パックを消しても残る（片付けは gcBlobs）
+  ===================================================================== */
+  const PACK_FORMAT = 'sideops-pasteup-pack', PACK_V = 1;
+  const PACK_CATS = [['sfx', '効果音'], ['onoma', '擬音'], ['line', '手書きセリフ'], ['mark', '記号'], ['other', 'その他']];
+  const PACK_CAT_BY = new Map(PACK_CATS);
+  const MAX_PACK_ITEMS = 500;                   // 1パックの素材の数
+  const MAX_PACK_FILE = 300 * 1024 * 1024;      // 読み込むファイルの大きさ
+  const MAX_PACK_ITEM_BYTES = 20 * 1024 * 1024; // 1枚の大きさ
+  const canShareFiles = !!(navigator.share && navigator.canShare);
+  let packs = [];
+  async function loadPacks() {
+    try { packs = (await getAll(wdb, S_PACKS)).filter((p) => p && typeof p.id === 'string' && Array.isArray(p.items)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); }
+    catch (_) { packs = []; }
+  }
+  function packById(id) { return packs.find((p) => p.id === id) || null; }
+  async function savePack(p) { p.updatedAt = Date.now(); await putOne(wdb, S_PACKS, p); await loadPacks(); }
+  function newPackRec(name) { const now = Date.now(); return { id: genId(), name: cleanName(name) || '素材パック', ver: 1, items: [], src: 'local', createdAt: now, updatedAt: now, exportedAt: 0 }; }
+  function packDirty(p) { return !!p.items.length && p.updatedAt > (p.exportedAt || 0); } // まだ書き出していない変更
+  function safeFileName(s) { return (String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').trim().slice(0, 40)) || 'pack'; }
+  async function toPng(blob) {
+    const li = await loadImg(blob);
+    try {
+      const c = document.createElement('canvas'); c.width = li.img.naturalWidth; c.height = li.img.naturalHeight;
+      c.getContext('2d').drawImage(li.img, 0, 0);
+      return await canvasToBlob(c, 'image/png');
+    } finally { URL.revokeObjectURL(li.url); }
+  }
+
+  /* ---------- ZIP（圧縮なしで書く。読むのは圧縮なし・deflate） ---------- */
+  const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zipStore(files) { // files：[{ name, data: Uint8Array }]
+    const enc = new TextEncoder(), d = new Date();
+    const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const parts = [], cen = []; let off = 0;
+    for (const f of files) {
+      const nm = enc.encode(f.name), data = f.data, crc = crc32(data);
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true);
+      lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+      parts.push(lh.buffer, nm, data);
+      const ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+      ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true);
+      ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, nm.length, true);
+      ch.setUint32(42, off, true);
+      cen.push(ch.buffer, nm);
+      off += 30 + nm.length + data.length;
+    }
+    const cenSize = cen.reduce((a, b) => a + b.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, cenSize, true); end.setUint32(16, off, true);
+    return new Blob([...parts, ...cen, end.buffer], { type: 'application/zip' });
+  }
+  async function unzipEntries(blob) {
+    const buf = new Uint8Array(await blob.arrayBuffer()), dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    let e = -1;
+    for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error('ZIP のファイルではないか、壊れています');
+    const n = dv.getUint16(e + 10, true), cdOff = dv.getUint32(e + 16, true);
+    if (n > MAX_PACK_ITEMS + 50) throw new Error('入っているファイルが多すぎます');
+    const dec = new TextDecoder(), map = new Map();
+    let p = cdOff;
+    for (let k = 0; k < n; k++) {
+      if (p + 46 > buf.length || dv.getUint32(p, true) !== 0x02014b50) throw new Error('ZIP の中身が壊れています');
+      const method = dv.getUint16(p + 10, true), cs = dv.getUint32(p + 20, true), us = dv.getUint32(p + 24, true);
+      const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+      const name = dec.decode(buf.subarray(p + 46, p + 46 + nl));
+      p += 46 + nl + xl + cl;
+      if (lo + 30 > buf.length || dv.getUint32(lo, true) !== 0x04034b50) continue;
+      const ds = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true);
+      if (ds + cs > buf.length) continue;
+      map.set(name, { method, us, comp: buf.subarray(ds, ds + cs) });
+    }
+    return map;
+  }
+  async function zipData(ent) {
+    if (ent.us > MAX_PACK_ITEM_BYTES) throw new Error('大きすぎるファイルが入っています');
+    if (ent.method === 0) return ent.comp;
+    if (ent.method === 8 && typeof DecompressionStream === 'function') {
+      const ab = await new Response(new Blob([ent.comp]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+      if (ab.byteLength > MAX_PACK_ITEM_BYTES) throw new Error('大きすぎるファイルが入っています');
+      return new Uint8Array(ab);
+    }
+    throw new Error('この ZIP の圧縮の形式には対応していません');
+  }
+
+  /* ---------- 書き出す・読み込む ---------- */
+  async function exportPack(p, share) {
+    if (!p.items.length) { showToast('素材が入っていません', true); return; }
+    busy(true, 'パックをまとめています…');
+    try {
+      const ver = p.exportedAt && packDirty(p) ? (p.ver || 1) + 1 : (p.ver || 1); // 前に書き出したあと変えたら版を上げる
+      const files = [], items = [];
+      let i = 0;
+      for (const it of p.items) {
+        const rec = await getOne(wdb, S_BLOBS, it.blobId); if (!rec || !rec.blob) continue;
+        let blob = rec.blob;
+        if (!/png/i.test(blob.type || rec.type || '')) blob = await toPng(blob); // この端末の素材から入れた JPEG など
+        i++;
+        const file = `items/${String(i).padStart(3, '0')}.png`;
+        files.push({ name: file, data: new Uint8Array(await blob.arrayBuffer()) });
+        items.push({ file, name: it.name, cat: it.cat, w: rec.w, h: rec.h });
+      }
+      if (!items.length) { showToast('書き出せる画像がありませんでした', true); return; }
+      const now = Date.now();
+      const manifest = { format: PACK_FORMAT, v: PACK_V, id: p.id, name: p.name, ver, createdAt: p.createdAt, exportedAt: now, items };
+      files.unshift({ name: 'pack.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
+      const zip = zipStore(files), name = safeFileName(p.name) + '.pupack.zip';
+      if (share) {
+        const file = new File([zip], name, { type: 'application/zip' });
+        if (!navigator.canShare({ files: [file] })) { showToast('この端末ではファイルを共有できません。「書き出す」で保存してください', true); return; }
+        busy(false);
+        await navigator.share({ files: [file] });
+      } else {
+        const url = URL.createObjectURL(zip);
+        const a = document.createElement('a'); a.href = url; a.download = name;
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+      }
+      p.ver = ver; p.exportedAt = p.updatedAt = Date.now();
+      await putOne(wdb, S_PACKS, p);
+      showToast(`「${p.name}」を書き出しました（${items.length} 枚・${fmtBytes(zip.size)}・版 ${ver}）`);
+    } catch (err) {
+      if (!(err && err.name === 'AbortError')) showToast('書き出せませんでした：' + (err && err.message || err), true);
+    } finally { busy(false); await renderPackList(); }
+  }
+  // 返り値：{ p, skipped, replaced }・null（やめた）
+  async function importPackFile(f) {
+    if (!f) return null;
+    if (f.size > MAX_PACK_FILE) throw new Error(`ファイルが大きすぎます（${fmtBytes(f.size)}。300MBまで）`);
+    const ents = await unzipEntries(f);
+    // フォルダごと ZIP にし直したもの（中が「名前/pack.json」）も読めるように
+    let prefix = '';
+    if (!ents.has('pack.json')) { const k = [...ents.keys()].find((x) => /^[^/]+\/pack\.json$/.test(x)); if (!k) throw new Error('PASTEUP の素材パックではありません（pack.json がありません）'); prefix = k.slice(0, -9); }
+    let mf;
+    try { mf = JSON.parse(new TextDecoder().decode(await zipData(ents.get(prefix + 'pack.json')))); } catch (_) { throw new Error('パックの中身の一覧（pack.json）が読めませんでした'); }
+    if (!mf || mf.format !== PACK_FORMAT || typeof mf.id !== 'string' || !mf.id || !Array.isArray(mf.items)) throw new Error('PASTEUP の素材パックではありません');
+    if (num(mf.v, 1, 0, 1e6) > PACK_V) throw new Error('新しい版の PASTEUP で作られたパックです。アプリを新しくしてから読み込んでください');
+    if (mf.items.length > MAX_PACK_ITEMS) throw new Error(`素材が多すぎます（${MAX_PACK_ITEMS} 枚まで）`);
+    const id = mf.id.slice(0, 80), name = cleanName(mf.name) || '素材パック', ver = Math.round(num(mf.ver, 1, 1, 1e6));
+    await loadPacks();
+    const old = packById(id);
+    if (old) {
+      const msg = `「${old.name}」はもう入っています。\n今：版 ${old.ver}・${old.items.length} 枚\n読み込むもの：版 ${ver}・${mf.items.length} 枚`
+        + (ver < old.ver ? '\n※ 読み込むほうが古い版です' : '')
+        + (packDirty(old) ? '\n※ この端末で足した、まだ書き出していない素材は消えます' : '')
+        + '\n\n置き換えますか？（作品に貼った素材はそのまま残ります）';
+      if (!await confirmBox(msg, '置き換える', true)) return null;
+    }
+    busy(true, 'パックを読み込んでいます…');
+    try {
+      const items = []; let skipped = 0;
+      for (const m of mf.items) {
+        try {
+          const fn = m && typeof m.file === 'string' ? m.file : '';
+          const ent = /^items\/[^/]+\.png$/i.test(fn) ? ents.get(prefix + fn) : null;
+          if (!ent) { skipped++; continue; }
+          const data = await zipData(ent);
+          if (!(data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47)) { skipped++; continue; } // PNG だけ
+          const blob = new Blob([data], { type: 'image/png' });
+          const li = await loadImg(blob);
+          const w = li.img.naturalWidth, h = li.img.naturalHeight; URL.revokeObjectURL(li.url);
+          if (!w || !h || w * h > MAX_PIXELS) { skipped++; continue; }
+          const rec = { id: genId(), blob, type: 'image/png', w, h, name: cleanName(m.name) || '素材', lib: false, pack: id, createdAt: Date.now() };
+          await putOne(wdb, S_BLOBS, rec);
+          items.push({ id: genId(), blobId: rec.id, name: rec.name, cat: PACK_CAT_BY.has(m.cat) ? m.cat : 'other', w, h });
+        } catch (_) { skipped++; }
+      }
+      if (!items.length) throw new Error('使える画像が入っていませんでした');
+      const now = Date.now();
+      const p = { id, name, ver, items, src: 'import', createdAt: num(mf.createdAt, now, 0, 9e15), updatedAt: now, exportedAt: now };
+      await putOne(wdb, S_PACKS, p);
+      await loadPacks();
+      return { p, skipped, replaced: !!old };
+    } finally { busy(false); }
+  }
+
+  /* ---------- 素材パックの一覧（☰「素材パック」） ---------- */
+  const pkUrls = [];
+  async function renderPackList() {
+    while (pkUrls.length) URL.revokeObjectURL(pkUrls.pop());
+    await loadPacks();
+    if (!packs.length) { $('pkList').innerHTML = '<div class="field-hint">まだパックがありません。「＋ 新しいパック」で作るか、書き出したパックのファイルを読み込みます。</div>'; return; }
+    const rows = [];
+    for (const p of packs) {
+      let thumb = '';
+      const first = p.items[0] ? await getOne(wdb, S_BLOBS, p.items[0].blobId) : null;
+      if (first && first.blob) { const u = URL.createObjectURL(first.blob); pkUrls.push(u); thumb = `<img src="${u}" alt="">`; }
+      rows.push(`<div class="lib-row" data-id="${esc(p.id)}">
+        <div class="lr-img pk-img">${thumb}</div>
+        <div class="lr-main"><div class="lr-name">${esc(p.name)}</div>
+          <div class="lr-sub">${p.items.length} 枚・版 ${p.ver || 1}・${p.src === 'import' ? '読み込んだパック' : 'この端末で作った'}${packDirty(p) ? '・<span style="color:var(--amber)">まだ書き出していない変更あり</span>' : ''}</div></div>
+        <div class="lr-actions"><button class="btn small primary" type="button" data-act="edit">素材を足す</button><button class="btn small" type="button" data-act="export">書き出す</button>${canShareFiles ? '<button class="btn small" type="button" data-act="share">共有</button>' : ''}<button class="btn small" type="button" data-act="rename">名前</button><button class="btn small danger" type="button" data-act="del">削除</button></div>
+      </div>`);
+    }
+    $('pkList').innerHTML = rows.join('');
+  }
+  async function openPacks() { await renderPackList(); openModal('mPacks'); }
+  async function createPackAndOpen() {
+    const name = await promptBox('新しい素材パックの名前', '効果音パック', 'あとから変えられます。');
+    if (!name) return;
+    const p = newPackRec(name);
+    try { await putOne(wdb, S_PACKS, p); } catch (_) { showToast('作れませんでした', true); return; }
+    closeModal('mPacks');
+    await openMaker(p.id);
+  }
+  $('miPacks').addEventListener('click', () => { closeMenus(); openPacks(); });
+  $('newPackBtn').addEventListener('click', async () => {
+    await loadPacks();
+    if (!packs.length) { await createPackAndOpen(); return; }
+    await openPacks();
+    showToast('素材を足すパックの「素材を足す」を押すか、「＋ 新しいパック」で作ります');
+  });
+  $('pkNew').addEventListener('click', createPackAndOpen);
+  $('pkImport').addEventListener('click', () => $('filePack').click());
+  $('filePack').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      const r = await importPackFile(f);
+      if (!r) return;
+      if (r.replaced) { try { await gcBlobs(GC_GRACE_MS); } catch (_) { /* 起動時にも片付ける */ } }
+      showToast(`「${r.p.name}」を${r.replaced ? '置き換えました' : '読み込みました'}（${r.p.items.length} 枚${r.skipped ? `・読めなかった ${r.skipped} 枚は飛ばしました` : ''}）`);
+    } catch (err) { showToast('読み込めませんでした：' + (err && err.message || err), true); }
+    await renderPackList();
+  });
+  $('pkFromLib').addEventListener('click', async () => {
+    const recs = await libRecs();
+    if (!recs.length) { showToast('この端末の「素材」がありません', true); return; }
+    const name = await promptBox('パックの名前', 'この端末の素材', `素材 ${recs.length} 枚をまとめます（素材はそのまま残ります）。`);
+    if (!name) return;
+    const p = newPackRec(name);
+    p.items = recs.slice(0, MAX_PACK_ITEMS).map((r) => ({ id: genId(), blobId: r.id, name: cleanName(baseName(r.name)) || '素材', cat: 'other', w: r.w, h: r.h }));
+    try { await savePack(p); } catch (_) { showToast('作れませんでした', true); return; }
+    showToast(`「${p.name}」を作りました（${p.items.length} 枚。分類は「その他」）`);
+    await renderPackList();
+  });
+  $('pkList').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]'), row = e.target.closest('.lib-row'); if (!b || !row) return;
+    const p = packById(row.dataset.id); if (!p) return;
+    const act = b.dataset.act;
+    if (act === 'edit') { closeModal('mPacks'); await openMaker(p.id); return; }
+    if (act === 'export' || act === 'share') { await exportPack(p, act === 'share'); return; }
+    if (act === 'rename') {
+      const name = await promptBox('パックの名前', p.name);
+      if (name) { p.name = name; try { await savePack(p); } catch (_) { showToast('保存できませんでした', true); } }
+      await renderPackList(); return;
+    }
+    if (act === 'del') {
+      armTwice(b, packDirty(p) ? '書き出していません。もう一度で削除' : 'もう一度で削除', async () => {
+        try { await delOne(wdb, S_PACKS, p.id); } catch (_) { showToast('削除できませんでした', true); return; }
+        if (aiTab === p.id) aiTab = 'lib';
+        try { await gcBlobs(GC_GRACE_MS); } catch (_) { /* 起動時にも片付ける */ }
+        await renderPackList();
+        showToast('削除しました（作品に貼った素材はそのまま残ります）');
+      });
+    }
+  });
+
+  /* ---------- 素材をつくる画面 ---------- */
+  const mk = {
+    pack: null, src: null, step: 'cut', shape: 'rect', sel: null, drawing: null,
+    piece: null, keyed: null, out: null, strokes: [], brMode: 'erase', brSize: 28, lastCat: 'sfx', cursor: null, bgTimer: 0,
+    v: { s: 1, fs: 1, ox: 0, oy: 0, z: 1, cx: 0, cy: 0, cw: 1, ch: 1, dpr: 1 },
+  };
+  const mkCv = $('mkCv'), mkCtx = mkCv.getContext('2d');
+  const mkChecker = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 16;
+    const g = c.getContext('2d'); g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, 16, 16); g.fillStyle = '#ececec'; g.fillRect(0, 0, 8, 8); g.fillRect(8, 8, 8, 8);
+    return mkCtx.createPattern(c, 'repeat');
+  })();
+  $('mkCat').innerHTML = $('piCat').innerHTML = PACK_CATS.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+  function makerOpen() { return $('maker').classList.contains('is-open'); }
+  function mkShown() { return mk.step === 'fin' ? mk.out : mk.src; }
+  function mkFit() {
+    const r = $('mkStage').getBoundingClientRect(), v = mk.v;
+    v.dpr = Math.min(window.devicePixelRatio || 1, 2.5); v.cw = Math.max(1, r.width); v.ch = Math.max(1, r.height);
+    mkCv.width = Math.round(v.cw * v.dpr); mkCv.height = Math.round(v.ch * v.dpr);
+    const im = mkShown(); if (!im) return;
+    const m = v.cw < 500 ? 14 : 28;
+    v.fs = Math.max(0.0005, Math.min((v.cw - m * 2) / im.width, (v.ch - m * 2) / im.height));
+    mkApply();
+  }
+  function mkApply() {
+    const v = mk.v, im = mkShown(); if (!im) return;
+    v.z = clamp(v.z, 1, 32);
+    if (v.z < 1.001) { v.z = 1; v.cx = im.width / 2; v.cy = im.height / 2; }
+    v.cx = clamp(v.cx, 0, im.width); v.cy = clamp(v.cy, 0, im.height);
+    v.s = v.fs * v.z; v.ox = v.cw / 2 - v.cx * v.s; v.oy = v.ch / 2 - v.cy * v.s;
+    $('mkZoomPct').textContent = Math.round(v.z * 100) + '%';
+  }
+  function mkZoomAt(sx, sy, z) {
+    const v = mk.v; if (!mkShown()) return;
+    const bx = (sx - v.ox) / v.s, by = (sy - v.oy) / v.s;
+    v.z = clamp(z, 1, 32);
+    const k = v.fs * v.z; v.cx = bx + (v.cw / 2 - sx) / k; v.cy = by + (v.ch / 2 - sy) / k;
+    mkApply(); mkRender();
+  }
+  let mkQueued = false;
+  function mkRender() { if (mkQueued) return; mkQueued = true; requestAnimationFrame(() => { mkQueued = false; mkDraw(); }); }
+  function mkDraw() {
+    if (!makerOpen()) return;
+    const v = mk.v, g = mkCtx, d = v.dpr, im = mkShown();
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, mkCv.width, mkCv.height);
+    $('mkEmpty').hidden = !!mk.src;
+    if (!im) return;
+    g.setTransform(d, 0, 0, d, 0, 0);
+    g.fillStyle = mkChecker; g.fillRect(v.ox, v.oy, im.width * v.s, im.height * v.s);
+    g.setTransform(d * v.s, 0, 0, d * v.s, d * v.ox, d * v.oy);
+    g.imageSmoothingEnabled = v.s < 2; g.imageSmoothingQuality = 'high';
+    g.drawImage(im, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.setTransform(d, 0, 0, d, 0, 0);
+    if (mk.step === 'cut') {
+      const sh = mk.drawing || mk.sel;
+      if (sh) {
+        const path = new Path2D(), X = (x) => v.ox + x * v.s, Y = (y) => v.oy + y * v.s;
+        if (sh.pts) { sh.pts.forEach(([x, y], i) => (i ? path.lineTo(X(x), Y(y)) : path.moveTo(X(x), Y(y)))); path.closePath(); }
+        else path.rect(X(sh.x), Y(sh.y), sh.w * v.s, sh.h * v.s);
+        const out = new Path2D(); out.rect(v.ox, v.oy, im.width * v.s, im.height * v.s); out.addPath(path);
+        g.fillStyle = 'rgba(0,0,0,.45)'; g.fill(out, 'evenodd'); // 囲んだ外を暗く
+        g.lineWidth = 1.5; g.setLineDash([6, 4]); g.strokeStyle = '#00e5ff'; g.stroke(path); g.setLineDash([]);
+      }
+    } else if (mk.cursor && mk.brMode !== 'pan') { // 筆の大きさ
+      g.beginPath(); g.arc(mk.cursor.x, mk.cursor.y, mk.brSize / 2, 0, Math.PI * 2);
+      g.lineWidth = 1; g.strokeStyle = mk.brMode === 'erase' ? 'rgba(255,47,110,.9)' : 'rgba(0,229,255,.9)'; g.stroke();
+    }
+  }
+  function mkSetStep() {
+    $('mkStepCut').hidden = mk.step !== 'cut'; $('mkStepFin').hidden = mk.step !== 'fin';
+    $('mkCv').style.cursor = mk.step === 'fin' && mk.brMode === 'pan' ? 'grab' : 'crosshair';
+  }
+  function mkUpdCut() {
+    $('mkCut').disabled = !mk.sel || !mk.src; $('mkWhole').disabled = !mk.src;
+    $('mkShape').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === mk.shape));
+    $('mkCutHint').textContent = !mk.src ? '上の「元の画像を開く」で画像を開きます。'
+      : mk.shape === 'rect' ? '使う所を四角で囲みます（ドラッグ）。囲み直すときは、もう一度ドラッグ。2本指・ホイールで拡大できます。'
+      : '使う所のまわりをなぞって囲みます（指を離すと閉じます）。2本指・ホイールで拡大できます。';
+  }
+  function mkUpdBr() {
+    $('mkBrMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === mk.brMode));
+    $('mkBrSizeV').textContent = mk.brSize + 'px';
+    $('mkBrUndo').disabled = !mk.strokes.length;
+    mkSetStep();
+  }
+  async function mkRenderItems() {
+    const p = mk.pack; if (!p) return;
+    $('mkTitle').textContent = '素材をつくる：' + p.name;
+    $('mkCount').textContent = `（${p.items.length} 枚）`;
+    while (mkUrls.length) URL.revokeObjectURL(mkUrls.pop());
+    const html = [];
+    for (const it of p.items.slice().reverse()) { // 新しいものから
+      const rec = await getOne(wdb, S_BLOBS, it.blobId); if (!rec || !rec.blob) continue;
+      const u = URL.createObjectURL(rec.blob); mkUrls.push(u);
+      html.push(`<button class="pick-item" type="button" data-id="${esc(it.id)}"><span class="pi-img"><img src="${u}" alt=""></span><span class="pi-name">${esc(it.name)}</span><span class="pi-sub">${esc(PACK_CAT_BY.get(it.cat) || 'その他')}</span></button>`);
+    }
+    $('mkItems').innerHTML = html.join('') || '<div class="field-hint">まだ素材がありません。</div>';
+  }
+  const mkUrls = [];
+  async function openMaker(id) {
+    await loadPacks();
+    const p = packById(id); if (!p) { showToast('パックが見つかりません', true); return; }
+    Object.assign(mk, { pack: p, src: null, step: 'cut', sel: null, drawing: null, piece: null, keyed: null, out: null, strokes: [], cursor: null });
+    mk.v.z = 1;
+    $('maker').classList.add('is-open');
+    mkSetStep(); mkUpdCut(); mkUpdBr();
+    await mkRenderItems();
+    mkFit(); mkRender();
+  }
+  async function mkClose() {
+    if (mk.step === 'fin' && !await confirmBox('保存していない切り出しがあります。捨てて戻りますか？', '捨てて戻る')) return;
+    $('maker').classList.remove('is-open');
+    while (mkUrls.length) URL.revokeObjectURL(mkUrls.pop());
+    Object.assign(mk, { pack: null, src: null, piece: null, keyed: null, out: null, strokes: [], sel: null, step: 'cut' });
+    await openPacks();
+  }
+  $('mkBack').addEventListener('click', mkClose);
+  new ResizeObserver(() => { if (makerOpen()) { mkFit(); mkDraw(); } }).observe($('mkStage'));
+
+  // 元の画像を開く（保存はしない。大きすぎる画像は縮める）
+  $('mkOpen').addEventListener('click', async () => {
+    if (mk.step === 'fin' && !await confirmBox('保存していない切り出しがあります。捨てて、別の画像を開きますか？', '捨てて開く')) return;
+    $('fileMk').click();
+  });
+  $('fileMk').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (/svg/i.test(f.type || '') || /\.svg$/i.test(f.name || '')) { showToast('SVG は使えません（PNG にしてから）', true); return; }
+    if (f.size > MAX_FILE) { showToast(`ファイルが大きすぎます（${fmtBytes(f.size)}。30MBまで）`, true); return; }
+    busy(true, '開いています…');
+    try {
+      let li;
+      try { li = await loadImg(f); } catch (_) { throw new Error('この画像は読めませんでした（HEIC などは JPEG・PNG にしてから）'); }
+      let w = li.img.naturalWidth, h = li.img.naturalHeight, note = '';
+      const k = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)), MAX_SIDE / Math.max(w, h));
+      const nw = Math.max(1, Math.floor(w * k)), nh = Math.max(1, Math.floor(h * k));
+      if (k < 1) note = `大きい画像なので ${w}×${h} → ${nw}×${nh} に縮めました`;
+      const c = document.createElement('canvas'); c.width = nw; c.height = nh;
+      const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(li.img, 0, 0, nw, nh);
+      URL.revokeObjectURL(li.url);
+      Object.assign(mk, { src: c, sel: null, drawing: null, step: 'cut', piece: null, keyed: null, out: null, strokes: [] });
+      mk.v.z = 1;
+      mkSetStep(); mkUpdCut(); mkFit(); mkRender();
+      if (note) showToast(note);
+    } catch (err) { showToast(err.message || '開けませんでした', true); }
+    finally { busy(false); }
+  });
+  $('mkShape').addEventListener('click', (e) => { const b = e.target.closest('.btn'); if (!b) return; mk.shape = b.dataset.v === 'lasso' ? 'lasso' : 'rect'; mk.sel = null; mkUpdCut(); mkRender(); });
+  $('mkZoomIn').addEventListener('click', () => mkZoomAt(mk.v.cw / 2, mk.v.ch / 2, mk.v.z * 1.5));
+  $('mkZoomOut').addEventListener('click', () => mkZoomAt(mk.v.cw / 2, mk.v.ch / 2, mk.v.z / 1.5));
+  $('mkZoomFit').addEventListener('click', () => { mk.v.z = 1; mkApply(); mkRender(); });
+
+  // 指・マウス：1本＝囲む／なぞって直す、2本＝拡大・縮小と移動、ホイール＝拡大・縮小、ホイールを押してドラッグ＝移動
+  const mkPtr = new Map(); let mkDrag = null;
+  function mkPos(e) { const r = mkCv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function mkToImg(p) { const v = mk.v; return { x: (p.x - v.ox) / v.s, y: (p.y - v.oy) / v.s }; }
+  function polyArea(pts) { let a = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]); return Math.abs(a / 2); }
+  mkCv.addEventListener('pointerdown', (e) => {
+    const im = mkShown(); if (!im) return;
+    const mid = e.pointerType === 'mouse' && e.button === 1;
+    if (e.pointerType === 'mouse' && e.button !== 0 && !mid) return;
+    const p = mkPos(e); mkPtr.set(e.pointerId, p);
+    try { mkCv.setPointerCapture(e.pointerId); } catch (_) { /* 何もしない */ }
+    if (mid) { e.preventDefault(); mkDrag = { kind: 'pan', b: mkToImg(p) }; return; }
+    if (mkPtr.size === 2) { // 2本目：描きかけはやめて、画面の拡大・縮小
+      if (mkDrag && mkDrag.kind === 'stroke') { mk.strokes.pop(); mkRebuildOut(); mkUpdBr(); }
+      mk.drawing = null;
+      const [a, b] = [...mkPtr.values()], m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      mkDrag = { kind: 'pinch', d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, b: mkToImg(m), z0: mk.v.z };
+      mkRender(); return;
+    }
+    if (mkPtr.size > 2) return;
+    const ip = mkToImg(p);
+    if (mk.step === 'cut') {
+      const x = clamp(ip.x, 0, im.width), y = clamp(ip.y, 0, im.height);
+      mkDrag = { kind: mk.shape, x0: x, y0: y };
+      mk.drawing = mk.shape === 'rect' ? { x, y, w: 0, h: 0 } : { pts: [[x, y]] };
+    } else if (mk.brMode === 'pan') {
+      mkDrag = { kind: 'pan', b: ip };
+    } else {
+      const st = { mode: mk.brMode, r: Math.max(0.5, mk.brSize / 2 / mk.v.s), pts: [[ip.x, ip.y]] };
+      mk.strokes.push(st); mkDrag = { kind: 'stroke', st };
+      mkApplyStroke(mk.out, st, 0); mkUpdBr();
+    }
+    mk.cursor = p; mkRender();
+  });
+  mkCv.addEventListener('pointermove', (e) => {
+    const p = mkPos(e); mk.cursor = p;
+    if (!mkPtr.has(e.pointerId)) { if (mk.step === 'fin') mkRender(); return; }
+    mkPtr.set(e.pointerId, p);
+    if (!mkDrag) return;
+    const v = mk.v, im = mkShown(); if (!im) return;
+    if (mkDrag.kind === 'pinch') {
+      if (mkPtr.size < 2) return;
+      const [a, b] = [...mkPtr.values()], d = Math.hypot(b.x - a.x, b.y - a.y) || 1, m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      v.z = clamp(mkDrag.z0 * d / mkDrag.d0, 1, 32);
+      const k = v.fs * v.z; v.cx = mkDrag.b.x + (v.cw / 2 - m.x) / k; v.cy = mkDrag.b.y + (v.ch / 2 - m.y) / k;
+      mkApply(); mkRender(); return;
+    }
+    if (mkDrag.kind === 'pan') { v.cx = mkDrag.b.x + (v.cw / 2 - p.x) / v.s; v.cy = mkDrag.b.y + (v.ch / 2 - p.y) / v.s; mkApply(); mkRender(); return; }
+    const ip = mkToImg(p), x = clamp(ip.x, 0, im.width), y = clamp(ip.y, 0, im.height);
+    if (mkDrag.kind === 'rect') mk.drawing = { x: Math.min(mkDrag.x0, x), y: Math.min(mkDrag.y0, y), w: Math.abs(x - mkDrag.x0), h: Math.abs(y - mkDrag.y0) };
+    else if (mkDrag.kind === 'lasso') { const pts = mk.drawing.pts, l = pts[pts.length - 1]; if (Math.hypot(x - l[0], y - l[1]) * v.s >= 3 && pts.length < 4000) pts.push([x, y]); }
+    else if (mkDrag.kind === 'stroke') {
+      const pts = mkDrag.st.pts, l = pts[pts.length - 1];
+      if (Math.hypot(ip.x - l[0], ip.y - l[1]) * v.s >= 2 && pts.length < 4000) { pts.push([ip.x, ip.y]); mkApplyStroke(mk.out, mkDrag.st, pts.length - 2); }
+    }
+    mkRender();
+  });
+  function mkEnd(e) {
+    if (!mkPtr.has(e.pointerId)) return;
+    mkPtr.delete(e.pointerId);
+    if (!mkDrag) return;
+    if (mkDrag.kind === 'pinch') { // 1本残ったら、その指で画面を動かし続ける
+      if (mkPtr.size === 1) { const p = [...mkPtr.values()][0]; mkDrag = { kind: 'pan', b: mkToImg(p) }; } else if (!mkPtr.size) mkDrag = null;
+      return;
+    }
+    if (mkPtr.size) return;
+    const k = mkDrag.kind; mkDrag = null;
+    const v = mk.v;
+    if (k === 'rect') { const r = mk.drawing; mk.drawing = null; if (r && r.w * v.s >= 6 && r.h * v.s >= 6) mk.sel = r; mkUpdCut(); }
+    else if (k === 'lasso') {
+      const d = mk.drawing; mk.drawing = null;
+      if (d && d.pts.length >= 3 && polyArea(d.pts) * v.s * v.s >= 80) mk.sel = { pts: d.pts };
+      else showToast('囲んだ所が小さすぎます。もう一度なぞってください');
+      mkUpdCut();
+    }
+    mkRender();
+  }
+  mkCv.addEventListener('pointerup', mkEnd);
+  mkCv.addEventListener('pointercancel', mkEnd);
+  mkCv.addEventListener('pointerleave', () => { if (!mkPtr.size) { mk.cursor = null; mkRender(); } });
+  mkCv.addEventListener('wheel', (e) => {
+    if (!mkShown()) return;
+    e.preventDefault();
+    const p = mkPos(e), dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    mkZoomAt(p.x, p.y, mk.v.z * Math.exp(-clamp(dy, -300, 300) * (e.ctrlKey ? 0.01 : 0.0015)));
+  }, { passive: false });
+
+  // 切り出す（なぞった形は、形の外を透明に）
+  function mkCutPiece(sel) {
+    const im = mk.src; let x0, y0, x1, y1;
+    if (sel.pts) { x0 = Infinity; y0 = Infinity; x1 = -Infinity; y1 = -Infinity; sel.pts.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }); }
+    else { x0 = sel.x; y0 = sel.y; x1 = sel.x + sel.w; y1 = sel.y + sel.h; }
+    x0 = Math.floor(clamp(x0, 0, im.width)); y0 = Math.floor(clamp(y0, 0, im.height));
+    x1 = Math.ceil(clamp(x1, 0, im.width)); y1 = Math.ceil(clamp(y1, 0, im.height));
+    const w = x1 - x0, h = y1 - y0; if (w < 2 || h < 2) return null;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    if (sel.pts) { g.beginPath(); sel.pts.forEach(([x, y], i) => (i ? g.lineTo(x - x0, y - y0) : g.moveTo(x - x0, y - y0))); g.closePath(); g.clip(); }
+    g.drawImage(im, -x0, -y0);
+    return c;
+  }
+  // なぞった線の下の色（元の画像）の真ん中の値。なぞって切り出すと外が透明になり、まわりの色から背景を推定できないため
+  function mkLassoKey(sel) {
+    if (!sel || !sel.pts) return null;
+    const im = mk.src, g = im.getContext('2d', { willReadFrequently: true });
+    const rs = [], gs = [], bs = [];
+    const step = Math.max(1, Math.floor(sel.pts.length / 400));
+    for (let i = 0; i < sel.pts.length; i += step) {
+      const x = Math.round(clamp(sel.pts[i][0], 0, im.width - 1)), y = Math.round(clamp(sel.pts[i][1], 0, im.height - 1));
+      const d = g.getImageData(x, y, 1, 1).data; if (d[3] < 16) continue;
+      rs.push(d[0]); gs.push(d[1]); bs.push(d[2]);
+    }
+    if (!rs.length) return null;
+    const med = (a) => a.sort((p, q) => p - q)[a.length >> 1];
+    return '#' + [med(rs), med(gs), med(bs)].map((v) => v.toString(16).padStart(2, '0')).join('');
+  }
+  function mkStartFin(c, lassoKey) {
+    const p = mk.pack;
+    mk.lassoKey = lassoKey || null;
+    Object.assign(mk, { piece: c, strokes: [], step: 'fin', keyed: document.createElement('canvas'), out: document.createElement('canvas'), cursor: null });
+    $('mkName').value = `素材 ${p.items.length + 1}`;
+    $('mkCat').value = PACK_CAT_BY.has(mk.lastCat) ? mk.lastCat : 'sfx';
+    mk.v.z = 1;
+    mkSetStep(); mkUpdBr(); mkBgUi();
+    mkRecompute();
+    mkFit(); mkRender();
+  }
+  $('mkCut').addEventListener('click', () => {
+    if (!mk.sel || !mk.src) return;
+    const c = mkCutPiece(mk.sel); if (!c) { showToast('囲んだ所が小さすぎます', true); return; }
+    mkStartFin(c, mkLassoKey(mk.sel));
+  });
+  $('mkWhole').addEventListener('click', () => {
+    if (!mk.src) return;
+    const c = document.createElement('canvas'); c.width = mk.src.width; c.height = mk.src.height; c.getContext('2d').drawImage(mk.src, 0, 0);
+    mkStartFin(c);
+  });
+  $('mkFinBack').addEventListener('click', async () => {
+    if (mk.strokes.length && !await confirmBox('手直しを捨てて、囲み直しますか？', '捨てて戻る')) return;
+    Object.assign(mk, { step: 'cut', piece: null, keyed: null, out: null, strokes: [], cursor: null });
+    mk.v.z = 1; mkSetStep(); mkUpdCut(); mkFit(); mkRender();
+  });
+
+  // 背景を抜く（取り込みの「背景を透過」と同じ処理）→ 手直しをかけ直す
+  function mkBgOpt() {
+    if ($('mkBgKey').value === 'auto' && mk.lassoKey) return { key: 'pick', color: mk.lassoKey, strength: num($('mkBgStrength').value, 50, 0, 100), flood: $('mkBgFlood').checked, erode: num($('mkBgErode').value, 0, 0, 3) };
+    return { key: $('mkBgKey').value, color: isColor($('mkBgColor').value) ? $('mkBgColor').value : '#00ff00',
+      strength: num($('mkBgStrength').value, 50, 0, 100), flood: $('mkBgFlood').checked, erode: num($('mkBgErode').value, 0, 0, 3) };
+  }
+  function mkBgUi() {
+    $('mkBgOpts').hidden = !$('mkBgOn').checked;
+    $('mkBgColor').hidden = $('mkBgKey').value !== 'pick';
+    $('mkBgStrengthV').textContent = $('mkBgStrength').value;
+    $('mkBgErodeV').textContent = $('mkBgErode').value === '0' ? 'なし' : $('mkBgErode').value + 'px';
+  }
+  function mkRecompute() {
+    if (!mk.piece) return;
+    const w = mk.piece.width, h = mk.piece.height;
+    mk.keyed.width = w; mk.keyed.height = h;
+    const g = mk.keyed.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, w, h); g.drawImage(mk.piece, 0, 0);
+    let info = '';
+    if ($('mkBgOn').checked) {
+      try {
+        const data = g.getImageData(0, 0, w, h);
+        const key = cutBackground(data, mkBgOpt(), 1);
+        g.putImageData(data, 0, 0);
+        if (key.mode === 'alpha') info = 'まわりがもう透明です。消す色を指定すると、その色も消せます。';
+        else if ($('mkBgKey').value === 'auto') info = `背景の色${mk.lassoKey ? '（なぞった線の下の色）' : ''}：rgb(${key.rgb.join(', ')})` + (key.uniform < 0.6 ? '　※まわりの色がそろっていないので、うまく消えないかもしれません。「消す色」を指定するか、手で直してください' : '');
+      } catch (_) { info = '大きすぎて背景を抜けませんでした。小さめに囲んでください'; }
+    }
+    $('mkBgInfo').textContent = info;
+    mkRebuildOut();
+  }
+  function mkBgSchedule() { mkBgUi(); clearTimeout(mk.bgTimer); mk.bgTimer = setTimeout(mkRecompute, 120); }
+  ['mkBgOn', 'mkBgKey', 'mkBgFlood'].forEach((id) => $(id).addEventListener('change', mkBgSchedule));
+  ['mkBgColor', 'mkBgStrength', 'mkBgErode'].forEach((id) => $(id).addEventListener('input', mkBgSchedule));
+
+  // 手直し：消す＝透明に、戻す＝切り出したときの色に（線は切り出しの座標で持ち、背景の設定を変えてもかけ直す）
+  function mkRebuildOut() {
+    if (!mk.out || !mk.keyed) return;
+    const o = mk.out; o.width = mk.keyed.width; o.height = mk.keyed.height;
+    const g = o.getContext('2d'); g.clearRect(0, 0, o.width, o.height); g.drawImage(mk.keyed, 0, 0);
+    mk.strokes.forEach((st) => mkApplyStroke(o, st, 0));
+    mkRender();
+  }
+  function mkApplyStroke(o, st, from) {
+    if (!o) return;
+    const g = o.getContext('2d'), pts = st.pts, i0 = Math.max(0, Math.min(from, pts.length - 1));
+    if (st.mode === 'erase') {
+      const path = new Path2D(); path.moveTo(pts[i0][0], pts[i0][1]);
+      for (let i = i0 + 1; i < pts.length; i++) path.lineTo(pts[i][0], pts[i][1]);
+      const dot = new Path2D(); dot.arc(pts[i0][0], pts[i0][1], st.r, 0, Math.PI * 2);
+      g.save(); g.globalCompositeOperation = 'destination-out';
+      g.lineCap = 'round'; g.lineJoin = 'round'; g.lineWidth = st.r * 2; g.stroke(path); g.fill(dot);
+      g.restore();
+    } else {
+      const clip = new Path2D(), stepLen = Math.max(0.5, st.r * 0.4);
+      const add = (x, y) => { clip.moveTo(x + st.r, y); clip.arc(x, y, st.r, 0, Math.PI * 2); };
+      add(pts[i0][0], pts[i0][1]);
+      for (let i = i0 + 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], len = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(len / stepLen));
+        for (let k = 1; k <= n; k++) add(ax + (bx - ax) * k / n, ay + (by - ay) * k / n);
+      }
+      g.save(); g.clip(clip);
+      g.clearRect(0, 0, o.width, o.height); g.drawImage(mk.piece, 0, 0);
+      g.restore();
+    }
+  }
+  $('mkBrMode').addEventListener('click', (e) => { const b = e.target.closest('.btn'); if (!b) return; mk.brMode = ['erase', 'restore', 'pan'].includes(b.dataset.v) ? b.dataset.v : 'erase'; mkUpdBr(); mkRender(); });
+  $('mkBrSize').addEventListener('input', () => { mk.brSize = num($('mkBrSize').value, 28, 4, 120); mkUpdBr(); });
+  $('mkBrUndo').addEventListener('click', () => { if (!mk.strokes.length) return; mk.strokes.pop(); mkRebuildOut(); mkUpdBr(); });
+  $('mkBrClear').addEventListener('click', () => {
+    if (!mk.strokes.length) return;
+    armTwice($('mkBrClear'), 'もう一度で全部なくす', () => { mk.strokes = []; mkRebuildOut(); mkUpdBr(); });
+  });
+
+  // 透明な余白を切り落とす（全部透明なら null）
+  function trimAlpha(c) {
+    const w = c.width, h = c.height, d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w * 4;
+      for (let x = 0; x < w; x++) if (d[row + x * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y; }
+    }
+    if (x1 < 0) return null;
+    const pad = 2;
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+    const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+    o.getContext('2d').drawImage(c, -x0, -y0);
+    return o;
+  }
+  $('mkSave').addEventListener('click', async () => {
+    if (mk.step !== 'fin' || !mk.out || !mk.pack) return;
+    const p0 = await getOne(wdb, S_PACKS, mk.pack.id);
+    if (!p0) { showToast('パックが見つかりません（ほかの画面で削除されたかもしれません）', true); return; }
+    if (p0.items.length >= MAX_PACK_ITEMS) { showToast(`1つのパックに入れられるのは ${MAX_PACK_ITEMS} 枚までです`, true); return; }
+    let c = mk.out;
+    if ($('mkTrim').checked) { c = trimAlpha(mk.out); if (!c) { showToast('全部透明になっています。背景の抜き方や手直しを見直してください', true); return; } }
+    busy(true, '保存しています…');
+    try {
+      const blob = await canvasToBlob(c, 'image/png');
+      const name = cleanName($('mkName').value) || '素材', cat = PACK_CAT_BY.has($('mkCat').value) ? $('mkCat').value : 'other';
+      const rec = { id: genId(), blob, type: 'image/png', w: c.width, h: c.height, name, lib: false, pack: p0.id, createdAt: Date.now() };
+      await putOne(wdb, S_BLOBS, rec);
+      p0.items.push({ id: genId(), blobId: rec.id, name, cat, w: c.width, h: c.height });
+      await savePack(p0);
+      mk.pack = packById(p0.id) || p0; mk.lastCat = cat;
+      Object.assign(mk, { step: 'cut', piece: null, keyed: null, out: null, strokes: [], cursor: null });
+      mk.v.z = 1; mkSetStep(); mkUpdCut(); mkFit(); mkRender();
+      await mkRenderItems();
+      showToast(`「${name}」を保存しました（${p0.items.length} 枚目）。続けて囲めます`);
+    } catch (err) { showToast('保存できませんでした：' + (err && err.message || err), true); }
+    finally { busy(false); }
+  });
+
+  // パックの中の素材：名前・分類を変える、パックから外す
+  let piTarget = null, piUrl = null;
+  $('mkItems').addEventListener('click', async (e) => {
+    const b = e.target.closest('.pick-item'); if (!b || !mk.pack) return;
+    const it = mk.pack.items.find((x) => x.id === b.dataset.id); if (!it) return;
+    const rec = await getOne(wdb, S_BLOBS, it.blobId);
+    if (piUrl) URL.revokeObjectURL(piUrl);
+    piUrl = rec && rec.blob ? URL.createObjectURL(rec.blob) : null;
+    $('piImg').src = piUrl || '';
+    $('piName').value = it.name; $('piCat').value = PACK_CAT_BY.has(it.cat) ? it.cat : 'other';
+    piTarget = it.id; disarm($('piDel'));
+    openModal('mPkItem');
+  });
+  async function piUpdate(fn) {
+    const p = await getOne(wdb, S_PACKS, mk.pack.id); if (!p) return;
+    fn(p); await savePack(p); mk.pack = packById(p.id) || p;
+    closeModal('mPkItem'); await mkRenderItems();
+  }
+  $('piSave').addEventListener('click', () => piUpdate((p) => {
+    const it = p.items.find((x) => x.id === piTarget); if (!it) return;
+    it.name = cleanName($('piName').value) || it.name; it.cat = PACK_CAT_BY.has($('piCat').value) ? $('piCat').value : 'other';
+  }));
+  $('piDel').addEventListener('click', () => armTwice($('piDel'), 'もう一度で外す', async () => {
+    await piUpdate((p) => { p.items = p.items.filter((x) => x.id !== piTarget); });
+    showToast('パックから外しました（作品に貼ったものはそのまま残ります）');
+  }));
+
   /* ===================== 端末ごとの設定 ===================== */
   let prefs = { bgAsk: true };
   try { const v = JSON.parse(localStorage.getItem(LS_PREFS) || 'null'); if (v && typeof v === 'object') prefs = Object.assign(prefs, { bgAsk: v.bgAsk !== false }); } catch (_) { /* 既定のまま */ }
@@ -4797,7 +5654,7 @@
   /* ===================== 起動 ===================== */
   (async function init() {
     try {
-      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS, S_FXSETS]);
+      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS, S_FXSETS, S_PACKS]);
       db = await openDb(DB_NAME, DB_VERSION, [S_STYLES]);
     } catch (err) {
       $('listBody').innerHTML = `<div class="empty-state"><div class="big">開けませんでした</div><div class="small">保存の場所（IndexedDB）が使えません：${esc(err && err.message || err)}</div></div>`;
