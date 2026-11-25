@@ -651,6 +651,12 @@
             <div class="p-row"><label class="p-lab">名前</label><input class="field-input" id="mkName" maxlength="60" style="flex:1;min-width:0"></div>
             <div class="p-row"><label class="p-lab">分類</label><select id="mkCat" style="flex:1"></select></div>
             <div class="p-row"><label class="p-check"><input type="checkbox" id="mkTrim" checked> 透明な余白を詰める</label></div>
+            <div class="p-row"><label class="p-lab">大きさ</label><span class="seg" id="mkScale"><button class="btn" type="button" data-v="1">そのまま</button><button class="btn" type="button" data-v="2">2倍</button><button class="btn" type="button" data-v="3">3倍</button><button class="btn" type="button" data-v="4">4倍</button></span></div>
+            <div id="mkScaleOpts">
+              <div class="p-row"><label class="p-check"><input type="checkbox" id="mkEdge" checked> ふちをくっきり</label><label class="p-check"><input type="checkbox" id="mkSharp" checked> シャープ</label></div>
+              <div class="p-row"><button class="btn small" id="mkPreview" type="button">拡大の仕上がりを見る</button></div>
+            </div>
+            <div class="p-hint" id="mkScaleInfo"></div>
             <div class="p-row"><button class="btn small" id="mkFinBack" type="button">やめて囲み直す</button><button class="btn small primary" id="mkSave" type="button">パックに保存</button></div>
           </div>
         </div>
@@ -5125,7 +5131,7 @@
   /* ---------- 素材をつくる画面 ---------- */
   const mk = {
     pack: null, src: null, step: 'cut', shape: 'rect', sel: null, drawing: null,
-    piece: null, keyed: null, out: null, strokes: [], brMode: 'erase', brSize: 28, lastCat: 'sfx', cursor: null, bgTimer: 0,
+    piece: null, keyed: null, out: null, preview: null, strokes: [], brMode: 'erase', brSize: 28, lastCat: 'sfx', cursor: null, bgTimer: 0,
     v: { s: 1, fs: 1, ox: 0, oy: 0, z: 1, cx: 0, cy: 0, cw: 1, ch: 1, dpr: 1 },
   };
   const mkCv = $('mkCv'), mkCtx = mkCv.getContext('2d');
@@ -5158,7 +5164,7 @@
   $('bgView').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) setBgView(b.dataset.v); });
   $('mkBgCycle').addEventListener('click', () => { const i = BG_VIEWS.findIndex((b) => b[0] === bgView); setBgView(BG_VIEWS[(i + 1) % BG_VIEWS.length][0]); });
   renderBgViews();
-  function mkShown() { return mk.step === 'fin' ? mk.out : mk.src; }
+  function mkShown() { return mk.step === 'fin' ? (mk.preview || mk.out) : mk.src; }
   function mkFit() {
     const r = $('mkStage').getBoundingClientRect(), v = mk.v;
     v.dpr = Math.min(window.devicePixelRatio || 1, 2.5); v.cw = Math.max(1, r.width); v.ch = Math.max(1, r.height);
@@ -5209,7 +5215,7 @@
         g.fillStyle = 'rgba(0,0,0,.45)'; g.fill(out, 'evenodd'); // 囲んだ外を暗く
         g.lineWidth = 1.5; g.setLineDash([6, 4]); g.strokeStyle = '#00e5ff'; g.stroke(path); g.setLineDash([]);
       }
-    } else if (mk.cursor && mk.brMode !== 'pan') { // 筆の大きさ
+    } else if (mk.cursor && mk.brMode !== 'pan' && !mk.preview) { // 筆の大きさ
       g.beginPath(); g.arc(mk.cursor.x, mk.cursor.y, mk.brSize / 2, 0, Math.PI * 2);
       g.lineWidth = 1; g.strokeStyle = mk.brMode === 'erase' ? 'rgba(255,47,110,.9)' : 'rgba(0,229,255,.9)'; g.stroke();
     }
@@ -5323,7 +5329,7 @@
       const x = clamp(ip.x, 0, im.width), y = clamp(ip.y, 0, im.height);
       mkDrag = { kind: mk.shape, x0: x, y0: y };
       mk.drawing = mk.shape === 'rect' ? { x, y, w: 0, h: 0 } : { pts: [[x, y]] };
-    } else if (mk.brMode === 'pan') {
+    } else if (mk.brMode === 'pan' || mk.preview) {
       mkDrag = { kind: 'pan', b: ip };
     } else {
       const st = { mode: mk.brMode, r: Math.max(0.5, mk.brSize / 2 / mk.v.s), pts: [[ip.x, ip.y]] };
@@ -5417,12 +5423,12 @@
   function mkStartFin(c, lassoKey) {
     const p = mk.pack;
     mk.lassoKey = lassoKey || null;
-    Object.assign(mk, { piece: c, strokes: [], step: 'fin', keyed: document.createElement('canvas'), out: document.createElement('canvas'), cursor: null });
+    Object.assign(mk, { piece: c, preview: null, strokes: [], step: 'fin', keyed: document.createElement('canvas'), out: document.createElement('canvas'), cursor: null });
     $('mkName').value = `素材 ${p.items.length + 1}`;
     $('mkCat').value = PACK_CAT_BY.has(mk.lastCat) ? mk.lastCat : 'sfx';
     mk.v.z = 1;
     mkSetStep(); mkUpdBr(); mkBgUi();
-    mkRecompute();
+    mkRecompute(); mkUpdScale();
     mkFit(); mkRender();
   }
   $('mkCut').addEventListener('click', () => {
@@ -5437,7 +5443,7 @@
   });
   $('mkFinBack').addEventListener('click', async () => {
     if (mk.strokes.length && !await confirmBox('手直しを捨てて、囲み直しますか？', '捨てて戻る')) return;
-    Object.assign(mk, { step: 'cut', piece: null, keyed: null, out: null, strokes: [], cursor: null });
+    Object.assign(mk, { step: 'cut', piece: null, keyed: null, out: null, preview: null, strokes: [], cursor: null });
     mk.v.z = 1; mkSetStep(); mkUpdCut(); mkFit(); mkRender();
   });
 
@@ -5446,6 +5452,16 @@
     if ($('mkBgKey').value === 'auto' && mk.lassoKey) return { key: 'pick', color: mk.lassoKey, strength: num($('mkBgStrength').value, 50, 0, 100), flood: $('mkBgFlood').checked, erode: num($('mkBgErode').value, 0, 0, 3) };
     return { key: $('mkBgKey').value, color: isColor($('mkBgColor').value) ? $('mkBgColor').value : '#00ff00',
       strength: num($('mkBgStrength').value, 50, 0, 100), flood: $('mkBgFlood').checked, erode: num($('mkBgErode').value, 0, 0, 3) };
+  }
+  // 半透明の所の色 C は「本当の色 F」と背景の色 K が混ざったもの（C = a·F + (1−a)·K）とみなして F に戻す。
+  // 白・黒などの背景を抜いたとき、輪郭に背景の色の縁が残るのを防ぐ（色の付いた背景は cutBackground の despill が受け持つ）
+  function unmixKey(imgData, K) {
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const a = d[i + 3]; if (a === 0 || a === 255) continue;
+      const t = Math.max(a / 255, 0.25), u = 1 - a / 255;
+      d[i] = (d[i] - u * K[0]) / t; d[i + 1] = (d[i + 1] - u * K[1]) / t; d[i + 2] = (d[i + 2] - u * K[2]) / t;
+    }
   }
   function mkBgUi() {
     $('mkBgOpts').hidden = !$('mkBgOn').checked;
@@ -5464,6 +5480,7 @@
       try {
         const data = g.getImageData(0, 0, w, h);
         const key = cutBackground(data, mkBgOpt(), 1);
+        if (key.mode === 'neutral') unmixKey(data, key.rgb); // 輪郭に混ざった背景の色を抜く（白い縁が残らないように）
         g.putImageData(data, 0, 0);
         if (key.mode === 'alpha') info = 'まわりがもう透明です。消す色を指定すると、その色も消せます。';
         else if ($('mkBgKey').value === 'auto') info = `背景の色${mk.lassoKey ? '（なぞった線の下の色）' : ''}：rgb(${key.rgb.join(', ')})` + (key.uniform < 0.6 ? '　※まわりの色がそろっていないので、うまく消えないかもしれません。「消す色」を指定するか、手で直してください' : '');
@@ -5479,6 +5496,7 @@
   // 手直し：消す＝透明に、戻す＝切り出したときの色に（線は切り出しの座標で持ち、背景の設定を変えてもかけ直す）
   function mkRebuildOut() {
     if (!mk.out || !mk.keyed) return;
+    if (mk.preview) { mk.preview = null; mkUpdScale(); mkFit(); } // 中身が変わったら、仕上がりの見本はやめる
     const o = mk.out; o.width = mk.keyed.width; o.height = mk.keyed.height;
     const g = o.getContext('2d'); g.clearRect(0, 0, o.width, o.height); g.drawImage(mk.keyed, 0, 0);
     mk.strokes.forEach((st) => mkApplyStroke(o, st, 0));
@@ -5515,6 +5533,90 @@
     armTwice($('mkBrClear'), 'もう一度で全部なくす', () => { mk.strokes = []; mkRebuildOut(); mkUpdBr(); });
   });
 
+  /* ---- 拡大して保存（AI ではなく、なめらかに拡大 → シャープ → 透明部分の境目を整える。
+         色のはっきりした文字・線（効果音・擬音）向け。細かい描き込みは増えない） ---- */
+  const LS_MKSCALE = 'sideops_pasteup_mkscale';
+  let mkScale = 1;
+  try { const v = JSON.parse(localStorage.getItem(LS_MKSCALE) || 'null'); if (v && typeof v === 'object') { mkScale = [1, 2, 3, 4].includes(v.f) ? v.f : 1; $('mkEdge').checked = v.edge !== false; $('mkSharp').checked = v.sharp !== false; } } catch (_) { /* 既定のまま */ }
+  function saveMkScale() { try { localStorage.setItem(LS_MKSCALE, JSON.stringify({ f: mkScale, edge: $('mkEdge').checked, sharp: $('mkSharp').checked })); } catch (_) { /* 覚えられなくても動く */ } }
+  // 大きくしすぎない（4096×4096 の画素数まで）。実際に使う倍率
+  function mkFactorFor(w, h) { return Math.min(mkScale, Math.max(1, Math.floor(Math.sqrt(MAX_PIXELS / Math.max(1, w * h)) * 10) / 10)); }
+  function mkUpdScale() {
+    $('mkScale').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', +b.dataset.v === mkScale));
+    $('mkScaleOpts').hidden = mkScale === 1;
+    $('mkPreview').textContent = mk.preview ? '手直しに戻る' : '拡大の仕上がりを見る';
+    let info = '';
+    if (mk.out) {
+      const f = mkFactorFor(mk.out.width, mk.out.height);
+      info = `切り出し ${mk.out.width}×${mk.out.height}` + (mkScale > 1 ? ` → 保存 約 ${Math.round(mk.out.width * f)}×${Math.round(mk.out.height * f)}（余白を詰める前）` : '')
+        + (f < mkScale ? `。大きすぎるので ${f} 倍にします` : '');
+      if (mkScale > 1) info += '。「ふちをくっきり」は、ぼかし・光などの半透明の所も硬くなるので、そういう素材では外してください';
+    }
+    if (mk.preview) info = '仕上がりの見本です（この間は、なぞって直せません）。' + info;
+    $('mkScaleInfo').textContent = info;
+  }
+  function mkUpscale(src, f, edge, sharp) {
+    const w = Math.max(1, Math.round(src.width * f)), h = Math.max(1, Math.round(src.height * f));
+    // 2倍ずつ大きくしてから最後に合わせる（一度に大きくするより、ふちがなめらか）
+    let cur = src;
+    while (cur.width * 2 <= w && cur.height * 2 <= h) {
+      const t = document.createElement('canvas'); t.width = cur.width * 2; t.height = cur.height * 2;
+      const tg = t.getContext('2d'); tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = 'high'; tg.drawImage(cur, 0, 0, t.width, t.height);
+      cur = t;
+    }
+    const o = document.createElement('canvas'); o.width = w; o.height = h;
+    const g = o.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(cur, 0, 0, w, h);
+    if (f <= 1 || !(edge || sharp)) return o;
+    const id = g.getImageData(0, 0, w, h), d = id.data;
+    if (sharp && FILTER_OK) { // アンシャープマスク（ぼかした絵との差を足す）。透明な所はさわらない
+      const b = document.createElement('canvas'); b.width = w; b.height = h;
+      const bgc = b.getContext('2d', { willReadFrequently: true });
+      bgc.filter = `blur(${(0.5 + f * 0.35).toFixed(2)}px)`; bgc.drawImage(o, 0, 0); bgc.filter = 'none';
+      const bd = bgc.getImageData(0, 0, w, h).data, k = 0.8;
+      for (let i = 0; i < d.length; i += 4) {
+        if (!d[i + 3]) continue;
+        d[i] = d[i] + k * (d[i] - bd[i]); d[i + 1] = d[i + 1] + k * (d[i + 1] - bd[i + 1]); d[i + 2] = d[i + 2] + k * (d[i + 2] - bd[i + 2]);
+      }
+    }
+    if (edge) { // 拡大でぼやけた透明の境目を、1〜2px の幅に締める
+      const gain = Math.max(1, f / 1.4);
+      for (let i = 3; i < d.length; i += 4) { const a = d[i]; if (a === 0 || a === 255) continue; d[i] = (a - 128) * gain + 128; }
+    }
+    g.putImageData(id, 0, 0);
+    return o;
+  }
+  // 保存する絵（余白を詰める → 拡大）。全部透明なら null
+  function mkFinal() {
+    let c = mk.out;
+    if ($('mkTrim').checked) { c = trimAlpha(mk.out); if (!c) return null; }
+    const f = mkFactorFor(c.width, c.height);
+    if (f > 1) c = mkUpscale(c, f, $('mkEdge').checked, $('mkSharp').checked);
+    return c;
+  }
+  $('mkScale').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'); if (!b) return;
+    mkScale = [1, 2, 3, 4].includes(+b.dataset.v) ? +b.dataset.v : 1; saveMkScale();
+    if (mk.preview) { mk.preview = null; mkFit(); mkRender(); }
+    mkUpdScale();
+  });
+  ['mkEdge', 'mkSharp', 'mkTrim'].forEach((id) => $(id).addEventListener('change', () => {
+    saveMkScale();
+    if (mk.preview) { mk.preview = null; mkFit(); mkRender(); }
+    mkUpdScale();
+  }));
+  $('mkPreview').addEventListener('click', async () => {
+    if (mk.step !== 'fin' || !mk.out) return;
+    if (mk.preview) { mk.preview = null; }
+    else {
+      busy(true, '拡大しています…');
+      try { await new Promise((r) => setTimeout(r, 30)); const c = mkFinal(); if (!c) { showToast('全部透明になっています', true); return; } mk.preview = c; }
+      catch (_) { showToast('拡大できませんでした（大きすぎるかもしれません）', true); }
+      finally { busy(false); }
+    }
+    mk.v.z = 1; mkFit(); mkRender(); mkUpdScale();
+  });
+
   // 透明な余白を切り落とす（全部透明なら null）
   function trimAlpha(c) {
     const w = c.width, h = c.height, d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
@@ -5535,10 +5637,11 @@
     const p0 = await getOne(wdb, S_PACKS, mk.pack.id);
     if (!p0) { showToast('パックが見つかりません（ほかの画面で削除されたかもしれません）', true); return; }
     if (p0.items.length >= MAX_PACK_ITEMS) { showToast(`1つのパックに入れられるのは ${MAX_PACK_ITEMS} 枚までです`, true); return; }
-    let c = mk.out;
-    if ($('mkTrim').checked) { c = trimAlpha(mk.out); if (!c) { showToast('全部透明になっています。背景の抜き方や手直しを見直してください', true); return; } }
-    busy(true, '保存しています…');
+    busy(true, mkScale > 1 ? '拡大して保存しています…' : '保存しています…');
     try {
+      await new Promise((r) => setTimeout(r, 30)); // 「処理しています」を先に見せる
+      const c = mk.preview || mkFinal();
+      if (!c) { showToast('全部透明になっています。背景の抜き方や手直しを見直してください', true); return; }
       const blob = await canvasToBlob(c, 'image/png');
       const name = cleanName($('mkName').value) || '素材', cat = PACK_CAT_BY.has($('mkCat').value) ? $('mkCat').value : 'other';
       const rec = { id: genId(), blob, type: 'image/png', w: c.width, h: c.height, name, lib: false, pack: p0.id, createdAt: Date.now() };
@@ -5546,10 +5649,10 @@
       p0.items.push({ id: genId(), blobId: rec.id, name, cat, w: c.width, h: c.height });
       await savePack(p0);
       mk.pack = packById(p0.id) || p0; mk.lastCat = cat;
-      Object.assign(mk, { step: 'cut', piece: null, keyed: null, out: null, strokes: [], cursor: null });
+      Object.assign(mk, { step: 'cut', piece: null, keyed: null, out: null, preview: null, strokes: [], cursor: null });
       mk.v.z = 1; mkSetStep(); mkUpdCut(); mkFit(); mkRender();
       await mkRenderItems();
-      showToast(`「${name}」を保存しました（${p0.items.length} 枚目）。続けて囲めます`);
+      showToast(`「${name}」を保存しました（${c.width}×${c.height}・${p0.items.length} 枚目）。続けて囲めます`);
     } catch (err) { showToast('保存できませんでした：' + (err && err.message || err), true); }
     finally { busy(false); }
   });
