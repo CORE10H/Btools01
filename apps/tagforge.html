@@ -117,6 +117,20 @@
   .cat-item .ci-sel { font-size: 10px; color: var(--on-accent); background: var(--cyan); padding: 0 5px; border-radius: 8px; flex-shrink: 0; }
   .cat-item .ci-pick { font-size: 10px; color: #fff; background: var(--magenta); padding: 0 5px; border-radius: 8px; flex-shrink: 0; } /* 選んで削除：このカテゴリで選んだ数 */
   .cat-item .ci-neg { font-size: 9px; color: var(--magenta); border: 1px solid var(--magenta-dim); padding: 0 3px; flex-shrink: 0; }
+  .cat-item .ci-scope { font-size: 9px; color: var(--text-faint); border: 1px solid var(--line); padding: 0 3px; flex-shrink: 0; }
+  .cat-item .ci-scope.is-person { color: var(--amber); border-color: var(--amber-dim); }
+  .scope-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-dim); padding: 6px 14px; border-bottom: 1px solid var(--line-soft); background: rgba(var(--cyan-rgb), .04); }
+  .scope-bar .sb-text { flex: 1; min-width: 0; line-height: 1.6; }
+  .scope-bar b { color: var(--cyan); font-weight: 600; }
+  .scope-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
+  .scope-row .sr-name { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scope-row .field-select { width: auto; min-width: 150px; padding: 5px 8px; font-size: 12px; }
+  .tips h3 { font-family: var(--font-display); font-size: 13px; color: var(--cyan); letter-spacing: .04em; margin: 18px 0 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .tips h3:first-of-type { margin-top: 4px; padding-top: 0; border-top: none; }
+  .tips p { margin: 4px 0; }
+  .tips .tip-src { font-size: 10.5px; color: var(--text-faint); margin-top: 16px; line-height: 1.7; }
+  .tips .tip-src a { color: var(--text-dim); }
+  .tips .caution { color: var(--amber); }
   .cat-item .ci-grip { display: none; color: var(--text-faint); font-size: 11px; flex-shrink: 0; }
   .is-editmode .cat-item .ci-grip { display: inline; }
 
@@ -362,7 +376,9 @@
           <button class="menu-panel-item" id="miUndoImport" type="button">直前の取り込みを取り消す</button>
           <button class="menu-panel-item" id="miSample" type="button">見本のワードを入れる</button>
           <button class="menu-panel-item" id="miGen" type="button">ワード生成プロンプト（LLM用）</button>
+          <button class="menu-panel-item" id="miScope" type="button">カテゴリのあてる対象（全体／単体）</button>
           <button class="menu-panel-item" id="miHelp" type="button">MDの書き方</button>
+          <button class="menu-panel-item" id="miTips" type="button">プロンプトの小ネタ（SeaArt・WAI）</button>
           <div class="menu-sep"></div>
           <label class="menu-check"><input type="checkbox" id="prefEscape"> ( ) を \( \) にしてコピー</label>
           <div class="menu-note">キャラ名の括弧用。全体を ( ) で囲んだワードはそのまま</div>
@@ -396,6 +412,7 @@
         <button class="btn small danger" id="selDeleteBtn" type="button">選んだワードを削除</button>
         <button class="btn small" id="selExitBtn" type="button">やめる</button>
       </div>
+      <div class="scope-bar" id="scopeBar" hidden><span class="sb-text" id="scopeBarText"></span><button class="btn small" id="scopeBarBtn" type="button"></button></div>
       <div class="edit-hint">編集中：ワードをタップで編集・長押し（PCはドラッグ）で並べ替え。カテゴリも長押し／ドラッグで並べ替えられます。</div>
       <div class="word-list" id="wordList"></div>
     </section>
@@ -499,6 +516,15 @@
     </div>
     <div class="field-group">
       <label class="field-check"><input type="checkbox" id="cmNeg"><span>ネガティブ用（ここのワードを選ぶと NEGATIVE の欄に入る）</span></label>
+    </div>
+    <div class="field-group">
+      <div class="field-label">あてる対象（人物の区画を使うときの表示と入れ先が変わる）</div>
+      <select class="field-select" id="cmScope">
+        <option value="">どちらでも（未設定）</option>
+        <option value="all">全体（品質・構図・背景・光など、画面全体にかかる）</option>
+        <option value="person">単体（髪・目・服・表情など、人物ひとりに付ける）</option>
+      </select>
+      <div class="field-hint">全体：いつも「共通」に入り、人物が入れ先のときは隠れます。単体：入れ先の人物に入り、共通が入れ先のときは隠れます（人物の区画がないときは、どちらも全部出ます）。ネガティブ用には使いません。</div>
       <div class="field-error" id="cmError"></div>
     </div>
     <div class="modal-footer">
@@ -629,6 +655,116 @@
   </div>
 </div>
 
+<!-- カテゴリのあてる対象（まとめて） -->
+<div class="modal-overlay" id="scopeModal">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">カテゴリのあてる対象</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="field-hint" style="margin:0 0 10px">人物の区画（＋ 人物）を使うとき、入れ先に合わないカテゴリを隠して、人物ひとりの特徴を「共通」に入れて全員に付けてしまう・画面全体の語を人物に入れてしまう、といった誤りを防ぎます。<br>全体＝品質・人数・構図・背景・光など／単体＝髪・目・服・表情・ポーズなど。ネガティブ用は対象外です。</div>
+    <div style="margin-bottom:8px"><button class="btn small" id="scGuess" type="button">名前から推し量る（未設定だけ）</button></div>
+    <div id="scopeList"></div>
+    <div class="modal-footer" style="margin-top:12px">
+      <button class="btn" type="button" data-close>キャンセル</button>
+      <button class="btn primary" id="scSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- プロンプトの小ネタ（読むだけ） -->
+<div class="modal-overlay" id="tipsModal">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">プロンプトの小ネタ（SeaArt・WAI-illustrious）</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="help tips" id="tipsBody">
+      <p class="caution">WAI-illustrious-SDXL（Danbooru タグで学習した SDXL 系）を SeaArt で使う前提のまとめです。SeaArt 独自の細かい仕様は公式の説明が見つからなかった所があり、そこは「未確認」と書いています。</p>
+
+      <h3>1. 基本の並び順</h3>
+      <p>前に書いた語ほど強く効きやすいので、大事なものから並べます。</p>
+      <pre>品質 → 人数 → キャラ・作品 → 外見（髪・目・体） → 服 → 表情・ポーズ・視線 → 背景・小物 → 構図・カメラ・光</pre>
+      <pre>masterpiece, best quality, amazing quality,
+1girl, solo,
+silver hair, long hair, blue eyes,
+school uniform,
+smile, looking at viewer,
+classroom, window, sunlight,
+cowboy shot, depth of field</pre>
+      <ul>
+        <li>区切りは「, 」。英語の Danbooru タグ（<code>long_hair</code> は <code>long hair</code> と書いてよい）</li>
+        <li>品質タグは先頭にまとめる（WAI の推奨：<code>masterpiece, best quality, amazing quality</code>）</li>
+        <li>人数タグ（<code>1girl</code>・<code>2girls</code>・<code>solo</code>）は早めに。抜けると人数がぶれやすい</li>
+      </ul>
+
+      <h3>2. 強さの指定（重み）</h3>
+      <ul>
+        <li><code>(語:1.2)</code>＝1.2倍。<code>(語:0.8)</code>＝弱める。TAGFORGE の − ＋ はこの書き方で出します</li>
+        <li>目安は <b>1.1〜1.3</b>。1.5 を超えると絵が崩れたり、その語だけ過剰になったりしやすい</li>
+        <li>上げるのは「効いていない語」だけ。全部を上げると、上げていないのと同じになる</li>
+        <li>弱めたい・出したくないものは、重みを下げるより <b>NEGATIVE に書く</b>方が確実</li>
+        <li><code>(語)</code> だけで囲むと約1.1倍、<code>[語]</code> で弱める書き方もある（A1111 系の書き方。SeaArt で同じ扱いかは未確認）</li>
+      </ul>
+
+      <h3>3. 括弧とエスケープ</h3>
+      <ul>
+        <li>キャラ名の括弧は <code>ganyu &#92;(genshin impact&#92;)</code> のように <code>&#92;</code> を付ける。付けないと「強調の括弧」と読まれて、作品名が効かなくなる</li>
+        <li>TAGFORGE は「☰ → ( ) を &#92;( &#92;) にしてコピー」（初期はオン）で自動で付けます</li>
+      </ul>
+
+      <h3>4. NEGATIVE（出したくないもの）</h3>
+      <ul>
+        <li>WAI の推奨：<code>bad quality, worst quality, worst detail, sketch, censor</code></li>
+        <li>よく足すもの：<code>text, watermark, signature</code>（文字・透かし）、<code>bad hands, extra fingers</code>（手の崩れ）</li>
+        <li>NEGATIVE を盛りすぎると絵が硬く・地味になることがある。困っているものだけ足す</li>
+        <li>NEGATIVE でも重みは使える（<code>(bad hands:1.2)</code>）。上げすぎは逆効果のことも</li>
+      </ul>
+
+      <h3>5. 上手い組み方のコツ</h3>
+      <ul>
+        <li><b>少なく・具体的に</b>：似た意味の語を並べるより、Danbooru にある具体的なタグを1つ（<code>pretty</code> より <code>smile, blush</code>）</li>
+        <li><b>色は対象のすぐ後に</b>：<code>blue hair, red eyes, white dress</code>。離れると別の物に色が移りやすい</li>
+        <li><b>矛盾を入れない</b>：<code>full body</code> と <code>close-up</code>、<code>smile</code> と <code>crying</code> を同時に入れない</li>
+        <li><b>1回に1つだけ変える</b>：シード値を固定して、語を1つ足す・外す・重みを変えて見比べる</li>
+        <li><b>構図は早めに決める</b>：<code>upper body</code> / <code>cowboy shot</code> / <code>full body</code> で、描かれる範囲がはっきりする</li>
+        <li><b>うまくいった組み合わせは定型文に</b>：品質一式・NEGATIVE 一式・人物1人分を保存しておくと毎回の手間とミスが減る</li>
+        <li>長くなりすぎたら削る。SDXL は 75 トークンずつ区切って読むので、長いほど1語の効きが薄まる</li>
+      </ul>
+
+      <h3>6. 複数の人物（特徴が混ざる問題）</h3>
+      <ul>
+        <li>SDXL は「どの特徴が誰のものか」を区別するのが苦手（concept bleeding）。プロンプトだけでは完全には防げない</li>
+        <li>TAGFORGE の「＋ 人物」で区画に分け、区切り方を選ぶ：<code>BREAK</code>／<code>ADDCOMM＋BREAK</code>（領域指定の書き方）／1本</li>
+        <li>人数タグ（<code>2girls</code> など）は「共通」に入れる。ないと1人しか描かれないことがある</li>
+        <li>位置を添えると少し効く：<code>girl on left</code>・<code>girl on right</code></li>
+        <li>カテゴリに「全体／単体」を設定すると、入れ先に合わないカテゴリが隠れて、入れ間違いが減る（☰ → カテゴリのあてる対象）</li>
+        <li>SeaArt で BREAK・ADDCOMM がどう扱われるかは未確認。同じシードで書き方を変えて見比べるのが確実</li>
+      </ul>
+
+      <h3>7. 生成の設定の目安（WAI-illustrious）</h3>
+      <ul>
+        <li>サンプラー：Euler a ／ ステップ：20〜30 ／ CFG：5〜7（Illustrious 系は 6 以下を勧める声もある。高いと色が焼ける）</li>
+        <li>サイズ：1024×1024、832×1216（縦）、1216×832（横）など SDXL の標準の大きさ</li>
+        <li>Clip skip：2 がよく使われる</li>
+        <li>仕上げに高解像度化（Hires fix など）で 1.5 倍前後に</li>
+        <li>SeaArt の画面のどこで設定するかは、SeaArt 側の画面で確かめてください</li>
+      </ul>
+
+      <h3>8. 困ったとき</h3>
+      <ul>
+        <li>指定した特徴が出ない → 前の方へ移す → それでも弱ければ <code>:1.1〜1.2</code></li>
+        <li>余計な物が出る → NEGATIVE に足す</li>
+        <li>絵が崩れる・ぎらつく → 重みを下げる、CFG を下げる、語を減らす</li>
+        <li>キャラが似ない → キャラ名と作品名を <code>&#92;( &#92;)</code> 付きで。Danbooru での投稿数が少ないキャラは効きにくい</li>
+      </ul>
+
+      <div class="tip-src">参考（2026-11 時点）：
+        <a href="https://civitai.com/articles/23210" target="_blank" rel="noopener">Illustrious のプロンプトの手引き（Civitai）</a>・
+        <a href="https://tensor.art/articles/831123524065191393" target="_blank" rel="noopener">Comprehensive Guide of Illustrious XL（Tensor.Art）</a>・
+        <a href="https://getimg.ai/guides/guide-to-stable-diffusion-prompt-weights" target="_blank" rel="noopener">重みの手引き（getimg.ai）</a>・
+        <a href="https://stable-diffusion-art.com/regional-prompter/" target="_blank" rel="noopener">Regional Prompter（stable-diffusion-art.com）</a>・
+        <a href="https://romptn.com/article/77005" target="_blank" rel="noopener">SeaArt のプロンプトの書き方（romptn）</a>。
+        数値の目安は記事によって幅があります。
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MDの書き方 -->
 <div class="modal-overlay" id="helpModal">
   <div class="modal wide">
@@ -646,6 +782,7 @@
       <ul>
         <li><code>#</code>〜<code>######</code> の見出し＝カテゴリ。同じ名前のカテゴリがあれば、そこに足します</li>
         <li>見出しに <code>[neg]</code> を付けるとネガティブ用のカテゴリになります（新しく作るときだけ）</li>
+        <li>見出しに <code>[全体]</code>／<code>[単体]</code> を付けると、カテゴリのあてる対象になります（新しく作るとき・既存で未設定のとき）</li>
         <li>見出しより前に書いた語は「未分類」に入ります</li>
         <li>1行＝1ワード。行頭の <code>-</code> <code>*</code> <code>1.</code> などは無視します</li>
         <li><code>ワード | 説明</code>（前後にスペース、または全角の <code>｜</code>）で説明を付けられます。<code>[cat|dog]</code> のような書き方はそのまま残ります</li>
@@ -745,7 +882,7 @@
   let activeGid = COMMON;            // ワードをタップしたときに入る区画
   let current = null;                // { zone, k }：組み立てで選んでいるチップ
   const undoClear = { pos: null, neg: null }; // クリアの直後の控え { snap, timer }
-  let prefs = { escape: true, underscore: true, catId: null, trayCollapsed: false, mode: 'break' };
+  let prefs = { escape: true, underscore: true, catId: null, trayCollapsed: false, mode: 'break', showAllScopes: false };
   // 選んで削除（☰ から）：選んでいる間は、ワードを押すと選ぶ／外すになる。カテゴリをまたいでも、検索の結果からも選べる
   let selecting = false;
   const picked = new Set();          // 選んだワードの id
@@ -1076,7 +1213,57 @@
     return set;
   }
 
+  /* ---- カテゴリのあてる対象（全体／単体。2026-11-26） ----
+     cat.scope：'all'（全体：品質・構図・背景など）／'person'（単体：髪・服・表情など）／なし（どちらでも）
+     人物の区画があるときだけ効く：
+       入れ先が共通 → 単体のカテゴリを隠す／入れ先が人物 → 全体のカテゴリを隠す
+       全体のワードは入れ先に関係なく共通へ入る。単体のワードは入れ先の区画へ
+     ネガティブ用・未設定は、いつも出す。編集・選んで削除の間は全部出す */
+  const SCOPE_LABEL = { all: '全体', person: '単体' };
+  function catScope(c) { return c && !c.neg && (c.scope === 'all' || c.scope === 'person') ? c.scope : ''; }
+  function scopeFilterOn() { return persons().length > 0 && !prefs.showAllScopes && !editMode && !selecting; }
+  function catHidden(c) {
+    if (!scopeFilterOn()) return false;
+    const sc = catScope(c);
+    if (!sc) return false;
+    return activeGid === COMMON ? sc === 'person' : sc === 'all';
+  }
+  function visibleCats() { return cats.filter((c) => !catHidden(c)); }
+  // ワードを押したときに入る所
+  function zoneForWord(w) {
+    const c = catById(w.catId);
+    if (c && c.neg) return 'neg';
+    if (catScope(c) === 'all') return COMMON;
+    return activeGid;
+  }
+  // 今のカテゴリが隠れたら、見えている最初のカテゴリへ（覚えているカテゴリ prefs.catId は変えない）
+  function fixCurCat() {
+    const c = catById(curCatId);
+    if (c && !catHidden(c)) return;
+    const pref = catById(prefs.catId);
+    const next = pref && !catHidden(pref) ? pref : visibleCats()[0];
+    if (next && next.id !== curCatId) { curCatId = next.id; renderHead(); }
+  }
+  function renderScopeBar() {
+    const bar = $('scopeBar');
+    const hasScoped = cats.some((c) => catScope(c));
+    if (!persons().length || !hasScoped || editMode || selecting) { bar.hidden = true; return; }
+    bar.hidden = false;
+    if (prefs.showAllScopes) {
+      $('scopeBarText').innerHTML = '全部のカテゴリを表示中（全体のワードは共通へ、単体のワードは入れ先へ入ります）';
+      $('scopeBarBtn').textContent = '入れ先に合わせて隠す';
+    } else {
+      const hidden = cats.filter((c) => catHidden(c)).length;
+      $('scopeBarText').innerHTML = activeGid === COMMON
+        ? `入れ先：<b>共通（全員）</b>　人物ひとりに付けるカテゴリ（単体）${hidden}件を隠しています`
+        : `入れ先：<b>${esc(zoneName(activeGid))}</b>　画面全体のカテゴリ（全体）${hidden}件を隠しています`;
+      $('scopeBarBtn').textContent = 'すべて表示';
+    }
+  }
+
   function renderCats() {
+    fixCurCat();
+    renderScopeBar();
     const sel = selectedWordIds();
     const counts = new Map(), selCounts = new Map(), pickCounts = new Map();
     words.forEach((w) => {
@@ -1084,7 +1271,7 @@
       if (sel.has(w.id)) selCounts.set(w.catId, (selCounts.get(w.catId) || 0) + 1);
       if (picked.has(w.id)) pickCounts.set(w.catId, (pickCounts.get(w.catId) || 0) + 1);
     });
-    catList.innerHTML = cats.map((c) => {
+    catList.innerHTML = visibleCats().map((c) => {
       // 選んで削除の間は、組み立ての数の代わりに「このカテゴリで選んだ数」（赤）を出す
       const sc = selecting ? 0 : (selCounts.get(c.id) || 0);
       const pc = selecting ? (pickCounts.get(c.id) || 0) : 0;
@@ -1092,6 +1279,7 @@
         <span class="ci-grip">⋮⋮</span>
         <span class="ci-name">${esc(c.name)}</span>
         ${c.neg ? '<span class="ci-neg">NEG</span>' : ''}
+        ${catScope(c) ? `<span class="ci-scope${catScope(c) === 'person' ? ' is-person' : ''}" title="あてる対象">${SCOPE_LABEL[catScope(c)]}</span>` : ''}
         ${sc ? `<span class="ci-sel">${sc}</span>` : ''}
         ${pc ? `<span class="ci-pick" title="選んだワード">${pc}</span>` : ''}
         <span class="ci-count">${counts.get(c.id) || 0}</span>
@@ -1123,9 +1311,10 @@
     const c = catById(w.catId);
     const where = sel.get(w.id) || new Set();
     // 色が付く＝今の入れ先の区画（ネガティブ用なら NEGATIVE）に入っている。点線＝ほかの区画にだけ入っている
+    const target = zoneForWord(w); // 押したら入る所（全体のワードは共通、ネガティブ用は NEGATIVE）
     const inNeg = where.has('neg');
-    const inActive = where.has(activeGid);
-    const others = [...where].filter((z) => z !== 'neg' && z !== activeGid);
+    const inActive = target !== 'neg' && where.has(target);
+    const others = [...where].filter((z) => z !== 'neg' && z !== target);
     const cls = 'word-chip' + (inActive || inNeg ? ' is-selected' : '') + (inNeg && !inActive ? ' is-neg' : '')
       + (!inActive && !inNeg && others.length ? ' is-elsewhere' : '') + (selecting && picked.has(w.id) ? ' is-picked' : '');
     const whereLabel = persons().length && others.length ? others.map(zoneName).join('・') : '';
@@ -1149,6 +1338,7 @@
   }
 
   function renderWords() {
+    fixCurCat();
     const sel = selectedWordIds();
     if (cats.length === 0) {
       wordList.innerHTML = `<div class="empty-state">
@@ -1163,13 +1353,13 @@
       return;
     }
     if (query) {
-      const hits = queryHits();
+      const hits = queryHits().filter((w) => !catHidden(catById(w.catId)));
       if (!hits.length) {
-        wordList.innerHTML = `<div class="empty-state"><div class="big">見つかりません</div><div class="small">「${esc(query)}」を含むワードはありません。</div></div>`;
+        wordList.innerHTML = `<div class="empty-state"><div class="big">見つかりません</div><div class="small">「${esc(query)}」を含むワードはありません${scopeFilterOn() && cats.some(catHidden) ? '（入れ先に合わないカテゴリは探していません。上の「すべて表示」で全部から探せます）' : ''}。</div></div>`;
         return;
       }
       let html = '';
-      cats.forEach((c) => {
+      visibleCats().forEach((c) => {
         const ws = hits.filter((w) => w.catId === c.id).sort(byOrder);
         if (!ws.length) return;
         html += `<div class="group-label">${esc(c.name)}${c.neg ? '（NEG）' : ''}</div><div class="word-grid" data-cat="${esc(c.id)}">${ws.map((w) => chipHtml(w, sel)).join('')}</div>`;
@@ -1340,12 +1530,15 @@
     $('cmTitle').textContent = c ? 'カテゴリの編集' : 'カテゴリを足す';
     $('cmName').value = c ? c.name : '';
     $('cmNeg').checked = c ? !!c.neg : false;
+    $('cmScope').value = c ? catScope(c) : '';
+    $('cmScope').disabled = $('cmNeg').checked;
     $('cmDelete').hidden = !c;
     $('cmError').classList.remove('is-shown');
     openModal('catModal');
     setTimeout(() => $('cmName').focus(), 30);
   }
   $('addCatBtn').addEventListener('click', () => openCatModal(null));
+  $('cmNeg').addEventListener('change', () => { $('cmScope').disabled = $('cmNeg').checked; });
   $('editCatBtn').addEventListener('click', () => { if (curCatId) openCatModal(curCatId); });
   $('cmName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) $('cmSave').click(); });
   $('cmSave').addEventListener('click', async () => {
@@ -1358,8 +1551,9 @@
     const now = Date.now();
     let c = catEditingId ? catById(catEditingId) : null;
     const wasNeg = c ? !!c.neg : false;
-    if (c) { c.name = name; c.neg = $('cmNeg').checked; c.updatedAt = now; }
-    else { c = { id: genId(), name, neg: $('cmNeg').checked, order: nextOrder(cats), createdAt: now, updatedAt: now }; }
+    const scope = $('cmNeg').checked ? '' : ($('cmScope').value === 'all' || $('cmScope').value === 'person' ? $('cmScope').value : '');
+    if (c) { c.name = name; c.neg = $('cmNeg').checked; c.updatedAt = now; if (scope) c.scope = scope; else delete c.scope; }
+    else { c = { id: genId(), name, neg: $('cmNeg').checked, order: nextOrder(cats), createdAt: now, updatedAt: now }; if (scope) c.scope = scope; }
     try { await writeMany([{ store: S_CATS, put: c }]); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
     if (!catEditingId) { cats.push(c); curCatId = c.id; prefs.catId = c.id; savePrefs(); }
     closeModalNow('catModal');
@@ -1403,9 +1597,9 @@
     const w = wordById(id);
     if (!w) return;
     const c = catById(w.catId);
-    // 入れ先：ネガティブ用のカテゴリなら NEGATIVE、それ以外は今の入れ先の区画
+    // 入れ先：ネガティブ用のカテゴリなら NEGATIVE、全体のカテゴリなら共通、それ以外は今の入れ先の区画
     // （同じ語を別の人物の区画にも入れられる。例：2人とも smile）
-    const zone = c && c.neg ? 'neg' : activeGid;
+    const zone = zoneForWord(w);
     for (const z of [zone, 'neg']) {
       const list = listOf(z);
       const i = list.findIndex((it) => it.wordId === id);
@@ -1425,6 +1619,11 @@
     if (dup) { dup.wordId = w.id; afterTrayChange(); return; }
     list.push({ k: genKey(), wordId: w.id, text: w.text, w: 1 });
     afterTrayChange();
+    // 歯止め：人物の区画があるのに、単体のワードを共通（全員）に入れたとき
+    if (zone === COMMON && persons().length && catScope(c) === 'person') {
+      showToast(`「${w.text}」は人物ひとり用のワードですが、共通（全員）に入れました。
+特定の人物に付けるなら、その人物の区画を入れ先にしてください`, true);
+    }
   }
 
   let wordSortables = false;
@@ -1666,7 +1865,7 @@
       if (!f) return;
       current = current && current.k === k ? null : { zone: f.zone, k };
       if (f.zone !== 'neg') setActive(f.zone); // 押したチップの区画を入れ先にする
-      renderTray(); renderWords();
+      renderTray(); renderWords(); renderCats();
     },
     onDrop: () => {
       // 画面の並びをそのまま組み立てに写す
@@ -2038,16 +2237,19 @@
      MD の読み取り
   ===================================================================== */
   const NEG_MARK = /\s*[\[［]\s*(neg|negative|ネガ|ネガティブ)\s*[\]］]\s*/i;
+  // あてる対象の印（見出しの末尾）：[全体]・[all]／[単体]・[人物]・[person]
+  const SCOPE_ALL_MARK = /\s*[\[［]\s*(全体|all|global|scene)\s*[\]］]\s*/i;
+  const SCOPE_PERSON_MARK = /\s*[\[［]\s*(単体|人物|person|character|chara)\s*[\]］]\s*/i;
   const HEADER_CELL = /^(word|words|tag|tags|ワード|タグ|prompt|プロンプト|語)$/i;
   function parseMd(src, splitComma) {
     const groups = [];
     const byName = new Map();
     let cur = null;
     let skipped = 0;
-    function group(name, neg) {
+    function group(name, neg, scope) {
       const key = norm(name);
-      if (byName.has(key)) { const g = byName.get(key); if (neg) g.neg = true; return g; }
-      const g = { name, neg: !!neg, words: [] };
+      if (byName.has(key)) { const g = byName.get(key); if (neg) g.neg = true; if (scope && !g.scope) g.scope = scope; return g; }
+      const g = { name, neg: !!neg, scope: scope || '', words: [] };
       byName.set(key, g); groups.push(g);
       return g;
     }
@@ -2067,8 +2269,9 @@
       const h = line.match(/^#{1,6}\s+(.+?)\s*#*$/);
       if (h) {
         const neg = NEG_MARK.test(h[1]);
-        const name = cleanText(h[1].replace(NEG_MARK, ' '), MAX_CAT_NAME) || '未分類';
-        cur = group(name, neg);
+        const scope = neg ? '' : SCOPE_ALL_MARK.test(h[1]) ? 'all' : SCOPE_PERSON_MARK.test(h[1]) ? 'person' : '';
+        const name = cleanText(h[1].replace(NEG_MARK, ' ').replace(SCOPE_ALL_MARK, ' ').replace(SCOPE_PERSON_MARK, ' '), MAX_CAT_NAME) || '未分類';
+        cur = group(name, neg, scope);
         return;
       }
       line = line.replace(/^>\s*/, '');
@@ -2100,7 +2303,10 @@
         have.add(norm(w.text));
         add.push(w);
       });
-      plan.push({ name: g.name, neg: existing ? !!existing.neg : g.neg, mdNeg: g.neg, existing, add, dup });
+      // あてる対象：新しいカテゴリは MD の印のとおり。既存のカテゴリは、未設定のときだけ MD の印を付ける
+      const neg = existing ? !!existing.neg : g.neg;
+      const setScope = !neg && g.scope && (!existing || !catScope(existing)) ? g.scope : '';
+      plan.push({ name: g.name, neg, mdNeg: g.neg, existing, add, dup, scope: existing ? (catScope(existing) || setScope) : setScope, setScope: existing ? setScope : '' });
     });
     return plan;
   }
@@ -2148,16 +2354,18 @@
     const newCats = importPlan.filter((p) => !p.existing && p.add.length).length;
     $('impSummary').textContent = `${importPlan.length} カテゴリ・${total} 語を読みました。${addN} 語を足します（新しいカテゴリ ${newCats}）。`;
     $('impRows').innerHTML = importPlan.map((p) => `<tr>
-      <td>${esc(p.name)}<span class="imp-tag">${p.existing ? '既存' : '新規'}</span>${p.neg ? '<span class="imp-tag neg">NEG</span>' : ''}</td>
+      <td>${esc(p.name)}<span class="imp-tag">${p.existing ? '既存' : '新規'}</span>${p.neg ? '<span class="imp-tag neg">NEG</span>' : ''}${p.scope ? `<span class="imp-tag">${SCOPE_LABEL[p.scope]}${p.setScope ? 'を付ける' : ''}</span>` : ''}</td>
       <td class="num">${p.add.length}</td><td class="num">${p.dup || ''}</td></tr>`).join('');
     const notes = [];
     if (dupN) notes.push(`同じカテゴリにある語・重なった語 ${dupN} 件は飛ばします。`);
     if (importPlan.some((p) => p.existing && p.mdNeg !== !!p.existing.neg)) notes.push('既存のカテゴリのネガティブ用の設定は変えません（変えるときはカテゴリの ✎ から）。');
+    if (importPlan.some((p) => p.setScope)) notes.push('あてる対象（全体／単体）が未設定の既存カテゴリには、MD の印を付けます。');
     if (parsed.skipped) notes.push(`読めなかった行が ${parsed.skipped} 行ありました。`);
     notes.push('取り込んだ後でも、このセッションの間は「☰ → 直前の取り込みを取り消す」で戻せます。');
     $('impNote').textContent = notes.join(' ');
-    $('impRun').disabled = addN === 0;
-    $('impRun').textContent = addN ? `${addN} 語を取り込む` : '足す語がありません';
+    const scopeN = importPlan.filter((p) => p.setScope).length;
+    $('impRun').disabled = addN === 0 && scopeN === 0;
+    $('impRun').textContent = addN ? `${addN} 語を取り込む` : scopeN ? 'あてる対象だけ付ける' : '足す語がありません';
     $('impStep1').hidden = true; $('impStep2').hidden = false;
   }
   $('impPreviewBtn').addEventListener('click', previewImport);
@@ -2171,11 +2379,18 @@
     const newCatIds = [], newWordIds = [];
     const newCats = [], newWords = [];
     let catOrder = nextOrder(cats);
+    const scopedCats = [];
     importPlan.forEach((p) => {
+      if (p.existing && p.setScope) {
+        const rec = Object.assign({}, p.existing, { scope: p.setScope, updatedAt: now });
+        scopedCats.push(rec);
+        ops.push({ store: S_CATS, put: rec });
+      }
       if (!p.add.length) return;
       let cat = p.existing;
       if (!cat) {
         cat = { id: genId(), name: p.name, neg: p.neg, order: catOrder++, createdAt: now, updatedAt: now };
+        if (p.scope) cat.scope = p.scope;
         newCats.push(cat); newCatIds.push(cat.id);
         ops.push({ store: S_CATS, put: cat });
       }
@@ -2190,13 +2405,14 @@
       console.error(e); showToast('取り込めませんでした（何も変えていません）', true); btn.disabled = false; return;
     }
     cats.push(...newCats); words.push(...newWords);
+    scopedCats.forEach((rec) => { const c = catById(rec.id); if (c) c.scope = rec.scope; });
     cats.sort(byOrder);
     try { sessionStorage.setItem(SS_LASTIMPORT, JSON.stringify({ at: now, cats: newCatIds, words: newWordIds })); } catch (_) {}
     if (!curCatId || newCats.length) { curCatId = (newCats[0] || cats[0]).id; prefs.catId = curCatId; savePrefs(); }
     closeModalNow('importModal');
     renderAll();
     updateUndoMenu();
-    showToast(`${newWords.length} 語を取り込みました`);
+    showToast(`${newWords.length} 語を取り込みました` + (scopedCats.length ? `（あてる対象を ${scopedCats.length} 件に付けました）` : ''));
   });
 
   function lastImport() {
@@ -2234,7 +2450,7 @@
     const pad = (n) => String(n).padStart(2, '0');
     const lines = [`<!-- TAGFORGE ワードリスト ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} -->`, ''];
     cats.forEach((c) => {
-      lines.push(`# ${c.name}${c.neg ? ' [neg]' : ''}`);
+      lines.push(`# ${c.name}${c.neg ? ' [neg]' : ''}${catScope(c) ? ` [${SCOPE_LABEL[catScope(c)]}]` : ''}`);
       wordsOf(c.id).forEach((w) => lines.push(`- ${w.text}${w.label ? ' | ' + w.label : ''}`));
       lines.push('');
     });
@@ -2255,27 +2471,91 @@
 
   /* ===================== 見本 ===================== */
   const SAMPLE_MD = [
-    '# 品質', '- masterpiece | 傑作', '- best quality | 最高品質', '- amazing quality | とても良い品質', '- very aesthetic | とても美しい', '- absurdres | 超高解像度', '- newest | 新しめの画風',
-    '# 人数', '- 1girl | 女の子1人', '- 1boy | 男の子1人', '- solo | 1人だけ', '- 2girls | 女の子2人', '- multiple girls | 女の子複数',
-    '# 髪', '- long hair | ロングヘア', '- short hair | ショートヘア', '- ponytail | ポニーテール', '- twintails | ツインテール', '- bob cut | ボブ', '- black hair | 黒髪', '- blonde hair | 金髪', '- silver hair | 銀髪', '- blue hair | 青髪', '- pink hair | ピンク髪',
-    '# 目', '- blue eyes | 青い目', '- red eyes | 赤い目', '- green eyes | 緑の目', '- heterochromia | オッドアイ',
-    '# 服装', '- school uniform | 制服', '- serafuku | セーラー服', '- hoodie | パーカー', '- dress | ドレス', '- kimono | 着物',
-    '# 表情', '- smile | 笑顔', '- open mouth | 口を開ける', '- blush | 赤面', '- closed eyes | 目を閉じる', '- expressionless | 無表情',
-    '# ポーズ・視線', '- looking at viewer | こちらを見る', '- looking away | よそ見', '- standing | 立つ', '- sitting | 座る', '- arms up | 腕を上げる',
-    '# 構図', '- portrait | 顔アップ', '- upper body | 上半身', '- cowboy shot | 太ももから上', '- full body | 全身', '- close-up | 寄り', '- from above | 上から', '- from below | 下から', '- from side | 横から', '- from behind | 後ろから', '- dutch angle | 傾けた構図',
-    '# 背景', '- simple background | シンプルな背景', '- white background | 白背景', '- outdoors | 屋外', '- indoors | 屋内', '- classroom | 教室', '- city | 街', '- night sky | 夜空', '- cherry blossoms | 桜',
-    '# 光・効果', '- depth of field | 被写界深度', '- backlighting | 逆光', '- sunlight | 日差し', '- light particles | 光の粒', '- lens flare | レンズフレア',
+    '# 品質 [全体]', '- masterpiece | 傑作', '- best quality | 最高品質', '- amazing quality | とても良い品質', '- very aesthetic | とても美しい', '- absurdres | 超高解像度', '- newest | 新しめの画風',
+    '# 人数 [全体]', '- 1girl | 女の子1人', '- 1boy | 男の子1人', '- solo | 1人だけ', '- 2girls | 女の子2人', '- multiple girls | 女の子複数',
+    '# 髪 [単体]', '- long hair | ロングヘア', '- short hair | ショートヘア', '- ponytail | ポニーテール', '- twintails | ツインテール', '- bob cut | ボブ', '- black hair | 黒髪', '- blonde hair | 金髪', '- silver hair | 銀髪', '- blue hair | 青髪', '- pink hair | ピンク髪',
+    '# 目 [単体]', '- blue eyes | 青い目', '- red eyes | 赤い目', '- green eyes | 緑の目', '- heterochromia | オッドアイ',
+    '# 服装 [単体]', '- school uniform | 制服', '- serafuku | セーラー服', '- hoodie | パーカー', '- dress | ドレス', '- kimono | 着物',
+    '# 表情 [単体]', '- smile | 笑顔', '- open mouth | 口を開ける', '- blush | 赤面', '- closed eyes | 目を閉じる', '- expressionless | 無表情',
+    '# ポーズ・視線 [単体]', '- looking at viewer | こちらを見る', '- looking away | よそ見', '- standing | 立つ', '- sitting | 座る', '- arms up | 腕を上げる',
+    '# 構図 [全体]', '- portrait | 顔アップ', '- upper body | 上半身', '- cowboy shot | 太ももから上', '- full body | 全身', '- close-up | 寄り', '- from above | 上から', '- from below | 下から', '- from side | 横から', '- from behind | 後ろから', '- dutch angle | 傾けた構図',
+    '# 背景 [全体]', '- simple background | シンプルな背景', '- white background | 白背景', '- outdoors | 屋外', '- indoors | 屋内', '- classroom | 教室', '- city | 街', '- night sky | 夜空', '- cherry blossoms | 桜',
+    '# 光・効果 [全体]', '- depth of field | 被写界深度', '- backlighting | 逆光', '- sunlight | 日差し', '- light particles | 光の粒', '- lens flare | レンズフレア',
     '# ネガティブ [neg]', '- bad quality', '- worst quality', '- worst detail', '- sketch', '- censor', '- text | 文字', '- watermark | 透かし', '- signature | サイン', '- bad hands | 手の崩れ', '- extra fingers | 指が多い',
   ].join('\n');
   function startSample() { openImport(SAMPLE_MD); }
   $('miSample').addEventListener('click', () => { closeMenu(); startSample(); });
   $('miHelp').addEventListener('click', () => { closeMenu(); openModal('helpModal'); });
+  $('miTips').addEventListener('click', () => { closeMenu(); $('tipsModal').querySelector('.modal').scrollTop = 0; openModal('tipsModal'); });
+
+  /* ===================== カテゴリのあてる対象（まとめて） ===================== */
+  // 名前から推し量る（当てずっぽうなので、未設定のものにだけ使い、保存の前に人が見る）
+  const GUESS_ALL = /品質|画質|人数|構図|カメラ|アングル|画角|背景|場所|舞台|風景|光|ライト|照明|効果|エフェクト|画風|スタイル|作風|色調|天気|時間|季節|雰囲気|作家|絵師|quality|composition|camera|background|light|style|effect/i;
+  const GUESS_PERSON = /髪|目|瞳|顔|表情|服|衣装|装飾|アクセ|ポーズ|視線|仕草|動作|体|肌|手|足|靴|帽子|耳|尻尾|胸|メイク|キャラ|人物|hair|eye|face|expression|cloth|outfit|pose|body/i;
+  function guessScope(name) {
+    if (GUESS_ALL.test(name)) return 'all';
+    if (GUESS_PERSON.test(name)) return 'person';
+    return '';
+  }
+  function scopeOptions(v) {
+    return [['', 'どちらでも'], ['all', '全体'], ['person', '単体']]
+      .map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join('');
+  }
+  function openScopeModal() {
+    closeMenu();
+    const list = cats.filter((c) => !c.neg);
+    $('scopeList').innerHTML = list.length ? list.map((c) => `<div class="scope-row" data-id="${esc(c.id)}">
+        <span class="sr-name">${esc(c.name)}</span>
+        <select class="field-select" data-scope>${scopeOptions(catScope(c))}</select>
+      </div>`).join('') : '<div class="field-hint">設定できるカテゴリがありません（ネガティブ用は対象外です）。</div>';
+    $('scGuess').disabled = !list.length;
+    openModal('scopeModal');
+  }
+  modalGuards.set('scopeModal', () => [...document.querySelectorAll('#scopeList .scope-row')].some((r) => {
+    const c = catById(r.dataset.id); return c && r.querySelector('[data-scope]').value !== catScope(c);
+  }));
+  $('miScope').addEventListener('click', openScopeModal);
+  $('scGuess').addEventListener('click', () => {
+    let n = 0;
+    document.querySelectorAll('#scopeList .scope-row').forEach((r) => {
+      const sel = r.querySelector('[data-scope]');
+      if (sel.value) return;
+      const c = catById(r.dataset.id);
+      const g = c ? guessScope(c.name) : '';
+      if (g) { sel.value = g; n++; }
+    });
+    showToast(n ? `${n}件を推し量りました。合っているか見てから「保存」を押してください` : '名前から推し量れるものはありませんでした');
+  });
+  $('scSave').addEventListener('click', async () => {
+    const ops = [];
+    const now = Date.now();
+    document.querySelectorAll('#scopeList .scope-row').forEach((r) => {
+      const c = catById(r.dataset.id);
+      if (!c) return;
+      const v = r.querySelector('[data-scope]').value;
+      const next = v === 'all' || v === 'person' ? v : '';
+      if (next === catScope(c)) return;
+      const rec = Object.assign({}, c, { updatedAt: now });
+      if (next) rec.scope = next; else delete rec.scope;
+      ops.push({ store: S_CATS, put: rec });
+    });
+    if (!ops.length) { closeModalNow('scopeModal'); return; }
+    try { await writeMany(ops); } catch (e) { console.error(e); showToast('保存できませんでした', true); return; }
+    ops.forEach((o) => { const c = catById(o.put.id); if (c) { delete c.scope; Object.assign(c, o.put); } });
+    closeModalNow('scopeModal');
+    renderAll();
+    showToast(`${ops.length}件のカテゴリを保存しました`);
+  });
+  $('scopeBarBtn').addEventListener('click', () => {
+    prefs.showAllScopes = !prefs.showAllScopes; savePrefs();
+    renderHead(); renderCats(); renderWords();
+  });
 
   /* ===================== ワード生成プロンプト（LLM用） =====================
      ひな形・テーマ・カテゴリを伝えるかは、この端末だけに保存（localStorage。同期しない） */
   const LS_GEN = 'sideops_tagforge_genprompt';
   const FENCE = '```';
-  const GEN_DEFAULT = [
+  const GEN_DEFAULT_V1 = [
     '# テーマ',
     '{{テーマ}}',
     '',
@@ -2300,12 +2580,18 @@
     '- worst quality | 最低品質',
     FENCE,
   ].join('\n');
+  // v2（2026-11-26）：カテゴリのあてる対象（[全体]／[単体]）を見出しに付けてもらう
+  const GEN_DEFAULT = GEN_DEFAULT_V1
+    .replace('- ネガティブプロンプト向けのカテゴリは、見出しの末尾に [neg] を付ける',
+      '- ネガティブプロンプト向けのカテゴリは、見出しの末尾に [neg] を付ける\n'
+      + '- それ以外のカテゴリは、見出しの末尾に、人物ひとりに付ける特徴（髪・目・服・表情・ポーズなど）なら [単体]、画面全体にかかるもの（品質・人数・構図・背景・光など）なら [全体] を付ける')
+    .replace('# 髪型\n', '# 髪型 [単体]\n');
   let genState = { tpl: GEN_DEFAULT, theme: '', cats: false };
   function saveGen() { lsSet(LS_GEN, genState); }
   function buildGenPrompt() {
     const theme = $('genTheme').value.trim() || '（ここにテーマを書いてください）';
     const catBlock = $('genCats').checked && cats.length
-      ? '\n## 今あるカテゴリ（内容が合うものは、この名前をそのまま見出しに使う）\n' + cats.map((c) => '- ' + c.name + (c.neg ? ' [neg]' : '')).join('\n') + '\n'
+      ? '\n## 今あるカテゴリ（内容が合うものは、この名前と印をそのまま見出しに使う）\n' + cats.map((c) => '- ' + c.name + (c.neg ? ' [neg]' : '') + (catScope(c) ? ' [' + SCOPE_LABEL[catScope(c)] + ']' : '')).join('\n') + '\n'
       : '';
     return $('genTpl').value.split('{{テーマ}}').join(theme).split('{{カテゴリ}}').join(catBlock)
       .replace(/\n{3,}/g, '\n\n').trim();
@@ -2315,7 +2601,8 @@
     const g = lsGet(LS_GEN, null);
     if (g && typeof g === 'object') {
       genState = {
-        tpl: typeof g.tpl === 'string' && g.tpl.trim() ? g.tpl.slice(0, 20000) : GEN_DEFAULT,
+        // 旧版の初期のひな形のままなら、新しい初期のひな形にする（自分で直したものはそのまま）
+        tpl: typeof g.tpl === 'string' && g.tpl.trim() && g.tpl !== GEN_DEFAULT_V1 ? g.tpl.slice(0, 20000) : GEN_DEFAULT,
         theme: typeof g.theme === 'string' ? g.theme.slice(0, 300) : '',
         cats: !!g.cats,
       };
