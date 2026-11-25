@@ -138,6 +138,16 @@
   .ed-status { font-size: 10px; color: var(--text-faint); white-space: nowrap; flex-shrink: 0; }
   .ed-status.is-error { color: var(--magenta); }
   .ed-tools { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .ed-tools-scroll { display: flex; align-items: center; gap: 6px; }
+  /* 画面の拡大・縮小（右下） */
+  .zoom-ctl {
+    position: absolute; right: 8px; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 2px;
+    background: rgba(var(--panel-rgb), .9); border: 1px solid var(--line); padding: 3px;
+  }
+  .zoom-ctl .btn { min-width: 34px; }
+  .zoom-ctl .zc-pct { font-size: 10.5px; color: var(--text-dim); min-width: 42px; text-align: center; }
+  .zoom-ctl.is-zoomed .zc-pct { color: var(--amber); }
+  .sheet-handle { display: none; }
   .ed-main { flex: 1; min-height: 0; display: flex; }
   .stage-wrap { flex: 1; min-width: 0; min-height: 0; position: relative; background: var(--bg-alt); overflow: hidden; }
   .stage-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; outline: none; }
@@ -169,7 +179,17 @@
   .props-empty { font-size: 11px; color: var(--text-faint); line-height: 1.8; padding: 10px 0; }
   .p-sec { border-top: 1px solid var(--line-soft); padding: 10px 0 4px; }
   .p-sec:first-child { border-top: none; }
-  .p-sec-title { font-size: 10.5px; color: var(--cyan); letter-spacing: .04em; margin-bottom: 8px; }
+  .p-sec-title { font-size: 10.5px; color: var(--cyan); letter-spacing: .04em; margin-bottom: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; display: flex; align-items: center; gap: 6px; }
+  .p-sec-title::before { content: '▾'; font-size: 12px; color: var(--text-faint); width: 10px; }
+  /* 見出しを押すとたたむ（たたんだ見出しは端末ごとに覚える） */
+  .p-sec.is-folded > .p-sec-title { margin-bottom: 2px; }
+  .p-sec.is-folded > .p-sec-title::before { content: '▸'; }
+  .p-sec.is-folded > :not(.p-sec-title) { display: none !important; }
+  /* いま選んでいるもの（調整の欄のいちばん上に出しっぱなし） */
+  .p-selname {
+    position: sticky; top: 0; z-index: 1; background: var(--bg); font-size: 11.5px; color: var(--amber);
+    padding: 8px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line-soft);
+  }
   .p-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .p-row > label.p-lab { font-size: 11px; color: var(--text-dim); width: 64px; flex-shrink: 0; }
   .p-row input[type=range] { flex: 1; min-width: 80px; accent-color: var(--cyan); }
@@ -309,16 +329,39 @@
     .app-bar { padding: 8px 12px; }
     .list-body { padding: 12px; }
     .proj-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-    .ed-bar { padding: 6px 8px; gap: 4px; flex-wrap: wrap; }
-    .ed-bar .btn { padding: 5px 8px; }
-    .ed-tools { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
+    /* 上の帯は1段：名前は隠し（☰「名前を変える」）、道具は横にすべらせる */
+    .ed-bar { padding: 6px 8px; gap: 4px; flex-wrap: nowrap; }
+    .ed-name { display: none; }
+    .ed-bar .btn { padding: 7px 10px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+    .ed-tools { flex: 1; flex-wrap: nowrap; flex-shrink: 1; min-width: 0; gap: 4px; }
+    .ed-tools-scroll { flex: 1; min-width: 0; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+    .ed-tools-scroll::-webkit-scrollbar { display: none; }
     .ed-status { display: none; }
     .ed-main { flex-direction: column; }
-    .side { width: auto; border-left: none; border-top: 1px solid var(--line); height: 44%; flex-shrink: 0; }
+    /* 調整の欄は下からの引き出し：たたむ（タブだけ）／半分／大きく */
+    .side { width: auto; border-left: none; border-top: 1px solid var(--line); height: 44%; flex-shrink: 0; transition: height .16s ease; }
+    .side[data-sheet="full"] { height: 78%; }
+    .side[data-sheet="min"] { height: auto; }
+    .side[data-sheet="min"] .layer-pane, .side[data-sheet="min"] .props-pane { display: none; }
+    .sheet-handle { display: flex; justify-content: center; align-items: center; height: 18px; flex-shrink: 0; touch-action: none; cursor: ns-resize; }
+    .sheet-handle span { width: 44px; height: 4px; border-radius: 2px; background: var(--line); }
     .side-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--line-soft); }
     .side-tabs button {
-      flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; padding: 7px 0; font-size: 11.5px; color: var(--text-faint); cursor: pointer;
+      flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; padding: 9px 0; font-size: 12.5px; color: var(--text-faint); cursor: pointer;
     }
+    /* 指で押しやすい大きさ */
+    .layer-item { padding: 7px 8px; font-size: 13px; }
+    .layer-item .icon-btn { width: 36px; height: 30px; font-size: 14px; }
+    .p-sec-title { font-size: 12px; padding: 4px 0; }
+    .p-row > label.p-lab { font-size: 12px; }
+    .p-row .btn.small, .lh-tools .btn { padding: 6px 10px; font-size: 12px; }
+    .seg .btn { padding: 6px 11px; font-size: 12px; }
+    .p-row input[type=number] { font-size: 13px; padding: 6px; }
+    .p-row input[type=color] { width: 42px; height: 30px; }
+    .p-row select, .p-select { font-size: 13px; padding: 6px; }
+    .p-hint { font-size: 11px; }
+    .p-selname { font-size: 12.5px; }
+    .zoom-ctl .btn { min-width: 40px; padding: 6px 8px; }
     .side-tabs button.is-active { color: var(--cyan); border-bottom-color: var(--cyan); }
     .side[data-tab="layers"] .props-pane { display: none; }
     .side[data-tab="props"] .layer-pane { display: none; }
@@ -358,6 +401,7 @@
     <button class="ed-name" id="edName" type="button" title="名前を変える"></button>
     <span class="ed-status" id="edStatus"></span>
     <div class="ed-tools">
+      <div class="ed-tools-scroll">
       <button class="btn small" id="undoBtn" type="button" title="元に戻す（Ctrl+Z）">↶</button>
       <button class="btn small" id="redoBtn" type="button" title="やり直す（Ctrl+Y）">↷</button>
       <button class="btn small" id="addPanelBtn" type="button" title="コマを足す" hidden>＋コマ</button>
@@ -365,6 +409,7 @@
       <button class="btn small" id="addTextBtn" type="button">＋文字</button>
       <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶし・すりガラス・湯気・光の帯の範囲を足す">＋モザイク</button>
       <button class="btn small" id="brushBtn" type="button" title="消しゴム・ペン（選んでいる画像・文字、選んでいなければ下の画像）">消しゴム</button>
+      </div>
       <button class="btn small primary" id="exportBtn" type="button">書き出す</button>
       <div class="menu-wrap">
         <button class="hamburger-btn" id="edMenuBtn" type="button" title="メニュー">☰</button>
@@ -381,6 +426,7 @@
   </div>
   <div class="ed-main">
     <div class="stage-wrap" id="stageWrap"><canvas id="cv" tabindex="0"></canvas>
+      <div class="zoom-ctl" id="zoomCtl"><button class="btn small" id="zoomOut" type="button" title="縮小">－</button><span class="zc-pct" id="zoomPct">100%</span><button class="btn small" id="zoomIn" type="button" title="拡大（2本指・ホイールでも）">＋</button><button class="btn small" id="zoomFit" type="button" title="ページ全体を表示">全体</button></div>
       <div class="brush-bar" id="brushBar" hidden>
         <span class="bb-target" id="bbTarget"></span>
         <span class="seg" id="bbMode"><button class="btn" type="button" data-v="e" title="なぞったところを透明にする">消す</button><button class="btn" type="button" data-v="r" title="消したところを元に戻す">戻す</button><button class="btn" type="button" data-v="p" title="色で塗って隠す">塗る</button></span>
@@ -390,7 +436,8 @@
         <button class="btn small primary" id="bbDone" type="button">終わる</button>
       </div>
     </div>
-    <div class="side" id="side" data-tab="layers">
+    <div class="side" id="side" data-tab="layers" data-sheet="half">
+      <div class="sheet-handle" id="sheetHandle" title="引き出しの大きさ（上下にドラッグ・タップで開け閉め）"><span></span></div>
       <div class="side-tabs">
         <button type="button" data-tab="layers" class="is-active">レイヤー</button>
         <button type="button" data-tab="props">調整</button>
@@ -401,8 +448,9 @@
       </div>
       <div class="side-sec-head props-head"><span>調整</span></div>
       <div class="props-pane" id="propsPane">
-        <div class="props-empty" id="propsEmpty">画像か文字を選ぶと、ここで調整できます。<br>画面の上で：ドラッグで動かす・四隅で大きさ・上の丸で回す。<br>スマホは2本指でも大きさと向きを変えられます。</div>
+        <div class="props-empty" id="propsEmpty">画像か文字を選ぶと、ここで調整できます。<br>画面の上で：ドラッグで動かす・四隅で大きさ・上の丸で回す。<br>スマホは2本指でも大きさと向きを変えられます（選んでいるものの上で）。<br>選んでいるもの以外の所を2本指で、画面の拡大・縮小と移動。パソコンはホイールで拡大・縮小。<br>見出し（▾）を押すと、その項目をたためます。</div>
         <div id="propsBody" hidden>
+          <div class="p-selname" id="pSelName"></div>
           <!-- 文字 -->
           <div class="p-sec" id="secText">
             <div class="p-sec-title">文字</div>
@@ -480,7 +528,7 @@
             <div class="p-sec-title">フィルター</div>
             <div class="p-row" id="pFxScopeRow"><label class="p-lab">かける相手</label><span class="seg" id="pFxScope"><button class="btn" type="button" data-v="page">仕上がり全体</button><button class="btn" type="button" data-v="base">下の画像だけ</button></span></div>
             <div class="p-hint" id="pFxScopeHint"></div>
-            <div class="p-row"><select id="pFxPreset" class="p-select" style="flex:1"></select><button class="btn small" id="pFxApply" type="button">当てる</button><button class="btn small" id="pFxReset" type="button">元に戻す</button></div>
+            <div class="p-row"><span class="seg seg-wrap" id="pFxChips"></span></div>
             <div id="fxRows"></div>
             <div class="p-row" id="pFxAllRow"><button class="btn small" id="pFxAllPanels" type="button" title="このコマのフィルターを、ほかの全部のコマにも当てる（画像がまだないコマにも。あとで入れた画像にかかります）">全部のコマに同じフィルター</button></div>
             <div class="p-hint" id="pFxNote"></div>
@@ -2008,7 +2056,7 @@
   ===================================================================== */
   const cv = $('cv');
   const ctx = cv.getContext('2d');
-  const view = { s: 1, ox: 0, oy: 0, dpr: 1, cw: 0, ch: 0 };
+  const view = { s: 1, fs: 1, ox: 0, oy: 0, dpr: 1, cw: 0, ch: 0 };
   let baseView = null; // 表示用に縮めた下の画像（大きい画像でも動かすのが重くならないように）
   let guides = { v: false, h: false };
   let renderQueued = false;
@@ -2021,10 +2069,36 @@
     cv.width = Math.round(view.cw * view.dpr); cv.height = Math.round(view.ch * view.dpr);
     if (!cur) return;
     const m = view.cw < 500 ? 14 : 28;
-    view.s = Math.max(0.0005, Math.min((view.cw - m * 2) / cur.W, (view.ch - m * 2) / cur.H));
-    view.ox = (view.cw - cur.W * view.s) / 2; view.oy = (view.ch - cur.H * view.s) / 2;
+    view.fs = Math.max(0.0005, Math.min((view.cw - m * 2) / cur.W, (view.ch - m * 2) / cur.H)); // ページ全体が入る倍率
+    applyZoom();
     baseView = null;
   }
+  // 画面の拡大・縮小：zoom.z＝ページ全体が入る大きさの何倍か、cx・cy＝画面の真ん中に来る下の画像の座標
+  // （画面の大きさが変わっても、見ていた所が真ん中のまま）。全体より小さくはしない
+  const zoom = { z: 1, cx: 0, cy: 0 };
+  const ZOOM_MAX = 16;
+  function applyZoom() {
+    if (!cur) return;
+    zoom.z = clamp(zoom.z, 1, ZOOM_MAX);
+    if (zoom.z < 1.001) { zoom.z = 1; zoom.cx = cur.W / 2; zoom.cy = cur.H / 2; }
+    zoom.cx = clamp(zoom.cx, 0, cur.W); zoom.cy = clamp(zoom.cy, 0, cur.H); // ページが画面から出て行ってしまわないように
+    view.s = view.fs * zoom.z;
+    view.ox = view.cw / 2 - zoom.cx * view.s; view.oy = view.ch / 2 - zoom.cy * view.s;
+    $('zoomPct').textContent = Math.round(zoom.z * 100) + '%';
+    $('zoomCtl').classList.toggle('is-zoomed', zoom.z > 1);
+  }
+  // 画面の (sx, sy) にあるものを動かさずに、倍率を z にする
+  function zoomAt(sx, sy, z) {
+    const bx = (sx - view.ox) / view.s, by = (sy - view.oy) / view.s;
+    zoom.z = clamp(z, 1, ZOOM_MAX);
+    const k = view.fs * zoom.z;
+    zoom.cx = bx + (view.cw / 2 - sx) / k; zoom.cy = by + (view.ch / 2 - sy) / k;
+    applyZoom();
+  }
+  // 拡大し終わったら、表示用の下の画像をその倍率で作り直す
+  let zoomDoneTimer = 0;
+  function zoomDone() { clearTimeout(zoomDoneTimer); zoomDoneTimer = setTimeout(() => { baseView = null; requestRender(); }, 150); }
+  function resetZoom() { zoom.z = 1; applyZoom(); zoomDone(); requestRender(); }
   function makeBaseView() {
     const c = imgCache.get(cur.baseId);
     if (!c || !c.img) return null;
@@ -2166,7 +2240,8 @@
   }
   cv.addEventListener('pointerdown', (e) => {
     if (!cur) return;
-    if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+    const midBtn = e.pointerType === 'mouse' && e.button === 1; // ホイールを押してドラッグ＝画面を動かす
+    if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse' && !midBtn) return;
     cv.focus({ preventScroll: true });
     // 画面の大きさが変わったのに測り直しが間に合っていなければ、ここで測り直す（スマホの向きを変えた直後など）
     const cr = cv.getBoundingClientRect();
@@ -2174,17 +2249,28 @@
     const p = evPos(e);
     pointers.set(e.pointerId, p);
     try { cv.setPointerCapture(e.pointerId); } catch (_) { /* 何もしない */ }
+    if (midBtn) { e.preventDefault(); drag = { kind: 'pan', p0: p, b: screenToBase(p.x, p.y), moved: false }; return; }
     if (brush.on) {
-      if (pointers.size > 1) { // 2本指になったら、なぞりかけの線は取り消す（うっかり線を防ぐ）
-        if (drag && drag.kind === 'brush') { const i = drag.marks.indexOf(drag.s); if (i >= 0) drag.marks.splice(i, 1); drag = null; requestRender(); }
+      if (pointers.size > 1) { // 2本指になったら、なぞりかけの線は取り消す（うっかり線を防ぐ）。2本指は画面の拡大・縮小
+        if (drag && drag.kind === 'brush') { const i = drag.marks.indexOf(drag.s); if (i >= 0) drag.marks.splice(i, 1); requestRender(); }
+        if (pointers.size === 2) startViewPinch();
+        else drag = null;
         return;
       }
       brushDown(p);
       return;
     }
     const L = selLayer();
-    // 2本目の指：選んでいるものを2本指で大きさ・向き・位置
+    // 2本目の指：1本目が「前から選んでいたもの」の上なら、それを2本指で大きさ・向き・位置。
+    // それ以外（選んでいないもの・何もない所）なら、画面の拡大・縮小と移動
     if (pointers.size === 2) {
+      const own = !!(drag && drag.own && L && drag.L === L);
+      if (!own) {
+        if (drag && drag.kind === 'move' && drag.moved && drag.L) { drag.L.x = drag.x0; drag.L.y = drag.y0; } // 1本目で少し動いていたら戻す
+        if (drag && drag.prevSel !== undefined && selId !== drag.prevSel) select(layerById(drag.prevSel) || drag.prevSel === BASE_SEL ? drag.prevSel : null); // 1本目で選び替わったのも戻す
+        startViewPinch();
+        return;
+      }
       if (L && !L.locked && L.type === 'panel' && L.img && panelAdjust) { // コマの中の画像を2本指で
         const [a, b] = [...pointers.values()];
         drag = { kind: 'pinchImg', L, d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x),
@@ -2202,13 +2288,13 @@
     const rad = e.pointerType === 'mouse' ? 10 : 22;
     const hh = hitHandle(L, p, rad);
     const bp = screenToBase(p.x, p.y);
-    if (hh && hh.kind === 'vertex') { drag = { kind: 'vertex', L, i: hh.i, p0: p, moved: false }; lastVertex = hh.i; return; }
+    if (hh && hh.kind === 'vertex') { drag = { kind: 'vertex', L, i: hh.i, p0: p, moved: false, own: true }; lastVertex = hh.i; return; }
     if (L && L.type === 'panel' && L.img && panelAdjust && !L.locked && inPoly(L.pts, ...Object.values(baseToLocal(L, bp.x, bp.y)))) {
-      drag = { kind: 'panImg', L, p0: p, ox0: L.img.ox, oy0: L.img.oy, moved: false }; return;
+      drag = { kind: 'panImg', L, p0: p, ox0: L.img.ox, oy0: L.img.oy, moved: false, own: true }; return;
     }
     if (hh) {
       const c = toScreen(L, 0, 0);
-      drag = { kind: hh.kind, L, p0: p, c, s0: L.scale, r0: L.rot, d0: Math.hypot(p.x - c.x, p.y - c.y) || 1, a0: Math.atan2(p.y - c.y, p.x - c.x), moved: false };
+      drag = { kind: hh.kind, L, p0: p, c, s0: L.scale, r0: L.rot, d0: Math.hypot(p.x - c.x, p.y - c.y) || 1, a0: Math.atan2(p.y - c.y, p.x - c.x), moved: false, own: true };
       return;
     }
     const hit = hitLayer(bp.x, bp.y);
@@ -2216,20 +2302,43 @@
       const now = Date.now();
       const dbl = lastTap.id === hit.id && now - lastTap.t < 350;
       lastTap = { t: now, id: hit.id };
+      const prevSel = selId, own = selId === hit.id; // 前から選んでいたか（2本指を、それの大きさにするか画面の拡大にするかの分かれ目）
       select(hit.id);
       if (dbl && hit.type === 'text') { focusText(); drag = null; return; }
       if (dbl && hit.type === 'panel' && hit.img) { panelAdjust = !panelAdjust; refreshProps(); requestRender(); showToast(panelAdjust ? '中の画像を動かします（もう一度2回タップで戻る）' : 'コマを動かします'); drag = null; return; }
-      drag = { kind: 'move', L: hit, p0: p, x0: hit.x, y0: hit.y, moved: false };
+      drag = { kind: 'move', L: hit, p0: p, x0: hit.x, y0: hit.y, moved: false, own, prevSel: own ? undefined : prevSel };
     } else {
+      const prevSel = selId;
       select(null);
-      drag = null;
+      drag = { kind: 'pan', p0: p, b: bp, moved: false, prevSel }; // 何もない所のドラッグ＝拡大しているときは画面を動かす
     }
   });
+  // 2本指で画面の拡大・縮小を始める（指の真ん中にあるものが、指の真ん中に付いてくる）
+  function startViewPinch() {
+    const [a, b] = [...pointers.values()];
+    const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    drag = { kind: 'view', d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, b: screenToBase(m.x, m.y), z0: zoom.z, moved: true };
+  }
   cv.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId)) return;
     const p = evPos(e);
     pointers.set(e.pointerId, p);
     if (!drag) return;
+    if (drag.kind === 'view') {
+      if (pointers.size < 2) return;
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(b.x - a.x, b.y - a.y) || 1, m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      zoom.z = clamp(drag.z0 * d / drag.d0, 1, ZOOM_MAX);
+      const k = view.fs * zoom.z;
+      zoom.cx = drag.b.x + (view.cw / 2 - m.x) / k; zoom.cy = drag.b.y + (view.ch / 2 - m.y) / k;
+      applyZoom(); requestRender(); return;
+    }
+    if (drag.kind === 'pan') {
+      if (!drag.moved && Math.hypot(p.x - drag.p0.x, p.y - drag.p0.y) < 3) return;
+      drag.moved = true;
+      zoom.cx = drag.b.x + (view.cw / 2 - p.x) / view.s; zoom.cy = drag.b.y + (view.ch / 2 - p.y) / view.s;
+      applyZoom(); requestRender(); return;
+    }
     if (drag.kind === 'brush') { brushMove(p); return; }
     const L = drag.L;
     if (drag.kind === 'pinchImg') {
@@ -2306,6 +2415,13 @@
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (!drag) return;
+    if (drag.kind === 'view' || drag.kind === 'pan') {
+      if (pointers.size) { // 1本残ったら、その指で画面を動かし続ける
+        if (drag.kind === 'view' && pointers.size === 1) { const p = [...pointers.values()][0]; drag = { kind: 'pan', p0: p, b: screenToBase(p.x, p.y), moved: true }; }
+        return;
+      }
+      drag = null; zoomDone(); return;
+    }
     if (drag.kind === 'brush') { if (!pointers.size) { drag = null; changed(true); refreshProps(); } return; }
     if (drag.kind === 'pinch' && pointers.size === 1) { // 1本残ったら、そこから移動を続ける
       const L = drag.L; bakeLayer(L);
@@ -2314,12 +2430,27 @@
       changed(true); return;
     }
     if (pointers.size) return;
-    const L = drag.L, moved = drag.moved;
+    const L = drag.L, moved = drag.moved, kind = drag.kind;
     drag = null;
     guides = { v: false, h: false };
     if (moved) { bakeLayer(L); if (L.type === 'panel') recenterPanel(L); changed(true); refreshProps(); }
-    else requestRender();
+    else {
+      requestRender();
+      // スマホ：画面の上でタップして選んだら、調整の欄を出す（動かしただけのときは出さない）
+      if (kind === 'move' && isNarrow()) { setTab('props'); if (sheetState() === 'min') setSheet('half'); }
+    }
   }
+  // ホイール（ノートパソコンの2本指のピンチも）で、指している所を中心に拡大・縮小
+  cv.addEventListener('wheel', (e) => {
+    if (!cur) return;
+    e.preventDefault();
+    const p = evPos(e), dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    zoomAt(p.x, p.y, zoom.z * Math.exp(-clamp(dy, -300, 300) * (e.ctrlKey ? 0.01 : 0.0015)));
+    requestRender(); zoomDone();
+  }, { passive: false });
+  $('zoomIn').addEventListener('click', () => { zoomAt(view.cw / 2, view.ch / 2, zoom.z * 1.5); requestRender(); zoomDone(); });
+  $('zoomOut').addEventListener('click', () => { zoomAt(view.cw / 2, view.ch / 2, zoom.z / 1.5); requestRender(); zoomDone(); });
+  $('zoomFit').addEventListener('click', resetZoom);
   cv.addEventListener('pointerup', endPointer);
   cv.addEventListener('pointercancel', endPointer);
   cv.addEventListener('dblclick', (e) => {
@@ -2744,6 +2875,7 @@
       $('editor').classList.add('is-open');
       updatePasteBtn();
       setTab('layers');
+      zoom.z = 1;
       fitView();
       renderLayerList(); refreshProps(); render();
       const miss = imgCache.get(cur.baseId);
@@ -2790,8 +2922,8 @@
       <div class="layer-item${L.id === selId ? ' is-active' : ''}${L.hidden ? ' is-hidden' : ''}" data-id="${esc(L.id)}">
         <span class="li-kind">${KIND_LABEL[L.type] || ''}</span>
         <span class="li-name">${esc(layerLabel(L))}${L.marks && L.marks.length ? ' ✎' : ''}</span>
-        <button class="icon-btn${L.hidden ? ' is-off' : ''}" type="button" data-act="eye" title="${L.hidden ? '表示する' : '隠す'}">${L.hidden ? '隠' : '見'}</button>
-        <button class="icon-btn${L.locked ? ' is-on' : ''}" type="button" data-act="lock" title="${L.locked ? '固定を外す' : '固定する（画面の上で動かなくする）'}">${L.locked ? '固' : '動'}</button>
+        <button class="icon-btn${L.hidden ? ' is-off' : ''}" type="button" data-act="eye" title="${L.hidden ? '隠しています（押すと表示）' : '表示しています（押すと隠す）'}">${L.hidden ? '⊘' : '👁'}</button>
+        <button class="icon-btn${L.locked ? ' is-on' : ''}" type="button" data-act="lock" title="${L.locked ? '固定しています（押すと外す）' : '固定する（画面の上で動かなくする）'}">${L.locked ? '🔒' : '🔓'}</button>
       </div>`).join('');
     const fx = (hasFx(cur.baseFx) ? '・フィルター' : '') + (hasFx(cur.pageFx) ? '・全体フィルター' : '') + (cur.baseMarks && cur.baseMarks.length ? ' ✎' : '');
     box.innerHTML = rows + `<div class="layer-item${selId === BASE_SEL ? ' is-active' : ''}" data-id="${BASE_SEL}"><span class="li-kind">下</span><span class="li-name">下の画像 ${cur.W}×${cur.H}${fx}</span></div>`;
@@ -2818,16 +2950,51 @@
     if (selId && isNarrow()) setTab('props');
   });
   function isNarrow() { return window.matchMedia('(max-width: 760px)').matches; }
+  // スマホの引き出し（調整の欄）：min＝タブだけ／half＝半分／full＝大きく。大きさは端末ごとに覚える
+  const SHEETS = ['min', 'half', 'full'], LS_SHEET = 'sideops_pasteup_sheet';
+  function sheetState() { return $('side').dataset.sheet || 'half'; }
+  function setSheet(st) {
+    if (!SHEETS.includes(st)) st = 'half';
+    $('side').dataset.sheet = st;
+    try { localStorage.setItem(LS_SHEET, st); } catch (_) { /* 覚えられなくても動く */ }
+  }
+  try { const st = localStorage.getItem(LS_SHEET); if (SHEETS.includes(st)) $('side').dataset.sheet = st; } catch (_) { /* 既定のまま */ }
+  (() => {
+    const h = $('sheetHandle'); let g = null;
+    h.addEventListener('pointerdown', (e) => { g = { y0: e.clientY, i0: SHEETS.indexOf(sheetState()) }; try { h.setPointerCapture(e.pointerId); } catch (_) { /* 何もしない */ } });
+    const end = (e) => {
+      if (!g) return;
+      const dy = e.clientY - g.y0, i0 = g.i0; g = null;
+      if (Math.abs(dy) < 10) { setSheet(i0 === 0 ? 'half' : 'min'); return; } // タップ：開く／たたむ
+      const steps = Math.abs(dy) > 220 ? 2 : 1; // 上へ＝大きく、下へ＝小さく
+      setSheet(SHEETS[clamp(i0 + (dy < 0 ? steps : -steps), 0, 2)]);
+    };
+    h.addEventListener('pointerup', end);
+    h.addEventListener('pointercancel', () => { g = null; });
+  })();
   function setTab(t) {
     $('side').dataset.tab = t;
     document.querySelectorAll('.side-tabs button').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === t));
   }
-  document.querySelectorAll('.side-tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  document.querySelectorAll('.side-tabs button').forEach((b) => b.addEventListener('click', () => { setTab(b.dataset.tab); if (sheetState() === 'min') setSheet('half'); }));
+  // 調整の欄の見出しを押すと、その項目をたたむ（端末ごとに覚える）
+  const LS_FOLD = 'sideops_pasteup_fold';
+  let foldedSecs = new Set();
+  try { const a = JSON.parse(localStorage.getItem(LS_FOLD) || '[]'); if (Array.isArray(a)) foldedSecs = new Set(a.filter((x) => typeof x === 'string')); } catch (_) { /* 何もたたまない */ }
+  document.querySelectorAll('#propsBody .p-sec').forEach((sec) => {
+    const t = sec.querySelector(':scope > .p-sec-title'); if (!sec.id || !t) return;
+    if (foldedSecs.has(sec.id)) sec.classList.add('is-folded');
+    t.title = '押すとたたむ・開く';
+    t.addEventListener('click', () => {
+      if (sec.classList.toggle('is-folded')) foldedSecs.add(sec.id); else foldedSecs.delete(sec.id);
+      try { localStorage.setItem(LS_FOLD, JSON.stringify([...foldedSecs])); } catch (_) { /* 覚えられなくても動く */ }
+    });
+  });
 
   /* ===================== 調整の欄 ===================== */
   $('pFrame').innerHTML = FRAMES.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join('');
   $('pLineStyle').innerHTML = LINE_STYLES.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join('');
-  $('pFxPreset').innerHTML = FX_PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join('');
+  $('pFxChips').innerHTML = FX_PRESETS.map((p, i) => `<button class="btn" type="button" data-i="${i}">${esc(p.name.replace(/（.*）/, ''))}</button>`).join('');
   $('fxRows').innerHTML = FX_DEFS.map((d) => `<div class="p-row"><label class="p-lab">${esc(d.label)}</label><input type="range" id="fxR_${d.k}" min="${d.min}" max="${d.max}" step="1"><input type="number" id="fxN_${d.k}" min="${d.min}" max="${d.max}" step="1"></div>`).join('');
   $('pFxNote').textContent = FILTER_OK ? 'ぼかしは画像のピクセル数で指定します。' : 'この端末のブラウザはフィルターに対応していないため、画面と書き出しに反映されません（ほかの端末では反映されます）。';
   function userFontKey(u) { return u.kind === 'google' ? 'g:' + u.name : 'u:' + u.id; }
@@ -2853,6 +3020,8 @@
   function refreshFx() {
     const fx = fxTargetFx() || {};
     FX_DEFS.forEach((d) => { const v = fx[d.k] !== undefined ? fx[d.k] : d.def; setVal('fxR_' + d.k, v); setVal('fxN_' + d.k, v); });
+    const key = JSON.stringify(normFx(fx)); // いまの値と同じ見本を光らせる
+    $('pFxChips').querySelectorAll('.btn').forEach((b) => { const p = FX_PRESETS[+b.dataset.i]; b.classList.toggle('is-on', !!p && JSON.stringify(normFx(p.fx)) === key); });
   }
   function refreshProps() {
     const isBase = selId === BASE_SEL && !!cur;
@@ -2861,6 +3030,7 @@
     $('propsBody').hidden = !L && !isBase;
     disarm($('pDel'));
     const type = isBase ? 'base' : L ? L.type : '';
+    $('pSelName').textContent = isBase ? '選択中：下の画像' + (cur.manga ? '（ページ）' : '') : L ? '選択中：' + (L.type === 'panel' ? '' : (KIND_LABEL[L.type] || '') + '　') + layerLabel(L) : '';
     $('secText').hidden = type !== 'text'; $('secFrame').hidden = type !== 'text'; $('secStyle').hidden = type !== 'text';
     $('secImage').hidden = type !== 'image';
     $('secMosaic').hidden = type !== 'mosaic';
@@ -3106,11 +3276,12 @@
       $(id).addEventListener('change', () => { commitHist(); refreshFx(); });
     });
   });
-  $('pFxApply').addEventListener('click', () => {
-    const p = FX_PRESETS[+$('pFxPreset').value]; if (!p) return;
+  // フィルターの見本：押すだけで当たる（「なし」で元に戻る）
+  $('pFxChips').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'); if (!b) return;
+    const p = FX_PRESETS[+b.dataset.i]; if (!p) return;
     if (setFx(normFx(p.fx))) { changed(true); refreshFx(); }
   });
-  $('pFxReset').addEventListener('click', () => { if (setFx({})) { changed(true); refreshFx(); } });
   $('pBaseSwap').addEventListener('click', () => $('fileBase').click());
 
   // ---- モザイク・ぼかし・塗りつぶし ----
