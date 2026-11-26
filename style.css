@@ -936,6 +936,8 @@
   .log-item:last-child { border-bottom: none; }
   .log-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-faint); margin-top: 4px; flex-shrink: 0; }
   .log-item.is-unread .log-dot { background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+  /* アプリ内の出来事（SIDE-OPSの中で起きたこと）は琥珀色、外部の通知は水色（2026-11-26） */
+  .log-item.log-source-app.is-unread .log-dot { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
   .log-item > div:last-child { min-width: 0; flex: 1; }
   .log-text {
     font-size: 10.5px; color: var(--text-dim); line-height: 1.5;

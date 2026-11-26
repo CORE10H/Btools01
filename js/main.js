@@ -2668,7 +2668,9 @@
     if (!Object.prototype.hasOwnProperty.call(INTEL_FEED_SOURCES, feed) || stageFeedSrc !== INTEL_FEED_SOURCES[feed]) return;
     const data = INTEL_SANITIZE[feed](msg.data);
     if (!data) { console.warn('INTEL：形の合わない要約を受け取らなかった', feed); return; }
+    const before = intelFeeds[feed] ? intelFeeds[feed].data : null;
     intelFeeds[feed] = { receivedAt: Date.now(), data };
+    try { logFromIntelFeed(feed, before, data); } catch (err) { console.error('LOGの出来事を作れませんでした', err); }
     renderIntel();
     saveIntelFeed(feed);
   });
@@ -2907,6 +2909,7 @@
     intelMask = !!on;
     if (intelMaskToggle) intelMaskToggle.checked = intelMask;
     renderIntel();
+    if (typeof renderLogPanel === 'function') renderLogPanel();
   }
   if (intelMaskToggle) intelMaskToggle.addEventListener('change', () => {
     applyIntelMask(intelMaskToggle.checked);
@@ -2979,8 +2982,7 @@
          乗る。表示上の色分け等が必要になったら .log-source-internal 等
          のCSSクラスを追加するだけでよい（renderLogPanel は既に
          source値からクラス名を自動生成している）。
-       - 内部イベントの検知ロジック自体（INTELのしきい値監視等）は
-         今回のスコープ外で、まだ実装していない。
+       - 2026-11-26：アプリ内の出来事（source:'app'）を追加。下の「アプリ内の出来事」を参照
 
      フールプルーフ（誤作動防止策）一覧：
        1) URL未設定時はポーリング自体を起動しない（早期return）
@@ -3105,17 +3107,11 @@
     if (!listEl) return;
     listEl.textContent = '';
 
-    if (!logSourceUrl) {
-      const empty = document.createElement('div');
-      empty.className = 'log-empty';
-      empty.textContent = '設定から取得元を登録してください';
-      listEl.appendChild(empty);
-      return;
-    }
     if (logItems.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'log-empty';
-      empty.textContent = '新着はありません';
+      // 外部の取得元が未登録なら、その案内も出す（アプリ内の出来事は登録しなくても出る）
+      empty.textContent = logSourceUrl ? '新着はありません' : '新着はありません（メールなど外部の通知は、設定で取得元を登録すると届きます）';
       listEl.appendChild(empty);
       return;
     }
@@ -3130,7 +3126,8 @@
       const body = document.createElement('div');
       const textEl = document.createElement('div');
       textEl.className = 'log-text';
-      textEl.textContent = item.title; // textContentのみ使用（XSS対策）
+      textEl.textContent = intelMask && item.maskTitle ? item.maskTitle : item.title; // textContentのみ使用（XSS対策）
+      textEl.title = textEl.textContent;
       const timeEl = document.createElement('div');
       timeEl.className = 'log-time';
       timeEl.textContent = formatRelativeTime(item.timeMs);
@@ -3157,6 +3154,90 @@
     }
     renderLogPanel();
   }
+
+  /* ---- アプリ内の出来事（source: 'app'。2026-11-26） ----
+     外部の取得元を登録していなくても出る。文面はすべて本体が決まった型で組み立てる（アプリから届くのは種類と数字・INTEL用の表示名だけ）。
+     同じ出来事は id で1回だけ（節目・月のまとめ・取込の催促は「月＋内容」の id。取込・取消は届いた時刻の id）。
+     maskTitle：設定の「金額を伏せる」が入っているときに代わりに出す文面（金額を含む出来事だけ持つ） */
+  const LOG_SALES_MILESTONES = [10000, 30000, 50000, 100000, 300000, 500000, 1000000, 3000000, 5000000, 10000000];
+  const LOG_TEXT_MAX = 120;
+  let logPendingApp = [];   // 通知DBを開く前に起きた出来事（開いたら書き込む）
+  let logLoaded = false;
+
+  async function addAppLog(entry) {
+    const item = {
+      id: 'app:' + entry.id,
+      title: String(entry.title).slice(0, LOG_TEXT_MAX),
+      maskTitle: entry.maskTitle ? String(entry.maskTitle).slice(0, LOG_TEXT_MAX) : '',
+      body: '', url: '', source: 'app', timeMs: Date.now(), isUnread: true,
+    };
+    if (!logLoaded) { if (!logPendingApp.some((x) => x.id === item.id)) logPendingApp.push(item); return; }
+    if (logItems.some((n) => n.id === item.id)) return; // 同じ出来事は1回だけ
+    logItems.push(item);
+    try { await logPut(LOG_STORE, item); } catch (err) { console.error('通知の保存に失敗しました', err); }
+    await trimLogItems();
+    renderLogPanel();
+  }
+  async function flushPendingAppLogs() {
+    const list = logPendingApp;
+    logPendingApp = [];
+    for (const item of list) {
+      if (logItems.some((n) => n.id === item.id)) continue;
+      logItems.push(item);
+      try { await logPut(LOG_STORE, item); } catch (err) { /* 個別失敗は無視して継続 */ }
+    }
+    await trimLogItems();
+  }
+  function logYen(n) { return Math.round(n).toLocaleString('ja-JP') + '円'; }
+
+  function logFromIntelFeed(feed, before, data) {
+    const today = intelToday();
+    const curYm = today.ymd.slice(0, 7);
+    if (feed === 'writing') {
+      // 公開した章が前回より増えた（前回の値がないときは、溜まっていた分を一度に出さないよう何もしない）
+      if (!before) return;
+      const cnt = (d) => { const m = d.months.find((x) => x.ym === curYm); return m ? m.published : 0; };
+      const was = cnt(before), now = cnt(data);
+      if (now > was) addAppLog({ id: `ms-pub-${curYm}-${now}`, title: `MANUSCRIPT：章を公開しました（今月 ${now} 本目）` });
+      return;
+    }
+    if (feed !== 'sales' || !data.hasData) return;
+    const month = (ym) => data.months.find((x) => x.ym === ym);
+    const cur = month(curYm);
+    const total = cur ? cur.total : 0;
+    // 売上の節目：今月はじめて超えた、いちばん大きい節目だけ
+    const hit = LOG_SALES_MILESTONES.filter((t) => total >= t).pop();
+    if (hit) addAppLog({ id: `sales-ms-${curYm}-${hit}`, title: `RECON：今月の売上が ${logYen(hit)} を超えました`, maskTitle: 'RECON：今月の売上が節目を超えました' });
+    // 取込の催促：今月まだ取り込んでいない名義（月に1回）
+    const stale = data.brands.filter((b) => b.lastImport && b.lastImport < curYm + '-01');
+    if (stale.length) addAppLog({ id: `recon-stale-${curYm}`, title: `RECON：今月まだ取り込んでいない名義があります（${stale.map((b) => b.label).join('・')}）` });
+    // 先月のまとめ：すべての名義が今月に入ってから取り込んでいれば（＝先月分がそろっていれば）、月に1回
+    const prevYm = intelShiftYm(curYm, -1);
+    const prev = month(prevYm);
+    if (prev && !stale.length) {
+      const fee = data.feeRate == null || prev.total <= 0 ? 0 : Math.round(prev.total * data.feeRate / 100);
+      const profit = prev.total - fee - prev.cost;
+      const [py, pm] = prevYm.split('-').map(Number);
+      addAppLog({ id: `recon-month-${prevYm}`, title: `RECON：${py}年${pm}月のまとめ　売上 ${logYen(prev.total)}・純利益 ${logYen(profit)}（概算）`, maskTitle: `RECON：${py}年${pm}月の売上がまとまりました` });
+    }
+  }
+
+  // アプリからの知らせ（いまは RECON の取込・取消だけ）。Stageに開いている RECON（先天的アプリ）からだけ受け付ける
+  const LOG_APP_EVENTS = {
+    'recon-import': { src: 'apps/recon.html', title: (m) => `RECON：${m.label ? m.label + 'の' : ''}CSVを取り込みました（${m.count}件）` },
+    'recon-undo': { src: 'apps/recon.html', title: (m) => `RECON：${m.label ? m.label + 'の' : ''}取込を取り消しました（${m.count}件）` },
+  };
+  window.addEventListener('message', (e) => {
+    if (!stageFrame || e.source !== stageFrame.contentWindow) return;
+    const m = e.data;
+    if (!m || m.type !== 'sideops:log-event' || m.version !== 1) return;
+    const def = Object.prototype.hasOwnProperty.call(LOG_APP_EVENTS, m.kind) ? LOG_APP_EVENTS[m.kind] : null;
+    if (!def || stageFeedSrc !== def.src) return;
+    const count = Number.isInteger(m.count) && m.count >= 0 && m.count <= 1e7 ? m.count : null;
+    if (count === null) return;
+    const label = typeof m.label === 'string' ? m.label.trim().slice(0, 20) : '';
+    addAppLog({ id: `${m.kind}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title: def.title({ count, label }) });
+  });
 
   // 保持件数の上限を超えた古い通知をDB・メモリ双方から間引く。
   async function trimLogItems() {
@@ -3323,6 +3404,8 @@
   openLogDb().then(async (_db) => {
     logDb = _db;
     await loadLogData();
+    logLoaded = true;
+    await flushPendingAppLogs();
     renderLogPanel();
     initLogSettingsUi();
     startLogPolling();

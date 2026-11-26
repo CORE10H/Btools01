@@ -429,6 +429,15 @@
     }, 200);
   }
 
+  // LOGパネルへの知らせ（2026-11-26）。文面は本体が決まった型で組み立てる。送るのは種類・件数・INTEL用の表示名だけ（購入者名・作品名は送らない）
+  function postLogEvent(kind, extra) {
+    if (window.parent === window) return;
+    try {
+      const targetOrigin = location.origin && location.origin !== 'null' ? location.origin : '*';
+      window.parent.postMessage({ type: 'sideops:log-event', version: 1, kind, ...extra }, targetOrigin);
+    } catch (e) { console.error('LOGへの送信に失敗しました', e); }
+  }
+
   function costMonthChoices() {
     const cur = localYmd(new Date()).slice(0, 7);
     const set = new Set();
@@ -929,6 +938,8 @@
       return;
     }
     committing = false;
+    const bi = brands.findIndex((b) => b.id === importRec.brand);
+    postLogEvent('recon-import', { count: records.length, label: bi >= 0 ? intelLabelOf(brands[bi], bi) : '' });
     closePreview();
     await reloadAndRender();
     showToast(`${records.length}件を取り込みました`);
@@ -955,6 +966,8 @@
       showToast('取り消せませんでした。データは変わっていません。', true);
       return;
     }
+    const bi = brands.findIndex((b) => b.id === imp.brand);
+    postLogEvent('recon-undo', { count, label: bi >= 0 ? intelLabelOf(brands[bi], bi) : '' });
     await reloadAndRender();
     if (preview) {
       await refreshKeyIndex(preview);
