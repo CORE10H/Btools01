@@ -954,6 +954,64 @@
     await addLog('info', 'この端末の同期を解除しました（鍵と同期の状態を消去）');
   }
 
+  // ---- 使っていない端末を同期の仲間から外す（2026-11-27） ----
+  // その端末のファイル（端末の目次 d_・DBのファイル b_・同期のログ l_）をクラウドから消す。
+  // ほかの端末のデータは、同期のたびに全部の記録を自分のファイルに書くので、この端末が取り込み済みなら失われない。
+  // 取り込み済みかは「前回取り込んだ時の版の印（seen）」と今の版の印が一致するかで見る（呼ぶ側は直前に同期しておく）。
+  // 画像（x_）は消さない：参照されなくなった画像は、いつもの片付け（一定期間の後）で消える。
+  // 外した端末がまた同期すると、その端末は自分のファイルを書き直して仲間に戻る（削除の印は消さずに持ち続けるので、
+  // ほかの端末で消したデータが古い端末から生き返ることはない。版の新しい方が勝つ）
+  async function planRemoveDevice(backend, deviceId) {
+    if (typeof deviceId !== 'string' || !DEVICE_ID_RE.test(deviceId)) throw new SyncError('外す端末が分かりません');
+    const keys = await getKeys();
+    if (!keys) throw new SyncError('この端末はまだ同期の鍵を持っていません');
+    const manifest = await readManifest(backend);
+    if (!manifest || manifest.spaceId !== keys.spaceId || manifest.keyId !== keys.keyId) throw new SyncError('この端末は別の同期を使っています');
+    const dev = await getDevice();
+    if (deviceId === dev.id) throw new SyncError('この端末は外せません（この端末の同期をやめるときは「この端末を忘れる」を使います）');
+    const names = fileNames(keys);
+    const dName = await names.device(deviceId);
+    const logName = await names.log(deviceId);
+    const listed = new Set(await backend.list());
+    const stampOf = (n) => (typeof backend.stamp === 'function' ? backend.stamp(n) || '' : '');
+    if (!listed.has(dName)) return { missing: true, deviceId, dName, logName: listed.has(logName) ? logName : null, files: [], notMerged: [] };
+    const s = await metaGet('seen');
+    const sf = s && s.spaceId === manifest.spaceId && s.kind === backend.kind && isPlainObject(s.files) ? s.files : {};
+    let info = sf[dName] && sf[dName].stamp && sf[dName].stamp === stampOf(dName) ? sf[dName].info : null;
+    if (!isPlainObject(info)) info = await readJsonFile(backend, keys, manifest.spaceId, dName);
+    if (!isPlainObject(info) || info.device !== deviceId || !isPlainObject(info.dbs)) throw new SyncError('同期ファイルの中身が壊れています（端末の情報）');
+    const files = [];
+    const notMerged = [];
+    for (const dbName of Object.keys(info.dbs)) {
+      const fn = await names.db(deviceId, dbName);
+      if (!listed.has(fn)) continue;
+      files.push(fn);
+      const e = sf[fn];
+      if (!(e && e.stamp && e.stamp === stampOf(fn))) notMerged.push(dbName);
+    }
+    return {
+      missing: false, deviceId, dName, logName: listed.has(logName) ? logName : null, files, notMerged,
+      name: String(info.deviceName || '別の端末').slice(0, 40), at: info.lastWriteAt || info.writtenAt || '',
+    };
+  }
+  async function executeRemoveDevice(backend, plan) {
+    // DBのファイル → ログ → 最後に端末の目次の順に消す（途中で止まっても、目次に載ったファイルがないだけで、同期は飛ばして進む）
+    for (const fn of plan.files) await backend.remove(fn);
+    if (plan.logName) await backend.remove(plan.logName);
+    if (!plan.missing) await backend.remove(plan.dName);
+    const s = await metaGet('seen');
+    if (s && isPlainObject(s.files)) {
+      [plan.dName, ...plan.files].forEach((n) => { delete s.files[n]; });
+      await metaPut(s);
+    }
+    const st = await metaGet('status');
+    if (st && Array.isArray(st.devices)) {
+      st.devices = st.devices.filter((x) => x && x.id !== plan.deviceId);
+      await metaPut(st);
+    }
+    await addLog('info', `端末「${plan.name || '別の端末'}」を同期の仲間から外しました（ファイル${plan.files.length + 1}件を削除）`);
+  }
+
   // ===================== 同期の本体 =====================
   function fileNames(keys) {
     return {
@@ -1106,7 +1164,8 @@
     }
     const prevOwnDbs = (ownMeta && ownMeta.dbs) || (ownPrev && ownPrev.dbs) || {};
     const prevOwnBlobs = (ownMeta && isPlainObject(ownMeta.blobs) && ownMeta.blobs) || {};
-    report.devices = remoteDevices.map((i) => ({ name: String(i.deviceName || '別の端末').slice(0, 40), at: i.lastWriteAt || i.writtenAt || '' }));
+    // id・build は「使っていない端末を外す」（2026-11-27）で使う
+    report.devices = remoteDevices.map((i) => ({ id: i.device, name: String(i.deviceName || '別の端末').slice(0, 40), at: i.lastWriteAt || i.writtenAt || '', build: typeof i.appBuild === 'number' ? i.appBuild : 0 }));
     // 版の末尾の端末IDから、その変更をした端末の名前を引く（競合の控えに残す。2026-10-10）
     const devNames = new Map(remoteDevices.map((i) => [i.device, String(i.deviceName || '別の端末').slice(0, 40)]));
     const verBy = (v) => (typeof v !== 'string' ? '' : v.slice(19) === dev.id ? 'この端末' : devNames.get(v.slice(19)) || '別の端末');
@@ -1517,10 +1576,15 @@
     progress('仕上げています');
     // lastWriteAt：この端末が最後に実際にデータを送った時刻（ほかの端末に「最終送信」として見せる）
     const lastWriteAt = wroteAny ? new Date().toISOString() : ((ownMeta && ownMeta.lastWriteAt) || (ownPrev && ownPrev.lastWriteAt) || null);
-    await writeIfChanged(devName, {
+    const devInfo = {
       format: 'sideops-sync-device', formatVersion: FORMAT_VERSION, device: dev.id, deviceName: dev.name,
       appBuild: SYNC_APP_BUILD, writtenAt: new Date().toISOString(), lastWriteAt, dbs: ownDbs,
-    });
+    };
+    if (await writeIfChanged(devName, devInfo) && cacheable) {
+      // 自分で書いた目次は、書いた中身と新しい版の印を覚えておく（2026-11-27）。覚えていないと、次の同期で
+      // 「版の印が変わった」と見て、自分の目次をダウンロードし直していた（ログで毎回1件・約2.5秒）
+      seenNext.files[devName] = { stamp: stampOf(devName), info: devInfo };
+    }
     listed.add(devName);
     // 使わなくなった自分のDBファイル（同期しない設定にしたDB等）を消す
     for (const [nm, ref] of Object.entries(prevOwnDbs)) {
@@ -1538,6 +1602,8 @@
     }
     if (written) await metaPut(written);
     if (cacheable && !pushOnly) await metaPut(seenNext);
+    // 送るだけのときは、ほかの端末の分は取り込んでいないので、自分の目次の印だけを書き足す（2026-11-27）
+    else if (cacheable && seenNext.files[devName]) await metaPut({ key: 'seen', spaceId, kind: backend.kind, files: { ...seen.files, [devName]: seenNext.files[devName] } });
     await metaPut({ key: 'own', spaceId, kind: backend.kind, dbs: ownDbs, blobs: ownBlobs, lastWriteAt });
     await metaPut(scannedRec);
     await metaPut(clock.save());
@@ -2114,8 +2180,25 @@
       if (m && m.type === 'ping' && m.from !== TAB_ID) channel.postMessage({ type: 'pong', to: m.from, from: TAB_ID });
     };
   } catch (err) { channel = null; }
-  function otherTabsOpen() {
-    if (!channel) return Promise.resolve(false);
+  // 開いている間ずっと持つ「このタブがある」の印（Web Locks。2026-11-27）。ほかのタブがこの印を持っていなければ、
+  // 返事を0.4秒待たずに「ほかのタブはない」と分かる（いつもの1タブの使い方では、毎回の同期の0.4秒が消える）。
+  // 印があるときは今までどおり返事で確かめる（裏で止まったタブは返事をしないので、今までと同じ判定にするため）
+  const TAB_LOCK_PREFIX = 'sideops-tab-';
+  try {
+    if (navigator.locks && typeof navigator.locks.request === 'function') navigator.locks.request(TAB_LOCK_PREFIX + TAB_ID, () => new Promise(() => {})).catch(() => {});
+  } catch (err) { /* 使えないブラウザでは、返事で確かめる */ }
+  async function noOtherTabLocks() {
+    try {
+      if (!navigator.locks || typeof navigator.locks.query !== 'function') return false;
+      const q = await navigator.locks.query();
+      const all = [...(q.held || []), ...(q.pending || [])];
+      if (!all.some((l) => l && l.name === TAB_LOCK_PREFIX + TAB_ID)) return false; // 自分の印が見えない＝当てにならない
+      return !all.some((l) => l && typeof l.name === 'string' && l.name.startsWith(TAB_LOCK_PREFIX) && l.name !== TAB_LOCK_PREFIX + TAB_ID);
+    } catch (err) { return false; }
+  }
+  async function otherTabsOpen() {
+    if (!channel) return false;
+    if (await noOtherTabLocks()) return false;
     return new Promise((resolve) => {
       let found = false;
       const listen = (ev) => { if (ev.data && ev.data.type === 'pong' && ev.data.to === TAB_ID) found = true; };
@@ -2321,6 +2404,7 @@
         await refreshJournal();
         await refreshConflicts();
         await refreshCloud();
+        await refreshDevices();
       } catch (err) {
         statusEl.textContent = '同期の状態を読めませんでした：' + (err && err.message);
       }
@@ -3061,10 +3145,15 @@
     const TRIGGER_LABEL = { open: '開いたとき', return: '戻ったとき', hidden: '離れるとき', stageClose: 'アプリを閉じたとき', push30: '定期の送信', afterLogin: 'ログインの後', manual: '☁を押した' };
     const sec = (ms) => (Math.max(0, ms || 0) / 1000).toFixed(1);
     // この端末の、ここ24時間のまとめ
+    let runlogSeq = 0;
     async function refreshRunlog() {
       if (!runlogEl) return;
+      // 描き直しが重なったときは、あとから始めた方だけを出す（2026-11-27の歯止め。古い読み込みが遅れて終わり、
+      // 新しいまとめを上書きしないように）
+      const my = ++runlogSeq;
       const since = Date.now() - 24 * 60 * 60 * 1000;
       const list = (await listRunLog()).filter((e) => e.at >= since);
+      if (my !== runlogSeq) return;
       const runs = list.filter((e) => (e.kind === 'auto' || e.kind === 'manual') && e.result !== 'skip');
       if (!list.length) { runlogEl.textContent = 'まだログはありません'; return; }
       const total = runs.reduce((a, e) => a + (e.ms.total || 0), 0);
@@ -3387,6 +3476,91 @@
       }
       if (list.length > CONFLICT_SHOW) conflictListEl.appendChild(mk('div', 'sync-diff-note', `ほかに${list.length - CONFLICT_SHOW}件（「競合の控えを書き出す」で、すべてを書き出せます）`));
     }
+    // ---- ほかの端末（同期の仲間）と「外す」（2026-11-27） ----
+    // クラウドにつないでいるときだけ出す（同期ファイルを手で運ぶ形は、端末ごとのファイルを外す必要がない）
+    const DEVICE_RECENT_DAYS = 14; // これより最近に送った端末は「まだ使っているかも」と強めに確かめる
+    async function refreshDevices() {
+      const row = $('syncDevicesRow');
+      const listEl = $('syncDeviceList');
+      if (!row || !listEl) return;
+      const c = await cloudMeta();
+      const status = (await metaGet('status')) || {};
+      const devs = Array.isArray(status.devices) ? status.devices.filter((x) => x && x.name) : [];
+      row.hidden = !(c.connected && providers[c.provider] && (await getKeys()));
+      listEl.textContent = '';
+      if (row.hidden) return;
+      if (!devs.length) { listEl.textContent = 'ほかの端末はありません（同期すると、ここに出ます）'; return; }
+      for (const d of devs) {
+        const r = mk('div', 'sync-journal-row sync-device-row');
+        const days = d.at ? Math.floor((Date.now() - Date.parse(d.at)) / 86400000) : null;
+        r.appendChild(mk('div', 'sync-journal-head', d.name));
+        r.appendChild(mk('div', 'sync-conflict-sub', `最終送信 ${d.at ? fmt(Date.parse(d.at)) : 'なし'}${days !== null && days >= 1 ? `（${days}日前）` : ''}${d.build ? `　版 ${d.build}` : ''}`));
+        const acts = mk('div', 'sync-journal-actions');
+        const b = mk('button', 'btn danger sync-device-remove', '外す');
+        // 2026-11-27 より前の同期の記録には端末IDがない → もう一度同期するまで押せない（data-sync-action を付けないので、同期の後に勝手に押せるようにならない）
+        if (d.id) b.dataset.syncAction = '';
+        else { b.disabled = true; b.title = 'もう一度同期すると外せるようになります'; }
+        b.addEventListener('click', () => run(() => removeDeviceFlow(d), { title: '端末を外す' }));
+        acts.appendChild(b);
+        r.appendChild(acts);
+        listEl.appendChild(r);
+      }
+    }
+    // 歯止め：①確認（最近使った端末は、その旨を強く書く）②外す前に同期して取り込む ③取り込めていないデータがあれば、
+    // アプリ名を出して、もう一度確かめる ④自分自身は外せない（planRemoveDevice で止める）
+    async function removeDeviceFlow(d) {
+      const c = await cloudMeta();
+      const p = providers[c.provider];
+      if (!c.connected || !p) throw new SyncError('クラウドにつないでいないため、外せません');
+      const days = d.at ? Math.floor((Date.now() - Date.parse(d.at)) / 86400000) : null;
+      const recent = days !== null && days < DEVICE_RECENT_DAYS;
+      const msg = [`「${d.name}」を同期の仲間から外します。`,
+        `その端末が${p.label}に置いたファイルを消します。先に同期して、その端末のデータをこの端末に取り込んでから消すので、データは消えません。`,
+        'その端末そのもの（中のデータ）は変わりません。その端末で同期すると、また仲間に戻ります。'];
+      if (recent) msg.push(`\n※この端末は${days === 0 ? '今日' : `${days}日前`}にもデータを送っています。まだ使っている端末なら、外さないでください。`);
+      const ok = await dialog({ message: msg.join('\n'), okLabel: '外す', danger: true });
+      if (!ok) { showResult(['やめました'], ''); return; }
+      await precheck();
+      progStep(`${p.label}を確認しています`);
+      if (!(await p.ensureToken({ interactive: false }))) throw new SyncError(`${p.label}のログインが切れています。先に「同期する」でログインしてから、もう一度外してください`);
+      await withLock(async () => {
+        const backend = p.createBackend();
+        const info = await inspect(backend);
+        if (info.state !== 'ready') throw new SyncError('先に「同期する」で同期を済ませてから、もう一度外してください');
+        progStep('先に同期して、その端末のデータを取り込んでいます');
+        const report = await syncWith(backend, { confirmSensitive, scanAll: true, onProgress: progStep, canApply: () => !stageBusy() });
+        await p.persist();
+        if (touchesMain(report.appliedDbs)) needReload = true;
+        progStep('確かめています');
+        const plan = await planRemoveDevice(backend, d.id);
+        if (plan.missing && !plan.logName) {
+          const st = await metaGet('status');
+          if (st && Array.isArray(st.devices)) { st.devices = st.devices.filter((x) => x && x.id !== d.id); await metaPut(st); }
+          showResult([`「${d.name}」のファイルは、もう${p.label}にありません（一覧から消しました）`], 'ok');
+          await refresh();
+          return;
+        }
+        plan.name = plan.name || d.name;
+        if (plan.notMerged.length) {
+          const labels = plan.notMerged.map((n) => ruleLabel(n)).join('・');
+          const ok2 = await dialog({
+            message: `「${plan.name}」のデータのうち、この端末に取り込めていないものがあります：${labels}\n`
+              + '（この端末で同期しない設定にしている・アプリの版が違う、など）\n外すと、その分は失われます。その端末がまだ手元にあるなら、やめて、その端末で同期してから外してください。',
+            okLabel: 'それでも外す', danger: true,
+          });
+          if (!ok2) { showResult(['やめました（何も消していません）'], ''); return; }
+        }
+        progStep('ファイルを消しています');
+        await executeRemoveDevice(backend, plan);
+        const res = [`「${plan.name}」を同期の仲間から外しました`, `${p.label}から、その端末のファイルを${plan.files.length + (plan.missing ? 0 : 1)}件消しました（その端末だけが使っていた画像は、しばらくしてから片付きます）`];
+        if (report.applied) res.push('外す前の同期で、ほかの端末の変更を受け取りました', touchesMain(report.appliedDbs) ? RELOAD_LINE : SAVED_LINE);
+        if (report.conflicts) res.push(CONFLICT_LINE(report.conflicts));
+        showResult(res, 'ok');
+        if (needReload) appendButton(RELOAD_BUTTON, () => location.reload(), 'primary');
+        updateIndicator('ok');
+        await refresh();
+      });
+    }
     // 結果・帯の「違いを見る」：☁の画面の競合の控えの欄まで送る。1件だけなら、そのまま違いを開く
     async function showConflicts(id) {
       try { await refreshConflicts(); } catch (err) { console.warn('競合の控えを読めませんでした', err); }
@@ -3667,7 +3841,7 @@
   window.SideOpsSync = {
     SYNC_APP_BUILD, FORMAT_VERSION, DB_RULES, MANIFEST_NAME, SyncError, saveSecret, loadSecret, deleteSecret,
     createMemoryBackend, backendFromPackage, packageBlob, inspect, unlock, createSpace, syncWith,
-    forgetDevice, buildBackup, restoreBackup, countConflicts, getDevice, localDbVersions,
+    forgetDevice, planRemoveDevice, executeRemoveDevice, buildBackup, restoreBackup, countConflicts, getDevice, localDbVersions,
     unsentDbs, readDirtyMarks, listJournal, undoJournal, checkRemote, listConflicts, diffSeq,
     get lastReport() { return lastReport; },
   };
