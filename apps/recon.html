@@ -413,6 +413,21 @@
   .brand-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
   .brand-row input[type="color"] { width: 34px; height: 30px; padding: 2px; background: var(--bg); border: 1px solid var(--line); cursor: pointer; }
   .brand-row .field-input { width: 100%; }
+  .brand-names { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .brand-names .brand-intel { font-size: 11px; padding-top: 4px; padding-bottom: 4px; }
+  .cost-fee, .cost-month { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; color: var(--text-dim); }
+  .cost-fee .field-input { width: 72px; text-align: right; }
+  .cost-month { margin-top: 14px; }
+  .cost-month .field-input { flex: 1; min-width: 0; }
+  .cost-summary { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line-soft); }
+  .cost-summary dd { text-align: right; }
+  .cost-summary .is-neg { color: var(--magenta); }
+  .cost-summary .is-net { color: var(--cyan); font-weight: 700; }
+  .cost-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+  .cost-row .cost-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .cost-add { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 8px; align-items: center; }
+  .cost-add .field-input { width: 100%; min-width: 0; }
+  @media (max-width: 420px) { .cost-add { grid-template-columns: minmax(0, 1fr) 90px auto; } }
   .brand-add { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
   .form-error { font-size: 11px; color: var(--magenta); margin-top: 6px; min-height: 1em; }
   .stat-list { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 12px; }
@@ -517,6 +532,7 @@
         <button class="hamburger-btn" type="button" id="menuBtn" aria-label="メニュー" aria-expanded="false" aria-controls="menuPanel">☰</button>
         <div class="menu-panel" id="menuPanel">
           <button class="menu-item" type="button" data-action="brands">ブランドの管理</button>
+          <button class="menu-item" type="button" data-action="costs">コスト・手数料</button>
           <button class="menu-item" type="button" data-action="storage">保存領域の状態</button>
           <button class="menu-item" type="button" data-action="backupExport" id="menuBackupExport">バックアップを書き出す</button>
           <button class="menu-item" type="button" data-action="backupImport">バックアップから復元</button>
@@ -754,6 +770,38 @@
         <button class="btn primary" type="button" id="newBrandAdd">追加</button>
       </div>
       <div class="form-error" id="brandError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- コスト・手数料（SIDE-OPSのINTELパネルの純利益に使う。2026-11-26） -->
+<div class="modal-overlay" id="costOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="costTitle">
+    <div class="modal-head">
+      <span class="modal-title" id="costTitle">コスト・手数料</span>
+      <button class="modal-close" type="button" data-close="costOverlay" aria-label="閉じる">✕</button>
+    </div>
+    <div class="field-hint modal-lead">ここに入れたコストと手数料の概算を引いて、SIDE-OPSのINTELパネルに「純利益」を出します。金額は税込で入れてください。</div>
+    <div class="cost-fee">
+      <label for="costFeeRate">noteの手数料（概算）</label>
+      <input class="field-input num" type="text" inputmode="decimal" id="costFeeRate" maxlength="5" placeholder="未設定">
+      <span>%</span>
+    </div>
+    <div class="field-hint">売上（差引）に掛けて引きます。手数料は決済方法などで変わるため概算です。空欄なら引きません。</div>
+    <div class="cost-month">
+      <label for="costMonth">月</label>
+      <select class="field-input" id="costMonth"></select>
+    </div>
+    <dl class="stat-list cost-summary" id="costSummary"></dl>
+    <div id="costRows" class="cost-rows"></div>
+    <div class="brand-add">
+      <div class="cost-add">
+        <input class="field-input" type="text" id="costName" maxlength="40" placeholder="項目（例：素材サイト）" aria-label="コストの項目">
+        <input class="field-input num" type="text" inputmode="numeric" id="costAmount" maxlength="12" placeholder="金額（円）" aria-label="コストの金額">
+        <button class="btn primary" type="button" id="costAdd">追加</button>
+      </div>
+      <div class="form-error" id="costError"></div>
+      <button class="btn" type="button" id="costCopyPrev">前月の項目をコピー</button>
     </div>
   </div>
 </div>

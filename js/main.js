@@ -2102,12 +2102,14 @@
         stageFrame.src = project.src;
       }
       stageFrame.title = project.name;
+      // INTELへ要約を送ってよいアプリかどうかの判定用（先天的アプリの src だけを覚える。インポートしたアプリは null）
+      stageFeedSrc = project.type === 'builtin' && typeof project.src === 'string' ? project.src : null;
       attachThemeBridge(stageFrame); // 本体テーマをアプリへ届ける（読み込み完了時に送信）
       stageBody.appendChild(stageFrame);
     } else {
       // 「＋追加」カード：現状はまだアプリ枠の追加UI未実装のため、プレースホルダー表示のまま。
       document.getElementById('stageTag').textContent = '--';
-      retireStageFrame(stageFrame); stageFrame = null;
+      retireStageFrame(stageFrame); stageFrame = null; stageFeedSrc = null;
       stagePlaceholder.style.display = '';
     }
     stageEl.classList.add('is-open');
@@ -2133,6 +2135,7 @@
     stageEl.classList.remove('is-open');
     // iframeは閉じたら破棄する（バックグラウンドで動かし続けない）。保存の猶予は retireStageFrame を参照
     if (stageFrame) { retireStageFrame(stageFrame); stageFrame = null; }
+    stageFeedSrc = null;
     stagePlaceholder.style.display = '';
     currentStageCardId = null;
     document.getElementById('stageTag').textContent = '--'; // Stageが閉じている間は「何も開かれていない」表示に戻す
@@ -2587,6 +2590,329 @@
     buildCoverflow();
     showLauncherToast('保存機能を利用できません（IndexedDB利用不可）');
   });
+
+  /* =====================================================================
+     INTEL（現況）パネル：アプリから届く「集計済みの要約」を表示する（2026-11-26）
+     ---------------------------------------------------------------------
+     - 届け方：Stageの中のアプリが postMessage で { type: 'sideops:panel-feed', version: 1, panel: 'intel', feed, data } を送る。
+       受け付けるのは、いまStageに開いている先天的アプリ（builtin）が、その feed の送り元と決めたアプリのときだけ
+       （売上 sales ← RECON、執筆 writing ← MANUSCRIPT）。インポートしたアプリ・別のアプリからは受け付けない
+     - 値は1つずつ確かめてから sideops_settings に保存する（key: 'feed:intel'＝売上・コスト、'feed:intel-writing'＝執筆）。
+       アプリを閉じていても、保存済みの要約で表示できる。同期の対象には入れていない（端末ごと。アプリのデータは同期されるので、
+       その端末でアプリを開けば作り直される）
+     - 本体はアプリのDBを直接読まない（versionchangeのブロック・空のDBを作ってしまう罠のため）
+     - 表示：1枠目 売上（前月の同じ日までと比べる）、2枠目 執筆（今月公開した章）、3枠目 コスト（手数料の概算を含む）／純利益
+     - 文字はすべて textContent で入れる（届いた表示名にHTMLが入っていても実行されない）
+     ===================================================================== */
+  const INTEL_FEED_KEYS = { sales: 'feed:intel', writing: 'feed:intel-writing' };
+  const INTEL_FEED_SOURCES = { sales: 'apps/recon.html', writing: 'apps/manuscript.html' };
+  const INTEL_RE_YM = /^\d{4}-(0[1-9]|1[0-2])$/;
+  const INTEL_RE_YMD = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  const INTEL_RE_ID = /^[\w-]{1,64}$/;
+  const INTEL_RE_HEX = /^#[0-9a-fA-F]{6}$/;
+  const INTEL_MAX_MONTHS = 36;
+  const INTEL_MAX_BRANDS = 50;
+  const INTEL_MAX_YEN = 1e12;
+  const INTEL_LEGEND_ROWS = 3;
+  let stageFeedSrc = null;   // いまStageに開いている先天的アプリの src（それ以外は null）
+  let intelFeeds = { sales: null, writing: null }; // { receivedAt, data }
+  let intelMask = false;     // 金額を伏せる（この端末だけ）
+
+  function intelNum(v, min, max) { return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null; }
+  function intelInt(v, min, max) { const n = intelNum(v, min, max); return n !== null && Number.isInteger(n) ? n : null; }
+  function intelDaily(v) {
+    const out = {};
+    if (!v || typeof v !== 'object') return out;
+    Object.keys(v).slice(0, 3).forEach((ym) => {
+      const a = v[ym];
+      if (!INTEL_RE_YM.test(ym) || !Array.isArray(a) || a.length !== 31) return;
+      const nums = a.map((x) => intelNum(x, -INTEL_MAX_YEN, INTEL_MAX_YEN));
+      if (nums.every((x) => x !== null)) out[ym] = nums;
+    });
+    return out;
+  }
+  function sanitizeSalesFeed(d) {
+    if (!d || typeof d !== 'object' || !INTEL_RE_YMD.test(d.today) || !Array.isArray(d.months) || !Array.isArray(d.brands)) return null;
+    const brands = d.brands.slice(0, INTEL_MAX_BRANDS).filter((b) => b && INTEL_RE_ID.test(b.id)).map((b) => ({
+      id: b.id,
+      label: typeof b.label === 'string' && b.label.trim() ? b.label.trim().slice(0, 20) : '—',
+      color: INTEL_RE_HEX.test(b.color) ? b.color : null,
+      lastImport: INTEL_RE_YMD.test(b.lastImport) ? b.lastImport : '',
+    }));
+    const months = d.months.slice(0, INTEL_MAX_MONTHS).filter((m) => m && INTEL_RE_YM.test(m.ym)).map((m) => {
+      const byBrand = {};
+      if (m.byBrand && typeof m.byBrand === 'object') {
+        Object.keys(m.byBrand).slice(0, INTEL_MAX_BRANDS).forEach((id) => {
+          const v = intelNum(m.byBrand[id], -INTEL_MAX_YEN, INTEL_MAX_YEN);
+          if (INTEL_RE_ID.test(id) && v !== null) byBrand[id] = v;
+        });
+      }
+      return { ym: m.ym, total: intelNum(m.total, -INTEL_MAX_YEN, INTEL_MAX_YEN) || 0, cost: intelInt(m.cost, 0, INTEL_MAX_YEN) || 0, byBrand };
+    });
+    const fee = d.feeRate === null ? null : intelNum(d.feeRate, 0, 90);
+    return { today: d.today, hasData: d.hasData === true, feeRate: fee, months, daily: intelDaily(d.daily), brands };
+  }
+  function sanitizeWritingFeed(d) {
+    if (!d || typeof d !== 'object' || !INTEL_RE_YMD.test(d.today) || !Array.isArray(d.months)) return null;
+    const months = d.months.slice(0, INTEL_MAX_MONTHS).filter((m) => m && INTEL_RE_YM.test(m.ym))
+      .map((m) => ({ ym: m.ym, published: intelInt(m.published, 0, 1e6) || 0 }));
+    return { today: d.today, months, daily: intelDaily(d.daily), waiting: intelInt(d.waiting, 0, 1e6) || 0, drafting: intelInt(d.drafting, 0, 1e6) || 0 };
+  }
+  const INTEL_SANITIZE = { sales: sanitizeSalesFeed, writing: sanitizeWritingFeed };
+
+  window.addEventListener('message', (e) => {
+    if (!stageFrame || e.source !== stageFrame.contentWindow) return;
+    const msg = e.data;
+    if (!msg || msg.type !== 'sideops:panel-feed' || msg.version !== 1 || msg.panel !== 'intel') return;
+    const feed = msg.feed;
+    if (!Object.prototype.hasOwnProperty.call(INTEL_FEED_SOURCES, feed) || stageFeedSrc !== INTEL_FEED_SOURCES[feed]) return;
+    const data = INTEL_SANITIZE[feed](msg.data);
+    if (!data) { console.warn('INTEL：形の合わない要約を受け取らなかった', feed); return; }
+    intelFeeds[feed] = { receivedAt: Date.now(), data };
+    renderIntel();
+    saveIntelFeed(feed);
+  });
+
+  async function saveIntelFeed(feed) {
+    if (!settingsDb) return;
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = settingsDb.transaction(SETTINGS_STORE, 'readwrite');
+        const req = tx.objectStore(SETTINGS_STORE).put({ key: INTEL_FEED_KEYS[feed], ...intelFeeds[feed] });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (err) {
+      console.error('INTELの要約を保存できませんでした', err);
+    }
+  }
+  async function loadIntelFeeds() {
+    for (const feed of Object.keys(INTEL_FEED_KEYS)) {
+      try {
+        const rec = await loadSettingsRecordByKey(INTEL_FEED_KEYS[feed]);
+        const data = rec ? INTEL_SANITIZE[feed](rec.data) : null;
+        intelFeeds[feed] = data ? { receivedAt: Number(rec.receivedAt) || 0, data } : null;
+      } catch (err) {
+        console.error('INTELの要約を読み込めませんでした', err);
+      }
+    }
+    renderIntel();
+  }
+
+  /* ---- 表示 ---- */
+  function intelToday() {
+    const d = new Date();
+    return { ymd: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, day: d.getDate() };
+  }
+  function intelShiftYm(ym, delta) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  function intelDaysIn(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+  function intelSum(arr, n) { let s = 0; for (let i = 0; i < Math.min(n, arr.length); i++) s += arr[i]; return s; }
+  function intelYen(n) { return intelMask ? '•••' : Math.round(n).toLocaleString('ja-JP'); }
+  function intelEl(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function intelMd(ymd) { return ymd ? `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}` : ''; }
+  // 前月の同じ日までと比べる。比べられないとき（前月の日別がない・前月が0）は null
+  function intelCompare(daily, curYm, cur, day) {
+    const prevYm = intelShiftYm(curYm, -1);
+    if (!daily[prevYm]) return null;
+    const prev = intelSum(daily[prevYm], Math.min(day, intelDaysIn(prevYm)));
+    return { prev, cur };
+  }
+
+  function intelRing(card, name, segs) {
+    const ring = intelEl('div', 'intel-ring');
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 36 36');
+    const circle = (stroke, dash, offset) => {
+      const c = document.createElementNS(NS, 'circle');
+      [['cx', 18], ['cy', 18], ['r', 15.9], ['fill', 'none'], ['stroke', stroke], ['stroke-width', 3.2]].forEach(([k, v]) => c.setAttribute(k, v));
+      if (dash) { c.setAttribute('stroke-linecap', 'round'); c.setAttribute('stroke-dasharray', dash); c.setAttribute('stroke-dashoffset', offset); }
+      return c;
+    };
+    svg.append(circle('var(--line-soft)'));
+    const total = segs.reduce((s, x) => s + Math.max(0, x.value), 0);
+    if (total > 0) {
+      const gap = segs.filter((x) => x.value > 0).length > 1 ? 1 : 0;
+      let start = 0;
+      segs.forEach((x) => {
+        if (x.value <= 0) return;
+        const len = (x.value / total) * 100;
+        svg.append(circle(x.color, `${Math.max(0.5, len - gap).toFixed(2)} 100`, (-start).toFixed(2)));
+        start += len;
+      });
+    }
+    const label = intelEl('div', 'ring-label');
+    label.append(intelEl('span', 'rl-name', name));
+    ring.append(svg, label);
+    card.append(ring);
+  }
+  function intelLegend(card, rows) {
+    card.append(intelEl('div', 'intel-legend-divider'));
+    const lg = intelEl('div', 'intel-legend');
+    rows.forEach((r) => {
+      const row = intelEl('div', 'lg-row');
+      const nm = intelEl('span', 'lg-name');
+      const dot = intelEl('span', 'lg-dot');
+      dot.style.background = r.color;
+      nm.append(dot, document.createTextNode(r.name));
+      nm.title = r.name;
+      row.append(nm, intelEl('span', 'lg-pct', r.value));
+      lg.append(row);
+    });
+    card.append(lg);
+  }
+  function intelLeft(card, label, value, unit, delta, note, warn, tip) {
+    const left = intelEl('div', 'intel-left');
+    if (tip) left.title = tip;
+    left.append(intelEl('div', 'label', label));
+    const v = intelEl('div', 'value', value);
+    if (unit) v.append(intelEl('span', 'unit', unit));
+    left.append(v);
+    if (delta) {
+      const d = intelEl('div', 'delta ' + delta.dir, delta.text);
+      d.append(intelEl('span', 'prevlabel', delta.label));
+      left.append(d);
+    }
+    if (note || warn) {
+      const n = intelEl('div', 'intel-note', note || '');
+      if (warn) n.append(intelEl('span', 'intel-warn', warn));
+      left.append(n);
+    }
+    card.append(left);
+  }
+  function intelDeltaPct(cmp) {
+    if (!cmp || cmp.prev <= 0) return { dir: 'flat', text: '—', label: '前月比' };
+    const pct = ((cmp.cur - cmp.prev) / cmp.prev) * 100;
+    const dir = pct > 0.05 ? 'up' : pct < -0.05 ? 'down' : 'flat';
+    return { dir, text: `${dir === 'up' ? '▲' : dir === 'down' ? '▼' : '±'} ${Math.abs(pct).toFixed(1)}%`, label: '前月比' };
+  }
+
+  function renderIntelSales(card, today, curYm) {
+    card.textContent = '';
+    card.append(intelEl('span', 'panel-corner'));
+    const f = intelFeeds.sales && intelFeeds.sales.data;
+    if (!f || !f.hasData) {
+      intelLeft(card, '今月の売上合計', '—', '', null, f ? 'RECONで取り込むと表示' : '未連携：RECONを開くと表示');
+      intelRing(card, 'SALES', []);
+      return;
+    }
+    const m = f.months.find((x) => x.ym === curYm) || { total: 0, byBrand: {} };
+    const cmp = intelCompare(f.daily, curYm, m.total, today.day);
+    // 取り込みの古さ：前月以前にしか取り込んでいないブランドがあれば、前月分が途中までの可能性がある
+    const monthStart = curYm + '-01';
+    const used = f.brands.filter((b) => b.lastImport);
+    const stale = used.some((b) => b.lastImport < monthStart);
+    const last = used.map((b) => b.lastImport).sort().pop() || '';
+    intelLeft(card, '今月の売上合計', intelYen(m.total), '円', intelDeltaPct(cmp),
+      last ? '取込 ' + intelMd(last) : '', stale ? '要取込' : '',
+      '税込の販売額（noteの手数料を引く前）。前月の同じ日までと比べています。'
+        + (stale ? '\n要取込：今月まだ取り込んでいないブランドがあります（前月分が途中までの可能性）。RECONで最新のCSVを取り込んでください。' : ''));
+    const segs = f.brands.map((b, i) => ({ name: b.label, color: b.color || ['var(--cyan)', 'var(--amber)', 'var(--magenta)'][i % 3], value: m.byBrand[b.id] || 0 }))
+      .filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
+    let shown = segs;
+    if (segs.length > INTEL_LEGEND_ROWS) {
+      const rest = segs.slice(INTEL_LEGEND_ROWS - 1).reduce((s, x) => s + x.value, 0);
+      shown = segs.slice(0, INTEL_LEGEND_ROWS - 1).concat([{ name: 'その他', color: 'var(--text-faint)', value: rest }]);
+    }
+    intelRing(card, 'SALES', shown);
+    const pos = shown.reduce((s, x) => s + x.value, 0);
+    if (shown.length) intelLegend(card, shown.map((x) => ({ name: x.name, color: x.color, value: Math.round((x.value / pos) * 100) + '%' })));
+    else intelLegend(card, [{ name: '今月の売上なし', color: 'var(--line-soft)', value: '' }]);
+  }
+
+  function renderIntelWriting(card, today, curYm) {
+    card.textContent = '';
+    card.append(intelEl('span', 'panel-corner'));
+    const f = intelFeeds.writing && intelFeeds.writing.data;
+    if (!f) {
+      intelLeft(card, '今月の公開章', '—', '', null, '未連携：MANUSCRIPTを開くと表示');
+      intelRing(card, 'WRITE', []);
+      return;
+    }
+    const m = f.months.find((x) => x.ym === curYm);
+    const cur = m ? m.published : 0;
+    const cmp = intelCompare(f.daily, curYm, cur, today.day);
+    let delta = { dir: 'flat', text: '—', label: '前月比' };
+    if (cmp) {
+      const diff = cmp.cur - cmp.prev;
+      delta = { dir: diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat', text: `${diff > 0 ? '▲ +' : diff < 0 ? '▼ ' : '± '}${diff}本`, label: '前月比' };
+    }
+    intelLeft(card, '今月の公開章', String(cur), '本', delta, '', '',
+      'MANUSCRIPTで公開日を入れた章の数。前月の同じ日までと比べています。\n完成：完成にしたがまだ公開日のない章／推敲中：本文を貼ってまだ完成にしていない章');
+    const segs = [
+      { name: '公開', color: 'var(--cyan)', value: cur },
+      { name: '完成', color: 'var(--amber)', value: f.waiting },
+      { name: '推敲中', color: 'var(--magenta)', value: f.drafting },
+    ];
+    intelRing(card, 'WRITE', segs);
+    intelLegend(card, segs.map((x) => ({ name: x.name, color: x.color, value: `${x.value}本` })));
+  }
+
+  function renderIntelCost(card, today, curYm) {
+    card.textContent = '';
+    card.append(intelEl('span', 'panel-corner'));
+    const f = intelFeeds.sales && intelFeeds.sales.data;
+    const m = f && f.months.find((x) => x.ym === curYm);
+    const row = intelEl('div', 'cost-profit-row');
+    const item = (cls, label, value, sub) => {
+      const it = intelEl('div', 'cp-item ' + cls);
+      it.append(intelEl('span', 'cp-label', label));
+      const v = intelEl('span', 'cp-value', value);
+      if (value !== '—') v.append(intelEl('span', 'unit', '円'));
+      it.append(v);
+      if (sub) it.append(intelEl('span', 'cp-sub', sub));
+      return it;
+    };
+    if (!f) {
+      row.append(item('cost', '今月の総コスト', '—', '未連携：RECONの☰で入力'), intelEl('div', 'cp-mid-divider'), item('profit', '今月の純利益', '—', ''));
+    } else {
+      const net = m ? m.total : 0;
+      const fee = f.feeRate == null || net <= 0 ? 0 : Math.round(net * f.feeRate / 100);
+      const cost = (m ? m.cost : 0) + fee;
+      const profit = net - cost;
+      const profitItem = item('profit' + (profit < 0 ? ' is-neg' : ''), '今月の純利益', intelYen(profit), '概算');
+      row.append(
+        item('cost', '今月の総コスト', intelYen(cost), f.feeRate == null ? '手数料は未設定' : `手数料${f.feeRate}%を含む`),
+        intelEl('div', 'cp-mid-divider'),
+        profitItem,
+      );
+    }
+    card.append(row);
+  }
+
+  function renderIntel() {
+    const today = intelToday();
+    const curYm = today.ymd.slice(0, 7);
+    const s = document.getElementById('intelSales');
+    const w = document.getElementById('intelWriting');
+    const c = document.getElementById('intelCost');
+    if (s) renderIntelSales(s, today, curYm);
+    if (w) renderIntelWriting(w, today, curYm);
+    if (c) renderIntelCost(c, today, curYm);
+  }
+  // 日付が変わったら比べる日もずれるので、10分ごとに描き直す（届いた値はそのまま）
+  setInterval(renderIntel, 10 * 60 * 1000);
+
+  const intelMaskToggle = document.getElementById('intelMaskToggle');
+  function applyIntelMask(on) {
+    intelMask = !!on;
+    if (intelMaskToggle) intelMaskToggle.checked = intelMask;
+    renderIntel();
+  }
+  if (intelMaskToggle) intelMaskToggle.addEventListener('change', () => {
+    applyIntelMask(intelMaskToggle.checked);
+    saveSettingsPatch({ intelMask });
+  });
+  renderIntel();
 
   /* ===================== AMBIENT RANDOM FX ===================== */
   // Occasional, non-looping accents: a border light-sweep on a random
@@ -3063,6 +3389,10 @@
 
     // スマホの画面に浮かぶ戻るボタン・時計（2026-11-05。端末ごと。保存していなければ出す）
     applyFloatOptions({ back: !(record && record.floatBack === false), clock: !(record && record.floatClock === false) });
+
+    // INTELパネル：金額を伏せる（端末ごと）と、保存済みの要約（2026-11-26）
+    applyIntelMask(!!(record && record.intelMask === true));
+    await loadIntelFeeds();
 
     if (!record) return; // 軽量レコードが無い（初回起動等）→残りはデフォルトのまま
 

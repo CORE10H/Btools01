@@ -5,6 +5,7 @@
           取引一覧、月別集計、ブランド管理、伏せ字モード。
    段階3a：作品別売上（ランキング・表記違いのまとめ）、JSONバックアップ。
    段階3b：顧客管理（購入履歴・名寄せ・ゲストへのnote IDの割り当て）。
+   段階2：INTEL連携（要約の送信）と、純利益用のコスト・手数料の入力（☰）。
    データの正本はこのアプリのDB（sideops_recon）。INTELパネルへは
    段階2で「集計済みの要約」だけを送る（個人名は送らない）。
    仕様：docs/apps/claude_アプリ_RECON_仕様書.md
@@ -35,6 +36,13 @@
   const BACKUP_VERSION = 1;
   const BACKUP_MAX_BYTES = 100 * 1024 * 1024;
   const BACKUP_WARN_DAYS = 7;
+  // INTEL連携（段階2・2026-11-26）：SIDE-OPS本体のINTELパネルへ「集計済みの要約」だけを送る。個人名・作品名は送らない
+  const INTEL_LABEL_MAX = 20;
+  const INTEL_FEED_MONTHS = 24;
+  const COST_NAME_MAX = 40;
+  const COST_AMOUNT_MAX = 100000000; // 1億円。桁の打ち間違い（0の付けすぎ）を止める
+  const COST_ITEMS_MAX = 2000;
+  const FEE_RATE_MAX = 90;
 
   const PLATFORM_NOTE = 'note';
   const NOTE_PROFILE_ID = 'note';
@@ -92,6 +100,7 @@
   let workAliases = new Map();  // 作品名の表記 → 作品：aliases の id → { id, type: 'work', brand, key, workId, createdAt }
   let suggestIgnore = [];       // 「別の作品」とした候補の組（グループIDを並べた文字列）
   let backupInfo = { lastExportAt: 0 };
+  let costs = { feeRate: null, items: [] }; // コスト・手数料（INTELの純利益用）。items：[{ id, ym, name, amount, createdAt }]
   let workSel = new Set();      // 作品別売上で「まとめる」ために選んだ行（グループID）
   let txWorkFilter = null;      // 取引履歴の作品での絞り込み { gid, name }
   let mergeGids = [];           // 「作品をまとめる」の対象
@@ -316,6 +325,7 @@
       id: b.id,
       name: b.name.slice(0, BRAND_NAME_MAX),
       color: RE_HEX6.test(b.color) ? b.color : BRAND_PALETTE[0],
+      intelLabel: typeof b.intelLabel === 'string' ? b.intelLabel.slice(0, INTEL_LABEL_MAX) : '', // INTELパネルでの表示名（空なら「ブランド1」など）
       createdAt: Number(b.createdAt) || 0,
     })).sort((a, b) => a.createdAt - b.createdAt);
   }
@@ -341,7 +351,189 @@
     custSuggestIgnore = Array.isArray(cign) ? cign.filter((s) => typeof s === 'string') : [];
     const bi = sMap.get('backup');
     backupInfo = { lastExportAt: Number(bi && bi.lastExportAt) || 0 };
+    costs = sanitizeCosts(sMap.get('costs'));
     profiles = new Map(profs.map((p) => [p.id, p]));
+  }
+
+  /* ===================== コスト・手数料（INTELの純利益用） ===================== */
+  const RE_YM = /^\d{4}-(0[1-9]|1[0-2])$/;
+  function sanitizeFeeRate(v) {
+    const n = Number(v);
+    return v !== null && v !== '' && Number.isFinite(n) && n >= 0 && n <= FEE_RATE_MAX ? Math.round(n * 10) / 10 : null;
+  }
+  function sanitizeCosts(v) {
+    const src = v && typeof v === 'object' ? v : {};
+    const items = (Array.isArray(src.items) ? src.items : []).filter((x) => x && typeof x.id === 'string' && RE_YM.test(x.ym)
+      && typeof x.name === 'string' && Number.isInteger(x.amount) && x.amount >= 0 && x.amount <= COST_AMOUNT_MAX)
+      .slice(0, COST_ITEMS_MAX)
+      .map((x) => ({ id: x.id, ym: x.ym, name: x.name.slice(0, COST_NAME_MAX), amount: x.amount, createdAt: Number(x.createdAt) || 0 }));
+    return { feeRate: sanitizeFeeRate(src.feeRate), items };
+  }
+  async function saveCosts() { await putOne(S_SETTINGS, { key: 'costs', value: costs }); }
+  function costOfMonth(ym) { return costs.items.reduce((s, x) => s + (x.ym === ym ? x.amount : 0), 0); }
+  function feeOf(net) { return costs.feeRate == null || net <= 0 ? 0 : Math.round(net * costs.feeRate / 100); }
+  function localYmd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+  function shiftYm(ym, delta) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  }
+  function netOfMonth(ym) { return txAll.reduce((s, t) => s + (t.ym === ym && t.kind !== 'ignore' ? (t.amount || 0) : 0), 0); }
+
+  /* ===================== INTEL連携（本体へ要約を送る） ===================== */
+  // 送るのは月別×ブランドの差引合計・今月と前月の日別合計・ブランドの表示名（別名）と色・最終取込日・コストの月合計・手数料率だけ。
+  // 本体は Stage に開いているのが RECON のときだけ受け付けて保存する（js/main.js「INTEL」）
+  function intelLabelOf(b, i) { return (b.intelLabel || '').trim() || `名義${i + 1}`; }
+  function buildIntelFeed() {
+    const today = localYmd(new Date());
+    const curYm = today.slice(0, 7);
+    const prevYm = shiftYm(curYm, -1);
+    const oldest = shiftYm(curYm, -(INTEL_FEED_MONTHS - 1));
+    const months = new Map();
+    const daily = { [curYm]: new Array(31).fill(0), [prevYm]: new Array(31).fill(0) };
+    const monthOf = (ym) => {
+      if (!months.has(ym)) months.set(ym, { ym, total: 0, byBrand: {}, cost: 0 });
+      return months.get(ym);
+    };
+    txAll.forEach((t) => {
+      if (t.kind === 'ignore' || !RE_YM.test(t.ym) || t.ym < oldest || t.ym > curYm) return;
+      const a = t.amount || 0;
+      const m = monthOf(t.ym);
+      m.total += a;
+      m.byBrand[t.brand] = (m.byBrand[t.brand] || 0) + a;
+      const day = Number(String(t.date).slice(8, 10));
+      if (daily[t.ym] && day >= 1 && day <= 31) daily[t.ym][day - 1] += a;
+    });
+    costs.items.forEach((x) => { if (x.ym >= oldest && x.ym <= curYm) monthOf(x.ym).cost += x.amount; });
+    const lastImport = new Map();
+    imports.forEach((imp) => {
+      const d = localYmd(new Date(imp.importedAt));
+      if (!lastImport.has(imp.brand) || lastImport.get(imp.brand) < d) lastImport.set(imp.brand, d);
+    });
+    return {
+      today, curYm, prevYm, hasData: txAll.length > 0, feeRate: costs.feeRate,
+      months: Array.from(months.values()).sort((a, b) => (a.ym < b.ym ? 1 : -1)),
+      daily,
+      brands: brands.map((b, i) => ({ id: b.id, label: intelLabelOf(b, i), color: b.color, lastImport: lastImport.get(b.id) || '' })),
+    };
+  }
+  let intelFeedTimer = null;
+  function scheduleIntelFeed() {
+    if (window.parent === window) return; // SIDE-OPSの外で開いているときは送らない
+    clearTimeout(intelFeedTimer);
+    intelFeedTimer = setTimeout(() => {
+      try {
+        const targetOrigin = location.origin && location.origin !== 'null' ? location.origin : '*';
+        window.parent.postMessage({ type: 'sideops:panel-feed', version: 1, panel: 'intel', feed: 'sales', data: buildIntelFeed() }, targetOrigin);
+      } catch (e) { console.error('INTELへの送信に失敗しました', e); }
+    }, 200);
+  }
+
+  function costMonthChoices() {
+    const cur = localYmd(new Date()).slice(0, 7);
+    const set = new Set();
+    for (let i = 0; i < INTEL_FEED_MONTHS; i++) set.add(shiftYm(cur, -i));
+    costs.items.forEach((x) => set.add(x.ym));
+    return Array.from(set).sort().reverse();
+  }
+  function renderCostModal() {
+    const sel = $('costMonth');
+    const keep = sel.value || localYmd(new Date()).slice(0, 7);
+    sel.textContent = '';
+    costMonthChoices().forEach((ym) => {
+      const o = el('option', '', fmtYm(ym) + (costOfMonth(ym) ? `（${yen(costOfMonth(ym))}）` : ''));
+      o.value = ym;
+      sel.append(o);
+    });
+    sel.value = keep;
+    if (!sel.value) sel.selectedIndex = 0;
+    const ym = sel.value;
+    const fr = $('costFeeRate');
+    if (document.activeElement !== fr) fr.value = costs.feeRate == null ? '' : String(costs.feeRate);
+
+    const net = netOfMonth(ym);
+    const fee = feeOf(net);
+    const cost = costOfMonth(ym);
+    const sum = $('costSummary');
+    sum.textContent = '';
+    const add = (k, v, cls) => { sum.append(el('dt', '', k), el('dd', 'num' + (cls ? ' ' + cls : ''), v)); };
+    add('売上（差引・税込）', yen(net));
+    add('手数料（概算）', costs.feeRate == null ? '未設定' : `−${yen(fee)}（${costs.feeRate}%）`);
+    add('コスト', cost ? '−' + yen(cost) : yen(0));
+    add('純利益', yen(net - fee - cost), net - fee - cost < 0 ? 'is-neg' : 'is-net');
+
+    const box = $('costRows');
+    box.textContent = '';
+    const rows = costs.items.filter((x) => x.ym === ym).sort((a, b) => a.createdAt - b.createdAt);
+    if (!rows.length) box.append(el('div', 'hist-empty', 'この月のコストはまだありません。'));
+    rows.forEach((x) => {
+      const row = el('div', 'cost-row');
+      row.append(el('span', 'cost-name', x.name), el('span', 'cost-amount num', yen(x.amount)));
+      const del = el('button', 'btn danger', '削除');
+      del.type = 'button';
+      del.addEventListener('click', async () => {
+        const ok = await confirmDialog(`${fmtYm(ym)}のコスト「${x.name}」（${yen(x.amount)}）を削除しますか？`, '削除する');
+        if (!ok) return;
+        costs.items = costs.items.filter((c) => c.id !== x.id);
+        await persistCosts();
+      });
+      row.append(del);
+      box.append(row);
+    });
+    const prevYm = shiftYm(ym, -1);
+    const prevCount = costs.items.filter((x) => x.ym === prevYm).length;
+    $('costCopyPrev').disabled = !prevCount;
+    $('costCopyPrev').textContent = prevCount ? `${fmtYm(prevYm)}の項目をコピー（${prevCount}件）` : `${fmtYm(prevYm)}の項目はありません`;
+  }
+  async function persistCosts() {
+    try { await saveCosts(); } catch (e) { console.error('コストの保存に失敗しました', e); showToast('コストを保存できませんでした', true); }
+    renderCostModal();
+    renderBackupAlert();
+    scheduleIntelFeed();
+  }
+  function parseCostAmount(v) {
+    const s = nfkc(v).replace(/[,，円\s]/g, '');
+    if (!/^\d+$/.test(s)) return null;
+    const n = Number(s);
+    return Number.isSafeInteger(n) && n <= COST_AMOUNT_MAX ? n : null;
+  }
+  async function addCost() {
+    const ym = $('costMonth').value;
+    const name = cleanName($('costName').value).slice(0, COST_NAME_MAX);
+    const amount = parseCostAmount($('costAmount').value);
+    const err = $('costError');
+    if (!RE_YM.test(ym)) { err.textContent = '月を選んでください'; return; }
+    if (!name) { err.textContent = '項目の名前を入れてください（例：素材サイト、広告）'; return; }
+    if (amount === null) { err.textContent = `金額は0〜${yen(COST_AMOUNT_MAX)}の整数で入れてください`; return; }
+    if (costs.items.length >= COST_ITEMS_MAX) { err.textContent = `コストは${COST_ITEMS_MAX}件までです`; return; }
+    err.textContent = '';
+    costs.items.push({ id: 'c_' + Date.now().toString(36) + randId(4), ym, name, amount, createdAt: Date.now() });
+    $('costName').value = '';
+    $('costAmount').value = '';
+    await persistCosts();
+    showToast(`${fmtYm(ym)}に「${name}」${yen(amount)}を追加しました`);
+  }
+  async function copyPrevCosts() {
+    const ym = $('costMonth').value;
+    const prevYm = shiftYm(ym, -1);
+    const have = new Set(costs.items.filter((x) => x.ym === ym).map((x) => normKey(x.name)));
+    const add = costs.items.filter((x) => x.ym === prevYm && !have.has(normKey(x.name)));
+    if (!add.length) { showToast('コピーする項目はありません（同じ名前の項目はすでにあります）'); return; }
+    if (costs.items.length + add.length > COST_ITEMS_MAX) { showToast(`コストは${COST_ITEMS_MAX}件までです`, true); return; }
+    const now = Date.now();
+    add.forEach((x, i) => costs.items.push({ id: 'c_' + (now + i).toString(36) + randId(4), ym, name: x.name, amount: x.amount, createdAt: now + i }));
+    await persistCosts();
+    showToast(`${add.length}件をコピーしました（同じ名前の項目は飛ばしています）`);
+  }
+  async function changeFeeRate() {
+    const raw = nfkc($('costFeeRate').value).replace(/[%％\s]/g, '');
+    const err = $('costError');
+    if (raw === '') { costs.feeRate = null; err.textContent = ''; await persistCosts(); return; }
+    const v = sanitizeFeeRate(raw);
+    if (v === null) { err.textContent = `手数料は0〜${FEE_RATE_MAX}%で入れてください（空欄なら引きません）`; $('costFeeRate').value = costs.feeRate == null ? '' : String(costs.feeRate); return; }
+    err.textContent = '';
+    costs.feeRate = v;
+    await persistCosts();
   }
 
   async function ensureNoteProfile() {
@@ -2030,6 +2222,7 @@
     let t = 0;
     const see = (x) => { const c = Number(x.createdAt) || 0; if (c && (!t || c < t)) t = c; };
     [workAliases, buyerAliases, buyerTxAliases, readersById].forEach((m) => m.forEach(see));
+    costs.items.forEach(see); // コストも手入力（CSVから作り直せない。2026-11-26）
     return t;
   }
   function backupStatus() {
@@ -2147,6 +2340,7 @@
     renderCustomers();
     renderBackupAlert();
     if (preview) renderPreview();
+    scheduleIntelFeed();
   }
 
   /* ===================== ブランドの管理 ===================== */
@@ -2178,6 +2372,19 @@
         b.name = v.name;
         await persistBrands();
       });
+      const label = el('input', 'field-input brand-intel');
+      label.type = 'text';
+      label.maxLength = INTEL_LABEL_MAX;
+      label.value = b.intelLabel || '';
+      label.placeholder = `INTELでの短い表示名（空欄なら「${intelLabelOf({}, brands.indexOf(b))}」）`;
+      label.setAttribute('aria-label', 'INTELパネルでの表示名');
+      label.addEventListener('change', async () => {
+        b.intelLabel = cleanName(label.value).slice(0, INTEL_LABEL_MAX);
+        label.value = b.intelLabel;
+        await persistBrands();
+      });
+      const names = el('div', 'brand-names');
+      names.append(name, label);
       const del = el('button', 'btn danger', '削除');
       del.type = 'button';
       const inUse = brandInUse(b.id);
@@ -2192,7 +2399,7 @@
         await persistBrands();
         renderBrandModal();
       });
-      row.append(color, name, del);
+      row.append(color, names, del);
       box.append(row);
     });
     $('newBrandColor').value = BRAND_PALETTE[brands.length % BRAND_PALETTE.length];
@@ -2300,11 +2507,17 @@
     if (!btn) return;
     closeMenu();
     if (btn.dataset.action === 'brands') { brandModalFromPreview = false; renderBrandModal(); openModal('brandsOverlay'); }
+    if (btn.dataset.action === 'costs') { renderCostModal(); openModal('costOverlay'); }
     if (btn.dataset.action === 'storage') { renderStorageModal(); openModal('storageOverlay'); }
     if (btn.dataset.action === 'backupExport') exportBackup();
     if (btn.dataset.action === 'backupImport') $('backupFile').click();
     if (btn.dataset.action === 'mask') toggleMask();
   });
+  $('costMonth').addEventListener('change', renderCostModal);
+  $('costFeeRate').addEventListener('change', changeFeeRate);
+  $('costAdd').addEventListener('click', addCost);
+  $('costAmount').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) addCost(); });
+  $('costCopyPrev').addEventListener('click', copyPrevCosts);
   $('backupFile').addEventListener('change', () => {
     const f = $('backupFile').files && $('backupFile').files[0];
     $('backupFile').value = '';
@@ -2315,7 +2528,7 @@
   });
 
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
-  const MODAL_IDS = ['brandsOverlay', 'storageOverlay', 'workMergeOverlay', 'workEditOverlay', 'custOverlay'];
+  const MODAL_IDS = ['brandsOverlay', 'costOverlay', 'storageOverlay', 'workMergeOverlay', 'workEditOverlay', 'custOverlay'];
   MODAL_IDS.forEach((id) => {
     $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeModal(id); });
   });

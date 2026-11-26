@@ -136,74 +136,13 @@
   <!-- ===== RIGHT: 現況（固定高さ） + 通知（残りを埋める） ===== -->
   <div class="right-col">
   <div class="intel-grid">
-    <!-- 1. 売上 -->
-    <div class="panel intel-card">
-      <span class="panel-corner"></span>
-      <div class="intel-left">
-        <div class="label">今月の売上合計</div>
-        <div class="value">18,420<span class="unit">円</span></div>
-        <div class="delta up">▲ 22.4% <span class="prevlabel">先月比</span></div>
-      </div>
-      <div class="intel-ring">
-        <svg viewBox="0 0 36 36">
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-soft)" stroke-width="3.2"></circle>
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="3.2"
-            stroke-linecap="round" stroke-dasharray="63 100" stroke-dashoffset="0"></circle>
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--amber)" stroke-width="3.2"
-            stroke-linecap="round" stroke-dasharray="37 100" stroke-dashoffset="-64"></circle>
-        </svg>
-        <div class="ring-label"><span class="rl-name">SALES</span></div>
-      </div>
-      <div class="intel-legend-divider"></div>
-      <div class="intel-legend">
-        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--cyan)"></span>しーば4</span><span class="lg-pct">63%</span></div>
-        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--amber)"></span>藤岡香織</span><span class="lg-pct">37%</span></div>
-      </div>
-    </div>
-
-    <!-- 2. 稼働時間 -->
-    <div class="panel intel-card">
-      <span class="panel-corner"></span>
-      <div class="intel-left">
-        <div class="label">今月の総稼働時間</div>
-        <div class="value">42.5<span class="unit">h</span></div>
-        <div class="delta up">▲ 5.2% <span class="prevlabel">先月比</span></div>
-      </div>
-      <div class="intel-ring">
-        <svg viewBox="0 0 36 36">
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-soft)" stroke-width="3.2"></circle>
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--cyan)" stroke-width="3.2"
-            stroke-linecap="round" stroke-dasharray="48 100" stroke-dashoffset="0"></circle>
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--amber)" stroke-width="3.2"
-            stroke-linecap="round" stroke-dasharray="34 100" stroke-dashoffset="-49"></circle>
-          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--magenta)" stroke-width="3.2"
-            stroke-linecap="round" stroke-dasharray="18 100" stroke-dashoffset="-83"></circle>
-        </svg>
-        <div class="ring-label"><span class="rl-name">HOURS</span></div>
-      </div>
-      <div class="intel-legend-divider"></div>
-      <div class="intel-legend">
-        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--cyan)"></span>しーば4</span><span class="lg-pct">48%</span></div>
-        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--amber)"></span>藤岡香織</span><span class="lg-pct">34%</span></div>
-        <div class="lg-row"><span class="lg-name"><span class="lg-dot" style="background:var(--magenta)"></span>広告運用</span><span class="lg-pct">18%</span></div>
-      </div>
-    </div>
-
-    <!-- 3. コスト / 純利益（横並び） -->
-    <div class="panel intel-card">
-      <span class="panel-corner"></span>
-      <div class="cost-profit-row">
-        <div class="cp-item cost">
-          <span class="cp-label">今月の総コスト</span>
-          <span class="cp-value">3,200<span class="unit">円</span></span>
-        </div>
-        <div class="cp-mid-divider"></div>
-        <div class="cp-item profit">
-          <span class="cp-label">今月の純利益</span>
-          <span class="cp-value">15,220<span class="unit">円</span></span>
-        </div>
-      </div>
-    </div>
+    <!-- 中身は js/main.js「INTEL」が、アプリから届いた要約で描く（2026-11-26。それまでのダミーの値は外した） -->
+    <!-- 1. 売上（RECON） -->
+    <div class="panel intel-card" id="intelSales"><span class="panel-corner"></span></div>
+    <!-- 2. 執筆（MANUSCRIPT：今月公開した章） -->
+    <div class="panel intel-card" id="intelWriting"><span class="panel-corner"></span></div>
+    <!-- 3. コスト / 純利益（RECONの☰「コスト・手数料」） -->
+    <div class="panel intel-card" id="intelCost"><span class="panel-corner"></span></div>
   </div>
 
   <!-- ===== RIGHT-BOTTOM: log (JSで動的生成。外部メール連携の通知のみを表示) ===== -->
@@ -293,6 +232,15 @@
         <label class="float-setting-check"><input type="checkbox" id="floatClockToggle" checked> 時計を出す</label>
       </div>
       <div><button class="btn" id="floatResetPosBtn" type="button">置き場所を元に戻す</button></div>
+    </div>
+
+    <!-- INTELパネル（2026-11-26。この端末だけの設定） -->
+    <div class="settings-row settings-row-col">
+      <div class="settings-row-label">INTELパネル</div>
+      <div class="settings-row-hint">売上はRECON、公開した章はMANUSCRIPT、コストと手数料はRECONの☰「コスト・手数料」から届きます。アプリを開くたびに新しくなります。画面を人に見せるときは金額を伏せられます（この端末だけの設定）。</div>
+      <div class="float-setting-checks">
+        <label class="float-setting-check"><input type="checkbox" id="intelMaskToggle"> 金額を伏せる</label>
+      </div>
     </div>
 
     <div class="settings-row">

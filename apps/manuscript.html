@@ -1786,6 +1786,7 @@
   function put(name, value) {
     return new Promise((resolve, reject) => {
       const req = store(name, 'readwrite').put(value);
+      if (name === S.chapters || name === S.works) scheduleIntelFeed();
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
@@ -1793,12 +1794,55 @@
   function del(name, id) {
     return new Promise((resolve, reject) => {
       const req = store(name, 'readwrite').delete(id);
+      if (name === S.chapters || name === S.works) scheduleIntelFeed();
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   }
   async function delSafe(name, id) {
     try { await del(name, id); return true; } catch (err) { console.error('削除に失敗しました', name, id, err); return false; }
+  }
+
+  /* ===================== INTEL連携（2026-11-26） =====================
+     SIDE-OPS本体のINTELパネル（2枠目）へ、章の「公開日」の数だけを送る。作品名・本文は送らない。
+     本体は Stage に開いているのが MANUSCRIPT のときだけ受け付けて保存する（js/main.js「INTEL」） */
+  let intelFeedTimer = null;
+  function intelYmd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function intelShiftYm(ym, delta) { const [y, m] = ym.split('-').map(Number); return intelYmd(new Date(y, m - 1 + delta, 1)).slice(0, 7); }
+  function buildIntelFeed() {
+    const today = intelYmd(new Date());
+    const curYm = today.slice(0, 7);
+    const prevYm = intelShiftYm(curYm, -1);
+    const oldest = intelShiftYm(curYm, -23);
+    const months = new Map();
+    const daily = { [curYm]: new Array(31).fill(0), [prevYm]: new Array(31).fill(0) };
+    let waiting = 0, drafting = 0;
+    const live = new Set(works.map((w) => w.id));
+    chapters.forEach((c) => {
+      if (!live.has(c.workId)) return;
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(c.publishedAt) ? c.publishedAt : '';
+      if (d) {
+        const ym = d.slice(0, 7);
+        if (ym >= oldest && ym <= curYm) months.set(ym, (months.get(ym) || 0) + 1);
+        if (daily[ym]) daily[ym][Number(d.slice(8, 10)) - 1]++;
+      } else if (c.done) waiting++;
+      else if ((c.final || '').trim()) drafting++;
+    });
+    return {
+      today, curYm, prevYm,
+      months: Array.from(months, ([ym, published]) => ({ ym, published })).sort((a, b) => (a.ym < b.ym ? 1 : -1)),
+      daily, waiting, drafting,
+    };
+  }
+  function scheduleIntelFeed() {
+    if (window.parent === window) return; // SIDE-OPSの外で開いているときは送らない
+    clearTimeout(intelFeedTimer);
+    intelFeedTimer = setTimeout(() => {
+      try {
+        const targetOrigin = location.origin && location.origin !== 'null' ? location.origin : '*';
+        window.parent.postMessage({ type: 'sideops:panel-feed', version: 1, panel: 'intel', feed: 'writing', data: buildIntelFeed() }, targetOrigin);
+      } catch (err) { console.error('INTELへの送信に失敗しました', err); }
+    }, 400);
   }
 
   /* ===================== state ===================== */
@@ -2411,6 +2455,7 @@
   }
   function renderAll() {
     updateCounts();
+    scheduleIntelFeed();
     if (currentView === 'neta') renderNeta();
     else if (currentView === 'works') renderWorks();
     else if (currentView === 'shelf') renderShelf();

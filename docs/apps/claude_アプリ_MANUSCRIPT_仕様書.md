@@ -638,6 +638,15 @@ JSON形式：`{ app:"sideops_manuscript", schemaVersion:3, scope:"all"|"work", e
 
 章の公開URLが`https://note.com/<ユーザー>/n/<記事ID>`の形なら、記事ID（`n`から始まる文字列）を`chapters[].noteId`に自動で記録する。note記事IDは記事の一意キーとして不変のため、将来INTELパネルの`works`（`note連携_仕様書.md`）と突合する際の鍵になる。note以外のURLは記録のみで記事IDは空。
 
+## INTELパネルへの送信（2026-11-26）
+
+SIDE-OPS本体のINTELパネル2枠目（執筆）に、章の数だけを送る。**作品名・章の題・本文は送らない**。
+
+- タイミング：`works`・`chapters`を保存・削除したとき（`put`・`del`）と`renderAll()`のたびに、400ms待ってまとめて送る。SIDE-OPSの外で直接開いているときは送らない
+- メッセージ：`{ type: 'sideops:panel-feed', version: 1, panel: 'intel', feed: 'writing', data }`
+- `data`：`today`・`curYm`・`prevYm`・`months`（直近24か月の`{ ym, published }`＝公開日`publishedAt`がその月の章の数）・`daily`（今月と前月の日別、31個ずつ）・`waiting`（完成にしたが公開日のない章）・`drafting`（本文`final`があり、まだ完成にしていない章）。作品が消えた章は数えない
+- 本体側の受け取り・表示は`ダッシュボードパネル群_仕様書.md`の「INTEL」
+
 ## フールプルーフ
 
 **保存まわり**

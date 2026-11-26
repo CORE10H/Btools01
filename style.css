@@ -831,11 +831,11 @@
     padding: 8px 16px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     min-height: 0;
     overflow: hidden;
   }
-  .intel-left { flex-shrink: 0; }
+  .intel-left { flex-shrink: 0; max-width: 112px; }
   .intel-left .label { font-size: 10px; color: var(--label-color); letter-spacing: .04em; margin-bottom: 4px; }
   .intel-left .value {
     font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1; color: var(--text);
@@ -848,6 +848,9 @@
   }
   .intel-left .delta.up { color: var(--cyan); }
   .intel-left .delta.down { color: var(--magenta); }
+  .intel-left .delta.flat { color: var(--text-faint); }
+  .intel-left .intel-note { margin-top: 3px; font-size: 9px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .intel-left .intel-warn { margin-left: 4px; padding: 0 4px; border: 1px solid var(--amber); color: var(--amber); font-weight: 700; }
   .intel-left .delta .prevlabel { color: var(--text-faint); font-family: var(--font-body); font-weight: 400; margin-left: 2px; }
 
   /* big donut ring, centered */
@@ -888,9 +891,9 @@
     min-width: 0;
   }
   .intel-legend .lg-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 4px;
   }
-  .intel-legend .lg-name { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .intel-legend .lg-name { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .intel-legend .lg-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
   .intel-legend .lg-pct { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--text); flex-shrink: 0; }
 
@@ -906,6 +909,8 @@
   .cp-item .cp-value .unit { font-size: 11px; font-weight: 500; color: var(--text-faint); }
   .cp-item.profit .cp-value { color: var(--cyan); }
   .cp-item.cost .cp-value { color: var(--magenta); }
+  .cp-item.profit.is-neg .cp-value { color: var(--magenta); }
+  .cp-item .cp-sub { font-size: 9px; color: var(--text-faint); white-space: nowrap; }
   .cp-mid-divider { width: 1px; align-self: stretch; background: var(--line-soft); margin: 0 20px; flex-shrink: 0; }
 
 

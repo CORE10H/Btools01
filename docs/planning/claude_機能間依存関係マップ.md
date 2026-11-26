@@ -83,7 +83,7 @@ MANUSCRIPTは章の公開URLからnote記事ID（`n`から始まる不変の文�
 どちらも「執筆準備プロンプトの生成→外部LLM生成→整形」という同型の役割を持つが、SCAFFOLDは③（LLM出力を固定見出しで解析しAIのべりすとの複数入力欄へ分別するパース処理）を必須で持つ点がSCRIBITと本質的に異なる。統合案は検討したが、パースの有無で必要な工程数・データ構造が変わり複雑化するため見送り、独立アプリとして維持する方針で確定（`アプリ_SCAFFOLD_仕様書.md`参照）。
 
 ### note連携 → RECON → INTELパネル（ダッシュボードパネル群）
-note連携で設計したINTELパネルの内部データ（readers/works/transactions）は、**正本をRECON（`sideops_recon`）に移した**（2026-09-30）。3層構造・完全一致・隔離の考え方はそのまま引き継ぎ、ブランド軸・決済種別の3択などを加えている（`アプリ_RECON_仕様書.md`）。INTELパネルは、RECONの段階2で`sideops:panel-feed`により「集計済みの要約」（月別×ブランドの合計など。個人名なし）を受け取り、本体の`sideops_settings`に保存して売上枠に表示する予定（未実装）。本体がRECONのDBを直接読む設計にはしない（versionchangeのブロック・空のDBを作ってしまう罠のため）。`sideops:panel-feed`はDONE MORE→タスクパネルの連携にも流用する想定。
+note連携で設計したINTELパネルの内部データ（readers/works/transactions）は、**正本をRECON（`sideops_recon`）に移した**（2026-09-30）。3層構造・完全一致・隔離の考え方はそのまま引き継ぎ、ブランド軸・決済種別の3択などを加えている（`アプリ_RECON_仕様書.md`）。INTELパネルは、RECONの段階2で`sideops:panel-feed`により「集計済みの要約」（月別×ブランドの合計など。個人名なし）を受け取り、本体の`sideops_settings`に保存して売上枠・コスト枠に表示する（2026-11-26実装。コストと手数料の概算もRECONの☰で入力して一緒に送る）。MANUSCRIPTも同じ仕組みで「今月公開した章」を送り、2枠目に表示する（`feed:intel-writing`）。本体がRECONのDBを直接読む設計にはしない（versionchangeのブロック・空のDBを作ってしまう罠のため）。`sideops:panel-feed`はDONE MORE→タスクパネルの連携にも流用する想定。
 
 ### タスクパネル（ダッシュボードパネル群） → DONE MORE
 タスクパネルは表示のみでデータを持たず、DONE MORE側のDB（`sideops_donemore`）と連携する設計だが未実装。連携するときは、RECON→INTELと同じ`sideops:panel-feed`（アプリが要約を送り、本体が検証して保存する方式）を使う。
