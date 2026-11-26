@@ -644,7 +644,7 @@ SIDE-OPS本体のINTELパネル2枠目（執筆）に、章の数だけを送る
 
 - タイミング：`works`・`chapters`を保存・削除したとき（`put`・`del`）と`renderAll()`のたびに、400ms待ってまとめて送る。SIDE-OPSの外で直接開いているときは送らない
 - メッセージ：`{ type: 'sideops:panel-feed', version: 1, panel: 'intel', feed: 'writing', data }`
-- `data`：`today`・`curYm`・`prevYm`・`months`（直近24か月の`{ ym, published }`＝公開日`publishedAt`がその月の章の数）・`daily`（今月と前月の日別、31個ずつ）・`waiting`（完成にしたが公開日のない章）・`drafting`（本文`final`があり、まだ完成にしていない章）。作品が消えた章は数えない
+- `data`：`today`・`curYm`・`prevYm`・`months`（直近24か月の`{ ym, published }`＝公開日`publishedAt`がその月の章の数）・`daily`（今月と前月の日別、31個ずつ）・`waiting`（完成にしたが公開日のない章）・`drafting`（本文`final`があり、まだ完成にしていない章）。作品が消えた章は数えない。`backup: { base, last, alertDays: 7 }`（☰の「バックアップ」の印と同じ数え方。データがなければ`base`は0）も入れ、印を更新するとき（`updateBackupAlert`）にも送り直す（LOGパネルの「バックアップ忘れ」用）
 - 本体側の受け取り・表示は`ダッシュボードパネル群_仕様書.md`の「INTEL」
 
 ## フールプルーフ

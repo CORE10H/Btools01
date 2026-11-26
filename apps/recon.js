@@ -415,6 +415,8 @@
       months: Array.from(months.values()).sort((a, b) => (a.ym < b.ym ? 1 : -1)),
       daily,
       brands: brands.map((b, i) => ({ id: b.id, label: intelLabelOf(b, i), color: b.color, lastImport: lastImport.get(b.id) || '' })),
+      // バックアップ忘れ（LOGパネル用。2026-11-26）：base＝日数を数え始める時刻（手作業のデータがなければ0＝知らせない）
+      backup: (() => { const since = manualDataSince(); return { base: since ? (backupInfo.lastExportAt || since) : 0, last: backupInfo.lastExportAt || 0, alertDays: BACKUP_WARN_DAYS }; })(),
     };
   }
   let intelFeedTimer = null;
@@ -2246,6 +2248,7 @@
     return { needed: true, never: !backupInfo.lastExportAt, days, warn: days >= BACKUP_WARN_DAYS };
   }
   function renderBackupAlert() {
+    scheduleIntelFeed(); // 書き出した・手作業のデータが増えたことを本体のLOGへ（まとめて送る）
     const st = backupStatus();
     const item = $('menuBackupExport');
     let label = 'バックアップを書き出す';

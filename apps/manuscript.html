@@ -1828,10 +1828,15 @@
       } else if (c.done) waiting++;
       else if ((c.final || '').trim()) drafting++;
     });
+    // バックアップ忘れ（LOGパネル用）：base＝日数を数え始める時刻（データがなければ0＝知らせない）。数え方は updateBackupAlert と同じ
+    const hasData = works.length > 0 || netaList.length > 0;
+    const last = (meta && meta.lastFullExportAt) || 0;
+    const base = !hasData ? 0 : (last || Math.min(...works.map((x) => x.createdAt), ...netaList.map((x) => x.createdAt)));
     return {
       today, curYm, prevYm,
       months: Array.from(months, ([ym, published]) => ({ ym, published })).sort((a, b) => (a.ym < b.ym ? 1 : -1)),
       daily, waiting, drafting,
+      backup: { base: Number.isFinite(base) ? base : 0, last, alertDays: BACKUP_ALERT_DAYS },
     };
   }
   function scheduleIntelFeed() {
@@ -2390,6 +2395,7 @@
      バックアップ忘れの警告
   ===================================================================== */
   function updateBackupAlert() {
+    scheduleIntelFeed(); // 書き出したことを本体のLOGへ
     const hasData = works.length > 0 || netaList.length > 0;
     const note = $('menuBackupNote');
     if (!hasData) { menuBtn.classList.remove('has-alert'); note.textContent = ''; note.classList.remove('is-alert'); return; }

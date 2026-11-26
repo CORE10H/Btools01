@@ -2634,6 +2634,13 @@
         else if (p) { cls = 'sync-ok'; title = `${p.label}と同期しています（最後の同期：${last}）`; }
         if (cls) openBtn.classList.add(cls);
         openBtn.title = title + (p ? '\n長押し：同期せずに☁の画面を開く' : '');
+        // 本体のLOGパネルへ知らせる（js/main.js「データを守るための知らせ」。2026-11-26）。同期中の途中経過は送らない
+        if (state !== 'busy') {
+          window.dispatchEvent(new CustomEvent('sideops:sync-state', { detail: {
+            connected: !!p, providerLabel: p ? p.label : '', error: !!indicatorError, login: !!(p && login === 'login'),
+            stale: !!stale, lastSyncAt: (status && status.lastSyncAt) || 0,
+          } }));
+        }
       } catch (err) { /* 印が出せなくても同期には影響しない */ }
     }
 

@@ -221,6 +221,7 @@ noteの「記事の販売履歴」CSV（ダッシュボード→販売履歴→�
 - `data`：`today`（端末の日付）・`curYm`・`prevYm`・`hasData`・`feeRate`・`months`（直近24か月の`{ ym, total, byBrand: { ブランドID: 差引 }, cost }`）・`daily`（今月と前月の日別の差引、31個ずつ）・`brands`（`{ id, label（intelLabel）, color, lastImport（そのブランドの最後の取込日） }`）。**購入者名・作品名・ブランドの本名は送らない**
 - 本体側の受け取り・表示は`ダッシュボードパネル群_仕様書.md`の「INTEL」
 - LOGパネルへ：取込の確定・取消の直後に`{ type: 'sideops:log-event', version: 1, kind: 'recon-import'|'recon-undo', count, label（INTEL用の表示名） }`を送る（2026-11-26）。文面は本体が組み立てる
+- INTELの要約に`backup: { base, last, alertDays: 7 }`も入れる（LOGパネルの「バックアップ忘れ」用）。`base`は「最後に書き出した時刻、なければ手作業のデータができた時刻」、手作業のデータがなければ0。☰の印が変わるとき（`renderBackupAlert`）にも送り直す
 
 ## バックアップ（2026-10-02追加）
 

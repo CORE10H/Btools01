@@ -2658,7 +2658,17 @@
       .map((m) => ({ ym: m.ym, published: intelInt(m.published, 0, 1e6) || 0 }));
     return { today: d.today, months, daily: intelDaily(d.daily), waiting: intelInt(d.waiting, 0, 1e6) || 0, drafting: intelInt(d.drafting, 0, 1e6) || 0 };
   }
-  const INTEL_SANITIZE = { sales: sanitizeSalesFeed, writing: sanitizeWritingFeed };
+  // バックアップ忘れの状態（LOGパネル用）。base：日数を数え始める時刻（0＝知らせない）・last：最後に書き出した時刻・alertDays：知らせるまでの日数
+  function intelBackup(v) {
+    if (!v || typeof v !== 'object') return null;
+    const limit = Date.now() + 86400000;
+    const base = intelInt(v.base, 0, limit), last = intelInt(v.last, 0, limit), alertDays = intelInt(v.alertDays, 1, 365);
+    return base === null || last === null || alertDays === null ? null : { base, last, alertDays };
+  }
+  const INTEL_SANITIZE = {
+    sales: (d) => { const r = sanitizeSalesFeed(d); if (r) r.backup = intelBackup(d.backup); return r; },
+    writing: (d) => { const r = sanitizeWritingFeed(d); if (r) r.backup = intelBackup(d.backup); return r; },
+  };
 
   window.addEventListener('message', (e) => {
     if (!stageFrame || e.source !== stageFrame.contentWindow) return;
@@ -2670,7 +2680,7 @@
     if (!data) { console.warn('INTEL：形の合わない要約を受け取らなかった', feed); return; }
     const before = intelFeeds[feed] ? intelFeeds[feed].data : null;
     intelFeeds[feed] = { receivedAt: Date.now(), data };
-    try { logFromIntelFeed(feed, before, data); } catch (err) { console.error('LOGの出来事を作れませんでした', err); }
+    try { logFromIntelFeed(feed, before, data); checkBackupLogs(); } catch (err) { console.error('LOGの出来事を作れませんでした', err); }
     renderIntel();
     saveIntelFeed(feed);
   });
@@ -2699,6 +2709,7 @@
       }
     }
     renderIntel();
+    checkBackupLogs();
   }
 
   /* ---- 表示 ---- */
@@ -3221,6 +3232,74 @@
       addAppLog({ id: `recon-month-${prevYm}`, title: `RECON：${py}年${pm}月のまとめ　売上 ${logYen(prev.total)}・純利益 ${logYen(profit)}（概算）`, maskTitle: `RECON：${py}年${pm}月の売上がまとまりました` });
     }
   }
+
+  /* ---- データを守るための知らせ（2026-11-26）：同期・バックアップ忘れ・保存領域 ----
+     どれも「同じ状態のあいだは決まった間隔で1回だけ」（id に日付や週の番号を入れる）。通知が多すぎて大事なものが埋もれないように */
+  const DAY_MS_LOG = 86400000;
+  function logYmd(ms) { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  function logMd(ms) { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()}`; }
+
+  // バックアップ忘れ：RECON・MANUSCRIPTが送ってくる状態から、本体の今日で日数を数える（アプリを開いていなくても日は進む）。週に1回
+  function checkBackupLogs() {
+    const apps = [['sales', 'RECON'], ['writing', 'MANUSCRIPT']];
+    for (const [feed, name] of apps) {
+      const b = intelFeeds[feed] && intelFeeds[feed].data && intelFeeds[feed].data.backup;
+      if (!b || !b.base) continue;
+      const days = Math.floor((Date.now() - b.base) / DAY_MS_LOG);
+      if (days < b.alertDays) {
+        // 書き出した後：まだ未読の「バックアップ忘れ」は既読にする（済んだことで点を光らせ続けない）
+        const done = logItems.filter((n) => n.isUnread && n.id.startsWith(`app:backup-${feed}-`));
+        done.forEach((n) => { n.isUnread = false; logPut(LOG_STORE, n).catch(() => {}); });
+        if (done.length) renderLogPanel();
+        continue;
+      }
+      const week = Math.floor(days / 7);
+      addAppLog({ id: `backup-${feed}-${b.base}-${week}`, title: b.last
+        ? `${name}：バックアップを ${days} 日書き出していません（${name}の☰から書き出せます）`
+        : `${name}：バックアップをまだ一度も書き出していません（${name}の☰から書き出せます）` });
+    }
+  }
+
+  // 同期：js/sync.js が☁の印を変えるたびに知らせてくる（'sideops:sync-state'）。同期先につないでいないときは何も言わない
+  window.addEventListener('sideops:sync-state', (e) => {
+    const s = e.detail || {};
+    if (!s.connected) return;
+    const label = typeof s.providerLabel === 'string' && s.providerLabel ? s.providerLabel : '同期先';
+    const today = logYmd(Date.now());
+    if (s.error) addAppLog({ id: `sync-error-${today}`, title: '☁ 同期に失敗しました。☁を押して確かめてください' });
+    if (s.login) addAppLog({ id: `sync-login-${today}`, title: `☁ ${label}のログインが切れています（自動の同期が止まっています。☁を押すとログインできます）` });
+    const last = Number(s.lastSyncAt) || 0;
+    if (last && s.stale) {
+      const days = Math.floor((Date.now() - last) / DAY_MS_LOG);
+      addAppLog({ id: `sync-stale-${last}-${Math.floor(days / 7)}`, title: `☁ ${days} 日同期していません（最後の同期：${logMd(last)}）。ほかの端末と食い違わないよう、☁を押して同期してください` });
+    }
+  });
+
+  // 保存領域：使用量が上限の80%以上・「消されにくい保存」が無効。週に1回。ブラウザが答えないときは何もしない
+  let logPersistAsked = false; // 頼むのは開いている間に1回だけ（ブラウザによっては確認が出るため、何度も聞かない）
+  async function checkStorageLogs() {
+    if (!navigator.storage) return;
+    const week = Math.floor(Date.now() / (7 * DAY_MS_LOG));
+    try {
+      if (navigator.storage.estimate) {
+        const est = await navigator.storage.estimate();
+        const ratio = est && est.quota ? est.usage / est.quota : 0;
+        if (ratio >= 0.8) {
+          const pct = Math.floor(ratio * 100);
+          addAppLog({ id: `storage-high-${week}`, title: `保存領域が上限の ${pct}% まで使われています。容量が足りなくなると保存できなくなります。不要な画像やデータを整理してください` });
+        }
+      }
+      if (navigator.storage.persisted) {
+        let persisted = await navigator.storage.persisted();
+        // まだなら一度だけ頼む（アプリ側でもしている。Chrome は条件を満たせば黙って有効にする）
+        if (!persisted && navigator.storage.persist && !logPersistAsked) { logPersistAsked = true; persisted = await navigator.storage.persist().catch(() => false); }
+        if (!persisted) addAppLog({ id: `storage-persist-${week}`, title: '「消されにくい保存」が有効になっていません。容量が足りなくなると、ブラウザがデータを消すことがあります（ホーム画面に追加すると有効になりやすくなります）' });
+      }
+    } catch (err) { /* 確かめられない環境では何もしない */ }
+  }
+  // 起動して少ししてから1回、その後は1時間ごと（バックアップ忘れの日数もここで数え直す）
+  setTimeout(() => { checkStorageLogs(); checkBackupLogs(); }, 5000);
+  setInterval(() => { checkStorageLogs(); checkBackupLogs(); }, 60 * 60 * 1000);
 
   // アプリからの知らせ（いまは RECON の取込・取消だけ）。Stageに開いている RECON（先天的アプリ）からだけ受け付ける
   const LOG_APP_EVENTS = {
