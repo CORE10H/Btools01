@@ -618,6 +618,8 @@
             <div class="p-row"><label class="p-lab">不透明度</label><input type="range" id="pOpacity" min="0" max="100" step="1"><input type="number" id="pOpacityN" min="0" max="100" step="1"></div>
             <div class="p-row"><label class="p-lab">回転 °</label><input type="range" id="pRotR" min="-180" max="180" step="1"><input type="number" id="pRot" min="-180" max="180" step="1"></div>
             <div class="p-row"><button class="btn small" id="pCenterX" type="button">横の中央へ</button><button class="btn small" id="pCenterY" type="button">縦の中央へ</button><button class="btn small" id="pRot0" type="button">回転を0に</button></div>
+            <div class="p-row" id="pClipRow"><label class="p-lab">コマで切り抜く</label><select id="pClip" class="p-select" style="flex:1;min-width:0"></select><button class="btn small" id="pClipAuto" type="button" title="真ん中にあるコマで切り抜く">真ん中のコマ</button></div>
+            <div class="p-hint" id="pClipHint"></div>
             <div class="p-row" id="pBrushRow"><button class="btn small" id="pBrush" type="button">消しゴム・ペン</button><span class="p-hint" style="margin:0" id="pMarksInfo"></span></div>
             <div class="p-row"><button class="btn small" id="pFront" type="button">手前へ</button><button class="btn small" id="pBack" type="button">奥へ</button><button class="btn small" id="pDup" type="button">複製</button><button class="btn small" id="pCopy" type="button" title="コピーして、別の作品に貼り付けられる（Ctrl+C）">コピー</button><button class="btn small danger" id="pDel" type="button">削除</button></div>
           </div>
@@ -1310,6 +1312,7 @@
     { k: 'g', label: 'モノクロ', min: 0, max: 100, def: 0 },
     { k: 'p', label: 'セピア', min: 0, max: 100, def: 0 },
     { k: 'bl', label: 'ぼかし', min: 0, max: 60, def: 0 },
+    { k: 'tn', label: '網点', min: 0, max: 40, def: 0 }, // スクリーントーン：点の間隔（px）。0＝なし。白黒の点になる
   ];
   const FX_PRESETS = [
     { name: 'なし（元のまま）', fx: {} },
@@ -1321,6 +1324,7 @@
     { name: 'あたたか', fx: { p: 25, s: 120, b: 104 } },
     { name: 'レトロ', fx: { p: 45, c: 115, s: 75 } },
     { name: '暗く（夜）', fx: { b: 60, c: 115, s: 70, h: -10 } },
+    { name: 'トーン（網点）', fx: { c: 105, tn: 6 } },
   ];
   function normFx(src) {
     const o = {};
@@ -1423,7 +1427,7 @@
     };
     if (l.type === 'image') {
       if (typeof l.blobId !== 'string') return null;
-      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx), marks: normMarks(l.marks), deco: normDeco(l.deco) });
+      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx), marks: normMarks(l.marks), deco: normDeco(l.deco), clip: typeof l.clip === 'string' ? l.clip : null });
     }
     if (l.type === 'panel') { // 漫画のコマ：pts は中心からの角の位置。img は中に入れた画像（位置・大きさはコマの座標）
       const pts = (Array.isArray(l.pts) ? l.pts : []).slice(0, MAX_PANEL_PTS)
@@ -1442,6 +1446,7 @@
         count: Math.round(num(l.count, 140, 4, 600)), thick: num(l.thick, 6, 0.3, 200), inner: num(l.inner, 45, 0, 95),
         jitter: num(l.jitter, 50, 0, 100), cx: num(l.cx, 0, -50, 50), cy: num(l.cy, 0, -50, 50),
         color: isColor(l.color) ? l.color : '#000000', color2: isColor(l.color2) ? l.color2 : '#ffffff', seed: Math.round(num(l.seed, 1, 1, 1e9)),
+        clip: typeof l.clip === 'string' ? l.clip : null,
       });
     }
     if (l.type === 'mosaic') { // モザイク・ぼかし・塗りつぶし（下にあるものすべてにかかる）
@@ -1816,9 +1821,20 @@
     ctx.strokeStyle = 'rgba(255,47,110,.9)'; ctx.lineWidth = Math.max(2, Math.min(w, h) * 0.02);
     ctx.beginPath(); ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, h / 2); ctx.moveTo(w / 2, -h / 2); ctx.lineTo(-w / 2, h / 2); ctx.stroke();
   }
+  // コマで切り抜く：そのコマの形で clip する（コマが消えていたら、切り抜かない）。返り値：使ったコマ
+  function clipToPanel(ctx, L, opts) {
+    if (!L.clip || !opts || !opts.panels) return null;
+    const P = opts.panels.get(L.clip); if (!P || P.hidden) return null;
+    const m = ctx.getTransform();
+    ctx.translate(P.x, P.y); ctx.rotate(P.rot * Math.PI / 180); ctx.scale(P.scale, P.scale);
+    ctx.clip(panelPath(P));
+    ctx.setTransform(m);
+    return { P, m };
+  }
   function drawLayer(ctx, L, opts) {
     if (L.hidden) return;
     ctx.save();
+    const cp = clipToPanel(ctx, L, opts);
     // モザイクは画像の外まで広げない（外の部分は書き出されないので、編集の画面の背景をぼかさないように）
     if (L.type === 'mosaic' && opts && opts.clipW) { ctx.beginPath(); ctx.rect(0, 0, opts.clipW, opts.clipH); ctx.clip(); }
     ctx.translate(L.x, L.y);
@@ -1827,7 +1843,7 @@
     ctx.globalAlpha = L.opacity;
     if (L.type === 'image') {
       const c = imgCache.get(L.blobId);
-      const content = (g) => { if (c && c.img) drawImageFx(g, c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0, L.fx); else drawMissing(g, L.w0, L.h0); };
+      const content = (g) => { if (c && c.img) drawImageFx(g, c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0, L.fx, L.scale); else drawMissing(g, L.w0, L.h0); };
       if (L.deco && c && c.img) drawDecorated(ctx, L, content);
       else if (L.marks && L.marks.length) drawMarked(ctx, L.marks, { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 }, content);
       else content(ctx);
@@ -1842,6 +1858,12 @@
       const content = (g) => { drawFrame(g, L, info); drawTextBody(g, L, info); };
       if (L.marks && L.marks.length) drawMarked(ctx, L.marks, markBox(L), content);
       else content(ctx);
+    }
+    if (cp && cp.P.bw > 0) { // 切り抜いた絵がコマの枠線の内側を隠すので、枠線を上に描き直す
+      const P = cp.P;
+      ctx.setTransform(cp.m); ctx.globalAlpha = 1;
+      ctx.translate(P.x, P.y); ctx.rotate(P.rot * Math.PI / 180); ctx.scale(P.scale, P.scale);
+      ctx.lineWidth = P.bw; ctx.lineJoin = 'miter'; ctx.miterLimit = 8; ctx.strokeStyle = P.bc; ctx.stroke(panelPath(P));
     }
     ctx.restore();
   }
@@ -2055,8 +2077,64 @@
   }
   function hasFx(fx) { return !!fx && Object.keys(fx).length > 0; }
   // フィルター付きで画像を描く（filter が使えない端末では、そのまま描く）
-  function drawImageFx(ctx, img, x, y, w, h, fx) {
+  /* ---- 網点（スクリーントーン）：灰色の濃さを、45°に並んだ丸い点の大きさに置き換える（白は白・黒は黒のまま）。
+     しきい値の模様と半分ずつ混ぜて、コントラストを最大にして2値にする（画素ごとの計算をしないので速い） ---- */
+  const toneTiles = new Map();
+  function toneTile(P) { // 1辺 P px で繰り返す、しきい値の模様（点の真ん中ほど暗い＝先に黒くなる）
+    let t = toneTiles.get(P); if (t) return t;
+    t = document.createElement('canvas'); t.width = t.height = P;
+    const g = t.getContext('2d'), id = g.createImageData(P, P), d = id.data;
+    for (let j = 0; j < P; j++) for (let i = 0; i < P; i++) {
+      const x = i + 0.5, y = j + 0.5, u = (x + y) / P, v = (x - y) / P;
+      const T = 0.5 + 0.47 * (Math.cos(2 * Math.PI * u) + Math.cos(2 * Math.PI * v)) / 2;
+      const p = (j * P + i) * 4, c = Math.round((1 - T) * 255);
+      d[p] = d[p + 1] = d[p + 2] = c; d[p + 3] = 255;
+    }
+    g.putImageData(id, 0, 0);
+    toneTiles.set(P, t);
+    return t;
+  }
+  // src を網点にした新しいキャンバス（透明な所はそのまま）。cell＝点の間隔（src のピクセル）
+  function toneCanvas(src, cell) {
+    const w = src.width, h = src.height;
+    if (!FILTER_OK || w < 1 || h < 1) return src;
+    const P = Math.max(2, Math.round(Math.max(1.5, cell) * Math.SQRT2));
+    const a = document.createElement('canvas'); a.width = w; a.height = h;
+    const ga = a.getContext('2d');
+    ga.fillStyle = '#ffffff'; ga.fillRect(0, 0, w, h);
+    ga.filter = 'grayscale(1)'; ga.drawImage(src, 0, 0); ga.filter = 'none';
+    ga.globalAlpha = 0.5; ga.fillStyle = ga.createPattern(toneTile(P), 'repeat'); ga.fillRect(0, 0, w, h); ga.globalAlpha = 1;
+    const b = document.createElement('canvas'); b.width = w; b.height = h;
+    const gb = b.getContext('2d');
+    // 白（灰色 1.0）・黒（0）は必ず白・黒に残るよう、しきい値は 0.03〜0.97・コントラストは最大
+    gb.filter = 'contrast(20000%)'; gb.drawImage(a, 0, 0); gb.filter = 'none';
+    gb.globalCompositeOperation = 'destination-in'; gb.drawImage(src, 0, 0); gb.globalCompositeOperation = 'source-over';
+    return b;
+  }
+  // 網点にした画像はとっておく（同じ画像・同じフィルターなら作り直さない）
+  const toneCache = new WeakMap();
+  function tonedImage(img, fx, cellImg) {
+    const sig = JSON.stringify(fx) + '|' + cellImg.toFixed(2);
+    let m = toneCache.get(img); if (!m) { m = new Map(); toneCache.set(img, m); }
+    let c = m.get(sig);
+    if (!c) {
+      const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+      const s0 = document.createElement('canvas'); s0.width = W; s0.height = H;
+      const g = s0.getContext('2d'); g.filter = fxString(Object.assign({}, fx, { tn: undefined }), 1); g.drawImage(img, 0, 0); g.filter = 'none';
+      c = toneCanvas(s0, cellImg);
+      if (m.size >= 4) m.delete(m.keys().next().value);
+      m.set(sig, c);
+    }
+    return c;
+  }
+  // pk＝ページの1pxに対する、この絵の拡大率（網点の間隔をページのピクセルでそろえるため。重ねた画像は scale、コマの中の画像は s×コマの scale）
+  function drawImageFx(ctx, img, x, y, w, h, fx, pk) {
     if (!hasFx(fx) || !FILTER_OK) { ctx.drawImage(img, x, y, w, h); return; }
+    if (fx.tn > 0) { // 網点：点の間隔は描く先の座標（画像のピクセル）。元の画像の大きさに直して作る
+      const W = img.naturalWidth || img.width;
+      ctx.drawImage(tonedImage(img, fx, fx.tn / Math.max(0.001, pk || 1) * W / Math.max(1, w)), x, y, w, h);
+      return;
+    }
     const prev = ctx.filter;
     // ぼかしの px は画像の座標。いまの拡大率で合わせる（filter は画面のピクセルでかかるため）
     ctx.filter = fxString(fx, transformScale(ctx));
@@ -2192,7 +2270,7 @@
       ctx.save(); ctx.clip(path);
       const c = imgCache.get(L.img.blobId), m = L.img;
       ctx.translate(m.ox, m.oy); ctx.rotate(m.r * Math.PI / 180); ctx.scale(m.s, m.s);
-      if (c && c.img) { ctx.imageSmoothingQuality = 'high'; drawImageFx(ctx, c.img, -m.w0 / 2, -m.h0 / 2, m.w0, m.h0, L.fx); }
+      if (c && c.img) { ctx.imageSmoothingQuality = 'high'; drawImageFx(ctx, c.img, -m.w0 / 2, -m.h0 / 2, m.w0, m.h0, L.fx, m.s * L.scale); }
       else drawMissing(ctx, m.w0, m.h0);
       ctx.restore();
     }
@@ -2301,8 +2379,14 @@
     drawSceneRaw(g, p, opts);
     g.setTransform(1, 0, 0, 1, 0, 0);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.filter = fxString(p.pageFx, k);
-    ctx.drawImage(pageTmp, 0, 0);
+    if (p.pageFx.tn > 0) { // 仕上がり全体を網点に：フィルターをかけてから網点（点の間隔はページのピクセル → 画面のピクセルに）
+      const t2 = document.createElement('canvas'); t2.width = cv.width; t2.height = cv.height;
+      const g2 = t2.getContext('2d'); g2.filter = fxString(p.pageFx, k); g2.drawImage(pageTmp, 0, 0); g2.filter = 'none';
+      ctx.drawImage(toneCanvas(t2, p.pageFx.tn * k), 0, 0);
+    } else {
+      ctx.filter = fxString(p.pageFx, k);
+      ctx.drawImage(pageTmp, 0, 0);
+    }
     ctx.restore();
   }
   function drawSceneRaw(ctx, p, opts) {
@@ -2313,7 +2397,7 @@
     };
     if (p.baseMarks && p.baseMarks.length) drawMarked(ctx, p.baseMarks, { x: 0, y: 0, w: p.W, h: p.H }, base);
     else base(ctx);
-    const lo = { clipW: p.W, clipH: p.H };
+    const lo = { clipW: p.W, clipH: p.H, panels: new Map(p.layers.filter((L) => L.type === 'panel').map((P) => [P.id, P])) };
     p.layers.forEach((L) => drawLayer(ctx, L, lo));
   }
 
@@ -2539,6 +2623,7 @@
       if (L.hidden || L.locked) continue;
       const p = baseToLocal(L, bx, by), b = layerBox(L);
       if (L.type === 'panel') { if (inPoly(L.pts, p.x, p.y)) return L; continue; }
+      if (L.clip) { const P = layerById(L.clip); if (P && P.type === 'panel' && !P.hidden) { const q = baseToLocal(P, bx, by); if (!inPoly(P.pts, q.x, q.y)) continue; } }
       if (Math.abs(p.x) <= b.w / 2 && Math.abs(p.y) <= b.h / 2) return L;
     }
     return null;
@@ -3319,7 +3404,7 @@
   $('pLineStyle').innerHTML = LINE_STYLES.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join('');
   $('pFxChips').innerHTML = FX_PRESETS.map((p, i) => `<button class="btn" type="button" data-i="${i}">${esc(p.name.replace(/（.*）/, ''))}</button>`).join('');
   $('fxRows').innerHTML = FX_DEFS.map((d) => `<div class="p-row"><label class="p-lab">${esc(d.label)}</label><input type="range" id="fxR_${d.k}" min="${d.min}" max="${d.max}" step="1"><input type="number" id="fxN_${d.k}" min="${d.min}" max="${d.max}" step="1"></div>`).join('');
-  $('pFxNote').textContent = FILTER_OK ? 'ぼかしは画像のピクセル数で指定します。' : 'この端末のブラウザはフィルターに対応していないため、画面と書き出しに反映されません（ほかの端末では反映されます）。';
+  $('pFxNote').textContent = FILTER_OK ? 'ぼかしは画像のピクセル数で指定します。網点（スクリーントーン）は点の間隔（ピクセル）で、白黒の点になります（色は消えます）。漫画のページ全体は、下の画像を選んで「仕上がり全体」にかけます。' : 'この端末のブラウザはフィルターに対応していないため、画面と書き出しに反映されません（ほかの端末では反映されます）。';
   function userFontKey(u) { return u.kind === 'google' ? 'g:' + u.name : 'u:' + u.id; }
   // 書体の選びもの（用意した書体・取り込んだ書体・この端末にない書体）
   function renderFontSelect(curKey) {
@@ -3371,6 +3456,14 @@
     }
     $('secCommon').hidden = type === 'base';
     $('pBrushRow').hidden = type !== 'image' && type !== 'text';
+    const panels = cur ? cur.layers.filter((P) => P.type === 'panel') : [];
+    $('pClipRow').hidden = $('pClipHint').hidden = !((type === 'image' || type === 'lines') && panels.length);
+    if (L && !$('pClipRow').hidden) {
+      const has = L.clip && panels.some((P) => P.id === L.clip);
+      $('pClip').innerHTML = '<option value="">なし（はみ出してよい）</option>' + panels.map((P, i) => `<option value="${esc(P.id)}">コマ ${i + 1}${P.img ? '（' + esc(P.img.name) + '）' : ''}</option>`).join('');
+      $('pClip').value = has ? L.clip : '';
+      $('pClipHint').textContent = has ? 'コマの外は見えません（書き出しも同じ）。コマからはみ出させたいときは「なし」にします。' : (L.clip ? '切り抜いていたコマがなくなりました。選び直してください。' : 'コマの中だけに見せたいときは、コマを選びます。');
+    }
     const mk = type === 'base' ? cur.baseMarks : L ? L.marks : null;
     $('pMarksInfo').textContent = mk && mk.length ? `跡 ${mk.length} 本` : '';
     if (isBase && cur.manga) {
@@ -3678,6 +3771,21 @@
     changed(true); refreshProps();
   });
 
+  // ---- コマで切り抜く（画像・効果線） ----
+  $('pClip').addEventListener('change', () => {
+    const L = selLayer(); if (!L || (L.type !== 'image' && L.type !== 'lines')) return;
+    const v = $('pClip').value, P = v ? layerById(v) : null;
+    L.clip = P && P.type === 'panel' ? P.id : null;
+    changed(true); refreshProps();
+  });
+  $('pClipAuto').addEventListener('click', () => {
+    const L = selLayer(); if (!L || (L.type !== 'image' && L.type !== 'lines')) return;
+    const P = panelAt(L.x, L.y);
+    if (!P) { showToast('真ん中にコマがありません。コマの上に動かしてから押してください', true); return; }
+    L.clip = P.id; changed(true); refreshProps();
+    showToast('コマの形で切り抜きました（↶ で戻せます）');
+  });
+
   // ---- 効果線 ----
   const LN = (fn) => (L, v) => { if (L.type === 'lines') fn(L, v); };
   bindNum(['pLnCount', 'pLnCountR'], LN((L, v) => { L.count = Math.round(clamp(v, 4, 600)); }));
@@ -3717,6 +3825,7 @@
     L.x = P.x + (b.x0 + b.x1) / 2 * k; L.y = P.y + (b.y0 + b.y1) / 2 * k;
     const bw = (P.bw || 0) * k; // 枠線の内側に収める（線が枠にかぶらないように）
     L.w = clamp((b.x1 - b.x0) * k - bw, 4, 1e5); L.h = clamp((b.y1 - b.y0) * k - bw, 4, 1e5); L.rot = L.mode === 'speed' ? L.rot : P.rot;
+    L.clip = P.id;
   }
   $('pLnFit').addEventListener('click', () => {
     const L = selLayer(); if (!L || L.type !== 'lines') return;
