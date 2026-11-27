@@ -435,6 +435,7 @@
       <button class="btn small" id="addPanelBtn" type="button" title="コマを足す" hidden>＋コマ</button>
       <button class="btn small" id="addImgBtn" type="button">＋画像</button>
       <button class="btn small" id="addTextBtn" type="button">＋文字</button>
+      <button class="btn small" id="addLinesBtn" type="button" title="集中線・スピード線・ベタフラッシュを足す">＋効果線</button>
       <button class="btn small" id="addMosaicBtn" type="button" title="モザイク・ぼかし・塗りつぶし・すりガラス・湯気・光の帯の範囲を足す">＋モザイク</button>
       <button class="btn small" id="brushBtn" type="button" title="消しゴム・ペン（選んでいる画像・文字、選んでいなければ下の画像）">消しゴム</button>
       </div>
@@ -522,6 +523,37 @@
             <div class="p-row"><label class="p-lab">大きさ %</label><input type="range" id="pScaleR" min="1" max="300" step="1"><input type="number" id="pScale" min="1" max="5000" step="1"></div>
             <div class="p-row"><button class="btn small" id="pFlip" type="button">左右反転</button><button class="btn small" id="pFit" type="button">画面いっぱいに</button><button class="btn small" id="pToLib" type="button">素材に登録</button></div>
             <div class="p-row"><button class="btn small" id="pBgCut" type="button">背景を透過…</button></div>
+          </div>
+          <!-- 貼った画像の縁取り・色・影（効果音・擬音の素材向け） -->
+          <div class="p-sec" id="secDeco">
+            <div class="p-sec-title">縁取り・色・影</div>
+            <div class="p-row"><span class="seg seg-wrap" id="pDcPreset"><button class="btn" type="button" data-v="white">白フチ</button><button class="btn" type="button" data-v="black">黒フチ</button><button class="btn" type="button" data-v="whiteShadow">白フチ＋影</button><button class="btn" type="button" data-v="none">なし</button></span></div>
+            <div class="p-row"><label class="p-check"><input type="checkbox" id="pDcTintOn"> 1色に塗る</label><input type="color" id="pDcTint" value="#e01818"></div>
+            <div class="p-row"><label class="p-lab">縁取り</label><input type="range" id="pDcOwR" min="0" max="60" step="1"><input type="number" id="pDcOw" min="0" max="2000" step="1"><input type="color" id="pDcOc" value="#ffffff"></div>
+            <div class="p-row"><label class="p-check"><input type="checkbox" id="pDcShOn"> 影</label><input type="color" id="pDcShC" value="#000000"></div>
+            <div id="pDcShOpts">
+              <div class="p-row"><label class="p-lab">影のずれ</label><input type="range" id="pDcShDR" min="0" max="60" step="1"><input type="number" id="pDcShD" min="0" max="2000" step="1"></div>
+              <div class="p-row"><label class="p-lab">影のぼかし</label><input type="range" id="pDcShBR" min="0" max="40" step="1"><input type="number" id="pDcShB" min="0" max="500" step="1"></div>
+              <div class="p-row"><label class="p-lab">影の濃さ</label><input type="range" id="pDcShAR" min="0" max="100" step="1"><input type="number" id="pDcShA" min="0" max="100" step="1"></div>
+            </div>
+            <div class="p-hint">透明な所のある画像（素材パックの効果音など）向け。太さ・ずれ・ぼかしは今の大きさでのページのピクセルで、画像を大きくすると一緒に太くなります。</div>
+          </div>
+          <!-- 効果線 -->
+          <div class="p-sec" id="secLines">
+            <div class="p-sec-title">効果線</div>
+            <div class="p-row"><label class="p-lab">種類</label><span class="seg" id="pLnMode"><button class="btn" type="button" data-v="focus">集中線</button><button class="btn" type="button" data-v="speed">スピード線</button><button class="btn" type="button" data-v="beta">ベタフラ</button></span></div>
+            <div class="p-row"><label class="p-lab">本数</label><input type="range" id="pLnCountR" min="4" max="400" step="1"><input type="number" id="pLnCount" min="4" max="600" step="1"></div>
+            <div class="p-row"><label class="p-lab">太さ</label><input type="range" id="pLnThickR" min="1" max="60" step="1"><input type="number" id="pLnThick" min="0.3" max="200" step="0.5"></div>
+            <div class="p-row"><label class="p-lab" id="pLnInnerLab">抜け %</label><input type="range" id="pLnInnerR" min="0" max="95" step="1"><input type="number" id="pLnInner" min="0" max="95" step="1"></div>
+            <div class="p-row"><label class="p-lab">ばらつき</label><input type="range" id="pLnJitR" min="0" max="100" step="1"><input type="number" id="pLnJit" min="0" max="100" step="1"></div>
+            <div id="pLnCenterRows">
+              <div class="p-row"><label class="p-lab">中心 横 %</label><input type="range" id="pLnCxR" min="-50" max="50" step="1"><input type="number" id="pLnCx" min="-50" max="50" step="1"></div>
+              <div class="p-row"><label class="p-lab">中心 縦 %</label><input type="range" id="pLnCyR" min="-50" max="50" step="1"><input type="number" id="pLnCy" min="-50" max="50" step="1"></div>
+            </div>
+            <div class="p-row"><label class="p-lab">線の色</label><input type="color" id="pLnColor"><span id="pLnColor2Box"><label class="p-hint" style="margin:0 6px">中の色</label><input type="color" id="pLnColor2"></span></div>
+            <div class="p-row"><button class="btn small" id="pLnSeed" type="button" title="線の並びを作り直す">形を変える</button><button class="btn small" id="pLnFit" type="button" title="真ん中にあるコマの大きさに合わせる">コマに合わせる</button></div>
+            <div class="p-row"><label class="p-lab">幅・高さ</label><input type="number" id="pLnW" min="4" max="100000" step="1"><span class="p-hint" style="margin:0">×</span><input type="number" id="pLnH" min="4" max="100000" step="1"></div>
+            <div class="p-hint" id="pLnHint"></div>
           </div>
           <!-- コマ（漫画のページ） -->
           <div class="p-sec" id="secPanel">
@@ -1370,6 +1402,17 @@
     st.lineW = clamp(st.lineW * k, 0, 200);
     st.pad = clamp(st.pad * k, 0, 1000);
   }
+  // 貼った画像の飾り：tint＝1色に塗る色、ow・oc＝縁取りの太さ・色、sh＝影（shc 色・shd ずれ・shb ぼかし・sha 濃さ%）。
+  // 太さなどはレイヤーの中身の座標（画像のピクセル）。何も付けていなければ null
+  const LINE_MODES = ['focus', 'speed', 'beta'];
+  function normDeco(d) {
+    if (!d || typeof d !== 'object') return null;
+    const o = {
+      tint: isColor(d.tint) ? d.tint.toLowerCase() : null, ow: num(d.ow, 0, 0, 2000), oc: isColor(d.oc) ? d.oc.toLowerCase() : '#ffffff',
+      sh: !!d.sh, shc: isColor(d.shc) ? d.shc.toLowerCase() : '#000000', shd: num(d.shd, 0, 0, 2000), shb: num(d.shb, 0, 0, 500), sha: num(d.sha, 60, 0, 100),
+    };
+    return o.tint || o.ow > 0 || o.sh ? o : null;
+  }
   function normLayer(l) {
     if (!l || typeof l !== 'object') return null;
     const base = {
@@ -1380,7 +1423,7 @@
     };
     if (l.type === 'image') {
       if (typeof l.blobId !== 'string') return null;
-      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx), marks: normMarks(l.marks) });
+      return Object.assign(base, { type: 'image', blobId: l.blobId, name: cleanName(l.name) || '画像', w0: num(l.w0, 100, 1, 1e5), h0: num(l.h0, 100, 1, 1e5), flipX: !!l.flipX, fx: normFx(l.fx), marks: normMarks(l.marks), deco: normDeco(l.deco) });
     }
     if (l.type === 'panel') { // 漫画のコマ：pts は中心からの角の位置。img は中に入れた画像（位置・大きさはコマの座標）
       const pts = (Array.isArray(l.pts) ? l.pts : []).slice(0, MAX_PANEL_PTS)
@@ -1391,6 +1434,15 @@
         ox: num(m.ox, 0, -1e6, 1e6), oy: num(m.oy, 0, -1e6, 1e6), s: num(m.s, 1, 0.001, 1000), r: num(m.r, 0, -180, 180) } : null;
       return Object.assign(base, { type: 'panel', pts, bw: num(l.bw, 6, 0, 500), bc: isColor(l.bc) ? l.bc : '#000000',
         fill: l.fill === 'none' ? 'none' : isColor(l.fill) ? l.fill : '#ffffff', img, fx: normFx(l.fx) }); // fx：中の画像にかけるフィルター
+    }
+    if (l.type === 'lines') { // 効果線（集中線・スピード線・ベタフラッシュ）。幅 w・高さ h の範囲の中だけに描く。太さはページのピクセル
+      return Object.assign(base, {
+        type: 'lines', scale: 1, w: num(l.w, 400, 4, 1e5), h: num(l.h, 300, 4, 1e5),
+        mode: LINE_MODES.includes(l.mode) ? l.mode : 'focus',
+        count: Math.round(num(l.count, 140, 4, 600)), thick: num(l.thick, 6, 0.3, 200), inner: num(l.inner, 45, 0, 95),
+        jitter: num(l.jitter, 50, 0, 100), cx: num(l.cx, 0, -50, 50), cy: num(l.cy, 0, -50, 50),
+        color: isColor(l.color) ? l.color : '#000000', color2: isColor(l.color2) ? l.color2 : '#ffffff', seed: Math.round(num(l.seed, 1, 1, 1e9)),
+      });
     }
     if (l.type === 'mosaic') { // モザイク・ぼかし・塗りつぶし（下にあるものすべてにかかる）
       return Object.assign(base, {
@@ -1503,7 +1555,7 @@
   function layerBox(L) { // ローカル座標（中心0・拡大前）での幅と高さ
     if (L.type === 'image') return { w: L.w0, h: L.h0 };
     if (L.type === 'panel') { const b = ptsBox(L.pts); return { w: Math.max(1, b.x1 - b.x0), h: Math.max(1, b.y1 - b.y0) }; }
-    if (L.type === 'mosaic') return { w: L.w, h: L.h };
+    if (L.type === 'mosaic' || L.type === 'lines') return { w: L.w, h: L.h };
     const i = shapeInfo(L); return { w: i.bw, h: i.bh };
   }
   function hasTail(L) { return L.type === 'text' && L.st.tail && !NO_TAIL.has(L.st.frame); }
@@ -1776,8 +1828,11 @@
     if (L.type === 'image') {
       const c = imgCache.get(L.blobId);
       const content = (g) => { if (c && c.img) drawImageFx(g, c.img, -L.w0 / 2, -L.h0 / 2, L.w0, L.h0, L.fx); else drawMissing(g, L.w0, L.h0); };
-      if (L.marks && L.marks.length) drawMarked(ctx, L.marks, { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 }, content);
+      if (L.deco && c && c.img) drawDecorated(ctx, L, content);
+      else if (L.marks && L.marks.length) drawMarked(ctx, L.marks, { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 }, content);
       else content(ctx);
+    } else if (L.type === 'lines') {
+      drawLines(ctx, L);
     } else if (L.type === 'mosaic') {
       drawMosaic(ctx, L);
     } else if (L.type === 'panel') {
@@ -1790,6 +1845,135 @@
     }
     ctx.restore();
   }
+  /* ---- 貼った画像の縁取り・色・影 ----
+     中身（フィルター・消しゴムの跡ごと）を別のキャンバスに描き、1色に塗る → 縁取り（形からの距離で作る）→ 影。
+     作った絵はレイヤーごとにとっておき、中身や設定が変わったときだけ作り直す（動かすたびに作らない） */
+  const decoCache = new Map(); // レイヤーの id → { sig, c, k, pad }
+  function decoSig(L) { return [L.blobId, JSON.stringify(L.fx || {}), JSON.stringify(L.deco), L.flipX ? 1 : 0, L.w0, L.h0, L.marks ? L.marks.length + ':' + markCount(L.marks) : 0].join('|'); }
+  function drawDecorated(ctx, L, content) {
+    const sig = decoSig(L);
+    let e = decoCache.get(L.id);
+    if (!e || e.sig !== sig) {
+      try { e = buildDeco(L, content); } catch (_) { e = { c: null }; }
+      e.sig = sig; decoCache.set(L.id, e);
+      if (decoCache.size > 60) decoCache.delete(decoCache.keys().next().value);
+    }
+    if (!e.c) { content(ctx); return; }
+    ctx.drawImage(e.c, -L.w0 / 2 - e.pad, -L.h0 / 2 - e.pad, e.c.width / e.k, e.c.height / e.k);
+  }
+  function buildDeco(L, content) {
+    const d = L.deco;
+    const pad = Math.ceil(d.ow + (d.sh ? d.shd + d.shb * 2.5 : 0) + 2);
+    const W0 = L.w0 + pad * 2, H0 = L.h0 + pad * 2;
+    const k = Math.min(1, Math.sqrt(2.5e6 / (W0 * H0))); // 大きな画像は縮めて作る（縁取りの計算が重いので）
+    const W = Math.max(1, Math.round(W0 * k)), H = Math.max(1, Math.round(H0 * k));
+    const A = document.createElement('canvas'); A.width = W; A.height = H;
+    const ga = A.getContext('2d', { willReadFrequently: true });
+    ga.setTransform(k, 0, 0, k, (pad + L.w0 / 2) * k, (pad + L.h0 / 2) * k);
+    if (L.marks && L.marks.length) drawMarked(ga, L.marks, { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 }, content);
+    else content(ga);
+    ga.setTransform(1, 0, 0, 1, 0, 0);
+    if (d.tint) { ga.globalCompositeOperation = 'source-in'; ga.fillStyle = d.tint; ga.fillRect(0, 0, W, H); ga.globalCompositeOperation = 'source-over'; }
+    const B = document.createElement('canvas'); B.width = W; B.height = H;
+    const gb = B.getContext('2d');
+    if (d.ow > 0) gb.drawImage(outlineCanvas(A, d.ow * k, d.oc), 0, 0);
+    gb.drawImage(A, 0, 0);
+    if (!d.sh) return { c: B, k, pad };
+    const S = document.createElement('canvas'); S.width = W; S.height = H;
+    const gs = S.getContext('2d');
+    gs.drawImage(B, 0, 0); gs.globalCompositeOperation = 'source-in'; gs.fillStyle = d.shc; gs.fillRect(0, 0, W, H);
+    const F = document.createElement('canvas'); F.width = W; F.height = H;
+    const gf = F.getContext('2d');
+    const off = Math.SQRT1_2 * d.shd * k; // 影は右下 45°（左右反転していても見た目は右下に）
+    gf.globalAlpha = d.sha / 100;
+    if (d.shb > 0 && FILTER_OK) gf.filter = `blur(${(d.shb * k).toFixed(2)}px)`;
+    gf.drawImage(S, L.flipX ? -off : off, off);
+    gf.filter = 'none'; gf.globalAlpha = 1;
+    gf.drawImage(B, 0, 0);
+    return { c: F, k, pad };
+  }
+  // 縁取り：中身の形（不透明度 128 以上）からの距離が r 以内を色で塗る。距離は Felzenszwalb の距離変換（正確なユークリッド距離）
+  function outlineCanvas(A, r, color) {
+    const W = A.width, H = A.height, src = A.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data, N = W * H;
+    const fd = new Float64Array(N);
+    for (let p = 0; p < N; p++) fd[p] = src[p * 4 + 3] >= 128 ? 0 : 1e20;
+    edt2d(fd, W, H);
+    const n = parseInt(color.slice(1), 16), cr = (n >> 16) & 255, cg = (n >> 8) & 255, cb = n & 255;
+    const out = new ImageData(W, H), o = out.data;
+    for (let p = 0; p < N; p++) {
+      const a = r + 0.5 - Math.sqrt(fd[p]); if (a <= 0) continue;
+      const i = p * 4; o[i] = cr; o[i + 1] = cg; o[i + 2] = cb; o[i + 3] = a >= 1 ? 255 : Math.round(a * 255);
+    }
+    const C = document.createElement('canvas'); C.width = W; C.height = H; C.getContext('2d').putImageData(out, 0, 0);
+    return C;
+  }
+  function edt1d(f, n, d, v, z) {
+    let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+    for (let q = 1; q < n; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; const t = q - v[k]; d[q] = t * t + f[v[k]]; }
+  }
+  function edt2d(f, W, H) {
+    const n = Math.max(W, H), tf = new Float64Array(n), td = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+    for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) tf[y] = f[y * W + x]; edt1d(tf, H, td, v, z); for (let y = 0; y < H; y++) f[y * W + x] = td[y]; }
+    for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) tf[x] = f[o + x]; edt1d(tf, W, td, v, z); for (let x = 0; x < W; x++) f[o + x] = td[x]; }
+  }
+
+  /* ---- 効果線（集中線・スピード線・ベタフラッシュ）。線の並びは種（seed）で決まり、開くたびに変わらない ---- */
+  function drawLines(ctx, L) {
+    const hw = L.w / 2, hh = L.h / 2, rnd = seeded('lines:' + L.seed), J = L.jitter / 100;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(-hw, -hh, L.w, L.h); ctx.clip();
+    ctx.fillStyle = L.color;
+    if (L.mode === 'speed') {
+      // 横に流れる、両はしがとがった線（向きは回転で変える）。真ん中に「抜け」の帯
+      const band = hh * L.inner / 100;
+      for (let i = 0; i < L.count; i++) {
+        let y = (rnd() * 2 - 1) * hh;
+        if (Math.abs(y) < band) y = (y < 0 ? -1 : 1) * (band + rnd() * Math.max(0, hh - band));
+        const len = L.w * (0.3 + 0.7 * (1 - J * rnd()));
+        const x0 = -hw - L.w * 0.15 + rnd() * Math.max(1, L.w * 1.3 - len);
+        const t = Math.max(0.15, L.thick * (1 - J * 0.7 * rnd()) / 2), xm = x0 + len * (0.5 + 0.4 * rnd());
+        ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(xm, y - t); ctx.lineTo(x0 + len, y); ctx.lineTo(xm, y + t); ctx.closePath(); ctx.fill();
+      }
+    } else {
+      const cx = L.cx / 100 * L.w, cy = L.cy / 100 * L.h;
+      const R = Math.hypot(hw + Math.abs(cx), hh + Math.abs(cy)) * 1.05; // 範囲の角まで届く長さ
+      const rx = hw * L.inner / 100, ry = hh * L.inner / 100;   // 抜け（だ円）
+      const n = L.count;
+      if (L.mode === 'beta') {
+        // ベタフラ：まわりを線の色で塗り、中心から針のようにとがった「中の色」の形を抜く
+        ctx.fillRect(-hw, -hh, L.w, L.h);
+        ctx.fillStyle = L.color2;
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const a0 = (i + (rnd() - 0.5) * J * 0.8) / n * Math.PI * 2, am = a0 + Math.PI / n;
+          const vr = 0.85 + 0.15 * rnd(), tr = 1.15 + (R / Math.max(1, Math.min(rx, ry) || 1) - 1.15) * 0.55 * (1 - J * rnd()) * 0.6;
+          const vx = cx + Math.cos(a0) * rx * vr, vy = cy + Math.sin(a0) * ry * vr;
+          const tx = cx + Math.cos(am) * Math.max(rx * tr, rx + 4), ty = cy + Math.sin(am) * Math.max(ry * tr, ry + 4);
+          if (i === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+          ctx.lineTo(tx, ty);
+        }
+        ctx.closePath(); ctx.fill();
+      } else {
+        // 集中線：外から抜けのふちへ、とがっていくくさび
+        for (let i = 0; i < n; i++) {
+          const a = (i + (rnd() - 0.5) * J) / n * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+          const ir = 1 + J * (rnd() - 0.3) * 0.9; // 抜けのふちのばらつき
+          const ix = cx + ca * rx * ir, iy = cy + sa * ry * ir;
+          const ox = cx + ca * R, oy = cy + sa * R;
+          const t = L.thick * (0.5 + rnd() * (0.5 + J)) / 2;
+          ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ox - sa * t, oy + ca * t); ctx.lineTo(ox + sa * t, oy - ca * t); ctx.closePath(); ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   // 消しゴム・ペンが届く範囲（レイヤーの座標）。文字は影・縁取り・しっぽの先まで
   function markBox(L) {
     if (L.type === 'image') return { x: -L.w0 / 2, y: -L.h0 / 2, w: L.w0, h: L.h0 };
@@ -2528,7 +2712,7 @@
     } else if (drag.kind === 'panImg') {
       const dl = screenDeltaToLocal(L, p.x - drag.p0.x, p.y - drag.p0.y);
       L.img.ox = drag.ox0 + dl.x; L.img.oy = drag.oy0 + dl.y;
-    } else if (drag.kind === 'scale' && L.type === 'mosaic') {
+    } else if (drag.kind === 'scale' && (L.type === 'mosaic' || L.type === 'lines')) {
       // モザイクは幅と高さを別々に（中心はそのまま、つかんだ角までの距離で決める）
       const bp = screenToBase(p.x, p.y), lp = baseToLocal(L, bp.x, bp.y);
       L.w = clamp(Math.abs(lp.x) * 2, 4, 1e5); L.h = clamp(Math.abs(lp.y) * 2, 4, 1e5);
@@ -2631,6 +2815,7 @@
     const k = L.scale;
     L.scale = 1;
     if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); return; }
+    if (L.type === 'lines') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); L.thick = clamp(L.thick * k, 0.3, 200); return; }
     if (L.type === 'panel') {
       L.pts = L.pts.map(([x, y]) => [x * k, y * k]); L.bw = clamp(L.bw * k, 0, 500);
       if (L.img) { L.img.ox *= k; L.img.oy *= k; L.img.s = clamp(L.img.s * k, 0.001, 1000); }
@@ -3035,17 +3220,19 @@
   new ResizeObserver(() => { if (editorOpen()) { fitView(); render(); } }).observe($('stageWrap'));
 
   /* ===================== レイヤーの一覧 ===================== */
-  const KIND_LABEL = { image: '画像', text: '文字', mosaic: '効果', panel: 'コマ' };
+  const KIND_LABEL = { image: '画像', text: '文字', mosaic: '効果', panel: 'コマ', lines: '効果線' };
   const MOSAIC_HINT = {
     pixel: '下にあるもの（画像・文字）すべてにかかります。四隅の□で幅と高さを変えられます。',
     steam: '白いもやを重ねます。濃さを上げると下が見えなくなります。［形を変える］でもやの形を作り直します。',
     light: '真ん中は真っ白で下は見えません。「共通」の回転で斜めの帯にできます。だ円にすると丸い光になります。',
   };
   MOSAIC_HINT.blur = MOSAIC_HINT.fill = MOSAIC_HINT.frost = MOSAIC_HINT.pixel;
+  const LINE_LABEL = { focus: '集中線', speed: 'スピード線', beta: 'ベタフラ' };
   const MOSAIC_LABEL = { pixel: 'モザイク', blur: 'ぼかし', fill: '塗りつぶし', frost: 'すりガラス', steam: '湯気', light: '光の帯' };
   function layerLabel(L) {
     if (L.type === 'image') return L.name || '画像';
     if (L.type === 'panel') { const n = cur ? cur.layers.filter((P) => P.type === 'panel').indexOf(L) + 1 : 0; return `コマ ${n || ''}` + (L.img ? `（${L.img.name}）` : '（空）'); }
+    if (L.type === 'lines') return LINE_LABEL[L.mode] || '効果線';
     if (L.type === 'mosaic') return MOSAIC_LABEL[L.mode] + (L.shape === 'ellipse' ? '（だ円）' : L.shape === 'brush' ? '（なぞり）' : '（四角）');
     const t = (L.text || '').split('\n').find((s) => s.trim()) || '（空の文字）';
     return t.slice(0, 30);
@@ -3170,6 +3357,8 @@
     $('secText').hidden = type !== 'text'; $('secFrame').hidden = type !== 'text'; $('secStyle').hidden = type !== 'text';
     $('secImage').hidden = type !== 'image';
     $('secMosaic').hidden = type !== 'mosaic';
+    $('secDeco').hidden = type !== 'image';
+    $('secLines').hidden = type !== 'lines';
     $('secBase').hidden = type !== 'base';
     $('secPanel').hidden = type !== 'panel';
     $('secPage').hidden = !(type === 'base' && cur && cur.manga);
@@ -3238,7 +3427,19 @@
       const pct = Math.round(L.scale * 100);
       setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct));
       $('pFlip').classList.toggle('is-on', L.flipX);
-      refreshFx();
+      refreshFx(); refreshDeco(L);
+    } else if (type === 'lines') {
+      $('pLnMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.mode));
+      setVal('pLnCount', L.count); setVal('pLnCountR', Math.min(400, L.count));
+      setVal('pLnThick', Math.round(L.thick * 10) / 10); setVal('pLnThickR', Math.min(60, Math.round(L.thick))); $('pLnThickR').max = Math.max(60, Math.round(L.thick));
+      setVal('pLnInner', Math.round(L.inner)); setVal('pLnInnerR', Math.round(L.inner));
+      setVal('pLnJit', Math.round(L.jitter)); setVal('pLnJitR', Math.round(L.jitter));
+      setVal('pLnCx', Math.round(L.cx)); setVal('pLnCxR', Math.round(L.cx)); setVal('pLnCy', Math.round(L.cy)); setVal('pLnCyR', Math.round(L.cy));
+      $('pLnColor').value = L.color; $('pLnColor2').value = L.color2;
+      $('pLnCenterRows').hidden = L.mode === 'speed'; $('pLnColor2Box').hidden = L.mode !== 'beta';
+      $('pLnInnerLab').textContent = L.mode === 'speed' ? '空ける帯 %' : '抜け %';
+      setVal('pLnW', Math.round(L.w)); setVal('pLnH', Math.round(L.h));
+      $('pLnHint').textContent = L.mode === 'speed' ? '向きは「共通」の回転で変えます。四隅の□で範囲を変えます。' : '四隅の□で範囲を変えます。範囲の外には描きません。「コマに合わせる」で、真ん中にあるコマの大きさにします。';
     } else if (type === 'mosaic') {
       $('pMoMode').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.mode));
       $('pMoShape').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === L.shape));
@@ -3265,9 +3466,10 @@
   function syncPropsLive() {
     const L = selLayer(); if (!L) return;
     setVal('pRot', Math.round(L.rot)); setVal('pRotR', Math.round(L.rot));
-    if (L.type === 'image') { const pct = Math.round(L.scale * 100); setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct)); }
+    if (L.type === 'image') { const pct = Math.round(L.scale * 100); setVal('pScale', pct); setVal('pScaleR', Math.min(300, pct)); refreshDeco(L); }
     else if (L.type === 'panel') { if (L.img) { const pct = Math.round(L.img.s * 100); setVal('pPanS', pct); setVal('pPanSR', Math.min(400, pct)); setVal('pPanR', Math.round(L.img.r)); setVal('pPanRR', Math.round(L.img.r)); } }
     else if (L.type === 'mosaic') { setVal('pMoW', Math.round(L.w * L.scale)); setVal('pMoH', Math.round(L.h * L.scale)); }
+    else if (L.type === 'lines') { setVal('pLnW', Math.round(L.w * L.scale)); setVal('pLnH', Math.round(L.h * L.scale)); }
     else { const sz = Math.round(L.st.size * L.scale); setVal('pSize', sz); setVal('pSizeR', sz); }
   }
   // 入力欄 → 値（range と number の組は両方を合わせる）
@@ -3419,6 +3621,125 @@
     if (setFx(normFx(p.fx))) { changed(true); refreshFx(); }
   });
   $('pBaseSwap').addEventListener('click', () => $('fileBase').click());
+
+  // ---- 貼った画像の縁取り・色・影（太さなどは「ページのピクセル」で見せ、レイヤーの中身の座標で持つ） ----
+  function refreshDeco(L) {
+    const d = L.deco || {}, s = L.scale || 1;
+    $('pDcTintOn').checked = !!d.tint; if (d.tint) $('pDcTint').value = d.tint;
+    const ow = Math.round((d.ow || 0) * s); setVal('pDcOw', ow); setVal('pDcOwR', Math.min(60, ow)); $('pDcOwR').max = Math.max(60, ow);
+    if (d.oc) $('pDcOc').value = d.oc;
+    $('pDcShOn').checked = !!d.sh; if (d.shc) $('pDcShC').value = d.shc;
+    $('pDcShOpts').hidden = !d.sh;
+    const shd = Math.round((d.shd || 0) * s), shb = Math.round((d.shb || 0) * s);
+    setVal('pDcShD', shd); setVal('pDcShDR', Math.min(60, shd)); setVal('pDcShB', shb); setVal('pDcShBR', Math.min(40, shb));
+    setVal('pDcShA', Math.round(d.sha !== undefined ? d.sha : 60)); setVal('pDcShAR', Math.round(d.sha !== undefined ? d.sha : 60));
+  }
+  // いまの飾り（なければ、調整の欄の色を使った「何も付けていない」飾り）
+  function decoOf(L) {
+    return Object.assign({ tint: null, ow: 0, oc: isColor($('pDcOc').value) ? $('pDcOc').value : '#ffffff', sh: false,
+      shc: isColor($('pDcShC').value) ? $('pDcShC').value : '#000000', shd: 0, shb: 0, sha: 60 }, L.deco || {});
+  }
+  const DC = (fn) => (L, v) => { if (L.type !== 'image') return; const d = decoOf(L); fn(d, v, L.scale || 1); L.deco = normDeco(d); };
+  bindNum(['pDcOw', 'pDcOwR'], DC((d, v, s) => { d.ow = clamp(v, 0, 2000) / s; }));
+  bindNum(['pDcShD', 'pDcShDR'], DC((d, v, s) => { d.shd = clamp(v, 0, 2000) / s; }));
+  bindNum(['pDcShB', 'pDcShBR'], DC((d, v, s) => { d.shb = clamp(v, 0, 500) / s; }));
+  bindNum(['pDcShA', 'pDcShAR'], DC((d, v) => { d.sha = clamp(v, 0, 100); }));
+  function decoInput(id, ev, fn) {
+    $(id).addEventListener(ev, () => {
+      const L = selLayer(); if (!L || L.type !== 'image') return;
+      const d = decoOf(L); fn(d, L.scale || 1); L.deco = normDeco(d);
+      changed(ev === 'change'); if (ev === 'change') refreshProps();
+    });
+  }
+  decoInput('pDcTintOn', 'change', (d) => { d.tint = $('pDcTintOn').checked && isColor($('pDcTint').value) ? $('pDcTint').value.toLowerCase() : null; });
+  decoInput('pDcTint', 'input', (d) => { if (isColor($('pDcTint').value)) { d.tint = $('pDcTint').value.toLowerCase(); $('pDcTintOn').checked = true; } });
+  decoInput('pDcOc', 'input', (d, s) => {
+    if (!isColor($('pDcOc').value)) return; d.oc = $('pDcOc').value.toLowerCase();
+    if (!(d.ow > 0)) { d.ow = Math.max(1, Math.round(Math.min(cur.W, cur.H) * 0.006)) / s; refreshDeco({ deco: d, scale: s }); } // 色を選んだら縁取りも付ける
+  });
+  decoInput('pDcShOn', 'change', (d, s) => {
+    d.sh = $('pDcShOn').checked;
+    if (d.sh && !(d.shd > 0) && !(d.shb > 0)) { const sh = Math.min(cur.W, cur.H); d.shd = Math.max(1, Math.round(sh * 0.004)) / s; d.shb = Math.max(1, Math.round(sh * 0.003)) / s; }
+  });
+  decoInput('pDcShC', 'input', (d) => { if (isColor($('pDcShC').value)) { d.shc = $('pDcShC').value.toLowerCase(); d.sh = true; } });
+  ['pDcTint', 'pDcOc', 'pDcShC'].forEach((id) => $(id).addEventListener('change', () => { commitHist(); refreshProps(); }));
+  // 見本：白フチ・黒フチ・白フチ＋影・なし（太さはページの短い辺に合わせる）
+  $('pDcPreset').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'), L = selLayer(); if (!b || !L || L.type !== 'image') return;
+    const s = L.scale || 1, short = Math.min(cur.W, cur.H), ow = Math.max(1, Math.round(short * 0.006)) / s;
+    const d = decoOf(L);
+    if (b.dataset.v === 'none') { L.deco = null; }
+    else {
+      d.ow = ow; d.oc = b.dataset.v === 'black' ? '#000000' : '#ffffff';
+      d.sh = b.dataset.v === 'whiteShadow';
+      if (d.sh) { d.shc = '#000000'; d.shd = Math.max(1, Math.round(short * 0.005)) / s; d.shb = Math.max(1, Math.round(short * 0.004)) / s; d.sha = 60; }
+      L.deco = normDeco(d);
+    }
+    changed(true); refreshProps();
+  });
+
+  // ---- 効果線 ----
+  const LN = (fn) => (L, v) => { if (L.type === 'lines') fn(L, v); };
+  bindNum(['pLnCount', 'pLnCountR'], LN((L, v) => { L.count = Math.round(clamp(v, 4, 600)); }));
+  bindNum(['pLnThick', 'pLnThickR'], LN((L, v) => { L.thick = clamp(v, 0.3, 200); }));
+  bindNum(['pLnInner', 'pLnInnerR'], LN((L, v) => { L.inner = clamp(v, 0, 95); }));
+  bindNum(['pLnJit', 'pLnJitR'], LN((L, v) => { L.jitter = clamp(v, 0, 100); }));
+  bindNum(['pLnCx', 'pLnCxR'], LN((L, v) => { L.cx = clamp(v, -50, 50); }));
+  bindNum(['pLnCy', 'pLnCyR'], LN((L, v) => { L.cy = clamp(v, -50, 50); }));
+  bindNum(['pLnW'], LN((L, v) => { L.w = clamp(v, 4, 1e5); }));
+  bindNum(['pLnH'], LN((L, v) => { L.h = clamp(v, 4, 1e5); }));
+  [['pLnColor', 'color'], ['pLnColor2', 'color2']].forEach(([id, key]) => {
+    $(id).addEventListener('input', () => { const L = selLayer(); if (!L || L.type !== 'lines' || !isColor($(id).value)) return; L[key] = $(id).value.toLowerCase(); changed(); });
+    $(id).addEventListener('change', () => commitHist());
+  });
+  $('pLnMode').addEventListener('click', (e) => {
+    const b = e.target.closest('.btn'), L = selLayer(); if (!b || !L || L.type !== 'lines') return;
+    const was = L.mode; L.mode = LINE_MODES.includes(b.dataset.v) ? b.dataset.v : 'focus';
+    if (was !== L.mode) { // 種類に合った本数・抜けに
+      if (L.mode === 'speed') { L.count = Math.min(L.count, 90); L.inner = 20; }
+      else if (L.mode === 'beta') { L.count = 70; L.inner = 35; }
+      else { L.count = Math.max(L.count, 120); L.inner = 45; }
+    }
+    changed(true); refreshProps();
+  });
+  $('pLnSeed').addEventListener('click', () => { const L = selLayer(); if (!L || L.type !== 'lines') return; L.seed = 1 + Math.floor(Math.random() * 1e9); changed(true); });
+  // 真ん中にあるコマ（回転・拡大していないもの）の大きさに合わせる
+  function panelAt(x, y) {
+    for (let i = cur.layers.length - 1; i >= 0; i--) {
+      const P = cur.layers[i];
+      if (P.type !== 'panel' || P.hidden) continue;
+      const lp = baseToLocal(P, x, y); if (inPoly(P.pts, lp.x, lp.y)) return P;
+    }
+    return null;
+  }
+  function fitLinesToPanel(L, P) {
+    const b = ptsBox(P.pts), k = P.scale;
+    L.x = P.x + (b.x0 + b.x1) / 2 * k; L.y = P.y + (b.y0 + b.y1) / 2 * k;
+    const bw = (P.bw || 0) * k; // 枠線の内側に収める（線が枠にかぶらないように）
+    L.w = clamp((b.x1 - b.x0) * k - bw, 4, 1e5); L.h = clamp((b.y1 - b.y0) * k - bw, 4, 1e5); L.rot = L.mode === 'speed' ? L.rot : P.rot;
+  }
+  $('pLnFit').addEventListener('click', () => {
+    const L = selLayer(); if (!L || L.type !== 'lines') return;
+    const P = panelAt(L.x, L.y);
+    if (!P) { showToast('真ん中にコマがありません。効果線をコマの上に動かしてから押してください', true); return; }
+    fitLinesToPanel(L, P); changed(true); refreshProps();
+  });
+  $('addLinesBtn').addEventListener('click', () => {
+    if (!cur) return;
+    if (cur.layers.length >= MAX_LAYERS) { showToast(`重ねられるのは ${MAX_LAYERS} 個までです`, true); return; }
+    const short = Math.min(cur.W, cur.H), sel = selLayer();
+    const L = normLayer({ type: 'lines', x: cur.W / 2, y: cur.H / 2, w: cur.W * 0.6, h: cur.H * 0.45, mode: 'focus', count: 140,
+      thick: Math.max(1, Math.round(short * 0.006)), inner: 45, jitter: 50, seed: 1 + Math.floor(Math.random() * 1e9) });
+    // コマを選んでいれば、そのコマに合わせる（コマの並びのすぐ上＝吹き出しより下に入れる）
+    const P = sel && sel.type === 'panel' ? sel : null;
+    if (P) fitLinesToPanel(L, P);
+    const at = cur.manga ? cur.layers.reduce((a, Q, i) => (Q.type === 'panel' ? i + 1 : a), 0) : cur.layers.length;
+    cur.layers.splice(at, 0, L);
+    selId = L.id;
+    changed(true); refreshProps();
+    if (isNarrow()) setTab('props');
+    showToast(P ? '選んでいたコマに合わせました' : 'コマの上に動かして「コマに合わせる」を押すと、コマの大きさになります');
+  });
 
   // ---- モザイク・ぼかし・塗りつぶし ----
   const M = (fn) => (L, v) => { if (L.type === 'mosaic') fn(L, v); };
@@ -4354,6 +4675,7 @@
         if (L.img) { L.img.ox *= sx; L.img.oy *= sy; L.img.s = clamp(L.img.s * k, 0.001, 1000); }
       }
       else if (L.type === 'mosaic') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); L.block = clamp(L.block * k, 2, 400); L.blur = clamp(L.blur * k, 1, 200); }
+      else if (L.type === 'lines') { L.w = clamp(L.w * k, 4, 1e5); L.h = clamp(L.h * k, 4, 1e5); L.thick = clamp(L.thick * k, 0.3, 200); }
       else { scaleSt(L.st, k); if (L.tail) L.tail = { x: L.tail.x * k, y: L.tail.y * k }; scaleMarks(L.marks, k); }
     });
   }
