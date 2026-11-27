@@ -408,6 +408,8 @@
       <div class="menu-wrap">
         <button class="hamburger-btn" id="menuBtn" type="button" title="メニュー">☰</button>
         <div class="menu-panel" id="menuPanel">
+          <button class="menu-panel-item" id="miEps" type="button">話（ページをまとめて書き出す）</button>
+          <button class="menu-panel-item" id="miSign" type="button">書き出しの署名</button>
           <button class="menu-panel-item" id="miPacks" type="button">素材パック（読み込み・書き出し）</button>
           <button class="menu-panel-item" id="miLib" type="button">素材（よく使う画像）の管理</button>
           <button class="menu-panel-item" id="miStyles" type="button">テンプレートの管理</button>
@@ -448,6 +450,7 @@
           <button class="menu-panel-item" id="emReuse" type="button">この配置で別の画像を使う（複製）</button>
           <button class="menu-panel-item" id="emFonts" type="button">書体の取り込み・管理</button>
           <button class="menu-panel-item" id="emFxSets" type="button">効果セット（保存・当てる）</button>
+          <button class="menu-panel-item" id="emSign" type="button">書き出しの署名</button>
           <div class="menu-note">差し替え・複製では、重ねたものの位置と大きさを新しい画像の大きさに合わせます。</div>
         </div>
       </div>
@@ -716,6 +719,71 @@
   </div>
 </div>
 
+<!-- 書き出しの署名 -->
+<div class="modal-overlay" id="mSign">
+  <div class="modal">
+    <div class="modal-head"><span class="modal-title">書き出しの署名</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="note-box">書き出す画像の隅に、名前（署名）を入れます。この端末だけに覚えます。書き出しの画面でも、入れる・入れないを選べます。</div>
+    <div class="bg-preview" style="margin-bottom:10px"><canvas id="sgPreview" width="480" height="300"></canvas></div>
+    <div class="field-group"><div class="field-label">署名の文字（空なら入れない）</div><input class="field-input" id="sgText" maxlength="60" placeholder="例：© S.T.O.L.Records"></div>
+    <div class="p-row"><label class="p-lab">書体</label><select id="sgFont" class="p-select" style="flex:1"></select></div>
+    <div class="p-row"><label class="p-lab">場所</label><span class="seg seg-wrap" id="sgPos"><button class="btn" type="button" data-v="br">右下</button><button class="btn" type="button" data-v="bl">左下</button><button class="btn" type="button" data-v="bc">下の真ん中</button><button class="btn" type="button" data-v="tr">右上</button><button class="btn" type="button" data-v="tl">左上</button></span></div>
+    <div class="p-row"><label class="p-lab">大きさ %</label><input type="range" id="sgSize" min="1" max="8" step="0.1"><span class="p-hint" style="margin:0" id="sgSizeV"></span></div>
+    <div class="p-row"><label class="p-lab">色</label><input type="color" id="sgColor"><label class="p-lab" style="width:auto">縁</label><span class="seg" id="sgEdge"><button class="btn" type="button" data-v="#000000">黒</button><button class="btn" type="button" data-v="#ffffff">白</button><button class="btn" type="button" data-v="none">なし</button></span></div>
+    <div class="p-row"><label class="p-lab">濃さ %</label><input type="range" id="sgOpacity" min="20" max="100" step="1"><span class="p-hint" style="margin:0" id="sgOpacityV"></span></div>
+    <div class="p-row"><label class="p-check"><input type="checkbox" id="sgOn"> 書き出すとき、いつも入れる</label></div>
+    <div class="field-hint">大きさは画像の短い辺に対する割合です。どの大きさで書き出しても同じ見え方になります。</div>
+    <div class="modal-footer"><button class="btn primary" id="sgSave" type="button">保存</button></div>
+  </div>
+</div>
+
+<!-- 話の一覧 -->
+<div class="modal-overlay" id="mEps">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title">話（ページのまとめ）</span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="note-box">漫画のページ（作品）を1話としてまとめ、並べ替えて、ページ番号を付けてまとめて書き出します（ページごとの画像・縦につないだ1枚・PDF）。話から外しても、ページ（作品）は消えません。この端末だけに置きます。</div>
+    <div class="field-group"><button class="btn primary" id="epNew" type="button">＋ 新しい話</button></div>
+    <div id="epList"></div>
+  </div>
+</div>
+
+<!-- 1つの話 -->
+<div class="modal-overlay" id="mEp">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title" id="eTitle"></span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="sub-title at-head"><span>ページ（上から順に） <span id="eCount"></span></span><span class="lh-tools"><button class="btn small" id="eRename" type="button">名前</button></span></div>
+    <div id="ePages"></div>
+    <div class="p-row" style="margin-top:8px"><button class="btn small primary" id="eAddNew" type="button">＋ 新しい漫画のページを作って足す</button><button class="btn small" id="eAddPick" type="button">＋ 今あるページを足す</button></div>
+    <div id="ePickBox" hidden>
+      <div class="field-hint">足すページに印を付けて［足す］。ほかの話に入っているページは、その話から移ります。</div>
+      <div id="ePick" style="max-height:34vh;overflow-y:auto"></div>
+      <div class="p-row"><button class="btn small primary" id="ePickOk" type="button">足す</button><button class="btn small" id="ePickCancel" type="button">やめる</button></div>
+    </div>
+    <div class="sub-title">ページ番号</div>
+    <div class="p-row"><label class="p-check"><input type="checkbox" id="eNbOn"> ページ番号を入れる</label><label class="p-lab" style="width:auto">最初の番号</label><input type="number" id="eNbStart" min="0" max="9999" step="1" style="width:70px"></div>
+    <div class="p-row" id="eNbRow"><label class="p-lab">場所</label><span class="seg seg-wrap" id="eNbPos"><button class="btn" type="button" data-v="bc">下の真ん中</button><button class="btn" type="button" data-v="out">外側</button><button class="btn" type="button" data-v="br">右下</button><button class="btn" type="button" data-v="bl">左下</button></span></div>
+    <div class="p-row" id="eNbRow2"><label class="p-lab">大きさ %</label><input type="range" id="eNbSize" min="1" max="5" step="0.1"><span class="p-hint" style="margin:0" id="eNbSizeV"></span><input type="color" id="eNbColor"></div>
+    <div class="field-hint" id="eNbHint">外側：右綴じ（日本の漫画）の外側。最初のページ（奇数）は左下、次（偶数）は右下。</div>
+    <div class="sub-title">まとめて書き出す</div>
+    <div class="p-row"><label class="p-lab">形</label><span class="seg seg-wrap" id="eFmt"><button class="btn" type="button" data-v="zip">ページごとの画像（ZIP）</button><button class="btn" type="button" data-v="long">縦につないだ1枚</button><button class="btn" type="button" data-v="pdf">PDF</button></span></div>
+    <div class="p-row"><label class="p-lab">横幅</label><select id="eWidth" class="p-select" style="flex:1"><option value="0">元の大きさ</option><option value="1600">1600px</option><option value="1280">1280px</option><option value="1080">1080px</option><option value="800">800px</option></select></div>
+    <div class="p-row" id="eImgRow"><label class="p-lab">画像</label><span class="seg" id="eImgFmt"><button class="btn" type="button" data-v="jpeg">JPEG</button><button class="btn" type="button" data-v="png">PNG</button></span><label class="p-lab" style="width:auto">画質</label><input type="range" id="eQuality" min="60" max="100" step="1" style="flex:1"><span class="p-hint" style="margin:0" id="eQualityV"></span></div>
+    <div class="p-row" id="eGapRow"><label class="p-lab">ページの間</label><input type="number" id="eGap" min="0" max="400" step="1" style="width:70px"><span class="p-hint" style="margin:0">px</span><input type="color" id="eGapColor"></div>
+    <div class="p-row"><label class="field-check" style="flex:1"><input type="checkbox" id="eSign"> <span id="eSignLabel">各ページに署名を入れる</span></label></div>
+    <div class="field-group" id="eCheckBox" hidden>
+      <div class="field-hint" id="eCheckList"></div>
+      <label class="ex-confirm"><input type="checkbox" id="eConfirm"> これらのページの隠し漏れを、それぞれの書き出しの画面で確かめた</label>
+    </div>
+    <div class="field-hint" id="eOutInfo"></div>
+    <div class="modal-footer">
+      <button class="btn danger" id="eDel" type="button">この話を削除</button>
+      <span class="spacer"></span>
+      <button class="btn" id="eShare" type="button">共有</button>
+      <button class="btn primary" id="eSave" type="button">書き出す</button>
+    </div>
+  </div>
+</div>
+
 <!-- 素材パック -->
 <div class="modal-overlay" id="mPacks">
   <div class="modal wide">
@@ -809,6 +877,9 @@
       <div class="p-row" style="margin:0 0 6px"><label class="field-hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="exCompare"> 効果をかける前と比べる</label></div>
       <div id="exCheckList" class="ex-check-list"></div>
       <label class="ex-confirm"><input type="checkbox" id="exConfirm"> 隠したい所が全部隠れているのを確かめた</label>
+    </div>
+    <div class="field-group">
+      <div class="p-row" style="margin:0"><label class="field-check" style="flex:1"><input type="checkbox" id="exSign"> <span id="exSignLabel">署名を入れる</span></label><button class="btn small" id="exSignSet" type="button">署名の設定…</button></div>
     </div>
     <div class="field-group">
       <div class="field-label">形式</div>
@@ -965,7 +1036,8 @@
   const DB_NAME = 'sideops_pasteup', DB_VERSION = 1, S_STYLES = 'styles';
   // 版2（2026-11-20）：取り込んだ書体の fonts を足した
   // 版4（2026-11-26）：素材パックの packs を足した（同期しない。受け渡しはファイル）
-  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 4, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts', S_FXSETS = 'fxsets', S_PACKS = 'packs';
+  // 版5（2026-11-28）：話（ページのまとめ）の episodes を足した（同期しない）
+  const WDB_NAME = 'sideops_pasteup_work', WDB_VERSION = 5, S_PROJ = 'projects', S_BLOBS = 'blobs', S_FONTS = 'fonts', S_FXSETS = 'fxsets', S_PACKS = 'packs', S_EPS = 'episodes';
   const LS_PREFS = 'sideops_pasteup_prefs'; // 端末ごとの設定（背景の透過を確かめるか など）
   const MAX_FONT_FILE = 50 * 1024 * 1024;
   const BASE_SEL = '__base__';            // レイヤーの一覧で「下の画像」を選んだとき
@@ -4433,12 +4505,13 @@
     $('mgM').value = d.margin; $('mgG').value = d.gutter; $('mgBw').value = d.bw;
     $('mgSizeHint').textContent = o[0].length === 2 ? '印刷用の大きさ（350dpi）。書き出しは PNG がおすすめです。' : '';
   }
-  $('newMangaBtn').addEventListener('click', () => {
+  $('newMangaBtn').addEventListener('click', () => { pendingEp = null; openMangaMaker(); });
+  function openMangaMaker() {
     $('mgSize').innerHTML = PAGE_SIZES.map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
     $('mgLayout').innerHTML = PAGE_LAYOUTS.map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
     updMangaSize();
     openModal('mManga');
-  });
+  }
   $('mgSize').addEventListener('change', updMangaSize);
   ['mgW', 'mgH'].forEach((id) => $(id).addEventListener('change', () => {
     const W = num($('mgW').value, 1200, 200, MAX_SIDE), H = num($('mgH').value, 1700, 200, MAX_SIDE), d = pageDefaults(W, H);
@@ -4466,6 +4539,11 @@
       try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) { /* 何もしない */ }
     } catch (err) { showToast('作れませんでした：' + (err && err.message || err), true); }
     finally { busy(false); }
+    if (id && pendingEp) { // 話の画面から作ったときは、その話の最後に足す
+      const ep = await getOne(wdb, S_EPS, pendingEp);
+      if (ep) { await removeFromEpisodes([id]); ep.pages.push(id); ep.updatedAt = Date.now(); await putOne(wdb, S_EPS, ep); }
+      pendingEp = null;
+    }
     if (id) { await openEditor(id); scheduleSave(); showToast('コマを選んで［画像を入れる］。角の□で形を変えられます'); }
   });
   // コマを足す（余白の内側の真ん中に、内側の幅の 40%）
@@ -4675,6 +4753,7 @@
     $('exSize').innerHTML = sizes.map((o) => `<option value="${o.v}">${esc(o.label)}</option>`).join('');
     $('exName').value = safeFileName(cur.name);
     $('exConfirm').checked = false; $('exCompare').checked = false;
+    updSignRow();
     renderExportCheck();
     updExportUi();
     openModal('mExport');
@@ -4741,12 +4820,15 @@
     if (jpeg) { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); }
     g.setTransform(w / cur.W, 0, 0, h / cur.H, 0, 0);
     drawScene(g, cur);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    if ($('exSign').checked) { await ensureSignFont(); drawSignature(g, w, h); }
     const blob = await canvasToBlob(c, jpeg ? 'image/jpeg' : 'image/png', jpeg ? Number($('exQuality').value) / 100 : undefined);
     const name = safeFileName($('exName').value) + (jpeg ? '.jpg' : '.png');
     return { blob, name, w, h };
   }
   async function withExport(fn) {
     if (!$('exCheck').hidden && !$('exConfirm').checked) { showToast('隠し漏れを確かめて、印を付けてから書き出してください', true); return; }
+    if (!await signGuard($('exSign').checked)) return;
     busy(true, '書き出しています…');
     try { const r = await makeExport(); await fn(r); }
     catch (err) { if (!(err && err.name === 'AbortError')) showToast('書き出せませんでした：' + (err && err.message || err), true); }
@@ -4850,6 +4932,7 @@
     try {
       projects = (await getAll(wdb, S_PROJ)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     } catch (_) { projects = []; }
+    await loadEpisodes();
     renderList();
   }
   function renderList() {
@@ -4872,7 +4955,7 @@
       return `<div class="proj-card" data-id="${esc(p.id)}">
         <button class="proj-thumb" type="button" data-act="open">${th}</button>
         <div class="proj-meta"><div class="pm-main"><div class="pm-name">${esc(p.name || '無題')}</div>
-          <div class="pm-sub">${p.W}×${p.H}・重ね ${n}・${fmtDate(p.updatedAt || 0)}</div></div>
+          <div class="pm-sub">${epOf(p.id) ? '<span style="color:var(--amber)">' + esc(epOf(p.id)) + '</span>・' : ''}${p.W}×${p.H}・重ね ${n}・${fmtDate(p.updatedAt || 0)}</div></div>
           <button class="icon-btn" type="button" data-act="menu" title="メニュー">…</button></div>
       </div>`;
     }).join('') + '</div>';
@@ -4913,7 +4996,7 @@
     closeModal('mProjMenu');
     const p = projects.find((x) => x.id === menuProjId); if (!p) return;
     if (!(await confirmBox(`「${p.name}」を削除しますか？\n取り込んだ画像も（素材に登録したものを除いて）消えます。元に戻せません。`, '削除する'))) return;
-    try { await delOne(wdb, S_PROJ, p.id); await gcBlobs(0); showToast('削除しました'); }
+    try { await delOne(wdb, S_PROJ, p.id); await removeFromEpisodes([p.id]); await gcBlobs(0); showToast('削除しました'); }
     catch (_) { showToast('削除できませんでした', true); }
     await loadProjects();
   });
@@ -5314,7 +5397,7 @@
   async function savePack(p) { p.updatedAt = Date.now(); await putOne(wdb, S_PACKS, p); await loadPacks(); }
   function newPackRec(name) { const now = Date.now(); return { id: genId(), name: cleanName(name) || '素材パック', ver: 1, items: [], src: 'local', createdAt: now, updatedAt: now, exportedAt: 0 }; }
   function packDirty(p) { return !!p.items.length && p.updatedAt > (p.exportedAt || 0); } // まだ書き出していない変更
-  function safeFileName(s) { return (String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').trim().slice(0, 40)) || 'pack'; }
+  function packFileName(s) { return (String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').trim().slice(0, 40)) || 'pack'; }
   async function toPng(blob) {
     const li = await loadImg(blob);
     try {
@@ -5407,7 +5490,7 @@
       const now = Date.now();
       const manifest = { format: PACK_FORMAT, v: PACK_V, id: p.id, name: p.name, ver, createdAt: p.createdAt, exportedAt: now, items };
       files.unshift({ name: 'pack.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
-      const zip = zipStore(files), name = safeFileName(p.name) + '.pupack.zip';
+      const zip = zipStore(files), name = packFileName(p.name) + '.pupack.zip';
       if (share) {
         const file = new File([zip], name, { type: 'application/zip' });
         if (!navigator.canShare({ files: [file] })) { showToast('この端末ではファイルを共有できません。「書き出す」で保存してください', true); return; }
@@ -6115,6 +6198,393 @@
     showToast('パックから外しました（作品に貼ったものはそのまま残ります）');
   }));
 
+  /* =====================================================================
+     書き出しの署名（G）：書き出す画像の隅に名前を入れる。設定は端末ごと（localStorage）
+  ===================================================================== */
+  const LS_SIGN = 'sideops_pasteup_sign';
+  const SIGN_POS = ['br', 'bl', 'bc', 'tr', 'tl'];
+  let sign = { text: '', font: 'sans', pos: 'br', size: 2.4, color: '#ffffff', edge: '#000000', opacity: 85, on: true };
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_SIGN) || 'null');
+    if (v && typeof v === 'object') sign = normSign(v);
+  } catch (_) { /* 既定のまま */ }
+  function normSign(v) {
+    return {
+      text: String(v.text || '').replace(/[\r\n\t]+/g, ' ').slice(0, 60), font: isFontKey(v.font) ? v.font : 'sans',
+      pos: SIGN_POS.includes(v.pos) ? v.pos : 'br', size: num(v.size, 2.4, 1, 8), color: isColor(v.color) ? v.color : '#ffffff',
+      edge: v.edge === 'none' || isColor(v.edge) ? v.edge : '#000000', opacity: num(v.opacity, 85, 20, 100), on: v.on !== false,
+    };
+  }
+  function hasSign() { return !!sign.text.trim(); }
+  function ensureSignFont() { return hasSign() ? Promise.race([ensureFontKey(sign.font).catch(() => null), new Promise((r) => setTimeout(r, 4000))]) : Promise.resolve(); }
+  // 書き出した画像（w×h、変換なし）の隅に署名を描く。sg を渡せばその設定で（見本用）
+  function drawSignature(g, w, h, sg) {
+    sg = sg || sign;
+    const text = sg.text.trim(); if (!text) return;
+    const short = Math.min(w, h), size = Math.max(6, short * sg.size / 100), m = short * 0.025;
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.font = `bold ${size.toFixed(1)}px ${fontInfo(sg.font).css}`;
+    g.textBaseline = sg.pos[0] === 't' ? 'top' : 'alphabetic';
+    g.textAlign = sg.pos[1] === 'r' ? 'right' : sg.pos[1] === 'l' ? 'left' : 'center';
+    const x = sg.pos[1] === 'r' ? w - m : sg.pos[1] === 'l' ? m : w / 2;
+    const y = sg.pos[0] === 't' ? m : h - m - size * 0.15;
+    g.globalAlpha = sg.opacity / 100;
+    if (sg.edge !== 'none') { g.lineJoin = 'round'; g.lineWidth = Math.max(1, size * 0.16); g.strokeStyle = sg.edge; g.strokeText(text, x, y); }
+    g.fillStyle = sg.color; g.fillText(text, x, y);
+    g.restore();
+  }
+  // 署名を決めているのに外して書き出すときは確かめる（入れ忘れの歯止め）
+  async function signGuard(checked) {
+    if (checked || !hasSign()) return true;
+    return confirmBox(`署名（${sign.text}）を入れずに書き出しますか？`, '入れずに書き出す', true);
+  }
+  function updSignRow() {
+    $('exSign').checked = hasSign() && sign.on; $('exSign').disabled = !hasSign();
+    $('exSignLabel').textContent = hasSign() ? `署名を入れる（${sign.text}）` : '署名なし（「署名の設定…」で決められます）';
+  }
+  // 設定の画面
+  let sgEdit = null;
+  function openSign() {
+    sgEdit = Object.assign({}, sign);
+    const keys = FONTS.map((f) => [f.key, f.label]).concat(userFonts.map((u) => [userFontKey(u), fontInfo(userFontKey(u)).label]));
+    $('sgFont').innerHTML = keys.map(([k, l]) => `<option value="${esc(k)}">${esc(l)}</option>`).join('');
+    $('sgText').value = sgEdit.text; $('sgFont').value = keys.some((k) => k[0] === sgEdit.font) ? sgEdit.font : 'sans';
+    $('sgSize').value = sgEdit.size; $('sgColor').value = sgEdit.color; $('sgOpacity').value = sgEdit.opacity; $('sgOn').checked = sgEdit.on;
+    renderSignUi();
+    openModal('mSign');
+  }
+  function renderSignUi() {
+    $('sgPos').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === sgEdit.pos));
+    $('sgEdge').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === sgEdit.edge));
+    $('sgSizeV').textContent = Number(sgEdit.size).toFixed(1) + '%'; $('sgOpacityV').textContent = Math.round(sgEdit.opacity) + '%';
+    const c = $('sgPreview'), g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, c.width, c.height); gr.addColorStop(0, '#6b8db5'); gr.addColorStop(0.5, '#e7d9b8'); gr.addColorStop(1, '#3a3a3a');
+    g.fillStyle = gr; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '14px sans-serif'; g.textAlign = 'center'; g.fillText('（見本の画像）', c.width / 2, c.height / 2);
+    ensureFontKey(sgEdit.font).catch(() => null).then(() => { if ($('mSign').classList.contains('is-open')) drawSignature(g, c.width, c.height, sgEdit); });
+    drawSignature(g, c.width, c.height, sgEdit);
+  }
+  $('sgText').addEventListener('input', () => { sgEdit.text = $('sgText').value.replace(/[\r\n\t]+/g, ' ').slice(0, 60); renderSignUi(); });
+  $('sgFont').addEventListener('change', () => { sgEdit.font = isFontKey($('sgFont').value) ? $('sgFont').value : 'sans'; renderSignUi(); });
+  $('sgSize').addEventListener('input', () => { sgEdit.size = num($('sgSize').value, 2.4, 1, 8); renderSignUi(); });
+  $('sgOpacity').addEventListener('input', () => { sgEdit.opacity = num($('sgOpacity').value, 85, 20, 100); renderSignUi(); });
+  $('sgColor').addEventListener('input', () => { if (isColor($('sgColor').value)) { sgEdit.color = $('sgColor').value; renderSignUi(); } });
+  $('sgOn').addEventListener('change', () => { sgEdit.on = $('sgOn').checked; });
+  $('sgPos').addEventListener('click', (e) => { const b = e.target.closest('.btn'); if (b) { sgEdit.pos = b.dataset.v; renderSignUi(); } });
+  $('sgEdge').addEventListener('click', (e) => { const b = e.target.closest('.btn'); if (b) { sgEdit.edge = b.dataset.v; renderSignUi(); } });
+  $('sgSave').addEventListener('click', () => {
+    sign = normSign(sgEdit);
+    try { localStorage.setItem(LS_SIGN, JSON.stringify(sign)); } catch (_) { showToast('保存できませんでした', true); return; }
+    closeModal('mSign');
+    if ($('mExport').classList.contains('is-open')) updSignRow();
+    if ($('mEp').classList.contains('is-open')) updEpSign();
+    showToast(hasSign() ? '署名を保存しました' : '署名なしにしました');
+  });
+  $('miSign').addEventListener('click', () => { closeMenus(); openSign(); });
+  $('emSign').addEventListener('click', () => { closeMenus(); openSign(); });
+  $('exSignSet').addEventListener('click', openSign);
+
+  /* =====================================================================
+     話（F）：漫画のページ（作品）を1話にまとめ、順番・ページ番号を付けてまとめて書き出す
+     作業用DBの episodes：{ id, name, pages:[作品の id], nb:{ on, start, pos, size, color }, out:{ fmt, width, img, q, gap, gapColor }, createdAt, updatedAt }
+     1つのページは1つの話にだけ入る
+  ===================================================================== */
+  let episodes = [], epId = null, pendingEp = null;
+  const NB_POS = ['bc', 'out', 'br', 'bl'];
+  function normEp(e) {
+    const nb = e.nb || {}, o = e.out || {};
+    return {
+      id: e.id, name: cleanName(e.name) || '無題の話', pages: Array.isArray(e.pages) ? e.pages.filter((x) => typeof x === 'string') : [],
+      nb: { on: nb.on !== false, start: Math.round(num(nb.start, 1, 0, 9999)), pos: NB_POS.includes(nb.pos) ? nb.pos : 'bc', size: num(nb.size, 2.2, 1, 5), color: isColor(nb.color) ? nb.color : '#000000' },
+      out: { fmt: ['zip', 'long', 'pdf'].includes(o.fmt) ? o.fmt : 'zip', width: [0, 1600, 1280, 1080, 800].includes(+o.width) ? +o.width : 0,
+        img: o.img === 'png' ? 'png' : 'jpeg', q: num(o.q, 90, 60, 100), gap: Math.round(num(o.gap, 0, 0, 400)), gapColor: isColor(o.gapColor) ? o.gapColor : '#ffffff' },
+      createdAt: e.createdAt || Date.now(), updatedAt: e.updatedAt || Date.now(),
+    };
+  }
+  async function loadEpisodes() {
+    try { episodes = (await getAll(wdb, S_EPS)).filter((e) => e && typeof e.id === 'string').map(normEp).sort((a, b) => a.createdAt - b.createdAt); }
+    catch (_) { episodes = []; }
+  }
+  function epOf(pid) { const e = episodes.find((x) => x.pages.includes(pid)); return e ? `${e.name} p${e.pages.indexOf(pid) + 1}` : ''; }
+  async function saveEp(e) { e.updatedAt = Date.now(); await putOne(wdb, S_EPS, e); await loadEpisodes(); }
+  async function removeFromEpisodes(ids) { // ページを話から外す（ページを消したとき・ほかの話に移すとき）
+    for (const e of episodes) {
+      const n = e.pages.length; e.pages = e.pages.filter((x) => !ids.includes(x));
+      if (e.pages.length !== n) await saveEp(e);
+    }
+  }
+  const epUrls = [];
+  function revokeEpUrls() { while (epUrls.length) URL.revokeObjectURL(epUrls.pop()); }
+  function thumbHtml(p) {
+    if (p && p.thumb instanceof Blob) { const u = URL.createObjectURL(p.thumb); epUrls.push(u); return `<img src="${u}" alt="">`; }
+    return '';
+  }
+  async function openEps() { await loadProjects(); renderEps(); openModal('mEps'); }
+  function renderEps() {
+    revokeEpUrls();
+    $('epList').innerHTML = episodes.length ? episodes.map((e) => {
+      const first = projects.find((p) => p.id === e.pages[0]);
+      return `<div class="lib-row" data-id="${esc(e.id)}"><div class="lr-img">${thumbHtml(first)}</div>
+        <div class="lr-main"><div class="lr-name">${esc(e.name)}</div><div class="lr-sub">${e.pages.length} ページ・${fmtDate(e.updatedAt)}</div></div>
+        <div class="lr-actions"><button class="btn small primary" type="button" data-act="open">開く</button></div></div>`;
+    }).join('') : '<div class="field-hint">まだ話がありません。「＋ 新しい話」で作ります。</div>';
+  }
+  $('miEps').addEventListener('click', () => { closeMenus(); openEps(); });
+  $('epNew').addEventListener('click', async () => {
+    const name = await promptBox('話の名前', `第${episodes.length + 1}話`);
+    if (!name) return;
+    const e = normEp({ id: genId(), name, pages: [], createdAt: Date.now() });
+    try { await saveEp(e); } catch (_) { showToast('作れませんでした', true); return; }
+    closeModal('mEps'); openEp(e.id);
+  });
+  $('epList').addEventListener('click', (e) => { const r = e.target.closest('.lib-row'); if (r && e.target.closest('[data-act="open"]')) { closeModal('mEps'); openEp(r.dataset.id); } });
+
+  function curEp() { return episodes.find((e) => e.id === epId) || null; }
+  function openEp(id) { epId = id; if (!curEp()) return; $('ePickBox').hidden = true; disarm($('eDel')); renderEp(); openModal('mEp'); }
+  function renderEp() {
+    const e = curEp(); if (!e) return;
+    revokeEpUrls();
+    $('eTitle').textContent = e.name;
+    const pages = e.pages.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
+    $('eCount').textContent = `（${pages.length}）`;
+    $('ePages').innerHTML = pages.length ? pages.map((p, i) => `<div class="lib-row" data-id="${esc(p.id)}"><div class="lr-img">${thumbHtml(p)}</div>
+      <div class="lr-main"><div class="lr-name">p${i + 1}　${esc(p.name)}</div><div class="lr-sub">${p.W}×${p.H}${(p.layers || []).some((L) => L && L.type === 'mosaic') ? '・<span style="color:var(--amber)">モザイク・効果あり</span>' : ''}</div></div>
+      <div class="lr-actions"><button class="btn small" type="button" data-act="up" ${i ? '' : 'disabled'}>↑</button><button class="btn small" type="button" data-act="down" ${i < pages.length - 1 ? '' : 'disabled'}>↓</button><button class="btn small" type="button" data-act="edit">開く</button><button class="btn small" type="button" data-act="out">外す</button></div></div>`).join('')
+      : '<div class="field-hint">まだページがありません。下のボタンで足します。</div>';
+    // ページ番号
+    $('eNbOn').checked = e.nb.on; setVal('eNbStart', e.nb.start); $('eNbSize').value = e.nb.size; $('eNbSizeV').textContent = e.nb.size.toFixed(1) + '%'; $('eNbColor').value = e.nb.color;
+    $('eNbPos').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === e.nb.pos));
+    $('eNbRow').hidden = $('eNbRow2').hidden = !e.nb.on; $('eNbHint').hidden = !e.nb.on || e.nb.pos !== 'out';
+    // 書き出し
+    const o = e.out;
+    $('eFmt').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === o.fmt));
+    $('eWidth').value = String(o.width);
+    $('eImgFmt').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === o.img));
+    $('eQuality').value = o.q; $('eQualityV').textContent = Math.round(o.q);
+    $('eQuality').hidden = $('eQualityV').hidden = o.img === 'png' && o.fmt !== 'pdf';
+    $('eImgFmt').hidden = o.fmt === 'pdf'; // PDF は JPEG で入れる
+    $('eGapRow').hidden = o.fmt !== 'long'; setVal('eGap', o.gap); $('eGapColor').value = o.gapColor;
+    $('eShare').hidden = !canShareFiles;
+    updEpSign();
+    // 隠し漏れの確認（モザイク・効果のあるページ）
+    const fxPages = pages.map((p, i) => ((p.layers || []).some((L) => L && L.type === 'mosaic') ? 'p' + (i + 1) : null)).filter(Boolean);
+    $('eCheckBox').hidden = !fxPages.length;
+    $('eCheckList').textContent = fxPages.length ? `モザイク・効果のあるページ：${fxPages.join('・')}。まとめての書き出しでは拡大して見せられないので、それぞれのページを開いて［書き出す］の画面で確かめてください。` : '';
+    $('eConfirm').checked = false;
+    $('eOutInfo').textContent = o.fmt === 'long' ? '縦に長すぎるときは、いくつかの画像に分けて ZIP にします（1枚の高さは 16000px まで）。' : o.fmt === 'pdf' ? '1ページずつの PDF です。長い辺が 2400px を超えるページは 350dpi、それ以外は 96dpi の大きさにします。' : '';
+    updEpButtons();
+  }
+  function updEpSign() { $('eSign').checked = hasSign() && sign.on; $('eSign').disabled = !hasSign(); $('eSignLabel').textContent = hasSign() ? `各ページに署名を入れる（${sign.text}）` : '署名なし（☰「書き出しの署名」で決められます）'; }
+  function updEpButtons() {
+    const e = curEp(), locked = !$('eCheckBox').hidden && !$('eConfirm').checked, empty = !e || !e.pages.some((id) => projects.some((p) => p.id === id));
+    $('eSave').disabled = $('eShare').disabled = locked || empty;
+  }
+  $('eConfirm').addEventListener('change', updEpButtons);
+  async function epUpdate(fn, rerender) { const e = curEp(); if (!e) return; fn(e); try { await saveEp(e); } catch (_) { showToast('保存できませんでした', true); } if (rerender !== false) renderEp(); }
+  $('ePages').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-act]'), r = ev.target.closest('.lib-row'); if (!b || !r) return;
+    const id = r.dataset.id;
+    if (b.dataset.act === 'edit') { closeModal('mEp'); await openEditor(id); return; }
+    await epUpdate((e) => {
+      const i = e.pages.indexOf(id); if (i < 0) return;
+      if (b.dataset.act === 'up' && i > 0) [e.pages[i - 1], e.pages[i]] = [e.pages[i], e.pages[i - 1]];
+      if (b.dataset.act === 'down' && i < e.pages.length - 1) [e.pages[i + 1], e.pages[i]] = [e.pages[i], e.pages[i + 1]];
+      if (b.dataset.act === 'out') e.pages.splice(i, 1);
+    });
+    if (b.dataset.act === 'out') showToast('話から外しました（ページは消えていません）');
+    renderList();
+  });
+  $('eRename').addEventListener('click', async () => {
+    const e = curEp(); if (!e) return;
+    const name = await promptBox('話の名前', e.name); if (!name) return;
+    await epUpdate((x) => { x.name = name; }); renderList();
+  });
+  $('eDel').addEventListener('click', () => armTwice($('eDel'), 'もう一度で削除（ページは残る）', async () => {
+    try { await delOne(wdb, S_EPS, epId); } catch (_) { showToast('削除できませんでした', true); return; }
+    await loadEpisodes(); closeModal('mEp'); renderList(); renderEps(); openModal('mEps');
+    showToast('話を削除しました（ページはそのまま残っています）');
+  }));
+  $('eAddNew').addEventListener('click', () => { pendingEp = epId; closeModal('mEp'); openMangaMaker(); });
+  $('eAddPick').addEventListener('click', () => {
+    const e = curEp(); if (!e) return;
+    const rest = projects.filter((p) => !e.pages.includes(p.id));
+    if (!rest.length) { showToast('足せるページがありません', true); return; }
+    $('ePick').innerHTML = rest.map((p) => `<label class="field-check" style="padding:4px 0"><input type="checkbox" value="${esc(p.id)}"> ${esc(p.name)}<span class="p-hint" style="margin:0 0 0 6px">${esc(epOf(p.id))}</span></label>`).join('');
+    $('ePickBox').hidden = false;
+  });
+  $('ePickCancel').addEventListener('click', () => { $('ePickBox').hidden = true; });
+  $('ePickOk').addEventListener('click', async () => {
+    const ids = [...$('ePick').querySelectorAll('input:checked')].map((x) => x.value);
+    if (!ids.length) { showToast('ページに印を付けてください', true); return; }
+    const me = epId;
+    for (const e of episodes) if (e.id !== me) { const n = e.pages.length; e.pages = e.pages.filter((x) => !ids.includes(x)); if (n !== e.pages.length) await saveEp(e); }
+    epId = me;
+    await epUpdate((e) => { ids.forEach((id) => { if (!e.pages.includes(id)) e.pages.push(id); }); });
+    $('ePickBox').hidden = true; renderList();
+    showToast(`${ids.length} ページ足しました`);
+  });
+  // ページ番号・書き出しの設定（変えたらすぐ保存）
+  $('eNbOn').addEventListener('change', () => epUpdate((e) => { e.nb.on = $('eNbOn').checked; }));
+  $('eNbStart').addEventListener('change', () => epUpdate((e) => { e.nb.start = Math.round(num($('eNbStart').value, 1, 0, 9999)); }));
+  $('eNbSize').addEventListener('input', () => { $('eNbSizeV').textContent = Number($('eNbSize').value).toFixed(1) + '%'; });
+  $('eNbSize').addEventListener('change', () => epUpdate((e) => { e.nb.size = num($('eNbSize').value, 2.2, 1, 5); }));
+  $('eNbColor').addEventListener('change', () => epUpdate((e) => { if (isColor($('eNbColor').value)) e.nb.color = $('eNbColor').value; }));
+  $('eNbPos').addEventListener('click', (ev) => { const b = ev.target.closest('.btn'); if (b) epUpdate((e) => { e.nb.pos = b.dataset.v; }); });
+  $('eFmt').addEventListener('click', (ev) => { const b = ev.target.closest('.btn'); if (b) epUpdate((e) => { e.out.fmt = b.dataset.v; }); });
+  $('eImgFmt').addEventListener('click', (ev) => { const b = ev.target.closest('.btn'); if (b) epUpdate((e) => { e.out.img = b.dataset.v === 'png' ? 'png' : 'jpeg'; }); });
+  $('eWidth').addEventListener('change', () => epUpdate((e) => { e.out.width = +$('eWidth').value || 0; }));
+  $('eQuality').addEventListener('input', () => { $('eQualityV').textContent = $('eQuality').value; });
+  $('eQuality').addEventListener('change', () => epUpdate((e) => { e.out.q = num($('eQuality').value, 90, 60, 100); }, false));
+  $('eGap').addEventListener('change', () => epUpdate((e) => { e.out.gap = Math.round(num($('eGap').value, 0, 0, 400)); }, false));
+  $('eGapColor').addEventListener('change', () => epUpdate((e) => { if (isColor($('eGapColor').value)) e.out.gapColor = $('eGapColor').value; }, false));
+
+  // ページ番号を描く（i＝0から。外側＝右綴じの外：奇数ページ（1・3…番目）は左下、偶数は右下）
+  function drawNombre(g, w, h, n, idx, nb) {
+    const short = Math.min(w, h), size = Math.max(6, short * nb.size / 100), m = short * 0.03;
+    let pos = nb.pos; if (pos === 'out') pos = idx % 2 === 0 ? 'bl' : 'br';
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+    g.font = `${size.toFixed(1)}px ${FONTS[0].css}`; g.textBaseline = 'alphabetic';
+    g.textAlign = pos === 'br' ? 'right' : pos === 'bl' ? 'left' : 'center';
+    const x = pos === 'br' ? w - m : pos === 'bl' ? m : w / 2, y = h - m;
+    g.lineJoin = 'round'; g.lineWidth = Math.max(1, size * 0.18); g.strokeStyle = nb.color === '#ffffff' ? '#000000' : '#ffffff';
+    g.strokeText(String(n), x, y); g.fillStyle = nb.color; g.fillText(String(n), x, y);
+    g.restore();
+  }
+  // 作品のレコードから描くためのもの（編集の画面と同じ形に）
+  function projFromRec(rec) {
+    return { id: rec.id, name: cleanName(rec.name) || '無題', baseId: rec.baseId, W: num(rec.W, 1, 1, 1e5), H: num(rec.H, 1, 1, 1e5),
+      layers: (Array.isArray(rec.layers) ? rec.layers : []).map(normLayer).filter(Boolean),
+      baseFx: normFx(rec.baseFx), pageFx: normFx(rec.pageFx), baseMarks: normMarks(rec.baseMarks), manga: normManga(rec.manga) };
+  }
+  // 1ページを書き出しの絵にする（横幅 width に合わせる。0＝元の大きさ）
+  async function renderEpPage(rec, i, e, opt) {
+    const p = projFromRec(rec);
+    await loadImagesFor(p); await ensureFonts(p.layers, 5000);
+    const s = opt.width ? opt.width / p.W : 1;
+    let w = Math.max(1, Math.round(p.W * s)), h = Math.max(1, Math.round(p.H * s));
+    if (w * h > MAX_PIXELS) { const k = Math.sqrt(MAX_PIXELS / (w * h)); w = Math.floor(w * k); h = Math.floor(h * k); }
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); if (!g) throw new Error('キャンバスを作れませんでした（ページが大きすぎるかもしれません）');
+    g.imageSmoothingQuality = 'high';
+    if (opt.opaque) { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); }
+    g.setTransform(w / p.W, 0, 0, h / p.H, 0, 0);
+    drawScene(g, p);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    if (e.nb.on) drawNombre(g, w, h, e.nb.start + i, i, e.nb);
+    if (opt.sign) drawSignature(g, w, h);
+    return c;
+  }
+  // 最小限の PDF（1ページに1枚の JPEG。DCTDecode）
+  async function makePdf(pages) { // pages：[{ jpg: Uint8Array, w, h, ptW, ptH }]
+    const enc = new TextEncoder(), parts = [], offs = []; let pos = 0;
+    const put = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); pos += b.length; };
+    const obj = (n, body) => { offs[n] = pos; put(`${n} 0 obj\n`); body(); put('\nendobj\n'); };
+    put('%PDF-1.4\n'); put(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
+    const n = pages.length, kids = pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
+    obj(1, () => put('<< /Type /Catalog /Pages 2 0 R >>'));
+    obj(2, () => put(`<< /Type /Pages /Kids [${kids}] /Count ${n} >>`));
+    pages.forEach((pg, i) => {
+      const po = 3 + i * 3, co = po + 1, io = po + 2, W = pg.ptW.toFixed(2), H = pg.ptH.toFixed(2);
+      obj(po, () => put(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${io} 0 R >> >> /Contents ${co} 0 R >>`));
+      const cs = `q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;
+      obj(co, () => { put(`<< /Length ${cs.length} >>\nstream\n`); put(cs); put('\nendstream'); });
+      obj(io, () => { put(`<< /Type /XObject /Subtype /Image /Width ${pg.w} /Height ${pg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.jpg.length} >>\nstream\n`); put(pg.jpg); put('\nendstream'); });
+    });
+    const xref = pos, total = 3 + n * 3;
+    let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+    for (let k = 1; k < total; k++) x += String(offs[k]).padStart(10, '0') + ' 00000 n \n';
+    put(x); put(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  const LONG_MAX_H = 16000; // 縦につなぐとき、1枚の高さの上限（スマホのキャンバスの上限対策）
+  async function makeEpExport() {
+    const e = curEp(); if (!e) throw new Error('話が見つかりません');
+    const recs = e.pages.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
+    if (!recs.length) throw new Error('ページがありません');
+    const o = e.out, base = safeFileName(e.name), sg = $('eSign').checked;
+    if (sg) await ensureSignFont();
+    try {
+      if (o.fmt === 'zip') {
+        const files = [], jpeg = o.img === 'jpeg';
+        for (let i = 0; i < recs.length; i++) {
+          busy(true, `書き出しています… ${i + 1} / ${recs.length}`);
+          const c = await renderEpPage(recs[i], i, e, { width: o.width, opaque: jpeg, sign: sg });
+          const b = await canvasToBlob(c, jpeg ? 'image/jpeg' : 'image/png', jpeg ? o.q / 100 : undefined);
+          files.push({ name: `${base}_${String(i + 1).padStart(2, '0')}.${jpeg ? 'jpg' : 'png'}`, data: new Uint8Array(await b.arrayBuffer()) });
+        }
+        return { blob: zipStore(files), name: base + '.zip', info: `${recs.length} ページ` };
+      }
+      if (o.fmt === 'pdf') {
+        const pages = [];
+        for (let i = 0; i < recs.length; i++) {
+          busy(true, `PDF にしています… ${i + 1} / ${recs.length}`);
+          const c = await renderEpPage(recs[i], i, e, { width: o.width, opaque: true, sign: sg });
+          const b = await canvasToBlob(c, 'image/jpeg', o.q / 100);
+          const rec = recs[i], dpi = Math.max(rec.W, rec.H) > 2400 ? 350 : 96; // 印刷の大きさ（350dpi）か、画面の大きさ（96dpi）か
+          pages.push({ jpg: new Uint8Array(await b.arrayBuffer()), w: c.width, h: c.height, ptW: rec.W * 72 / dpi, ptH: rec.H * 72 / dpi });
+        }
+        return { blob: await makePdf(pages), name: base + '.pdf', info: `${recs.length} ページ` };
+      }
+      // 縦につないだ1枚（幅をそろえる。高すぎるときは分けて ZIP）
+      const jpeg = o.img === 'jpeg';
+      const W = o.width || Math.max(...recs.map((r) => num(r.W, 1, 1, 1e5)));
+      const hs = recs.map((r) => Math.round(num(r.H, 1, 1, 1e5) * W / num(r.W, 1, 1, 1e5)));
+      const groups = []; let cur0 = [], hh = 0;
+      hs.forEach((h, i) => {
+        const add = (cur0.length ? o.gap : 0) + h;
+        if (cur0.length && hh + add > LONG_MAX_H) { groups.push(cur0); cur0 = []; hh = 0; }
+        cur0.push(i); hh += (cur0.length > 1 ? o.gap : 0) + h;
+      });
+      if (cur0.length) groups.push(cur0);
+      const outs = [];
+      for (let gi = 0; gi < groups.length; gi++) {
+        const idx = groups[gi];
+        const H = idx.reduce((a, i, k) => a + hs[i] + (k ? o.gap : 0), 0);
+        if (W * H > 268e6) throw new Error('大きすぎて1枚にできません。横幅を小さくしてください');
+        const c = document.createElement('canvas'); c.width = W; c.height = Math.min(H, Math.max(LONG_MAX_H, hs[idx[0]]));
+        const g = c.getContext('2d'); if (!g) throw new Error('キャンバスを作れませんでした。横幅を小さくしてください');
+        g.fillStyle = o.gapColor; g.fillRect(0, 0, c.width, c.height);
+        let y = 0;
+        for (let k = 0; k < idx.length; k++) {
+          const i = idx[k];
+          busy(true, `つないでいます… ${i + 1} / ${recs.length}`);
+          const pc = await renderEpPage(recs[i], i, e, { width: W, opaque: true, sign: sg });
+          g.drawImage(pc, 0, y, W, hs[i]);
+          y += hs[i] + o.gap;
+        }
+        outs.push(await canvasToBlob(c, jpeg ? 'image/jpeg' : 'image/png', jpeg ? o.q / 100 : undefined));
+      }
+      const ext = jpeg ? 'jpg' : 'png';
+      if (outs.length === 1) return { blob: outs[0], name: `${base}.${ext}`, info: `${recs.length} ページを1枚に` };
+      const files = [];
+      for (let k = 0; k < outs.length; k++) files.push({ name: `${base}_${k + 1}.${ext}`, data: new Uint8Array(await outs[k].arrayBuffer()) });
+      return { blob: zipStore(files), name: base + '.zip', info: `高すぎるので ${outs.length} 枚に分けました` };
+    } finally {
+      if (!editorOpen()) clearImgCache(); // 編集の画面を開いていなければ、読み込んだ画像を片付ける
+    }
+  }
+  async function withEpExport(fn) {
+    if (!$('eCheckBox').hidden && !$('eConfirm').checked) { showToast('隠し漏れを確かめて、印を付けてから書き出してください', true); return; }
+    if (!await signGuard($('eSign').checked)) return;
+    busy(true, '書き出しています…');
+    try { const r = await makeEpExport(); busy(false); await fn(r); }
+    catch (err) { if (!(err && err.name === 'AbortError')) showToast('書き出せませんでした：' + (err && err.message || err), true); }
+    finally { busy(false); }
+  }
+  $('eSave').addEventListener('click', () => withEpExport(async (r) => {
+    const url = URL.createObjectURL(r.blob);
+    const a = document.createElement('a'); a.href = url; a.download = r.name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+    showToast(`書き出しました（${r.info}・${fmtBytes(r.blob.size)}）`);
+  }));
+  $('eShare').addEventListener('click', () => withEpExport(async (r) => {
+    const file = new File([r.blob], r.name, { type: r.blob.type });
+    if (!navigator.canShare || !navigator.canShare({ files: [file] })) { showToast('この端末ではこのファイルを共有できません。「書き出す」を使ってください', true); return; }
+    await navigator.share({ files: [file] });
+  }));
+
   /* ===================== 端末ごとの設定 ===================== */
   let prefs = { bgAsk: true };
   try { const v = JSON.parse(localStorage.getItem(LS_PREFS) || 'null'); if (v && typeof v === 'object') prefs = Object.assign(prefs, { bgAsk: v.bgAsk !== false }); } catch (_) { /* 既定のまま */ }
@@ -6221,7 +6691,7 @@
   /* ===================== 起動 ===================== */
   (async function init() {
     try {
-      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS, S_FXSETS, S_PACKS]);
+      wdb = await openDb(WDB_NAME, WDB_VERSION, [S_PROJ, S_BLOBS, S_FONTS, S_FXSETS, S_PACKS, S_EPS]);
       db = await openDb(DB_NAME, DB_VERSION, [S_STYLES]);
     } catch (err) {
       $('listBody').innerHTML = `<div class="empty-state"><div class="big">開けませんでした</div><div class="small">保存の場所（IndexedDB）が使えません：${esc(err && err.message || err)}</div></div>`;
