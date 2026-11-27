@@ -1194,6 +1194,7 @@
           </div>
           <div class="editor-foot">
             <button type="button" class="btn" id="workMdBtn">全章の本文を .md で書き出す</button>
+            <button type="button" class="btn" id="workZipBtn" title="表紙・カバー・章の画像・設定画像を、登録したときの画質のまま1つのZIPにまとめます">画像をZIPで書き出す</button>
             <button type="button" class="btn" id="exportWorkBtn">この作品をエクスポート（JSON）</button>
             <!-- 作品の削除は ☰ の「この作品を削除」へ移した（2026-11-07） -->
           </div>
@@ -2122,6 +2123,54 @@
   }
   const downloadJson = (obj, filename) => downloadBlob(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' }), filename);
   const downloadText = (text, filename) => downloadBlob(new Blob([text], { type: 'text/markdown;charset=utf-8' }), filename);
+
+  // ---- ZIP（無圧縮・ファイル名はUTF-8）を作る（2026-11-27。作品の画像のまとめ書き出し用） ----
+  // 画像（PNG/JPEG/WebP/GIF）はもともと圧縮された形なので、ZIPでは圧縮しない（stored）。外部のライブラリを読まず、
+  // ZIPの標準の形（PKWARE APPNOTE のローカルヘッダー＋中央ディレクトリ＋終端）をそのまま書く。1ファイル4GB・65535件まで
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; }
+    }
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  // files: [{ name, bytes: Uint8Array, time: Date }] → Blob（application/zip）
+  function buildZip(files) {
+    if (files.length > 65535) throw new Error('ZIPに入れるファイルが多すぎます');
+    const te = new TextEncoder();
+    const parts = [], central = [];
+    let offset = 0;
+    for (const f of files) {
+      const name = te.encode(f.name);
+      const crc = crc32(f.bytes);
+      const t = f.time || new Date();
+      const dosTime = (t.getHours() << 11) | (t.getMinutes() << 5) | Math.floor(t.getSeconds() / 2);
+      const dosDate = ((Math.max(1980, t.getFullYear()) - 1980) << 9) | ((t.getMonth() + 1) << 5) | t.getDate();
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true); // UTF-8 の名前
+      local.setUint16(8, 0, true); local.setUint16(10, dosTime, true); local.setUint16(12, dosDate, true);
+      local.setUint32(14, crc, true); local.setUint32(18, f.bytes.length, true); local.setUint32(22, f.bytes.length, true);
+      local.setUint16(26, name.length, true); local.setUint16(28, 0, true);
+      parts.push(local.buffer, name, f.bytes);
+      const cd = new DataView(new ArrayBuffer(46));
+      cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true);
+      cd.setUint16(10, 0, true); cd.setUint16(12, dosTime, true); cd.setUint16(14, dosDate, true);
+      cd.setUint32(16, crc, true); cd.setUint32(20, f.bytes.length, true); cd.setUint32(24, f.bytes.length, true);
+      cd.setUint16(28, name.length, true); cd.setUint16(30, 0, true); cd.setUint16(32, 0, true); cd.setUint16(34, 0, true);
+      cd.setUint16(36, 0, true); cd.setUint32(38, 0, true); cd.setUint32(42, offset, true);
+      central.push(cd.buffer, name);
+      offset += 30 + name.length + f.bytes.length;
+      if (offset > 0xFFFFFFFF) throw new Error('ZIPが大きすぎます（4GBまで）');
+    }
+    const cdSize = central.reduce((a, p) => a + p.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true); end.setUint16(20, 0, true);
+    return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+  }
 
   // ---- Blob URL：画像ごとに1本だけ保持し、差し替えや削除で古い方を解放 ----
   const urlCache = new Map();
@@ -5665,6 +5714,47 @@
     if (!(await confirmAnnotations(w, chaptersOf(w.id), 'このまま書き出しますか？', '書き出す'))) return;
     downloadText(md, `${safeFileName(w.title, '無題')}_${dateStamp(new Date())}.md`);
     showToast('本文を書き出しました');
+  });
+  // 作品の画像をZIPでまとめて書き出す（2026-11-27）：表紙・カバー・章の画像（章の順）・設定画像（設定集の順）を、
+  // 保存してある元のファイルのまま（切り抜き・縮小なし）。名前は「01_表紙.png」「03_第1章_章タイトル.png」「05_設定_人物_名前.png」
+  function workImageFiles(w) {
+    const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+    const part = (s, fb) => safeFileName(s, fb).slice(0, 40).replace(/[. ]+$/, '') || fb; // Windows は末尾の . と空白を嫌う
+    const list = [];
+    const add = (id, label) => { const r = images.get(id); if (r && r.blob && r.blob.size) list.push({ rec: r, label }); };
+    add(imgId(w.id, 'kv'), '表紙');
+    add(imgId(w.id, 'cover'), 'カバー');
+    chaptersOf(w.id).forEach((c, i) => add(imgId(c.id, 'img'), `第${i + 1}章` + (c.title.trim() ? '_' + part(c.title, '') : '')));
+    loreOf(w.id).forEach((l) => add(imgId(l.id, 'img'), `設定_${LORE_KINDS[l.kind] ? LORE_KINDS[l.kind].replace(/[・]/g, '') : 'その他'}_${part(l.name, '名前なし')}`));
+    const digits = Math.max(2, String(list.length).length);
+    const used = new Set();
+    return list.map((x, i) => {
+      const ext = EXT[x.rec.type || x.rec.blob.type] || ((String(x.rec.name || '').match(/\.(png|jpe?g|webp|gif)$/i) || [])[1] || 'png').toLowerCase().replace('jpeg', 'jpg');
+      let name = `${String(i + 1).padStart(digits, '0')}_${x.label}.${ext}`;
+      while (used.has(name.toLowerCase())) name = name.replace(/(\.\w+)$/, '_$1'); // 念のため（番号付きなので普通は重ならない）
+      used.add(name.toLowerCase());
+      return { name, blob: x.rec.blob, time: new Date(x.rec.updatedAt || Date.now()) };
+    });
+  }
+  let zipBusy = false;
+  $('workZipBtn').addEventListener('click', async () => {
+    const w = getWork(currentWorkId);
+    if (!w || zipBusy) return; // 2回押しで2つ作らない
+    await workSaver.flush();
+    const files = workImageFiles(w);
+    if (!files.length) { showToast('この作品には画像がありません（表紙・カバー・章の画像・設定画像）', true); return; }
+    zipBusy = true;
+    const btn = $('workZipBtn');
+    btn.disabled = true;
+    try {
+      const withBytes = [];
+      for (const f of files) withBytes.push({ name: f.name, time: f.time, bytes: new Uint8Array(await f.blob.arrayBuffer()) });
+      const zip = buildZip(withBytes);
+      downloadBlob(zip, `${safeFileName(w.title, '無題')}_画像_${dateStamp(new Date())}.zip`);
+      const size = zip.size >= 1048576 ? `${(zip.size / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(zip.size / 1024))}KB`;
+      showToast(`画像${files.length}枚をZIPで書き出しました（${size}）`);
+    } catch (err) { console.error(err); showToast('ZIPを作れませんでした：' + (err && err.message ? err.message : err), true); }
+    finally { zipBusy = false; btn.disabled = false; }
   });
   $('chMdBtn').addEventListener('click', async () => {
     const w = getWork(currentWorkId), ch = getChapter(currentChapterId);
