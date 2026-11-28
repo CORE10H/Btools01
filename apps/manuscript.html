@@ -362,6 +362,19 @@
   .ch-layout .ch-tab.is-active { background: color-mix(in srgb, var(--cyan) 5%, var(--bg-alt)); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); border-right: none; margin-right: -1px; padding: 10px 13px 10px 12px; position: relative; z-index: 2; }
   .ch-layout .ch-tab.add { border-style: dashed; border-width: 1px; margin-top: 8px; align-items: center; }
   .ch-layout .ch-frame { min-height: 100%; }
+  /* 2026-11-28：PCでは章の一覧（左）とその章（右）を別々にスクロールさせる。ホイールで片方を回しても、もう片方は動かない
+     （以前は左を sticky にしていたため、章が多いと右のスクロールに中途半端に引きずられた）。
+     欄の高さ＝工程タブの下から画面の下まで（--ch-h。fitChLayout で測る）。端まで回しても外のページへは送らない（overscroll-behavior） */
+  @media (min-width: 641px) {
+    .ch-layout { height: var(--ch-h, 70vh); align-items: stretch; }
+    .ch-layout .ch-tabs { position: relative; top: auto; z-index: 2; margin-right: -1px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding-bottom: 8px;
+      direction: rtl; } /* スクロールバーを左の端に出す（右に出ると、選んでいる章と右の枠の間に挟まって、つながりが切れる） */
+    .ch-layout .ch-tab { flex-shrink: 0; direction: ltr; }
+    .ch-layout .ch-tabs, .ch-layout .ch-frame { scrollbar-width: thin; scrollbar-color: var(--line) transparent; } /* テーマの線の色で細く（白いバーが目立たないように） */
+    .ch-layout .ch-tab:not(.is-active):not(.add) { border-right: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line)); } /* 右の枠の左の線を、選んでいない章のところで引く（選んでいる章は線なしで枠とつながる） */
+    .ch-layout .ch-tab.is-active { margin-right: 0; }
+    .ch-layout .ch-frame { min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-bottom: 0; }
+  }
   .ct-name { font-size: 12.5px; font-weight: 600; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   .ct-state { font-size: 10.5px; font-weight: 400; color: var(--text-faint); }
   .ct-state.is-done { color: var(--cyan); }
@@ -4219,8 +4232,15 @@
     if (tab && tab !== currentTab) await showTab(tab, { noFlush: true, scroll: false });
     if (t.chapterId && t.chapterId !== currentChapterId && getChapter(t.chapterId)) await selectChapter(t.chapterId);
     const sc = viewEls.work.querySelector('.scroll-area');
-    const tabsH = $('msTabs').getBoundingClientRect().height; // 上に残るタブの下に出す
-    sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - tabsH - 12;
+    const frame = el.closest('.ch-layout .ch-frame');
+    if (frame && window.matchMedia('(min-width: 641px)').matches) {
+      // PCの本文タブの章の欄（2026-11-28〜 左右別スクロール）：外のページを下まで送って欄を画面に収め、右の枠の中でその工程を一番上に出す
+      sc.scrollTop = sc.scrollHeight;
+      frame.scrollTop += el.getBoundingClientRect().top - frame.getBoundingClientRect().top - 8;
+    } else {
+      const tabsH = $('msTabs').getBoundingClientRect().height; // 上に残るタブの下に出す
+      sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - tabsH - 12;
+    }
     const f = (t.focus && $(t.focus)) || (t.focusSel && el.querySelector(t.focusSel)) || el.querySelector('[data-compose]') || el.querySelector('textarea, input, select, button');
     if (f) f.focus({ preventScroll: true });
   }
@@ -4610,6 +4630,7 @@
     setChGear(false); // 章を替えたら歯車のメニューは閉じる（別の章を動かさないように）
     const apply = () => {
       const ch = getChapter(id);
+      const changed = (ch ? ch.id : null) !== currentChapterId;
       currentChapterId = ch ? ch.id : null;
       chTitle.value = ch ? ch.title : ''; chOutline.value = ch ? ch.outline : '';
       chMemo.value = ch ? ch.memo : '';
@@ -4623,10 +4644,54 @@
       renderChapterTabs();
       renderAllSlots();
       updateWorkState();
+      // PCの左右別スクロール（2026-11-28）：別の章にしたら右は章の一番上から。左は選んだ章が見えるところまで（外のページは動かさない）
+      const frame = document.querySelector('.ch-layout .ch-frame');
+      if (changed && frame) frame.scrollTop = 0;
+      revealActiveChTab();
     };
     if (skipFlush) { apply(); return Promise.resolve(); }
     return workSaver.flush().then(apply);
   }
+  // ===== 本文タブの章の欄（PC）：左の章の一覧と右のその章を、別々にスクロールさせる（2026-11-28） =====
+  // ユーザー：「ホイールで回すと、左右のペインが中途半端に連動して動く。完全に独立させたい」。
+  // 左右とも自分の中だけでスクロールし、端まで行っても外のページへは送らない（CSS の overscroll-behavior）。
+  // ただし欄が画面の下にはみ出している間（上の工程7などが見えている間）に欄の中で下へ回したら、先に外のページを送って欄を画面に収める。
+  // 欄の中で上へ回して、回している所がもう上へ行けないときは、外のページを上へ送る（顔・工程7に戻れるように）
+  const chLayoutEl = document.querySelector('.ch-layout');
+  const workScrollEl = viewEls.work.querySelector('.scroll-area');
+  const pcChLayout = window.matchMedia('(min-width: 641px)');
+  function fitChLayout() {
+    const tabs = $('msTabs');
+    if (!tabs || !workScrollEl.clientHeight) return;
+    const h = workScrollEl.clientHeight - parseFloat(getComputedStyle(workScrollEl).paddingBottom) - tabs.offsetHeight - 20;
+    chLayoutEl.style.setProperty('--ch-h', Math.max(320, Math.round(h)) + 'px'); // 小さな窓でも章の欄は320pxは取る
+  }
+  if (window.ResizeObserver) { const ro = new ResizeObserver(fitChLayout); ro.observe(workScrollEl); ro.observe($('msTabs')); }
+  window.addEventListener('resize', fitChLayout);
+  function revealActiveChTab() {
+    const a = chTabs.querySelector('.ch-tab.is-active');
+    if (!a || !window.matchMedia('(min-width: 641px)').matches || chTabs.scrollHeight <= chTabs.clientHeight) return;
+    const ar = a.getBoundingClientRect(), tr = chTabs.getBoundingClientRect();
+    if (ar.top < tr.top) chTabs.scrollTop -= tr.top - ar.top;
+    else if (ar.bottom > tr.bottom) chTabs.scrollTop += ar.bottom - tr.bottom;
+  }
+  // 回している所（textarea など）から欄までの間に、まだ上へスクロールできる箱があるか
+  function canScrollUpWithin(el, pane) {
+    for (let e = el; e && e !== chLayoutEl; e = e.parentElement) {
+      if (e.scrollTop > 0 && /auto|scroll/.test(getComputedStyle(e).overflowY)) return true;
+      if (e === pane) break;
+    }
+    return false;
+  }
+  chLayoutEl.addEventListener('wheel', (e) => {
+    if (!pcChLayout.matches || e.ctrlKey || !e.deltaY) return;
+    const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? workScrollEl.clientHeight : 1);
+    const pane = e.target.closest('.ch-tabs, .ch-frame');
+    const outerMax = workScrollEl.scrollHeight - workScrollEl.clientHeight;
+    if (dy > 0 && workScrollEl.scrollTop < outerMax - 1) { e.preventDefault(); workScrollEl.scrollTop = Math.min(outerMax, workScrollEl.scrollTop + dy); return; }
+    if (dy < 0 && workScrollEl.scrollTop > 0 && !canScrollUpWithin(e.target, pane)) { e.preventDefault(); workScrollEl.scrollTop = Math.max(0, workScrollEl.scrollTop + dy); }
+  }, { passive: false });
+
   chTabs.addEventListener('click', async (e) => {
     const t = e.target.closest('.ch-tab');
     if (!t) return;
