@@ -850,8 +850,14 @@
 
     <div id="nmPromptBox" hidden>
       <div class="sub-title">⑥ プロンプトの一覧</div>
-      <div class="field-hint">コマごとに「先頭のタグ＋映る人の見た目のタグ＋そのコマのタグ」をつなげます（同じタグは1つに）。比率は、話を作ったあとはコマの実際の形から、作る前はネームの形からです。生成した画像は、ファイル名を p01_k02.png（1ページ目の2コマ目）のようにして保存しておくと、⑦でまとめて入れられます。</div>
-      <div class="p-row"><label class="p-lab">先頭のタグ</label><input class="p-select" id="nmHead" maxlength="500" placeholder="例：masterpiece, best quality, monochrome" style="flex:1"></div>
+      <div class="field-hint">SeaArt（WAI-Illustrious）向けに、コマごとに「人数 → 人物の見た目 → 服 → 表情 → ポーズ → 視線 → 画角 → 角度 → 場所 → 小道具 → 光 → 画風 → 品質タグ」の順でつなげ、ネガティブと推奨の解像度も出します（同じタグは1つに。1人のコマは solo を足し、2人以上は外す）。生成した画像は、ファイル名を p01_k02.png（1ページ目の2コマ目）のようにして保存しておくと、⑦でまとめて入れられます。</div>
+      <div class="p-row"><label class="p-lab">モデル</label><span class="p-hint" style="margin:0">SeaArt（WAI-Illustrious-SDXL）</span></div>
+      <div class="p-row"><label class="p-lab">色</label><span class="seg" id="nmColor"><button class="btn" type="button" data-v="mono">白黒の漫画</button><button class="btn" type="button" data-v="color">カラー</button></span></div>
+      <div class="p-row"><label class="p-lab">画風のタグ</label><input class="p-select nm-tags" id="nmHead" maxlength="500" placeholder="例：anime coloring, flat color（なくてよい）" style="flex:1"></div>
+      <div class="p-row"><label class="p-lab">品質タグ</label><input class="p-select nm-tags" id="nmQuality" maxlength="300" style="flex:1"></div>
+      <div class="p-lab-row">ネガティブ（全部のコマ。1人のコマには multiple girls などを足します）</div>
+      <textarea class="p-text nm-tags" id="nmNeg" maxlength="1000" rows="2"></textarea>
+      <div class="p-row"><button class="btn small" id="nmWaiReset" type="button">品質タグ・ネガティブを既定に戻す</button></div>
       <div class="p-row"><button class="btn small" id="nmPromptShow" type="button">一覧を見る／閉じる</button><button class="btn small primary" id="nmPromptAll" type="button">全部コピー</button></div>
       <div id="nmPrompts" hidden></div>
     </div>
@@ -6546,7 +6552,26 @@
   const NM_AR = { portrait: '縦長', landscape: '横長', square: '正方形' };
   const NM_FX = { none: 'なし', focus: '集中線', speed: 'スピード線' };
   const NM_TYPE = { normal: 'ふつう', shout: '叫び', think: '心の声', narration: 'ナレーション' };
-  const NM_SHOT = { 'close-up': 'アップ', 'extreme close-up': '大アップ', bust: 'バストアップ', 'cowboy shot': '腰から上', full: '全身', wide: '引き', bird: '俯瞰', low: 'あおり', pov: '主観', back: '後ろ姿' };
+  // 構図（画角）と角度は Danbooru のタグそのもの（2026-11-28。前は bust・bird など Danbooru では別の意味になる言葉だった）
+  const NM_SHOT = { 'extreme close-up': '大アップ', 'close-up': 'アップ', portrait: '顔まわり', 'upper body': 'バストアップ', 'cowboy shot': '膝上', 'full body': '全身', 'wide shot': '引き', 'very wide shot': '大きく引き' };
+  const NM_ANGLE = { '': 'ふつう', 'from above': '俯瞰', 'from below': 'あおり', 'from side': '横から', 'from behind': '後ろから', 'dutch angle': '斜め', pov: '主観' };
+  const NM_SHOT_ALIAS = { bust: 'upper body', 'bust shot': 'upper body', 'medium shot': 'cowboy shot', full: 'full body', 'full shot': 'full body', wide: 'wide shot', 'long shot': 'wide shot', 'face focus': 'close-up',
+    'アップ': 'close-up', '大アップ': 'extreme close-up', 'バストアップ': 'upper body', '膝上': 'cowboy shot', '腰から上': 'cowboy shot', '全身': 'full body', '引き': 'wide shot' };
+  const NM_ANGLE_ALIAS = { bird: 'from above', "bird's eye view": 'from above', 'high angle': 'from above', low: 'from below', 'low angle': 'from below', back: 'from behind', side: 'from side', profile: 'from side',
+    '俯瞰': 'from above', 'あおり': 'from below', '煽り': 'from below', '横から': 'from side', '後ろから': 'from behind', '後ろ姿': 'from behind', '主観': 'pov', 'ふつう': '', none: '', 'eye level': '' };
+  const NM_TAGF = ['count', 'expr', 'act', 'gaze', 'place', 'light', 'props']; // コマのタグの項目（人数・表情・ポーズ・視線・場所・時間と光・小道具）
+  const NM_TAGF_LABEL = { count: '人数', expr: '表情', act: 'ポーズ・動き', gaze: '視線', place: '場所・背景', light: '時間・光', props: '小道具' };
+  const NM_TAGF_KEY = { count: ['count'], expr: ['expression', 'expr'], act: ['action', 'pose', 'act'], gaze: ['gaze'], place: ['place', 'background', 'location'], light: ['light', 'lighting', 'time'], props: ['props', 'objects'] };
+  // WAI（SeaArt）の既定値（画像生成プロンプト作成ナレッジ §3.2・§3.3）
+  const WAI_QUALITY = 'masterpiece, best quality, amazing quality';
+  const WAI_NEG = 'bad quality, worst quality, worst detail, sketch, censor, nsfw';
+  const WAI_SETTINGS = 'Euler a・Steps 25〜30・CFG 5〜7・Clip Skip 2・Hires fix 1.5倍（denoise 0.35〜0.5）';
+  const WAI_SIZES = [[1024, 1024], [896, 1152], [832, 1216], [768, 1344], [1152, 896], [1216, 832], [1344, 768]];
+  // タグの文字を整える：カンマ区切り・前後の空白・long_hair → long hair・空のタグを捨てる
+  function nmTagStr(v, max) {
+    const a = Array.isArray(v) ? v.join(', ') : nmStr(v, max || NM_MAX.prompt);
+    return a.replace(/\n+/g, ', ').split(/[,，、]/).map((t) => t.trim().replace(/([A-Za-z0-9])_(?=[A-Za-z0-9])/g, '$1 ').replace(/\s+/g, ' ')).filter(Boolean).join(', ').slice(0, max || NM_MAX.prompt);
+  }
   const NM_PER = ['3〜4', '4〜5', '5〜6'];
   const NM_MAX = { setting: 30000, paste: 200000, pages: 60, panels: 12, lines: 12, chars: 30, text: 300, prompt: 1500, tags: 1500 };
   const NM_ALIAS = { // 日本語や別の書き方で返ってきたとき
@@ -6575,24 +6600,39 @@
       return { type: nmEnum(l.type, NM_TYPE, NM_ALIAS.type, 'normal', w, 'セリフの種類'), who: nmStr(l.who != null ? l.who : l.speaker, 40), text: nmStr(l.text, NM_MAX.text) };
     }).filter((l) => l.text || !warn); // 読み込むときは空のセリフを捨てる（直している途中の空の行は残す）
     if (w && Array.isArray(k.lines) && k.lines.length > NM_MAX.lines) w(`セリフが多いので ${NM_MAX.lines} までにしました`);
-    const shot = nmStr(k.shot, 40);
+    // 構図と角度：Danbooru のタグに直す（古い言葉・日本語も受け取る）
+    let shot = nmStr(k.shot, 40).toLowerCase().replace(/_/g, ' '), angle = nmStr(k.angle, 40).toLowerCase().replace(/_/g, ' ');
+    if (!NM_SHOT[shot]) {
+      if (NM_SHOT_ALIAS[shot]) shot = NM_SHOT_ALIAS[shot];
+      else if (NM_ANGLE_ALIAS[shot] != null || NM_ANGLE[shot] != null) { if (!angle) angle = NM_ANGLE_ALIAS[shot] != null ? NM_ANGLE_ALIAS[shot] : shot; shot = ''; }
+      else if (shot) { if (w) w(`構図「${shot}」は決まったタグではないので、そのまま使います`); }
+    }
+    if (NM_ANGLE[angle] == null) {
+      if (NM_ANGLE_ALIAS[angle] != null) angle = NM_ANGLE_ALIAS[angle];
+      else if (angle && w) w(`角度「${angle}」は決まったタグではないので、そのまま使います`);
+    }
+    const tf = {};
+    NM_TAGF.forEach((f) => { const key = NM_TAGF_KEY[f].find((x) => k[x] != null); tf[f] = key ? nmTagStr(k[key], 400) : ''; });
     return {
       size: nmEnum(k.size, NM_SIZE, NM_ALIAS.size, 'medium', w, '大きさ'),
-      shot: NM_SHOT[shot.toLowerCase()] ? shot.toLowerCase() : shot,
+      shot, angle, count: tf.count, expr: tf.expr, act: tf.act, gaze: tf.gaze, place: tf.place, light: tf.light, props: tf.props,
       ar: nmEnum(k.ar, NM_AR, NM_ALIAS.ar, 'portrait', w, '形'),
       fx: nmEnum(k.fx, NM_FX, NM_ALIAS.fx, 'none', w, '効果線'),
-      scene: nmStr(k.scene, 1000), prompt: nmStr(k.prompt, NM_MAX.prompt),
+      scene: nmStr(k.scene, 1000), prompt: nmTagStr(k.other != null ? k.other : k.prompt, NM_MAX.prompt), // prompt＝その他のタグ（前の形のネームでは、コマのタグ全部）
       chars: nmList(k.chars, 8, 40), lines, sfx: nmList(k.sfx, 8, 20),
     };
   }
-  function normChar(c) { c = c && typeof c === 'object' ? c : {}; return { name: nmStr(c.name, 40), tags: nmStr(c.tags, NM_MAX.tags).replace(/\n+/g, ' '), memo: nmStr(c.memo != null ? c.memo : c.desc, 500) }; }
+  // 人物：tags＝見た目（髪・目・体つき）、wear＝服。どちらも Danbooru のタグ
+  function normChar(c) { c = c && typeof c === 'object' ? c : {}; return { name: nmStr(c.name, 40), tags: nmTagStr(c.look != null ? c.look : c.tags, NM_MAX.tags), wear: nmTagStr(c.wear != null ? c.wear : c.outfit, NM_MAX.tags), memo: nmStr(c.memo != null ? c.memo : c.desc, 500) }; }
   function normNemu(n) {
     n = n && typeof n === 'object' ? n : {};
     const o = n.opt || {};
     return {
       setting: typeof n.setting === 'string' ? n.setting.slice(0, NM_MAX.setting) : '',
       chars: (Array.isArray(n.chars) ? n.chars : []).map(normChar).slice(0, NM_MAX.chars),
-      opt: { pages: Math.round(num(o.pages, 8, 1, 40)), per: NM_PER.includes(o.per) ? o.per : '4〜5', head: nmStr(o.head, 500) },
+      opt: { pages: Math.round(num(o.pages, 8, 1, 40)), per: NM_PER.includes(o.per) ? o.per : '4〜5', head: nmTagStr(o.head, 500),
+        model: 'wai', color: o.color === 'color' ? 'color' : 'mono', // model：今は SeaArt（WAI）だけ。あとで Grok Imagine・Nano Banana を足す
+        quality: typeof o.quality === 'string' ? nmTagStr(o.quality, 300) : WAI_QUALITY, neg: typeof o.neg === 'string' ? nmTagStr(o.neg, 1000) : WAI_NEG },
       title: nmStr(n.title, 100),
       pages: (Array.isArray(n.pages) ? n.pages : []).slice(0, NM_MAX.pages).map((p) => ({ panels: (Array.isArray(p && p.panels) ? p.panels : []).slice(0, NM_MAX.panels).map((k) => normPanel(k)) })),
       src: n.src && typeof n.src === 'object' ? { title: nmStr(n.src.title, 200), at: num(n.src.at, 0, 0, 1e15) } : null,
@@ -6615,17 +6655,25 @@
     return `{
   "title": "この話のタイトル",
   "characters": [
-    { "name": "人物の名前", "tags": "1girl, long black hair, red eyes, school uniform, ...", "memo": "役どころ（日本語・短く）" }
+    { "name": "人物の名前", "look": "long hair, black hair, blunt bangs, red eyes, slim", "wear": "white shirt, black pleated skirt, red ribbon", "memo": "役どころ（日本語・短く）" }
   ],
   "pages": [
     { "panels": [
       {
         "size": "large",
-        "shot": "close-up",
         "ar": "portrait",
         "scene": "コマの絵の内容（日本語）",
         "chars": ["人物の名前"],
-        "prompt": "1girl, solo, surprised, open mouth, classroom, window, sunlight",
+        "count": "1girl",
+        "expression": "surprised, open mouth",
+        "action": "standing, hand on own chest",
+        "gaze": "looking at viewer",
+        "shot": "cowboy shot",
+        "angle": "from below",
+        "place": "classroom, window, desk",
+        "light": "sunset, orange sky, backlighting",
+        "props": "camera",
+        "other": "",
         "lines": [ { "type": "shout", "who": "人物の名前", "text": "セリフ" } ],
         "sfx": ["ガタッ"],
         "fx": "focus"
@@ -6635,33 +6683,61 @@
 }`;
   }
   function nmRulesText() {
-    return `- size：コマの大きさ。"large"（見せ場の大ゴマ）／"medium"／"small"
-- shot：構図。"extreme close-up"／"close-up"／"bust"／"cowboy shot"／"full"／"wide"（引き・背景を見せる）／"bird"（俯瞰）／"low"（あおり）／"pov"／"back"
-- ar：コマの形＝生成する画像の比率。"portrait"（縦長）／"landscape"（横長）／"square"
+    return `## コマ割り・セリフ
+- size：コマの大きさ。"large"（見せ場の大ゴマ）／"medium"／"small"
+- ar：コマの形＝生成する画像の比率。"portrait"（縦長）／"landscape"（横長）／"square"。人物1人は縦長、風景・複数人は横長が向く
+- scene：コマの絵の内容（日本語。ネームを読む人向け）
 - chars：そのコマに映る人物（characters の name と同じ表記）。映らないなら []
-- prompt：画像生成AI（SeaArt の WAI-illustrious。Danbooru 形式の英語タグを「, 」でつなぐ）に渡す、そのコマだけのタグ。人数（1girl, 2boys, no humans など）・構図・表情・動き・背景・時間帯や光。人物の見た目のタグ（髪・目・服）は入れない（アプリが characters の tags をつなげます）。品質タグ（masterpiece など）も入れない
 - lines：吹き出しに入るセリフ。読む順に。type は "normal"／"shout"（叫び）／"think"（心の声）／"narration"（ナレーション。who は空）。1つは30字くらいまで
 - sfx：絵に描く擬音・効果音（カタカナ）。なければ []
 - fx：効果線。"none"／"focus"（集中線）／"speed"（スピード線）
-- pages の順がページの順、panels の順が読む順（右上から左へ、上から下へ）`;
+- pages の順がページの順、panels の順が読む順（右上から左へ、上から下へ）
+
+## 画像生成のタグ（SeaArt の WAI-Illustrious-SDXL 用）
+アプリが「人数 → 人物の見た目 → 服 → 表情 → ポーズ → 視線 → 構図 → 角度 → 場所 → 小道具 → 光 → 画風 → 品質タグ」の順につなげます。あなたは各項目に、そのコマの絵を Danbooru のタグで書いてください。
+- 書く前に、コマごとに「誰が何人・どんな表情・どんなポーズ・どこを見ている・どの画角・どの角度・どこで・いつ・どんな光」を決める。決まっていない項目は、場面から妥当なものを選んで埋める
+- characters の look：髪の長さ・髪の色・髪型・目の色・体つき（例：long hair, black hair, ponytail, blue eyes, slim）。wear：服を部位ごとに色とセットで（例：white blouse, black pleated skirt, red ribbon, loafers）。人数のタグ（1girl など）は入れない。どのコマでも同じ見た目になるよう、ここで決めた look・wear はコマの側に書かない
+- count：人数のタグ。1girl／1boy／2girls／2boys／1boy, 1girl／multiple girls／no humans（人物なし）。1人なら solo は不要（アプリが足す）
+- expression：smile, light smile, blush, embarrassed, tears, crying, surprised, open mouth, angry, frown, expressionless, half-closed eyes, closed eyes など
+- action：ポーズ・動作・手の位置（standing, sitting, walking, running, arms crossed, hand on own cheek, holding camera など）
+- gaze：looking at viewer／looking away／looking to the side／looking back／looking down／looking up／closed eyes（目を閉じる）
+- shot（画角）："extreme close-up"／"close-up"／"portrait"／"upper body"／"cowboy shot"（膝上）／"full body"／"wide shot"／"very wide shot"。全身は要るときだけ（顔が小さく崩れやすい）。迷ったら upper body か cowboy shot
+- angle（角度）：""（ふつう）／"from above"（俯瞰）／"from below"（あおり）／"from side"／"from behind"／"dutch angle"／"pov"
+- place：場所・背景（classroom, hallway, street, park, bedroom, night sky など。人物なしのコマは背景を詳しく）
+- light：時間帯・天気・光（day, sunset, night, rain, sunlight, backlighting, rim light, moonlight, dappled sunlight, light particles, depth of field など）。書かないときは場所と時間から妥当なものを
+- props：小道具（個数も。例：umbrella, 2 cups）
+- other：上に入らない大事なタグ（なければ ""）
+
+### タグの決まり
+- Danbooru に実在するタグだけを使う。英文や造語を書かない（"a girl with long hair" ではなく long hair）
+- 1つのタグに1つの意味。同じ意味のタグを重ねない（smile, smiling → smile）
+- 色は部位とセットで書く（red dress, blue eyes）。色だけのタグ（red など）は書かない（画面全体に色が漏れる）
+- 品質タグ（masterpiece など）・ネガティブ・重み付け "(tag:1.2)"・画風のタグ（monochrome など）は書かない（アプリが付ける）
+- 露出のある絵にしない（全年齢）
+- 矛盾させない（from behind と looking at viewer を同時に書かない。振り返るなら looking back）
+- 括弧を含むタグは \\( \\) にする（例：yor briar \\(spy x family\\)）
+
+### 出す前の見直し
+- 全部のコマで count・shot が埋まっているか、人物が映るコマで expression・gaze が埋まっているか
+- タグに英文・日本語・色だけのタグ・矛盾がないか
+- chars と count の人数が合っているか`;
   }
   function nmCharsBlock(n) {
     const cs = n.chars.filter((c) => c.name);
     if (!cs.length) return '';
-    return `\n# 決まっている登場人物（name と tags は変えずに、そのまま characters に入れてください。ほかに要る人物は足してください）\n` +
-      cs.map((c) => `- ${c.name}：${c.tags || '（見た目のタグはまだ。考えて入れてください）'}${c.memo ? `（${c.memo.replace(/\n+/g, ' ')}）` : ''}`).join('\n') + '\n';
+    return `\n# 決まっている登場人物（name・look・wear は変えずに、そのまま characters に入れてください。空の欄は考えて埋めてください。ほかに要る人物は足してください）\n` +
+      cs.map((c) => `- ${c.name}：look「${c.tags || '（まだ）'}」 wear「${c.wear || '（まだ）'}」${c.memo ? `（${c.memo.replace(/\n+/g, ' ')}）` : ''}`).join('\n') + '\n';
   }
   function nmRequestText(e) {
     const n = e.nemu;
-    return `あなたは日本の漫画のネーム（コマ割り・構図・セリフの設計）を作る漫画家です。
-下の「設定とプロット」から、${n.opt.pages}ページの漫画のネームを作ってください。
+    return `あなたは日本の漫画のネーム（コマ割り・構図・セリフの設計）を作る漫画家で、画像生成AIのプロンプトの専門家でもあります。
+下の「設定とプロット」から、${n.opt.pages}ページの漫画のネームを作り、各コマの絵を画像生成AI（SeaArt の WAI-Illustrious-SDXL。Danbooru のタグで学習したアニメ系のモデル）用のタグで書いてください。
 
 # 条件
 - 右綴じ・右から左に読む日本の漫画。1ページのコマは ${n.opt.per} を目安に。見せ場・感情の山は大ゴマにする
 - ページの形：${nmRatioText(e)}
 - セリフは吹き出しに入る短さにする。説明しすぎず、絵で見せる
-- 各コマに、画像生成AIに渡す英語のタグ（prompt）を付ける
-- 登場人物の見た目は characters の tags に英語のタグで書く（髪型・髪の色・目の色・体つき・服。どのコマでも同じ見た目にするため）
+- 同じ人物が続くコマでも、画角・角度・表情を変えて単調にしない
 ${nmCharsBlock(n)}
 # 答えの形
 次の形の JSON だけを、\`\`\`json のコードブロック1つで出してください。前後の説明は要りません。
@@ -6759,11 +6835,12 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
       <div class="p-row" style="margin-bottom:4px"><input class="p-select nm-in" data-f="name" maxlength="40" placeholder="名前" value="${esc(c.name)}" style="width:9em">
         <input class="p-select nm-in" data-f="memo" maxlength="500" placeholder="メモ（役どころ）" value="${esc(c.memo)}" style="flex:1">
         <button class="btn small danger" type="button" data-act="del">×</button></div>
-      <textarea class="p-text nm-in nm-tags" data-f="tags" maxlength="${NM_MAX.tags}" placeholder="見た目のタグ（英語）例：1girl, long black hair, red eyes, school uniform">${esc(c.tags)}</textarea></div>`).join('')
+      <div class="p-lab-row">見た目（髪・目・体つき）</div><textarea class="p-text nm-in nm-tags" data-f="tags" maxlength="${NM_MAX.tags}" placeholder="例：long hair, black hair, blunt bangs, red eyes, slim">${esc(c.tags)}</textarea>
+      <div class="p-lab-row">服</div><textarea class="p-text nm-in nm-tags" data-f="wear" maxlength="${NM_MAX.tags}" placeholder="例：white blouse, black pleated skirt, red ribbon">${esc(c.wear)}</textarea></div>`).join('')
       : '<div class="field-hint">まだいません。LLM の答えから入るほか、［＋ 人物］で先に決めておけます（決めた見た目は依頼文に入り、そのまま使ってもらいます）。</div>';
   }
   function nmPanelHead(k) {
-    return [NM_SIZE[k.size], k.shot ? (NM_SHOT[k.shot] || k.shot) : '', NM_AR[k.ar], k.fx !== 'none' ? NM_FX[k.fx] : ''].filter(Boolean).join('・');
+    return [NM_SIZE[k.size], k.shot ? (NM_SHOT[k.shot] || k.shot) : '', k.angle ? (NM_ANGLE[k.angle] || k.angle) : '', NM_AR[k.ar], k.fx !== 'none' ? NM_FX[k.fx] : ''].filter(Boolean).join('・');
   }
   function nmLineText(l) {
     const t = l.type === 'narration' ? '［ナレーション］' : `${l.who || '？'}${l.type === 'shout' ? '（叫び）' : l.type === 'think' ? '（心の声）' : ''}`;
@@ -6785,19 +6862,21 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
         ${k.chars.length ? `<div class="nm-meta">映る人：${esc(k.chars.join('、'))}</div>` : ''}
         ${k.lines.map((l) => `<div class="nm-line">${esc(nmLineText(l))}</div>`).join('')}
         ${k.sfx.length ? `<div class="nm-meta">効果音：${esc(k.sfx.join('、'))}</div>` : ''}
-        ${k.prompt ? `<div class="nm-prompt">${esc(k.prompt)}</div>` : ''}</div>`).join('')}
+        <div class="nm-prompt">${esc(nmWai(n, k).pos)}</div></div>`).join('')}
     </div>`).join('') + '<div class="p-row"><button class="btn small" type="button" data-act="padd">＋ ページを足す</button></div>'
       : '<div class="field-hint">まだネームがありません。上の依頼文を LLM に渡し、答えを貼って［読み込む］。</div>';
   }
   function nmOpts(map, v) { return Object.keys(map).map((k) => `<option value="${esc(k)}" ${k === v ? 'selected' : ''}>${esc(map[k])}</option>`).join(''); }
   function nmEditHtml(k, pi, ki) {
     const shotList = Object.keys(NM_SHOT).map((s) => `<option value="${esc(s)}">${esc(NM_SHOT[s])}</option>`).join('');
+    const angleOpts = Object.keys(NM_ANGLE).concat(NM_ANGLE[k.angle] == null && k.angle ? [k.angle] : []).map((a) => `<option value="${esc(a)}" ${a === k.angle ? 'selected' : ''}>${esc(NM_ANGLE[a] != null ? (a ? `${NM_ANGLE[a]}（${a}）` : NM_ANGLE[a]) : a)}</option>`).join('');
     return `<div class="nm-panel is-edit" data-k="${ki}">
       <div class="nm-ph"><b>${pi + 1}-${ki + 1}</b> を直す<span class="spacer"></span><button class="btn small danger" type="button" data-act="kdel">このコマを消す</button><button class="btn small primary" type="button" data-act="kdone">閉じる</button></div>
       <div class="p-row"><label class="p-lab">大きさ</label><select class="p-select nm-f" data-f="size">${nmOpts(NM_SIZE, k.size)}</select>
         <label class="p-lab" style="width:auto">形</label><select class="p-select nm-f" data-f="ar">${nmOpts(NM_AR, k.ar)}</select>
         <label class="p-lab" style="width:auto">効果線</label><select class="p-select nm-f" data-f="fx">${nmOpts(NM_FX, k.fx)}</select></div>
-      <div class="p-row"><label class="p-lab">構図</label><input class="p-select nm-f" data-f="shot" list="nmShotList" maxlength="40" value="${esc(k.shot)}" style="flex:1"><datalist id="nmShotList">${shotList}</datalist></div>
+      <div class="p-row"><label class="p-lab">画角</label><input class="p-select nm-f" data-f="shot" list="nmShotList" maxlength="40" value="${esc(k.shot)}" style="flex:1;min-width:8em"><datalist id="nmShotList">${shotList}</datalist>
+        <label class="p-lab" style="width:auto">角度</label><select class="p-select nm-f" data-f="angle">${angleOpts}</select></div>
       <div class="p-lab-row">絵の内容</div><textarea class="p-text nm-f" data-f="scene" maxlength="1000">${esc(k.scene)}</textarea>
       <div class="p-row"><label class="p-lab">映る人</label><input class="p-select nm-f" data-f="chars" maxlength="200" placeholder="名前を「、」で区切る" value="${esc(k.chars.join('、'))}" style="flex:1"></div>
       <div class="p-lab-row">セリフ（読む順）</div>
@@ -6807,13 +6886,17 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
         <button class="btn small" type="button" data-act="lup" ${li ? '' : 'disabled'}>↑</button><button class="btn small danger" type="button" data-act="ldel">×</button></div>`).join('')}
       <div class="p-row"><button class="btn small" type="button" data-act="ladd" ${k.lines.length >= NM_MAX.lines ? 'disabled' : ''}>＋ セリフ</button></div>
       <div class="p-row"><label class="p-lab">効果音</label><input class="p-select nm-f" data-f="sfx" maxlength="200" placeholder="「、」で区切る" value="${esc(k.sfx.join('、'))}" style="flex:1"></div>
-      <div class="p-lab-row">画像プロンプト（このコマだけのタグ。人物の見た目はキャラクター表からつなげます）</div><textarea class="p-text nm-f nm-tags" data-f="prompt" maxlength="${NM_MAX.prompt}">${esc(k.prompt)}</textarea>
+      <div class="p-lab-row">画像のタグ（Danbooru のタグを「, 」で。人物の見た目・服はキャラクター表から、品質タグ・画風はアプリがつなげます）</div>
+      ${NM_TAGF.map((f) => `<div class="p-row nm-tf"><label class="p-lab">${NM_TAGF_LABEL[f]}</label><input class="p-select nm-f nm-tags" data-f="${f}" maxlength="400" value="${esc(k[f])}" style="flex:1;min-width:10em"></div>`).join('')}
+      <div class="p-row nm-tf"><label class="p-lab">その他</label><input class="p-select nm-f nm-tags" data-f="prompt" maxlength="${NM_MAX.prompt}" value="${esc(k.prompt)}" style="flex:1;min-width:10em"></div>
+      <div class="nm-prompt">→ ${esc(nmWai(nmEp().nemu, k).pos)}</div>
     </div>`;
   }
   function nmReadEdit(box, k) {
     const v = (f) => { const el = box.querySelector(`.nm-f[data-f="${f}"]`); return el ? el.value : ''; };
     k.size = NM_SIZE[v('size')] ? v('size') : 'medium'; k.ar = NM_AR[v('ar')] ? v('ar') : 'portrait'; k.fx = NM_FX[v('fx')] ? v('fx') : 'none';
-    k.shot = nmStr(v('shot'), 40); k.scene = nmStr(v('scene'), 1000); k.prompt = nmStr(v('prompt'), NM_MAX.prompt);
+    k.shot = nmStr(v('shot'), 40).toLowerCase(); k.angle = nmStr(v('angle'), 40).toLowerCase(); k.scene = nmStr(v('scene'), 1000); k.prompt = nmTagStr(v('prompt'), NM_MAX.prompt);
+    NM_TAGF.forEach((f) => { k[f] = nmTagStr(v(f), 400); });
     k.chars = nmList(v('chars'), 8, 40); k.sfx = nmList(v('sfx'), 8, 20);
     k.lines = [...box.querySelectorAll('.nm-lrow')].map((r) => ({
       type: NM_TYPE[r.querySelector('[data-f="ltype"]').value] ? r.querySelector('[data-f="ltype"]').value : 'normal',
@@ -6867,7 +6950,7 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
       n.pages = r.data.pages; n.title = r.data.title; n.importedAt = Date.now();
       r.data.chars.forEach((c) => { // キャラクター表に足す（同じ名前は、空いている欄だけ埋める）
         const have = n.chars.find((x) => x.name === c.name);
-        if (have) { if (!have.tags) have.tags = c.tags; if (!have.memo) have.memo = c.memo; }
+        if (have) { if (!have.tags) have.tags = c.tags; if (!have.wear) have.wear = c.wear; if (!have.memo) have.memo = c.memo; }
         else if (n.chars.length < NM_MAX.chars) n.chars.push(c);
       });
     }, true, true);
@@ -7072,7 +7155,7 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
     $('nmBuildInfo').textContent = alive.length ? `前に作ったページ：${alive.length} ページ（${fmtDate(n.built.at)}）。作り直すと、それらは話から外します（ページは一覧に残ります）。` : '';
     $('nmImgBox').hidden = !alive.length;
     $('nmPromptBox').hidden = !n.pages.length;
-    setVal('nmHead', n.opt.head || '');
+    renderNmPromptOpts(n);
   }
   $('nmSize').addEventListener('change', () => { $('nmSize').dataset.touched = '1'; });
   $('nmBuild').addEventListener('click', async () => {
@@ -7118,10 +7201,53 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
     NM_RATIOS.forEach((x) => { const dd = Math.abs(Math.log(x[0] / x[1]) - r); if (dd < d) { d = dd; best = x; } });
     return `${best[0]}:${best[1]}`;
   }
-  function nmTags(...parts) { // 「, 」でつなぎ、同じタグは1つに
-    const seen = new Set(), out = [];
-    parts.join(',').split(/[,，\n]/).map((t) => t.trim()).filter(Boolean).forEach((t) => { const k = t.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(t); } });
-    return out.join(', ');
+  function waiSize(w, h) { // SDXL の推奨解像度（総画素 約100万）から、形の近いもの
+    const r = Math.log(w / h); let best = WAI_SIZES[0], d = 1e9;
+    WAI_SIZES.forEach((x) => { const dd = Math.abs(Math.log(x[0] / x[1]) - r); if (dd < d) { d = dd; best = x; } });
+    return best;
+  }
+  function nmSplit(s) { return String(s || '').split(/[,，\n]/).map((t) => t.trim()).filter(Boolean); }
+  const WAI_WEIGHT = /^\(.+:\s*\d+(\.\d+)?\)$/;
+  function waiEscape(t) { // 括弧を含むタグは \( \) に（重み付け "(tag:1.2)" はそのまま）
+    if (WAI_WEIGHT.test(t)) return t;
+    return t.replace(/\\?([()])/g, '\\$1');
+  }
+  const NM_COUNT_RE = /^(\d\+?\s*(girls?|boys?|others?)|solo|solo focus|multiple (girls|boys|others)|no humans)$/i;
+  const NM_LONE_COLOR = /^(red|blue|green|yellow|pink|purple|black|white|orange|brown|grey|gray|silver|gold|aqua|cyan)$/i;
+  // SeaArt（WAI-Illustrious）のプロンプトを組み立てる：{ pos, neg, warns }（ナレッジ §3.5 の並び順・§3.3 の品質タグとネガティブ）
+  function nmWai(n, k) {
+    const o = n.opt, warns = [];
+    const cs = k.chars.map((c) => n.chars.find((x) => x.name === c) || { name: c, tags: '', wear: '' });
+    let count = nmSplit(k.count);
+    const prompt = nmSplit(k.prompt);
+    if (!count.length) count = prompt.filter((t) => NM_COUNT_RE.test(t)); // 前の形のネーム：人数のタグはその他の中にある
+    const people = cs.length;
+    if (people > 1) count = count.filter((t) => !/^solo$/i.test(t));
+    if (people === 1 && count.length && count.every((t) => /^1(girl|boy|other)$/i.test(t))) count.push('solo');
+    const noCount = (a) => a.filter((t) => !NM_COUNT_RE.test(t));
+    const look = cs.flatMap((c) => (count.length ? noCount(nmSplit(c.tags)) : nmSplit(c.tags)));
+    const wear = cs.flatMap((c) => nmSplit(c.wear));
+    const style = (o.color === 'mono' ? ['monochrome', 'greyscale'] : []).concat(nmSplit(o.head));
+    const parts = [count, look, wear, nmSplit(k.expr), nmSplit(k.act), nmSplit(k.gaze), k.shot ? [k.shot] : [], k.angle ? [k.angle] : [],
+      nmSplit(k.place), nmSplit(k.props), nmSplit(k.light), noCount(prompt), style, nmSplit(o.quality)];
+    const seen = new Set(), pos = [];
+    parts.flat().forEach((t) => { const key = t.toLowerCase().replace(/_/g, ' '); if (!seen.has(key)) { seen.add(key); pos.push(waiEscape(t)); } });
+    const neg = nmSplit(o.neg);
+    if (people === 1 && count.some((t) => /^1girl$/i.test(t))) neg.push('multiple girls');
+    if (people === 1 && count.some((t) => /^1boy$/i.test(t))) neg.push('multiple boys');
+    const negU = [...new Set(neg.map((t) => t.toLowerCase()))];
+    // 見直し（ナレッジ §7）
+    const missing = cs.filter((c) => !c.tags).map((c) => c.name);
+    if (missing.length) warns.push(`見た目のタグがない人物：${missing.join('、')}`);
+    if (people && !count.length) warns.push('人数のタグ（1girl など）がありません');
+    if (!k.shot) warns.push('画角（shot）がありません');
+    const has = (t) => seen.has(t);
+    if (has('from behind') && has('looking at viewer') && !has('looking back')) warns.push('from behind と looking at viewer がぶつかっています（振り返るなら looking back）');
+    const lone = pos.filter((t) => NM_LONE_COLOR.test(t)); if (lone.length) warns.push(`色だけのタグ：${lone.join(', ')}（部位とセットに）`);
+    const sent = pos.filter((t) => !WAI_WEIGHT.test(t) && t.replace(/\\?\(.*\\?\)/g, '').trim().split(' ').length > 4); if (sent.length) warns.push(`英文のようなタグ：${sent.slice(0, 2).join(' / ')}`);
+    if (/[ぁ-んァ-ン一-龥]/.test(pos.join(''))) warns.push('日本語が混ざっています');
+    if (pos.length > 60) warns.push(`タグが多すぎます（${pos.length}）。大事なタグが効きにくくなります`);
+    return { pos: pos.join(', '), neg: negU.join(', '), warns };
   }
   function nmFileName(pi, ki) { return `p${String(pi + 1).padStart(2, '0')}_k${String(ki + 1).padStart(2, '0')}`; }
   async function nmPromptRows(e) {
@@ -7134,12 +7260,9 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
     const rows = [];
     n.pages.forEach((p, pi) => p.panels.forEach((k, ki) => {
       const pid = built[pi] && built[pi].panels[ki], sz = pid && sizes.get(pid);
-      const ratio = sz ? nmRatio(sz.w, sz.h) : k.ar === 'landscape' ? '3:2' : k.ar === 'square' ? '1:1' : '2:3';
-      // 2人以上映るコマでは、人物ごとの人数のタグ（1girl・solo など）を外す（コマのタグの 2girls などとぶつからないように）
-      const COUNT = /^(\d\+?\s*(girls?|boys?|others?)|solo|solo focus|multiple (girls|boys))$/i;
-      const charTags = k.chars.map((c) => { const t = (n.chars.find((x) => x.name === c) || {}).tags || ''; return k.chars.length > 1 ? t.split(/[,，]/).map((x) => x.trim()).filter((x) => x && !COUNT.test(x)).join(', ') : t; });
-      const missing = k.chars.filter((c) => !(n.chars.find((x) => x.name === c) || {}).tags);
-      rows.push({ pi, ki, file: nmFileName(pi, ki), ratio, size: sz ? `${Math.round(sz.w)}×${Math.round(sz.h)}` : '', text: nmTags(n.opt.head || '', ...charTags, k.prompt), scene: k.scene, missing });
+      const shape = sz || (k.ar === 'landscape' ? { w: 3, h: 2 } : k.ar === 'square' ? { w: 1, h: 1 } : { w: 2, h: 3 });
+      const res = waiSize(shape.w, shape.h), r = nmWai(n, k);
+      rows.push({ pi, ki, file: nmFileName(pi, ki), res: `${res[0]}×${res[1]}`, ratio: nmRatio(shape.w, shape.h), size: sz ? `${Math.round(sz.w)}×${Math.round(sz.h)}` : '', pos: r.pos, neg: r.neg, warns: r.warns, scene: k.scene });
     }));
     return rows;
   }
@@ -7147,23 +7270,35 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
   async function renderNmPrompts() {
     const e = nmEp(); if (!e) return;
     nmRowsCache = await nmPromptRows(e);
-    $('nmPrompts').innerHTML = nmRowsCache.map((r, i) => `<div class="nm-panel" data-i="${i}">
-      <div class="nm-ph"><b>${r.pi + 1}-${r.ki + 1}</b> ${esc(r.file)}・比率 ${esc(r.ratio)}${r.size ? `（コマ ${esc(r.size)}）` : ''}<span class="spacer"></span><button class="btn small primary" type="button" data-act="copy">コピー</button></div>
+    $('nmPrompts').innerHTML = `<div class="field-hint">SeaArt の設定の目安：${esc(WAI_SETTINGS)}。解像度はコマの形に近い SDXL の推奨サイズです（低い解像度は品質が大きく落ちます）。</div>` + nmRowsCache.map((r, i) => `<div class="nm-panel" data-i="${i}">
+      <div class="nm-ph"><b>${r.pi + 1}-${r.ki + 1}</b> ${esc(r.file)}・${esc(r.res)}（${esc(r.ratio)}${r.size ? `・コマ ${esc(r.size)}` : ''}）<span class="spacer"></span><button class="btn small primary" type="button" data-act="pos">プロンプト</button><button class="btn small" type="button" data-act="neg">ネガティブ</button></div>
       ${r.scene ? `<div class="nm-meta">${esc(r.scene)}</div>` : ''}
-      ${r.missing.length ? `<div class="nm-meta" style="color:var(--amber)">見た目のタグがない人物：${esc(r.missing.join('、'))}（キャラクター表で足せます）</div>` : ''}
-      <div class="nm-prompt">${esc(r.text) || '（プロンプトなし）'}</div></div>`).join('');
+      ${r.warns.length ? `<div class="nm-meta" style="color:var(--amber)">⚠ ${esc(r.warns.join('／'))}</div>` : ''}
+      <div class="nm-prompt">${esc(r.pos) || '（プロンプトなし）'}</div>
+      <div class="nm-prompt" style="opacity:.75">ネガティブ：${esc(r.neg)}</div></div>`).join('');
     $('nmPrompts').hidden = false;
   }
+  function renderNmPromptOpts(n) {
+    $('nmColor').querySelectorAll('.btn').forEach((b) => b.classList.toggle('is-on', b.dataset.v === n.opt.color));
+    setVal('nmQuality', n.opt.quality); setVal('nmNeg', n.opt.neg); setVal('nmHead', n.opt.head || '');
+  }
+  async function nmOptSave(fn) { await nmSave(fn, false); renderNmPromptOpts(nmEp().nemu); if (!$('nmPrompts').hidden) renderNmPrompts(); renderNmList(nmEp().nemu); }
   $('nmPromptShow').addEventListener('click', () => { if (!$('nmPrompts').hidden) { $('nmPrompts').hidden = true; return; } renderNmPrompts(); });
-  $('nmHead').addEventListener('change', () => nmSave((n) => { n.opt.head = nmStr($('nmHead').value, 500).replace(/\n+/g, ' '); }, false).then(() => { if (!$('nmPrompts').hidden) renderNmPrompts(); }));
+  $('nmHead').addEventListener('change', () => nmOptSave((n) => { n.opt.head = nmTagStr($('nmHead').value, 500); }));
+  $('nmQuality').addEventListener('change', () => nmOptSave((n) => { n.opt.quality = nmTagStr($('nmQuality').value, 300); }));
+  $('nmNeg').addEventListener('change', () => nmOptSave((n) => { n.opt.neg = nmTagStr($('nmNeg').value, 1000); }));
+  $('nmColor').addEventListener('click', (ev) => { const b = ev.target.closest('.btn'); if (b) nmOptSave((n) => { n.opt.color = b.dataset.v === 'color' ? 'color' : 'mono'; }); });
+  $('nmWaiReset').addEventListener('click', () => nmOptSave((n) => { n.opt.quality = WAI_QUALITY; n.opt.neg = WAI_NEG; }).then(() => showToast('品質タグとネガティブを既定に戻しました')));
   $('nmPrompts').addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-act="copy"]'), r = ev.target.closest('[data-i]'); if (!b || !r) return;
-    const x = nmRowsCache[+r.dataset.i]; if (x) nmCopy(x.text, `${x.pi + 1}-${x.ki + 1} のプロンプト`);
+    const b = ev.target.closest('[data-act]'), r = ev.target.closest('[data-i]'); if (!b || !r) return;
+    const x = nmRowsCache[+r.dataset.i]; if (!x) return;
+    if (b.dataset.act === 'pos') nmCopy(x.pos, `${x.pi + 1}-${x.ki + 1} のプロンプト`);
+    if (b.dataset.act === 'neg') nmCopy(x.neg, `${x.pi + 1}-${x.ki + 1} のネガティブ`);
   });
   $('nmPromptAll').addEventListener('click', async () => {
     const e = nmEp(); if (!e) return;
     const rows = await nmPromptRows(e);
-    nmCopy(rows.map((r) => `■ ${r.file}（比率 ${r.ratio}）${r.scene ? ' ' + r.scene : ''}\n${r.text}`).join('\n\n'), '全部のプロンプト');
+    nmCopy(`SeaArt（WAI-Illustrious）：${WAI_SETTINGS}\n\n` + rows.map((r) => `■ ${r.file}（${r.res}・${r.ratio}）${r.scene ? ' ' + r.scene : ''}\nプロンプト：${r.pos}\nネガティブ：${r.neg}`).join('\n\n'), '全部のプロンプト');
   });
 
   // 画像をファイル名でまとめて入れる（p01_k02.png ＝ 1ページ目の2コマ目。1-2.png・01_02.png も可）
