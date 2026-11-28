@@ -808,7 +808,7 @@
 <div class="modal-overlay" id="mNm">
   <div class="modal wide">
     <div class="modal-head"><span class="modal-title" id="nmTitle"></span><button class="modal-close" type="button" data-close>✕</button></div>
-    <div class="note-box">設定・プロットから、LLM（Claude・ChatGPT など）にネーム（コマ割り・構図・セリフ）と、コマごとの画像プロンプトを作ってもらいます。<br>① 設定・プロットを書く（MANUSCRIPT から読み込むこともできます）→ ②［依頼文をコピー］して LLM に貼る → ③ LLM の答えを貼って［読み込む］→ ④ 下の一覧で読んで直す。<br>APIキーは使いません。この端末だけに置きます（話と一緒）。</div>
+    <div class="note-box">設定・プロットから、LLM（Claude・ChatGPT など）にネーム（コマ割り・構図・セリフ）と、コマごとの画像プロンプトを作ってもらいます。<br>① 設定・プロットを書く（MANUSCRIPT から読み込むこともできます）→ ②［依頼文をコピー］して LLM に貼る → ③ LLM の答えをコピーして［📋 貼り付けて読み込む］（または欄に貼って［読み込む］）→ ④ 下の一覧で読んで直す。<br>APIキーは使いません。この端末だけに置きます（話と一緒）。</div>
     <div class="p-row"><button class="btn small" id="nmBack" type="button">← 話に戻る</button><span class="spacer" style="flex:1"></span><button class="btn small" id="nmUndo" type="button" hidden>ひとつ前に戻す</button></div>
 
     <div class="sub-title at-head"><span>① 設定・プロット <span id="nmSetCount"></span></span><span class="lh-tools"><button class="btn small" id="nmMs" type="button">MANUSCRIPT から読み込む</button></span></div>
@@ -833,7 +833,7 @@
 
     <div class="sub-title">③ LLM の答えを貼る</div>
     <textarea class="p-text" id="nmPaste" rows="5" maxlength="200000" placeholder="LLM の答え（JSON）をそのまま貼り付け"></textarea>
-    <div class="p-row"><button class="btn primary" id="nmLoad" type="button">読み込む</button><button class="btn small" id="nmFix" type="button" hidden>出し直しの依頼文をコピー</button></div>
+    <div class="p-row"><button class="btn primary" id="nmClipLoad" type="button" hidden>📋 貼り付けて読み込む</button><button class="btn primary" id="nmLoad" type="button">読み込む</button><button class="btn small" id="nmFix" type="button" hidden>出し直しの依頼文をコピー</button></div>
     <div id="nmMsg"></div>
 
     <div class="sub-title">④ ネーム <span id="nmSum"></span></div>
@@ -6834,6 +6834,16 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
     $('nmMsg').innerHTML = `<div class="nm-ok">${r.data.pages.length} ページ・${total} コマを読み込みました。</div>` + (r.warns.length ? '<div class="field-hint">気になったところ（読み込みはしています）：</div>' + list(r.warns, '') : '');
     $('nmFix').hidden = !r.warns.length;
     $('nmPaste').value = '';
+  });
+  // 貼り付けボタン（2026-11-28）：クリップボードの文を欄に入れて、そのまま読み込む（置き換えるときは読み込む側で確かめる）
+  $('nmClipLoad').hidden = !(navigator.clipboard && navigator.clipboard.readText);
+  $('nmClipLoad').addEventListener('click', async () => {
+    let t = '';
+    try { t = await navigator.clipboard.readText(); }
+    catch (_) { showToast('クリップボードを読めませんでした。欄を長押しして貼り付け、［読み込む］を押してください', true); $('nmPaste').focus(); return; }
+    if (!t.trim()) { showToast('クリップボードが空です。LLM の答えをコピーしてから押してください', true); return; }
+    if (t.length > NM_MAX.paste) { showToast('答えが長すぎます', true); return; }
+    $('nmPaste').value = t; $('nmLoad').click();
   });
   $('nmUndo').addEventListener('click', async () => {
     const e = nmEp(); if (!e || !e.nemuPrev) return;
