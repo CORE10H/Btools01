@@ -308,6 +308,26 @@
   .at-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .lh-tools { display: inline-flex; gap: 4px; }
   .lh-tools .btn { padding: 2px 7px; font-size: 10px; }
+  /* ネーム（2026-11-28） */
+  .nm-char { border: 1px solid var(--line-soft); background: var(--bg-alt); padding: 6px; margin-bottom: 6px; }
+  .nm-char .p-text, .nm-panel .p-text { min-height: 44px; font-size: 12px; margin-bottom: 4px; }
+  .nm-tags { font-family: ui-monospace, Consolas, monospace; }
+  .nm-page { margin-bottom: 4px; }
+  .nm-page .lh-tools { flex-wrap: wrap; }
+  .nm-panel { border: 1px solid var(--line-soft); border-left: 3px solid var(--cyan-dim); background: var(--bg-alt); padding: 6px 8px; margin-bottom: 6px; font-size: 12px; line-height: 1.6; }
+  .nm-panel.is-edit { border-left-color: var(--amber); }
+  .nm-ph { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .nm-ph b { color: var(--amber); font-weight: 600; }
+  .nm-ph .spacer { flex: 1; }
+  .nm-scene { color: var(--text); }
+  .nm-line { color: var(--text); padding-left: 8px; }
+  .nm-meta { font-size: 11px; color: var(--text-dim); }
+  .nm-prompt { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-faint); word-break: break-word; margin-top: 2px; }
+  .p-lab-row { font-size: 10.5px; color: var(--text-faint); margin: 4px 0 3px; }
+  .nm-msg { font-size: 11px; color: var(--text-dim); margin: 4px 0 8px; padding-left: 18px; line-height: 1.7; }
+  .nm-msg.is-err { color: var(--magenta); }
+  .nm-err { color: var(--magenta); font-size: 12px; }
+  .nm-ok { color: var(--cyan); font-size: 12px; }
   .note-box { font-size: 11px; color: var(--text-dim); line-height: 1.8; background: var(--bg-alt); border: 1px solid var(--line-soft); padding: 8px 10px; margin-bottom: 12px; }
 
   .toast {
@@ -751,7 +771,7 @@
 <div class="modal-overlay" id="mEp">
   <div class="modal wide">
     <div class="modal-head"><span class="modal-title" id="eTitle"></span><button class="modal-close" type="button" data-close>✕</button></div>
-    <div class="sub-title at-head"><span>ページ（上から順に） <span id="eCount"></span></span><span class="lh-tools"><button class="btn small" id="eRename" type="button">名前</button></span></div>
+    <div class="sub-title at-head"><span>ページ（上から順に） <span id="eCount"></span></span><span class="lh-tools"><button class="btn small primary" id="eNemu" type="button" title="設定・プロットから LLM にネームを作ってもらう">ネーム</button><button class="btn small" id="eRename" type="button">名前</button></span></div>
     <div id="ePages"></div>
     <div class="p-row" style="margin-top:8px"><button class="btn small primary" id="eAddNew" type="button">＋ 新しい漫画のページを作って足す</button><button class="btn small" id="eAddPick" type="button">＋ 今あるページを足す</button></div>
     <div id="ePickBox" hidden>
@@ -781,6 +801,43 @@
       <button class="btn" id="eShare" type="button">共有</button>
       <button class="btn primary" id="eSave" type="button">書き出す</button>
     </div>
+  </div>
+</div>
+
+<!-- ネーム（2026-11-28） -->
+<div class="modal-overlay" id="mNm">
+  <div class="modal wide">
+    <div class="modal-head"><span class="modal-title" id="nmTitle"></span><button class="modal-close" type="button" data-close>✕</button></div>
+    <div class="note-box">設定・プロットから、LLM（Claude・ChatGPT など）にネーム（コマ割り・構図・セリフ）と、コマごとの画像プロンプトを作ってもらいます。<br>① 設定・プロットを書く（MANUSCRIPT から読み込むこともできます）→ ②［依頼文をコピー］して LLM に貼る → ③ LLM の答えを貼って［読み込む］→ ④ 下の一覧で読んで直す。<br>APIキーは使いません。この端末だけに置きます（話と一緒）。</div>
+    <div class="p-row"><button class="btn small" id="nmBack" type="button">← 話に戻る</button><span class="spacer" style="flex:1"></span><button class="btn small" id="nmUndo" type="button" hidden>ひとつ前に戻す</button></div>
+
+    <div class="sub-title at-head"><span>① 設定・プロット <span id="nmSetCount"></span></span><span class="lh-tools"><button class="btn small" id="nmMs" type="button">MANUSCRIPT から読み込む</button></span></div>
+    <div class="field-group" id="nmMsBox" hidden>
+      <div class="field-hint">作品を選ぶと「設定とプロット」と設定集を写し、設定集の人物（名前・画像生成プロンプト）をキャラクター表に入れます。MANUSCRIPT の側は読むだけで、変えません。</div>
+      <div id="nmMsList" style="max-height:34vh;overflow-y:auto"></div>
+      <div class="p-row"><button class="btn small" id="nmMsCancel" type="button">やめる</button></div>
+    </div>
+    <div class="field-hint" id="nmSrc" hidden></div>
+    <textarea class="p-text" id="nmSetting" rows="8" maxlength="30000" placeholder="世界観・登場人物・この話のあらすじ（起承転結）など"></textarea>
+
+    <div class="sub-title at-head"><span>キャラクター表（見た目のタグ）</span><span class="lh-tools"><button class="btn small" id="nmCharAdd" type="button">＋ 人物</button></span></div>
+    <div class="field-hint">見た目のタグは、どのコマのプロンプトにも同じようにつなげます（顔や服がコマごとに変わりにくくするため）。</div>
+    <div id="nmChars"></div>
+
+    <div class="sub-title">② 依頼文</div>
+    <div class="p-row"><label class="p-lab">ページ数</label><input type="number" id="nmPages" min="1" max="40" step="1" style="width:70px">
+      <label class="p-lab" style="width:auto">1ページのコマ</label><select id="nmPer" class="p-select"><option value="3〜4">3〜4</option><option value="4〜5">4〜5</option><option value="5〜6">5〜6</option></select></div>
+    <div class="field-hint" id="nmRatio"></div>
+    <div class="p-row"><button class="btn primary" id="nmReq" type="button">依頼文をコピー</button></div>
+    <textarea class="p-text" id="nmReqView" rows="6" readonly hidden></textarea>
+
+    <div class="sub-title">③ LLM の答えを貼る</div>
+    <textarea class="p-text" id="nmPaste" rows="5" maxlength="200000" placeholder="LLM の答え（JSON）をそのまま貼り付け"></textarea>
+    <div class="p-row"><button class="btn primary" id="nmLoad" type="button">読み込む</button><button class="btn small" id="nmFix" type="button" hidden>出し直しの依頼文をコピー</button></div>
+    <div id="nmMsg"></div>
+
+    <div class="sub-title">④ ネーム <span id="nmSum"></span></div>
+    <div id="nmList"></div>
   </div>
 </div>
 
@@ -6299,6 +6356,7 @@
       nb: { on: nb.on !== false, start: Math.round(num(nb.start, 1, 0, 9999)), pos: NB_POS.includes(nb.pos) ? nb.pos : 'bc', size: num(nb.size, 2.2, 1, 5), color: isColor(nb.color) ? nb.color : '#000000' },
       out: { fmt: ['zip', 'long', 'pdf'].includes(o.fmt) ? o.fmt : 'zip', width: [0, 1600, 1280, 1080, 800].includes(+o.width) ? +o.width : 0,
         img: o.img === 'png' ? 'png' : 'jpeg', q: num(o.q, 90, 60, 100), gap: Math.round(num(o.gap, 0, 0, 400)), gapColor: isColor(o.gapColor) ? o.gapColor : '#ffffff' },
+      nemu: e.nemu ? normNemu(e.nemu) : null, nemuPrev: e.nemuPrev ? normNemu(e.nemuPrev) : null, // ネーム（2026-11-28）
       createdAt: e.createdAt || Date.now(), updatedAt: e.updatedAt || Date.now(),
     };
   }
@@ -6438,6 +6496,433 @@
   $('eQuality').addEventListener('change', () => epUpdate((e) => { e.out.q = num($('eQuality').value, 90, 60, 100); }, false));
   $('eGap').addEventListener('change', () => epUpdate((e) => { e.out.gap = Math.round(num($('eGap').value, 0, 0, 400)); }, false));
   $('eGapColor').addEventListener('change', () => epUpdate((e) => { if (isColor($('eGapColor').value)) e.out.gapColor = $('eGapColor').value; }, false));
+
+  /* =====================================================================
+     ネーム（2026-11-28）：設定・プロット → 外の LLM がネーム（コマ割り・構図・セリフ・コマごとの画像プロンプト）→ 貼り戻す
+     話のレコードに nemu を持つ（作業用DB・同期しない）。LLM とのやりとりはコピーと貼り付けだけ（APIキーは使わない）
+     nemu：{ setting, chars:[{ name, tags, memo }], opt:{ pages, per }, title, pages:[{ panels:[コマ] }], src, importedAt }
+     コマ：{ size, shot, ar, fx, scene, prompt, chars:[名前], lines:[{ type, who, text }], sfx:[文字] }
+  ===================================================================== */
+  const NM_SIZE = { large: '大ゴマ', medium: '普通', small: '小ゴマ' };
+  const NM_AR = { portrait: '縦長', landscape: '横長', square: '正方形' };
+  const NM_FX = { none: 'なし', focus: '集中線', speed: 'スピード線' };
+  const NM_TYPE = { normal: 'ふつう', shout: '叫び', think: '心の声', narration: 'ナレーション' };
+  const NM_SHOT = { 'close-up': 'アップ', 'extreme close-up': '大アップ', bust: 'バストアップ', 'cowboy shot': '腰から上', full: '全身', wide: '引き', bird: '俯瞰', low: 'あおり', pov: '主観', back: '後ろ姿' };
+  const NM_PER = ['3〜4', '4〜5', '5〜6'];
+  const NM_MAX = { setting: 30000, paste: 200000, pages: 60, panels: 12, lines: 12, chars: 30, text: 300, prompt: 1500, tags: 1500 };
+  const NM_ALIAS = { // 日本語や別の書き方で返ってきたとき
+    size: { '大': 'large', '大ゴマ': 'large', big: 'large', l: 'large', '中': 'medium', '普通': 'medium', normal: 'medium', m: 'medium', '小': 'small', '小ゴマ': 'small', s: 'small' },
+    ar: { '縦': 'portrait', '縦長': 'portrait', tall: 'portrait', vertical: 'portrait', '横': 'landscape', '横長': 'landscape', wide: 'landscape', horizontal: 'landscape', '正方形': 'square', '1:1': 'square' },
+    fx: { '': 'none', '無し': 'none', 'なし': 'none', '集中線': 'focus', concentration: 'focus', 'focus lines': 'focus', 'スピード線': 'speed', '流線': 'speed', 'speed lines': 'speed' },
+    type: { '台詞': 'normal', 'セリフ': 'normal', 'ふつう': 'normal', speech: 'normal', dialogue: 'normal', '叫び': 'shout', scream: 'shout', yell: 'shout', '心の声': 'think', thought: 'think', monologue: 'think', 'ナレーション': 'narration', narrator: 'narration', caption: 'narration' },
+  };
+  function nmStr(v, max) { return typeof v === 'string' || typeof v === 'number' ? String(v).replace(/\r\n?/g, '\n').trim().slice(0, max) : ''; }
+  function nmEnum(v, map, alias, def, warn, what) {
+    const s = nmStr(v, 40), k = s.toLowerCase();
+    if (map[k]) return k;
+    if (alias && (alias[s] || alias[k])) return alias[s] || alias[k];
+    if (s && warn) warn(`${what}「${s}」が分からないので「${map[def]}」にしました`);
+    return def;
+  }
+  function nmList(v, max, each) { // 配列または「、」「,」区切りの文字
+    const a = Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[、,，\n]/) : [];
+    return a.map((x) => nmStr(x, each)).filter(Boolean).slice(0, max);
+  }
+  function normPanel(k, warn, at) {
+    k = k && typeof k === 'object' ? k : {};
+    const w = warn ? (m) => warn(`${at}：${m}`) : null;
+    const lines = (Array.isArray(k.lines) ? k.lines : []).slice(0, NM_MAX.lines).map((l) => {
+      l = l && typeof l === 'object' ? l : { text: l };
+      return { type: nmEnum(l.type, NM_TYPE, NM_ALIAS.type, 'normal', w, 'セリフの種類'), who: nmStr(l.who != null ? l.who : l.speaker, 40), text: nmStr(l.text, NM_MAX.text) };
+    }).filter((l) => l.text || !warn); // 読み込むときは空のセリフを捨てる（直している途中の空の行は残す）
+    if (w && Array.isArray(k.lines) && k.lines.length > NM_MAX.lines) w(`セリフが多いので ${NM_MAX.lines} までにしました`);
+    const shot = nmStr(k.shot, 40);
+    return {
+      size: nmEnum(k.size, NM_SIZE, NM_ALIAS.size, 'medium', w, '大きさ'),
+      shot: NM_SHOT[shot.toLowerCase()] ? shot.toLowerCase() : shot,
+      ar: nmEnum(k.ar, NM_AR, NM_ALIAS.ar, 'portrait', w, '形'),
+      fx: nmEnum(k.fx, NM_FX, NM_ALIAS.fx, 'none', w, '効果線'),
+      scene: nmStr(k.scene, 1000), prompt: nmStr(k.prompt, NM_MAX.prompt),
+      chars: nmList(k.chars, 8, 40), lines, sfx: nmList(k.sfx, 8, 20),
+    };
+  }
+  function normChar(c) { c = c && typeof c === 'object' ? c : {}; return { name: nmStr(c.name, 40), tags: nmStr(c.tags, NM_MAX.tags).replace(/\n+/g, ' '), memo: nmStr(c.memo != null ? c.memo : c.desc, 500) }; }
+  function normNemu(n) {
+    n = n && typeof n === 'object' ? n : {};
+    const o = n.opt || {};
+    return {
+      setting: typeof n.setting === 'string' ? n.setting.slice(0, NM_MAX.setting) : '',
+      chars: (Array.isArray(n.chars) ? n.chars : []).map(normChar).slice(0, NM_MAX.chars),
+      opt: { pages: Math.round(num(o.pages, 8, 1, 40)), per: NM_PER.includes(o.per) ? o.per : '4〜5' },
+      title: nmStr(n.title, 100),
+      pages: (Array.isArray(n.pages) ? n.pages : []).slice(0, NM_MAX.pages).map((p) => ({ panels: (Array.isArray(p && p.panels) ? p.panels : []).slice(0, NM_MAX.panels).map((k) => normPanel(k)) })),
+      src: n.src && typeof n.src === 'object' ? { title: nmStr(n.src.title, 200), at: num(n.src.at, 0, 0, 1e15) } : null,
+      importedAt: num(n.importedAt, 0, 0, 1e15),
+    };
+  }
+  function nmClone(n) { return normNemu(JSON.parse(JSON.stringify(n))); }
+
+  // ページの形（話の最初のページから。なければ B5 の縦）
+  function nmRatioText(e) {
+    const p = e && projects.find((x) => x.id === e.pages[0]);
+    if (p && p.W && p.H) {
+      const r = p.H / p.W;
+      return `${p.W}×${p.H}px（${r > 1.9 ? 'Web 向けの縦に長いページ' : r > 1.05 ? '縦長のページ' : r < 0.95 ? '横長のページ' : '正方形のページ'}）`;
+    }
+    return '縦長のページ（B5 くらい。幅:高さ＝1:1.41）';
+  }
+  function nmSchemaText() {
+    return `{
+  "title": "この話のタイトル",
+  "characters": [
+    { "name": "人物の名前", "tags": "1girl, long black hair, red eyes, school uniform, ...", "memo": "役どころ（日本語・短く）" }
+  ],
+  "pages": [
+    { "panels": [
+      {
+        "size": "large",
+        "shot": "close-up",
+        "ar": "portrait",
+        "scene": "コマの絵の内容（日本語）",
+        "chars": ["人物の名前"],
+        "prompt": "1girl, solo, surprised, open mouth, classroom, window, sunlight",
+        "lines": [ { "type": "shout", "who": "人物の名前", "text": "セリフ" } ],
+        "sfx": ["ガタッ"],
+        "fx": "focus"
+      }
+    ] }
+  ]
+}`;
+  }
+  function nmRulesText() {
+    return `- size：コマの大きさ。"large"（見せ場の大ゴマ）／"medium"／"small"
+- shot：構図。"extreme close-up"／"close-up"／"bust"／"cowboy shot"／"full"／"wide"（引き・背景を見せる）／"bird"（俯瞰）／"low"（あおり）／"pov"／"back"
+- ar：コマの形＝生成する画像の比率。"portrait"（縦長）／"landscape"（横長）／"square"
+- chars：そのコマに映る人物（characters の name と同じ表記）。映らないなら []
+- prompt：画像生成AI（SeaArt の WAI-illustrious。Danbooru 形式の英語タグを「, 」でつなぐ）に渡す、そのコマだけのタグ。人数（1girl, 2boys, no humans など）・構図・表情・動き・背景・時間帯や光。人物の見た目のタグ（髪・目・服）は入れない（アプリが characters の tags をつなげます）。品質タグ（masterpiece など）も入れない
+- lines：吹き出しに入るセリフ。読む順に。type は "normal"／"shout"（叫び）／"think"（心の声）／"narration"（ナレーション。who は空）。1つは30字くらいまで
+- sfx：絵に描く擬音・効果音（カタカナ）。なければ []
+- fx：効果線。"none"／"focus"（集中線）／"speed"（スピード線）
+- pages の順がページの順、panels の順が読む順（右上から左へ、上から下へ）`;
+  }
+  function nmCharsBlock(n) {
+    const cs = n.chars.filter((c) => c.name);
+    if (!cs.length) return '';
+    return `\n# 決まっている登場人物（name と tags は変えずに、そのまま characters に入れてください。ほかに要る人物は足してください）\n` +
+      cs.map((c) => `- ${c.name}：${c.tags || '（見た目のタグはまだ。考えて入れてください）'}${c.memo ? `（${c.memo.replace(/\n+/g, ' ')}）` : ''}`).join('\n') + '\n';
+  }
+  function nmRequestText(e) {
+    const n = e.nemu;
+    return `あなたは日本の漫画のネーム（コマ割り・構図・セリフの設計）を作る漫画家です。
+下の「設定とプロット」から、${n.opt.pages}ページの漫画のネームを作ってください。
+
+# 条件
+- 右綴じ・右から左に読む日本の漫画。1ページのコマは ${n.opt.per} を目安に。見せ場・感情の山は大ゴマにする
+- ページの形：${nmRatioText(e)}
+- セリフは吹き出しに入る短さにする。説明しすぎず、絵で見せる
+- 各コマに、画像生成AIに渡す英語のタグ（prompt）を付ける
+- 登場人物の見た目は characters の tags に英語のタグで書く（髪型・髪の色・目の色・体つき・服。どのコマでも同じ見た目にするため）
+${nmCharsBlock(n)}
+# 答えの形
+次の形の JSON だけを、\`\`\`json のコードブロック1つで出してください。前後の説明は要りません。
+${nmSchemaText()}
+
+${nmRulesText()}
+
+# 設定とプロット
+${n.setting.trim() || '（なし）'}
+`;
+  }
+  function nmFixText(e, errs, raw) {
+    return `前の答えを読み込んだところ、次の問題がありました。
+${errs.map((x) => '- ' + x).join('\n')}
+
+同じ内容で、決まった形の JSON だけを \`\`\`json のコードブロック1つで、全部出し直してください。
+
+# 答えの形
+${nmSchemaText()}
+
+${nmRulesText()}
+${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''}`;
+  }
+
+  // 貼り付けた答えを読む：{ ok, nemu部分, warns, errs }
+  function nmParse(text) {
+    const errs = [], warns = [];
+    let s = String(text || '').trim();
+    if (!s) return { errs: ['答えが空です'], warns };
+    const fence = s.match(/```(?:json|JSON)?\s*([\s\S]*?)```/);
+    if (fence) s = fence[1].trim();
+    const a = s.indexOf('{'), b = s.lastIndexOf('}');
+    if (a < 0 || b <= a) return { errs: ['JSON（{ … }）が見つかりません'], warns };
+    s = s.slice(a, b + 1);
+    let j;
+    try { j = JSON.parse(s); }
+    catch (_) {
+      try { j = JSON.parse(s.replace(/,\s*([\]}])/g, '$1').replace(/[“”]/g, '"')); warns.push('JSON の小さな崩れ（最後の「,」など）を直して読みました'); }
+      catch (err) { return { errs: ['JSON として読めません（' + String(err && err.message || err).slice(0, 120) + '）'], warns }; }
+    }
+    if (!j || typeof j !== 'object') return { errs: ['JSON の形が違います'], warns };
+    const rawPages = Array.isArray(j.pages) ? j.pages : null;
+    if (!rawPages || !rawPages.length) return { errs: ['pages（ページの並び）がありません'], warns };
+    if (rawPages.length > NM_MAX.pages) warns.push(`ページが多いので ${NM_MAX.pages} ページまでにしました`);
+    const pages = rawPages.slice(0, NM_MAX.pages).map((p, i) => {
+      const ks = Array.isArray(p && p.panels) ? p.panels : Array.isArray(p) ? p : [];
+      if (!ks.length) errs.push(`p${i + 1}：コマ（panels）がありません`);
+      if (ks.length > NM_MAX.panels) warns.push(`p${i + 1}：コマが多いので ${NM_MAX.panels} までにしました`);
+      return { panels: ks.slice(0, NM_MAX.panels).map((k, ki) => normPanel(k, (m) => warns.push(m), `p${i + 1}-${ki + 1}`)) };
+    });
+    const chars = (Array.isArray(j.characters) ? j.characters : []).map(normChar).filter((c) => c.name).slice(0, NM_MAX.chars);
+    const names = new Set(chars.map((c) => c.name));
+    pages.forEach((p, i) => p.panels.forEach((k, ki) => {
+      if (!k.scene && !k.prompt) warns.push(`p${i + 1}-${ki + 1}：絵の内容もプロンプトもありません`);
+      k.chars.forEach((c) => { if (chars.length && !names.has(c)) warns.push(`p${i + 1}-${ki + 1}：人物「${c}」が characters にありません`); });
+    }));
+    return { errs, warns, data: { title: nmStr(j.title, 100), chars, pages } };
+  }
+
+  /* ---- 画面 ---- */
+  let nmEdit = null, nmLast = null; // nmEdit＝直しているコマ 'ページ:コマ'、nmLast＝最後の読み込みの結果
+  function nmEp() { const e = curEp(); if (e && !e.nemu) e.nemu = normNemu(null); return e; }
+  async function nmSave(fn, rerender, keepPrev) {
+    const e = nmEp(); if (!e) return;
+    if (keepPrev) e.nemuPrev = nmClone(e.nemu);
+    fn(e.nemu, e);
+    try { await saveEp(e); } catch (_) { showToast('保存できませんでした', true); }
+    if (rerender !== false) renderNemu();
+  }
+  function openNemu() {
+    const e = nmEp(); if (!e) return;
+    nmEdit = null; nmLast = null;
+    $('nmPaste').value = ''; $('nmMsg').innerHTML = ''; $('nmFix').hidden = true; $('nmReqView').hidden = true; $('nmMsBox').hidden = true;
+    closeModal('mEp'); renderNemu(); openModal('mNm');
+  }
+  function renderNemu() {
+    const e = nmEp(); if (!e) return;
+    const n = e.nemu;
+    $('nmTitle').textContent = `ネーム：${e.name}`;
+    setVal('nmSetting', n.setting);
+    $('nmSetCount').textContent = `${n.setting.length.toLocaleString()} 字`;
+    $('nmSrc').textContent = n.src ? `MANUSCRIPT「${n.src.title}」から読み込み（${fmtDate(n.src.at)}）。MANUSCRIPT を直しても、ここは自動では変わりません。` : '';
+    $('nmSrc').hidden = !n.src;
+    setVal('nmPages', n.opt.pages);
+    $('nmPer').value = n.opt.per;
+    $('nmRatio').textContent = 'ページの形：' + nmRatioText(e);
+    $('nmUndo').hidden = !e.nemuPrev;
+    renderNmChars(n); renderNmList(n);
+  }
+  function renderNmChars(n) {
+    const box = $('nmChars');
+    if (box.contains(document.activeElement)) return; // 書いている途中は作り直さない
+    box.innerHTML = n.chars.length ? n.chars.map((c, i) => `<div class="nm-char" data-i="${i}">
+      <div class="p-row" style="margin-bottom:4px"><input class="p-select nm-in" data-f="name" maxlength="40" placeholder="名前" value="${esc(c.name)}" style="width:9em">
+        <input class="p-select nm-in" data-f="memo" maxlength="500" placeholder="メモ（役どころ）" value="${esc(c.memo)}" style="flex:1">
+        <button class="btn small danger" type="button" data-act="del">×</button></div>
+      <textarea class="p-text nm-in nm-tags" data-f="tags" maxlength="${NM_MAX.tags}" placeholder="見た目のタグ（英語）例：1girl, long black hair, red eyes, school uniform">${esc(c.tags)}</textarea></div>`).join('')
+      : '<div class="field-hint">まだいません。LLM の答えから入るほか、［＋ 人物］で先に決めておけます（決めた見た目は依頼文に入り、そのまま使ってもらいます）。</div>';
+  }
+  function nmPanelHead(k) {
+    return [NM_SIZE[k.size], k.shot ? (NM_SHOT[k.shot] || k.shot) : '', NM_AR[k.ar], k.fx !== 'none' ? NM_FX[k.fx] : ''].filter(Boolean).join('・');
+  }
+  function nmLineText(l) {
+    const t = l.type === 'narration' ? '［ナレーション］' : `${l.who || '？'}${l.type === 'shout' ? '（叫び）' : l.type === 'think' ? '（心の声）' : ''}`;
+    return `${t}「${l.text}」`;
+  }
+  function renderNmList(n) {
+    const total = n.pages.reduce((a, p) => a + p.panels.length, 0), lines = n.pages.reduce((a, p) => a + p.panels.reduce((b, k) => b + k.lines.length, 0), 0);
+    $('nmSum').textContent = n.pages.length ? `${n.title ? '「' + n.title + '」　' : ''}${n.pages.length} ページ・${total} コマ・セリフ ${lines}` : '';
+    if (nmEdit && $('nmList').contains(document.activeElement)) return;
+    $('nmList').innerHTML = n.pages.length ? n.pages.map((p, pi) => `<div class="nm-page" data-p="${pi}">
+      <div class="sub-title at-head"><span>p${pi + 1}（${p.panels.length} コマ）</span><span class="lh-tools">
+        <button class="btn small" type="button" data-act="pup" ${pi ? '' : 'disabled'}>↑</button><button class="btn small" type="button" data-act="pdown" ${pi < n.pages.length - 1 ? '' : 'disabled'}>↓</button>
+        <button class="btn small" type="button" data-act="kadd">＋ コマ</button><button class="btn small danger" type="button" data-act="pdel">このページを消す</button></span></div>
+      ${p.panels.map((k, ki) => nmEdit === `${pi}:${ki}` ? nmEditHtml(k, pi, ki) : `<div class="nm-panel" data-k="${ki}">
+        <div class="nm-ph"><b>${pi + 1}-${ki + 1}</b> ${esc(nmPanelHead(k))}<span class="spacer"></span>
+          <button class="btn small" type="button" data-act="kup" ${ki ? '' : 'disabled'}>↑</button><button class="btn small" type="button" data-act="kdown" ${ki < p.panels.length - 1 ? '' : 'disabled'}>↓</button>
+          <button class="btn small primary" type="button" data-act="kedit">直す</button></div>
+        ${k.scene ? `<div class="nm-scene">${esc(k.scene)}</div>` : ''}
+        ${k.chars.length ? `<div class="nm-meta">映る人：${esc(k.chars.join('、'))}</div>` : ''}
+        ${k.lines.map((l) => `<div class="nm-line">${esc(nmLineText(l))}</div>`).join('')}
+        ${k.sfx.length ? `<div class="nm-meta">効果音：${esc(k.sfx.join('、'))}</div>` : ''}
+        ${k.prompt ? `<div class="nm-prompt">${esc(k.prompt)}</div>` : ''}</div>`).join('')}
+    </div>`).join('') + '<div class="p-row"><button class="btn small" type="button" data-act="padd">＋ ページを足す</button></div>'
+      : '<div class="field-hint">まだネームがありません。上の依頼文を LLM に渡し、答えを貼って［読み込む］。</div>';
+  }
+  function nmOpts(map, v) { return Object.keys(map).map((k) => `<option value="${esc(k)}" ${k === v ? 'selected' : ''}>${esc(map[k])}</option>`).join(''); }
+  function nmEditHtml(k, pi, ki) {
+    const shotList = Object.keys(NM_SHOT).map((s) => `<option value="${esc(s)}">${esc(NM_SHOT[s])}</option>`).join('');
+    return `<div class="nm-panel is-edit" data-k="${ki}">
+      <div class="nm-ph"><b>${pi + 1}-${ki + 1}</b> を直す<span class="spacer"></span><button class="btn small danger" type="button" data-act="kdel">このコマを消す</button><button class="btn small primary" type="button" data-act="kdone">閉じる</button></div>
+      <div class="p-row"><label class="p-lab">大きさ</label><select class="p-select nm-f" data-f="size">${nmOpts(NM_SIZE, k.size)}</select>
+        <label class="p-lab" style="width:auto">形</label><select class="p-select nm-f" data-f="ar">${nmOpts(NM_AR, k.ar)}</select>
+        <label class="p-lab" style="width:auto">効果線</label><select class="p-select nm-f" data-f="fx">${nmOpts(NM_FX, k.fx)}</select></div>
+      <div class="p-row"><label class="p-lab">構図</label><input class="p-select nm-f" data-f="shot" list="nmShotList" maxlength="40" value="${esc(k.shot)}" style="flex:1"><datalist id="nmShotList">${shotList}</datalist></div>
+      <div class="p-lab-row">絵の内容</div><textarea class="p-text nm-f" data-f="scene" maxlength="1000">${esc(k.scene)}</textarea>
+      <div class="p-row"><label class="p-lab">映る人</label><input class="p-select nm-f" data-f="chars" maxlength="200" placeholder="名前を「、」で区切る" value="${esc(k.chars.join('、'))}" style="flex:1"></div>
+      <div class="p-lab-row">セリフ（読む順）</div>
+      ${k.lines.map((l, li) => `<div class="p-row nm-lrow" data-l="${li}"><select class="p-select nm-f" data-f="ltype">${nmOpts(NM_TYPE, l.type)}</select>
+        <input class="p-select nm-f" data-f="lwho" maxlength="40" placeholder="話す人" value="${esc(l.who)}" style="width:7em">
+        <input class="p-select nm-f" data-f="ltext" maxlength="${NM_MAX.text}" placeholder="セリフ" value="${esc(l.text)}" style="flex:1;min-width:10em">
+        <button class="btn small" type="button" data-act="lup" ${li ? '' : 'disabled'}>↑</button><button class="btn small danger" type="button" data-act="ldel">×</button></div>`).join('')}
+      <div class="p-row"><button class="btn small" type="button" data-act="ladd" ${k.lines.length >= NM_MAX.lines ? 'disabled' : ''}>＋ セリフ</button></div>
+      <div class="p-row"><label class="p-lab">効果音</label><input class="p-select nm-f" data-f="sfx" maxlength="200" placeholder="「、」で区切る" value="${esc(k.sfx.join('、'))}" style="flex:1"></div>
+      <div class="p-lab-row">画像プロンプト（このコマだけのタグ。人物の見た目はキャラクター表からつなげます）</div><textarea class="p-text nm-f nm-tags" data-f="prompt" maxlength="${NM_MAX.prompt}">${esc(k.prompt)}</textarea>
+    </div>`;
+  }
+  function nmReadEdit(box, k) {
+    const v = (f) => { const el = box.querySelector(`.nm-f[data-f="${f}"]`); return el ? el.value : ''; };
+    k.size = NM_SIZE[v('size')] ? v('size') : 'medium'; k.ar = NM_AR[v('ar')] ? v('ar') : 'portrait'; k.fx = NM_FX[v('fx')] ? v('fx') : 'none';
+    k.shot = nmStr(v('shot'), 40); k.scene = nmStr(v('scene'), 1000); k.prompt = nmStr(v('prompt'), NM_MAX.prompt);
+    k.chars = nmList(v('chars'), 8, 40); k.sfx = nmList(v('sfx'), 8, 20);
+    k.lines = [...box.querySelectorAll('.nm-lrow')].map((r) => ({
+      type: NM_TYPE[r.querySelector('[data-f="ltype"]').value] ? r.querySelector('[data-f="ltype"]').value : 'normal',
+      who: nmStr(r.querySelector('[data-f="lwho"]').value, 40), text: nmStr(r.querySelector('[data-f="ltext"]').value, NM_MAX.text),
+    }));
+  }
+  function nmNewPanel() { return normPanel({ size: 'medium', ar: 'portrait' }); }
+
+  // コピー（だめなら下に出して選んでもらう）
+  async function nmCopy(text, label) {
+    try { await navigator.clipboard.writeText(text); $('nmReqView').hidden = true; showToast(`${label}をコピーしました。LLM に貼り付けてください`); return; }
+    catch (_) {}
+    $('nmReqView').value = text; $('nmReqView').hidden = false; $('nmReqView').focus(); $('nmReqView').select();
+    showToast('コピーできませんでした。下に出した文を選んでコピーしてください', true);
+  }
+
+  $('eNemu').addEventListener('click', openNemu);
+  $('nmBack').addEventListener('click', () => { closeModal('mNm'); renderEp(); openModal('mEp'); });
+  $('nmSetting').addEventListener('input', () => { $('nmSetCount').textContent = `${$('nmSetting').value.length.toLocaleString()} 字`; });
+  $('nmSetting').addEventListener('change', () => nmSave((n) => { n.setting = $('nmSetting').value.slice(0, NM_MAX.setting); }, false));
+  $('nmPages').addEventListener('change', () => nmSave((n) => { n.opt.pages = Math.round(num($('nmPages').value, 8, 1, 40)); }));
+  $('nmPer').addEventListener('change', () => nmSave((n) => { n.opt.per = NM_PER.includes($('nmPer').value) ? $('nmPer').value : '4〜5'; }, false));
+  $('nmCharAdd').addEventListener('click', () => nmSave((n) => { if (n.chars.length < NM_MAX.chars) n.chars.push(normChar({})); else showToast(`人物は ${NM_MAX.chars} 人までです`, true); }));
+  $('nmChars').addEventListener('change', (ev) => {
+    const el = ev.target.closest('.nm-in'), r = ev.target.closest('.nm-char'); if (!el || !r) return;
+    nmSave((n) => { const c = n.chars[+r.dataset.i]; if (c) Object.assign(c, normChar(Object.assign({}, c, { [el.dataset.f]: el.value }))); }, false);
+  });
+  $('nmChars').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-act="del"]'), r = ev.target.closest('.nm-char'); if (!b || !r) return;
+    armTwice(b, 'もう一度', () => nmSave((n) => { n.chars.splice(+r.dataset.i, 1); }));
+  });
+  $('nmReq').addEventListener('click', () => {
+    const e = nmEp(); if (!e) return;
+    const n = e.nemu; n.setting = $('nmSetting').value.slice(0, NM_MAX.setting);
+    if (!n.setting.trim()) { showToast('先に設定・プロットを書いてください', true); $('nmSetting').focus(); return; }
+    nmSave(() => {}, false).then(() => nmCopy(nmRequestText(e), '依頼文'));
+  });
+  $('nmFix').addEventListener('click', () => { const e = nmEp(); if (e && nmLast) nmCopy(nmFixText(e, nmLast.errs.length ? nmLast.errs : nmLast.warns, $('nmPaste').value), '出し直しの依頼文'); });
+  $('nmLoad').addEventListener('click', async () => {
+    const e = nmEp(); if (!e) return;
+    const raw = $('nmPaste').value;
+    if (raw.length > NM_MAX.paste) { showToast('答えが長すぎます', true); return; }
+    const r = nmLast = nmParse(raw);
+    const list = (a, cls) => a.length ? `<ul class="nm-msg ${cls}">${a.slice(0, 30).map((x) => `<li>${esc(x)}</li>`).join('')}${a.length > 30 ? `<li>ほか ${a.length - 30} 件</li>` : ''}</ul>` : '';
+    if (!r.data || r.errs.length) {
+      $('nmMsg').innerHTML = '<div class="nm-err">読み込めませんでした。</div>' + list(r.errs, 'is-err') + list(r.warns, '');
+      $('nmFix').hidden = false; return;
+    }
+    if (e.nemu.pages.length && !(await confirmBox(`今のネーム（${e.nemu.pages.length} ページ）を、貼った答えに置き換えます。置き換える前の状態は［ひとつ前に戻す］で戻せます。`, '置き換える'))) return;
+    await nmSave((n) => {
+      n.pages = r.data.pages; n.title = r.data.title; n.importedAt = Date.now();
+      r.data.chars.forEach((c) => { // キャラクター表に足す（同じ名前は、空いている欄だけ埋める）
+        const have = n.chars.find((x) => x.name === c.name);
+        if (have) { if (!have.tags) have.tags = c.tags; if (!have.memo) have.memo = c.memo; }
+        else if (n.chars.length < NM_MAX.chars) n.chars.push(c);
+      });
+    }, true, true);
+    const total = r.data.pages.reduce((a, p) => a + p.panels.length, 0);
+    $('nmMsg').innerHTML = `<div class="nm-ok">${r.data.pages.length} ページ・${total} コマを読み込みました。</div>` + (r.warns.length ? '<div class="field-hint">気になったところ（読み込みはしています）：</div>' + list(r.warns, '') : '');
+    $('nmFix').hidden = !r.warns.length;
+    $('nmPaste').value = '';
+  });
+  $('nmUndo').addEventListener('click', async () => {
+    const e = nmEp(); if (!e || !e.nemuPrev) return;
+    if (!(await confirmBox('ネーム・設定・キャラクター表を、ひとつ前（最後に読み込む前）に戻します。今の状態は、もう一度押すと戻せます。', '戻す', true))) return;
+    const cur = e.nemu; e.nemu = e.nemuPrev; e.nemuPrev = cur; nmEdit = null;
+    try { await saveEp(e); } catch (_) { showToast('保存できませんでした', true); }
+    renderNemu(); showToast('ひとつ前に戻しました');
+  });
+  $('nmList').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-act]'), pg = ev.target.closest('.nm-page'); if (!b) return;
+    const act = b.dataset.act;
+    if (act === 'padd') { nmSave((n) => { if (n.pages.length < NM_MAX.pages) n.pages.push({ panels: [nmNewPanel()] }); }); return; }
+    if (!pg) return;
+    const pi = +pg.dataset.p, kEl = ev.target.closest('.nm-panel'), ki = kEl ? +kEl.dataset.k : -1;
+    const run = (fn) => nmSave((n) => { const p = n.pages[pi]; if (p) fn(n, p); });
+    if (act === 'pup' || act === 'pdown') run((n) => { const j = act === 'pup' ? pi - 1 : pi + 1; if (n.pages[j]) [n.pages[pi], n.pages[j]] = [n.pages[j], n.pages[pi]]; nmEdit = null; });
+    else if (act === 'pdel') armTwice(b, 'もう一度で消す', () => run((n) => { n.pages.splice(pi, 1); nmEdit = null; }));
+    else if (act === 'kadd') run((n, p) => { if (p.panels.length < NM_MAX.panels) { p.panels.push(nmNewPanel()); nmEdit = `${pi}:${p.panels.length - 1}`; } else showToast(`1ページのコマは ${NM_MAX.panels} までです`, true); });
+    else if (act === 'kup' || act === 'kdown') run((n, p) => { const j = act === 'kup' ? ki - 1 : ki + 1; if (p.panels[j]) [p.panels[ki], p.panels[j]] = [p.panels[j], p.panels[ki]]; });
+    else if (act === 'kedit') { nmEdit = `${pi}:${ki}`; renderNemu(); }
+    else if (act === 'kdone') { if (document.activeElement) document.activeElement.blur(); run((n, p) => { const k = p.panels[ki]; if (k) { nmReadEdit(kEl, k); k.lines = k.lines.filter((l) => l.text); } nmEdit = null; }); }
+    else if (act === 'kdel') armTwice(b, 'もう一度で消す', () => run((n, p) => { p.panels.splice(ki, 1); nmEdit = null; }));
+    else if (act === 'ladd' || act === 'ldel' || act === 'lup') {
+      const li = b.closest('.nm-lrow') ? +b.closest('.nm-lrow').dataset.l : -1;
+      run((n, p) => {
+        const k = p.panels[ki]; if (!k) return; nmReadEdit(kEl, k);
+        if (act === 'ladd' && k.lines.length < NM_MAX.lines) k.lines.push({ type: 'normal', who: '', text: '' });
+        if (act === 'ldel') k.lines.splice(li, 1);
+        if (act === 'lup' && li > 0) [k.lines[li - 1], k.lines[li]] = [k.lines[li], k.lines[li - 1]];
+      });
+    }
+  });
+  $('nmList').addEventListener('change', (ev) => { // 直している欄は、変えたらすぐ保存（作り直さない）
+    const kEl = ev.target.closest('.nm-panel.is-edit'), pg = ev.target.closest('.nm-page'); if (!kEl || !pg) return;
+    nmSave((n) => { const p = n.pages[+pg.dataset.p], k = p && p.panels[+kEl.dataset.k]; if (k) nmReadEdit(kEl, k); }, false);
+    renderNmList(nmEp().nemu);
+  });
+
+  /* ---- MANUSCRIPT から読み込む（同じ origin の sideops_manuscript を読むだけ。書き換えない・ない DB は作らない） ---- */
+  function openMsDb() {
+    return new Promise((res) => {
+      let req, done = false; const fin = (v) => { if (!done) { done = true; res(v); } };
+      try { req = indexedDB.open('sideops_manuscript'); } catch (_) { fin(null); return; }
+      req.onupgradeneeded = () => { try { req.transaction.abort(); } catch (_) {} }; // まだない＝作らずにやめる
+      req.onsuccess = () => { const d = req.result; d.onversionchange = () => d.close(); fin(d); };
+      req.onerror = () => fin(null); req.onblocked = () => fin(null);
+      setTimeout(() => fin(null), 5000);
+    });
+  }
+  function msAll(d, store) {
+    return new Promise((res) => {
+      if (!d.objectStoreNames.contains(store)) { res([]); return; }
+      try { const r = d.transaction(store, 'readonly').objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }
+      catch (_) { res([]); }
+    });
+  }
+  let msWorks = [], msLore = [];
+  $('nmMs').addEventListener('click', async () => {
+    const d = await openMsDb();
+    if (!d) { msWorks = []; }
+    else { try { msWorks = (await msAll(d, 'works')).filter((w) => w && typeof w.id === 'string'); msLore = await msAll(d, 'lore'); } finally { d.close(); } }
+    msWorks.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    $('nmMsList').innerHTML = msWorks.length ? msWorks.map((w) => {
+      const people = msLore.filter((l) => l && l.workId === w.id && l.kind === 'person').length;
+      return `<div class="lib-row" data-id="${esc(w.id)}"><div class="lr-main"><div class="lr-name">${esc(w.title || '無題')}${w.isBook ? '<span class="p-hint" style="margin:0 0 0 6px">本棚</span>' : ''}</div>
+        <div class="lr-sub">設定とプロット ${String(w.plot || '').length.toLocaleString()} 字・人物 ${people}・${fmtDate(w.updatedAt || 0)}</div></div>
+        <div class="lr-actions"><button class="btn small primary" type="button" data-act="pick" ${String(w.plot || '').trim() || people ? '' : 'disabled'}>読み込む</button></div></div>`;
+    }).join('') : '<div class="field-hint">読み込める作品がありません（この端末の MANUSCRIPT に作品がないか、まだ開いたことがありません）。</div>';
+    $('nmMsBox').hidden = false;
+  });
+  $('nmMsCancel').addEventListener('click', () => { $('nmMsBox').hidden = true; });
+  $('nmMsList').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-act="pick"]'), r = ev.target.closest('.lib-row'); if (!b || !r) return;
+    const w = msWorks.find((x) => x.id === r.dataset.id), e = nmEp(); if (!w || !e) return;
+    const lore = msLore.filter((l) => l && l.workId === w.id);
+    const KIND = { person: '人物', place: '場所・施設', item: 'アイテム', term: '用語', other: 'その他' };
+    const loreText = lore.filter((l) => String(l.body || '').trim() || String(l.name || '').trim())
+      .map((l) => `## ${KIND[l.kind] || 'その他'}：${String(l.name || '').trim() || '（名前なし）'}\n${String(l.body || '').trim()}`).join('\n\n');
+    const text = [`# ${w.title || '無題'}`, String(w.plot || '').trim(), loreText ? `# 設定集\n${loreText}` : ''].filter(Boolean).join('\n\n').slice(0, NM_MAX.setting);
+    const people = lore.filter((l) => l.kind === 'person' && String(l.name || '').trim()).map((l) => normChar({ name: l.name, tags: l.imgPrompt || '', memo: String(l.body || '').replace(/\s+/g, ' ').slice(0, 120) }));
+    const n = e.nemu;
+    if ((n.setting.trim() || n.chars.length) && !(await confirmBox(`設定・プロットを MANUSCRIPT「${w.title || '無題'}」の内容に置き換え、設定集の人物 ${people.length} 人をキャラクター表に入れます（同じ名前は MANUSCRIPT の内容で上書き）。前の状態は［ひとつ前に戻す］で戻せます。`, '読み込む'))) return;
+    await nmSave((x) => {
+      x.setting = text; x.src = { title: nmStr(w.title || '無題', 200), at: Date.now() };
+      people.forEach((c) => { const have = x.chars.find((y) => y.name === c.name); if (have) { if (c.tags) have.tags = c.tags; if (c.memo) have.memo = c.memo; } else if (x.chars.length < NM_MAX.chars) x.chars.push(c); });
+    }, true, true);
+    $('nmMsBox').hidden = true;
+    showToast(`MANUSCRIPT「${w.title || '無題'}」から読み込みました`);
+  });
 
   // ページ番号を描く（i＝0から。外側＝右綴じの外：奇数ページ（1・3…番目）は左下、偶数は右下）
   function drawNombre(g, w, h, n, idx, nb) {
