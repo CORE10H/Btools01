@@ -838,8 +838,33 @@
 
     <div class="sub-title">④ ネーム <span id="nmSum"></span></div>
     <div id="nmList"></div>
+
+    <div id="nmBuildBox" hidden>
+      <div class="sub-title">⑤ ネームから話を作る</div>
+      <div class="field-hint">ネームのページごとに漫画のページを作り、この話の最後に足します。コマ割りは大きさと形から選び（大ゴマ・横長は1段、縦長は2つ並べる。右から読む順）、セリフを吹き出しに、効果音を文字に（素材パックに同じ名前の素材があればそれを貼る）、効果線をコマに入れます。絵のないコマには、絵の内容を薄く出します（編集の画面だけ。書き出しません）。</div>
+      <div class="p-row"><label class="p-lab">大きさ</label><select id="nmSize" class="p-select" style="flex:1"></select></div>
+      <div class="p-row"><label class="p-check"><input type="checkbox" id="nmOptBub" checked> 吹き出し</label><label class="p-check"><input type="checkbox" id="nmOptVert" checked> 縦書き</label><label class="p-check"><input type="checkbox" id="nmOptSfx" checked> 効果音</label><label class="p-check"><input type="checkbox" id="nmOptFx" checked> 効果線</label></div>
+      <div class="field-hint" id="nmBuildInfo"></div>
+      <div class="p-row"><button class="btn primary" id="nmBuild" type="button">ネームから話を作る</button></div>
+    </div>
+
+    <div id="nmPromptBox" hidden>
+      <div class="sub-title">⑥ プロンプトの一覧</div>
+      <div class="field-hint">コマごとに「先頭のタグ＋映る人の見た目のタグ＋そのコマのタグ」をつなげます（同じタグは1つに）。比率は、話を作ったあとはコマの実際の形から、作る前はネームの形からです。生成した画像は、ファイル名を p01_k02.png（1ページ目の2コマ目）のようにして保存しておくと、⑦でまとめて入れられます。</div>
+      <div class="p-row"><label class="p-lab">先頭のタグ</label><input class="p-select" id="nmHead" maxlength="500" placeholder="例：masterpiece, best quality, monochrome" style="flex:1"></div>
+      <div class="p-row"><button class="btn small" id="nmPromptShow" type="button">一覧を見る／閉じる</button><button class="btn small primary" id="nmPromptAll" type="button">全部コピー</button></div>
+      <div id="nmPrompts" hidden></div>
+    </div>
+
+    <div id="nmImgBox" hidden>
+      <div class="sub-title">⑦ 画像をまとめて入れる</div>
+      <div class="field-hint">ファイル名で入れるコマを決めます：p01_k02.png（1ページ目の2コマ目）。1-2.png・01_02.png でも入ります。画像はコマいっぱいに入れるので、位置や大きさはページを開いて整えてください。</div>
+      <div class="p-row"><button class="btn primary" id="nmImgPick" type="button">画像を選ぶ（いくつでも）</button></div>
+      <div id="nmImgMsg"></div>
+    </div>
   </div>
 </div>
+<input type="file" id="nmImgFile" accept="image/*" hidden multiple>
 
 <!-- 素材パック -->
 <div class="modal-overlay" id="mPacks">
@@ -1566,7 +1591,8 @@
       const img = m ? { blobId: m.blobId, name: cleanName(m.name) || '画像', w0: num(m.w0, 100, 1, 1e5), h0: num(m.h0, 100, 1, 1e5),
         ox: num(m.ox, 0, -1e6, 1e6), oy: num(m.oy, 0, -1e6, 1e6), s: num(m.s, 1, 0.001, 1000), r: num(m.r, 0, -180, 180) } : null;
       return Object.assign(base, { type: 'panel', pts, bw: num(l.bw, 6, 0, 500), bc: isColor(l.bc) ? l.bc : '#000000',
-        fill: l.fill === 'none' ? 'none' : isColor(l.fill) ? l.fill : '#ffffff', img, fx: normFx(l.fx) }); // fx：中の画像にかけるフィルター
+        fill: l.fill === 'none' ? 'none' : isColor(l.fill) ? l.fill : '#ffffff', img, fx: normFx(l.fx), // fx：中の画像にかけるフィルター
+        note: typeof l.note === 'string' ? l.note.slice(0, 300) : '' }); // note：ネームから作ったときの絵の内容（画像がないとき編集の画面だけに出す）
     }
     if (l.type === 'lines') { // 効果線（集中線・スピード線・ベタフラッシュ）。幅 w・高さ h の範囲の中だけに描く。太さはページのピクセル
       return Object.assign(base, {
@@ -2528,6 +2554,19 @@
     else base(ctx);
     const lo = { clipW: p.W, clipH: p.H, panels: new Map(p.layers.filter((L) => L.type === 'panel').map((P) => [P.id, P])) };
     p.layers.forEach((L) => drawLayer(ctx, L, lo));
+    if (opts && opts.editor) p.layers.forEach((P) => { if (P.type === 'panel' && P.note && !P.img && !P.hidden) drawPanelNote(ctx, P, p); });
+  }
+  // ネームの絵の内容を、絵のないコマの真ん中に薄く出す（編集の画面だけ。書き出し・見本には描かない）
+  function drawPanelNote(ctx, P, p) {
+    const b = ptsBox(P.pts), w = (b.x1 - b.x0) * P.scale * 0.84, size = Math.max(8, Math.min(p.W, p.H) * 0.022);
+    ctx.save();
+    ctx.font = `400 ${size}px ${FONTS[0].css}`; ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const rows = []; let line = '';
+    for (const ch of [...P.note]) { if (ctx.measureText(line + ch).width > w && line) { rows.push(line); line = ch; } else line += ch; if (rows.length >= 6) break; }
+    if (line && rows.length < 6) rows.push(line);
+    const cx = P.x + (b.x0 + b.x1) / 2 * P.scale, cy = P.y + (b.y0 + b.y1) / 2 * P.scale, lh = size * 1.4;
+    rows.forEach((r, i) => ctx.fillText(r, cx, cy + (i - (rows.length - 1) / 2) * lh));
+    ctx.restore();
   }
 
   /* ===================== 書体の読み込み ===================== */
@@ -2672,7 +2711,7 @@
     ctx.fillRect(view.ox, view.oy, cur.W * view.s, cur.H * view.s);
     ctx.setTransform(d * view.s, 0, 0, d * view.s, d * view.ox, d * view.oy);
     if (!baseView) baseView = makeBaseView();
-    drawScene(ctx, cur, { baseImg: baseView });
+    drawScene(ctx, cur, { baseImg: baseView, editor: true });
     // ここから画面の座標（CSS px）
     ctx.setTransform(d, 0, 0, d, 0, 0);
     // 画像の外にはみ出した部分は書き出されないので、暗くして見せる
@@ -6553,11 +6592,12 @@
     return {
       setting: typeof n.setting === 'string' ? n.setting.slice(0, NM_MAX.setting) : '',
       chars: (Array.isArray(n.chars) ? n.chars : []).map(normChar).slice(0, NM_MAX.chars),
-      opt: { pages: Math.round(num(o.pages, 8, 1, 40)), per: NM_PER.includes(o.per) ? o.per : '4〜5' },
+      opt: { pages: Math.round(num(o.pages, 8, 1, 40)), per: NM_PER.includes(o.per) ? o.per : '4〜5', head: nmStr(o.head, 500) },
       title: nmStr(n.title, 100),
       pages: (Array.isArray(n.pages) ? n.pages : []).slice(0, NM_MAX.pages).map((p) => ({ panels: (Array.isArray(p && p.panels) ? p.panels : []).slice(0, NM_MAX.panels).map((k) => normPanel(k)) })),
       src: n.src && typeof n.src === 'object' ? { title: nmStr(n.src.title, 200), at: num(n.src.at, 0, 0, 1e15) } : null,
       importedAt: num(n.importedAt, 0, 0, 1e15),
+      built: n.built && Array.isArray(n.built.pages) ? { at: num(n.built.at, 0, 0, 1e15), pages: n.built.pages.filter((b) => b && typeof b.pid === 'string').slice(0, NM_MAX.pages).map((b) => ({ pid: b.pid, panels: (Array.isArray(b.panels) ? b.panels : []).filter((x) => typeof x === 'string').slice(0, NM_MAX.panels) })) } : null,
     };
   }
   function nmClone(n) { return normNemu(JSON.parse(JSON.stringify(n))); }
@@ -6693,7 +6733,7 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
   }
   function openNemu() {
     const e = nmEp(); if (!e) return;
-    nmEdit = null; nmLast = null;
+    nmEdit = null; nmLast = null; $('nmPrompts').hidden = true; $('nmImgMsg').innerHTML = ''; delete $('nmSize').dataset.touched;
     $('nmPaste').value = ''; $('nmMsg').innerHTML = ''; $('nmFix').hidden = true; $('nmReqView').hidden = true; $('nmMsBox').hidden = true;
     closeModal('mEp'); renderNemu(); openModal('mNm');
   }
@@ -6709,7 +6749,8 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
     $('nmPer').value = n.opt.per;
     $('nmRatio').textContent = 'ページの形：' + nmRatioText(e);
     $('nmUndo').hidden = !e.nemuPrev;
-    renderNmChars(n); renderNmList(n);
+    renderNmChars(n); renderNmList(n); renderNmBuild(e);
+    if (!$('nmPrompts').hidden) renderNmPrompts();
   }
   function renderNmChars(n) {
     const box = $('nmChars');
@@ -6785,7 +6826,7 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
   async function nmCopy(text, label) {
     try { await navigator.clipboard.writeText(text); $('nmReqView').hidden = true; showToast(`${label}をコピーしました。LLM に貼り付けてください`); return; }
     catch (_) {}
-    $('nmReqView').value = text; $('nmReqView').hidden = false; $('nmReqView').focus(); $('nmReqView').select();
+    $('nmReqView').value = text; $('nmReqView').hidden = false; $('nmReqView').scrollIntoView({ block: 'center' }); $('nmReqView').focus(); $('nmReqView').select();
     showToast('コピーできませんでした。下に出した文を選んでコピーしてください', true);
   }
 
@@ -6880,6 +6921,304 @@ ${raw ? `\n# 前の答え（はじめの部分）\n${raw.slice(0, 3000)}\n` : ''
     const kEl = ev.target.closest('.nm-panel.is-edit'), pg = ev.target.closest('.nm-page'); if (!kEl || !pg) return;
     nmSave((n) => { const p = n.pages[+pg.dataset.p], k = p && p.panels[+kEl.dataset.k]; if (k) nmReadEdit(kEl, k); }, false);
     renderNmList(nmEp().nemu);
+  });
+
+
+  /* ---- ネーム 第2段（2026-11-28）：ネームから話を作る・プロンプトの一覧・画像をファイル名でまとめて入れる ----
+     nemu.built：{ at, pages:[{ pid:作品の id, panels:[コマのレイヤーの id] }] }（作ったページとコマの対応。画像をまとめて入れるときに使う） */
+  const NM_BUB = { // セリフの種類 → 吹き出し（短い辺 1000px のときの値）
+    normal: { frame: 'oval', font: 'sans', size: 34, pad: 14, lineW: 3, tail: true },
+    shout: { frame: 'shout', font: 'pop', bold: false, size: 40, pad: 18, lineW: 4, tail: true },
+    think: { frame: 'think', font: 'maru', size: 32, pad: 14, lineW: 3, tail: true },
+    narration: { frame: 'plate', font: 'serif', bold: false, size: 30, pad: 12, lineW: 2.5, tail: false },
+  };
+  // コマの並び：大ゴマ・横長は1段まるごと。縦長・正方形は1段に2つ（小ゴマだけなら3つ）まで。日本の漫画なので、段の中は右から読む
+  function nmRows(panels) {
+    const rows = [];
+    panels.forEach((k, i) => {
+      const wide = k.size === 'large' || k.ar === 'landscape';
+      if (wide) { rows.push({ idx: [i], h: k.size === 'large' ? 1.7 : k.size === 'small' ? 0.75 : 1, open: false }); return; }
+      const last = rows[rows.length - 1];
+      const cap = last && last.idx.every((j) => panels[j].size === 'small') && k.size === 'small' ? 3 : 2;
+      if (last && last.open && last.idx.length < cap) { last.idx.push(i); last.h = Math.max(last.h, k.size === 'small' ? 0.9 : 1.15); }
+      else rows.push({ idx: [i], h: k.size === 'small' ? 0.9 : 1.15, open: true });
+    });
+    return rows;
+  }
+  function nmPolys(panels, W, H, m, g) {
+    const rows = nmRows(panels), out = new Array(panels.length);
+    if (!rows.length) return [];
+    const x0 = m, x1 = W - m, cw = x1 - x0, usable = H - m * 2 - g * (rows.length - 1), total = rows.reduce((a, r) => a + r.h, 0);
+    let y = m;
+    rows.forEach((r) => {
+      const rh = usable * r.h / total, ws = r.idx.map((j) => (panels[j].size === 'small' ? 0.8 : 1)), wsum = ws.reduce((a, b) => a + b, 0);
+      const avail = cw - g * (r.idx.length - 1);
+      let xr = x1; // 右から
+      r.idx.forEach((j, n) => {
+        const w = avail * ws[n] / wsum;
+        out[j] = [[xr - w, y], [xr, y], [xr, y + rh], [xr - w, y + rh]];
+        xr -= w + g;
+      });
+      y += rh + g;
+    });
+    return out;
+  }
+  // 縦書きの吹き出しの改行（1行 per 字まで。句読点・！？のあとで切りやすく）
+  function nmBreak(text, per) {
+    const out = [];
+    String(text).replace(/[ 　]+/g, '').split('\n').forEach((seg) => {
+      let cur = '';
+      const cs = [...seg], P = /[、。！？!?…」ー]/;
+      cs.forEach((ch, i) => {
+        cur += ch;
+        if (P.test(cs[i + 1] || '')) return; // 「！？」「……」の途中では切らない（行の頭に記号が来ないように）
+        if (cur.length >= per || (P.test(ch) && cur.length >= per * 0.6)) { out.push(cur); cur = ''; }
+      });
+      if (cur) { if (out.length && /^[、。！？!?…ー」]+$/.test(cur)) out[out.length - 1] += cur; else out.push(cur); }
+    });
+    return out.slice(0, 12).join('\n');
+  }
+  function nmKana(s) { // 素材の名前と効果音を比べるため（全角半角・ひらがな/カタカナ・空白をそろえる）
+    return String(s || '').normalize('NFKC').replace(/\s+/g, '').replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60)).toLowerCase();
+  }
+  function nmPanelBox(P) { const b = ptsBox(P.pts); return { x0: P.x + b.x0, x1: P.x + b.x1, y0: P.y + b.y0, y1: P.y + b.y1 }; }
+  async function nmWhitePage(W, H) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    const blob = await canvasToBlob(c, 'image/png');
+    const rec = { id: genId(), blob, type: 'image/png', w: W, h: H, name: '白いページ', lib: false, createdAt: Date.now() };
+    await putOne(wdb, S_BLOBS, rec);
+    return rec;
+  }
+  // 1ページぶんのレイヤーを作る：{ layers, panelIds, cut }
+  function nmPageLayers(np, pi, W, H, st, opt, sfxMap) {
+    const short = Math.min(W, H), k1 = short / 1000;
+    const panels = nmPolys(np.panels, W, H, st.margin, st.gutter).map((poly, ki) => {
+      const P = panelFromPoly(poly, st);
+      P.note = `${pi + 1}-${ki + 1}　${np.panels[ki].scene || ''}`.slice(0, 300);
+      return P;
+    });
+    const lines = [], sfx = [], bubbles = [];
+    np.panels.forEach((k, ki) => {
+      const P = panels[ki]; if (!P) return;
+      const bx = nmPanelBox(P), pw = bx.x1 - bx.x0, ph = bx.y1 - bx.y0, inset = Math.min(pw, ph) * 0.05;
+      if (opt.fx && k.fx !== 'none') {
+        const L = normLayer({ type: 'lines', x: 0, y: 0, w: 10, h: 10, mode: k.fx, count: k.fx === 'speed' ? 90 : 140,
+          thick: Math.max(1, Math.round(short * 0.006)), inner: 45, jitter: 50, seed: 1 + Math.floor(Math.random() * 1e9) });
+        fitLinesToPanel(L, P); lines.push(L);
+      }
+      if (opt.sfx) k.sfx.slice(0, 3).forEach((t, si) => {
+        const cx = bx.x0 + pw * (0.22 + 0.2 * si), cy = bx.y1 - ph * (0.2 + 0.12 * (si % 2));
+        const it = sfxMap.get(nmKana(t));
+        if (it) { // 素材パックに同じ名前の素材があれば、それを貼る
+          const s = Math.min(pw * 0.32 / it.w, ph * 0.35 / it.h);
+          sfx.push(normLayer({ type: 'image', blobId: it.blobId, name: it.name, w0: it.w, h0: it.h, x: cx, y: cy, scale: s, rot: -6 }));
+        } else {
+          const sst = normSt({ frame: 'none', font: 'pop', bold: false, size: 64, color: '#111111', strokeW: 7, strokeC: '#ffffff', vertical: false, tail: false });
+          scaleSt(sst, k1);
+          const L = normLayer({ type: 'text', text: t, st: sst, x: cx, y: cy, rot: -8 });
+          const b = layerBox(L); L.scale = Math.min(1, pw * 0.4 / b.w, ph * 0.3 / b.h);
+          sfx.push(L);
+        }
+      });
+      if (opt.bubbles && k.lines.length) {
+        const made = k.lines.map((l) => {
+          const bst = normSt(Object.assign({}, NM_BUB[l.type] || NM_BUB.normal, { vertical: opt.vertical }));
+          scaleSt(bst, k1);
+          const per = Math.round(clamp((ph * 0.62 - bst.pad * 2) / (bst.size * 1.02), 3, opt.vertical ? 10 : 14)); // 1行の字数はコマの高さ（横書きは幅）から
+          const L = normLayer({ type: 'text', text: opt.vertical ? nmBreak(l.text, per) : nmBreak(l.text, Math.round(clamp((pw * 0.5 - bst.pad * 2) / (bst.size * 1.02), 4, 14))), st: bst, x: 0, y: 0 });
+          if (hasTail(L)) L.tail = defaultTail(L);
+          return { L, b: layerBox(L) };
+        });
+        const gap = inset * 0.6, sumW = made.reduce((a, m) => a + m.b.w, 0) + gap * (made.length - 1), maxH = Math.max(...made.map((m) => m.b.h));
+        const s = Math.min(1, (pw - inset * 2) / sumW, ph * 0.72 / maxH);
+        let xr = bx.x1 - inset;
+        made.forEach((m, i) => { // 右上から左へ（読む順）。互い違いに少し下げる
+          m.L.scale = s;
+          m.L.x = xr - m.b.w * s / 2;
+          m.L.y = bx.y0 + inset + m.b.h * s / 2 + (i % 2 ? Math.min(m.b.h * s * 0.2, ph * 0.08) : 0);
+          xr -= m.b.w * s + gap;
+          bubbles.push(m.L);
+        });
+      }
+    });
+    let layers = panels.concat(lines, sfx, bubbles), cut = 0;
+    if (layers.length > MAX_LAYERS) { cut = layers.length - MAX_LAYERS; layers = layers.slice(0, MAX_LAYERS); }
+    return { layers, panelIds: panels.map((P) => P.id), cut };
+  }
+  async function nmSfxMap() {
+    const map = new Map();
+    try {
+      await loadPacks();
+      for (const p of packs) for (const it of p.items) {
+        if (!it || typeof it.blobId !== 'string' || map.has(nmKana(it.name))) continue;
+        const r = await getOne(wdb, S_BLOBS, it.blobId);
+        if (r && r.blob) map.set(nmKana(it.name), { blobId: r.id, name: it.name, w: r.w, h: r.h });
+      }
+    } catch (_) { /* パックがなくても作れる */ }
+    return map;
+  }
+  function nmBuiltAlive(n) { return n.built ? n.built.pages.filter((b) => projects.some((p) => p.id === b.pid)) : []; }
+  function renderNmBuild(e) {
+    const n = e.nemu, sel = $('nmSize');
+    if (!sel.options.length) {
+      sel.innerHTML = PAGE_SIZES.filter((o) => o[0] !== 'custom').map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
+    }
+    const first = projects.find((p) => e.pages.includes(p.id) && !nmBuiltAlive(n).some((b) => b.pid === p.id));
+    const match = first && PAGE_SIZES.find((o) => o[2] === first.W && o[3] === first.H);
+    if (!sel.dataset.touched) sel.value = (match && match[0]) || 'web';
+    $('nmBuildBox').hidden = !n.pages.length;
+    const alive = nmBuiltAlive(n);
+    $('nmBuildInfo').textContent = alive.length ? `前に作ったページ：${alive.length} ページ（${fmtDate(n.built.at)}）。作り直すと、それらは話から外します（ページは一覧に残ります）。` : '';
+    $('nmImgBox').hidden = !alive.length;
+    $('nmPromptBox').hidden = !n.pages.length;
+    setVal('nmHead', n.opt.head || '');
+  }
+  $('nmSize').addEventListener('change', () => { $('nmSize').dataset.touched = '1'; });
+  $('nmBuild').addEventListener('click', async () => {
+    const e = nmEp(); if (!e || !e.nemu.pages.length) return;
+    const n = e.nemu, alive = nmBuiltAlive(n);
+    const o = PAGE_SIZES.find((x) => x[0] === $('nmSize').value) || PAGE_SIZES[0], W = o[2], H = o[3];
+    const opt = { bubbles: $('nmOptBub').checked, vertical: $('nmOptVert').checked, sfx: $('nmOptSfx').checked, fx: $('nmOptFx').checked };
+    const msg = `ネーム（${n.pages.length} ページ）から、${o[1]} のページを作って「${e.name}」の最後に足します。` + (alive.length ? `前にネームから作ったページ（${alive.length} ページ）は、話から外します（ページそのものは一覧に残るので、要らなければ一覧から削除してください）。` : '');
+    if (!(await confirmBox(msg, '作る', true))) return;
+    busy(true, 'ページを作っています…');
+    const made = [], cuts = [];
+    try {
+      const sfxMap = opt.sfx ? await nmSfxMap() : new Map(), st = pageDefaults(W, H);
+      for (let pi = 0; pi < n.pages.length; pi++) {
+        busy(true, `ページを作っています…（${pi + 1}/${n.pages.length}）`);
+        const brec = await nmWhitePage(W, H);
+        const r = nmPageLayers(n.pages[pi], pi, W, H, st, opt, sfxMap);
+        if (r.cut) cuts.push(`p${pi + 1}`);
+        const now = Date.now();
+        const rec = { id: genId(), name: cleanName(`${e.name} p${pi + 1}`), baseId: brec.id, W, H, layers: r.layers, manga: st, thumb: null, createdAt: now + pi, updatedAt: now };
+        try { const p = projFromRec(rec); await loadImagesFor(p); await ensureFonts(p.layers, 4000); rec.thumb = await makeThumb(p); } catch (_) { /* 見本は次に開いたとき */ }
+        await putOne(wdb, S_PROJ, rec);
+        made.push({ pid: rec.id, panels: r.panelIds });
+      }
+      clearImgCache();
+      await removeFromEpisodes(made.map((m) => m.pid));
+      await nmSave((x, ep) => {
+        const old = (x.built ? x.built.pages : []).map((b) => b.pid);
+        ep.pages = ep.pages.filter((id) => !old.includes(id)).concat(made.map((m) => m.pid));
+        x.built = { at: Date.now(), pages: made };
+      }, false);
+      await loadProjects(); renderList();
+    } catch (err) { showToast('作れませんでした：' + (err && err.message || err), true); }
+    finally { busy(false); }
+    renderNemu();
+    if (made.length) showToast(`${made.length} ページ作りました。下の「プロンプトの一覧」で画像を作り、「画像をまとめて入れる」で入れます` + (cuts.length ? `（${cuts.join('・')} は重ねられる数（${MAX_LAYERS}）を超えた分を省きました）` : ''));
+  });
+
+  // プロンプトの一覧
+  const NM_RATIOS = [[1, 1], [2, 3], [3, 2], [3, 4], [4, 3], [9, 16], [16, 9], [1, 2], [2, 1]];
+  function nmRatio(w, h) {
+    const r = Math.log(w / h); let best = NM_RATIOS[0], d = 1e9;
+    NM_RATIOS.forEach((x) => { const dd = Math.abs(Math.log(x[0] / x[1]) - r); if (dd < d) { d = dd; best = x; } });
+    return `${best[0]}:${best[1]}`;
+  }
+  function nmTags(...parts) { // 「, 」でつなぎ、同じタグは1つに
+    const seen = new Set(), out = [];
+    parts.join(',').split(/[,，\n]/).map((t) => t.trim()).filter(Boolean).forEach((t) => { const k = t.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(t); } });
+    return out.join(', ');
+  }
+  function nmFileName(pi, ki) { return `p${String(pi + 1).padStart(2, '0')}_k${String(ki + 1).padStart(2, '0')}`; }
+  async function nmPromptRows(e) {
+    const n = e.nemu, sizes = new Map();
+    for (const b of nmBuiltAlive(n)) {
+      const rec = await getOne(wdb, S_PROJ, b.pid).catch(() => null); if (!rec) continue;
+      (rec.layers || []).forEach((L) => { if (L && L.type === 'panel' && Array.isArray(L.pts)) { const bb = ptsBox(L.pts); sizes.set(L.id, { w: (bb.x1 - bb.x0) * (L.scale || 1), h: (bb.y1 - bb.y0) * (L.scale || 1) }); } });
+    }
+    const built = n.built ? n.built.pages : [];
+    const rows = [];
+    n.pages.forEach((p, pi) => p.panels.forEach((k, ki) => {
+      const pid = built[pi] && built[pi].panels[ki], sz = pid && sizes.get(pid);
+      const ratio = sz ? nmRatio(sz.w, sz.h) : k.ar === 'landscape' ? '3:2' : k.ar === 'square' ? '1:1' : '2:3';
+      // 2人以上映るコマでは、人物ごとの人数のタグ（1girl・solo など）を外す（コマのタグの 2girls などとぶつからないように）
+      const COUNT = /^(\d\+?\s*(girls?|boys?|others?)|solo|solo focus|multiple (girls|boys))$/i;
+      const charTags = k.chars.map((c) => { const t = (n.chars.find((x) => x.name === c) || {}).tags || ''; return k.chars.length > 1 ? t.split(/[,，]/).map((x) => x.trim()).filter((x) => x && !COUNT.test(x)).join(', ') : t; });
+      const missing = k.chars.filter((c) => !(n.chars.find((x) => x.name === c) || {}).tags);
+      rows.push({ pi, ki, file: nmFileName(pi, ki), ratio, size: sz ? `${Math.round(sz.w)}×${Math.round(sz.h)}` : '', text: nmTags(n.opt.head || '', ...charTags, k.prompt), scene: k.scene, missing });
+    }));
+    return rows;
+  }
+  let nmRowsCache = [];
+  async function renderNmPrompts() {
+    const e = nmEp(); if (!e) return;
+    nmRowsCache = await nmPromptRows(e);
+    $('nmPrompts').innerHTML = nmRowsCache.map((r, i) => `<div class="nm-panel" data-i="${i}">
+      <div class="nm-ph"><b>${r.pi + 1}-${r.ki + 1}</b> ${esc(r.file)}・比率 ${esc(r.ratio)}${r.size ? `（コマ ${esc(r.size)}）` : ''}<span class="spacer"></span><button class="btn small primary" type="button" data-act="copy">コピー</button></div>
+      ${r.scene ? `<div class="nm-meta">${esc(r.scene)}</div>` : ''}
+      ${r.missing.length ? `<div class="nm-meta" style="color:var(--amber)">見た目のタグがない人物：${esc(r.missing.join('、'))}（キャラクター表で足せます）</div>` : ''}
+      <div class="nm-prompt">${esc(r.text) || '（プロンプトなし）'}</div></div>`).join('');
+    $('nmPrompts').hidden = false;
+  }
+  $('nmPromptShow').addEventListener('click', () => { if (!$('nmPrompts').hidden) { $('nmPrompts').hidden = true; return; } renderNmPrompts(); });
+  $('nmHead').addEventListener('change', () => nmSave((n) => { n.opt.head = nmStr($('nmHead').value, 500).replace(/\n+/g, ' '); }, false).then(() => { if (!$('nmPrompts').hidden) renderNmPrompts(); }));
+  $('nmPrompts').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-act="copy"]'), r = ev.target.closest('[data-i]'); if (!b || !r) return;
+    const x = nmRowsCache[+r.dataset.i]; if (x) nmCopy(x.text, `${x.pi + 1}-${x.ki + 1} のプロンプト`);
+  });
+  $('nmPromptAll').addEventListener('click', async () => {
+    const e = nmEp(); if (!e) return;
+    const rows = await nmPromptRows(e);
+    nmCopy(rows.map((r) => `■ ${r.file}（比率 ${r.ratio}）${r.scene ? ' ' + r.scene : ''}\n${r.text}`).join('\n\n'), '全部のプロンプト');
+  });
+
+  // 画像をファイル名でまとめて入れる（p01_k02.png ＝ 1ページ目の2コマ目。1-2.png・01_02.png も可）
+  function nmParseName(name) {
+    const s = String(name || '').replace(/\.[a-z0-9]+$/i, '');
+    let m = s.match(/p\s*0*(\d{1,3})\D{0,3}?k\s*0*(\d{1,3})/i) || s.match(/(?:^|\D)0*(\d{1,3})[-_ ]0*(\d{1,3})(?:\D|$)/);
+    return m ? { pi: +m[1] - 1, ki: +m[2] - 1 } : null;
+  }
+  $('nmImgPick').addEventListener('click', () => $('nmImgFile').click());
+  $('nmImgFile').addEventListener('change', async (ev) => {
+    const files = [...(ev.target.files || [])].slice(0, 300); ev.target.value = '';
+    const e = nmEp(); if (!e || !files.length) return;
+    const n = e.nemu, built = n.built ? n.built.pages : [];
+    const plan = [], skip = [];
+    files.forEach((f) => {
+      const at = nmParseName(f.name), b = at && built[at.pi], pid = b && b.panels[at.ki];
+      if (!at) skip.push(`${f.name}：名前から何ページ目の何コマ目か分かりません`);
+      else if (!b || !projects.some((p) => p.id === b.pid)) skip.push(`${f.name}：${at.pi + 1}ページ目は作っていません`);
+      else if (!pid) skip.push(`${f.name}：${at.pi + 1}-${at.ki + 1} のコマはありません`);
+      else plan.push({ f, pid: b.pid, panel: pid, at });
+    });
+    const dup = new Set(); plan.forEach((x) => { const k = x.panel; if (dup.has(k)) skip.push(`${x.f.name}：同じコマのファイルがほかにもあるので、後のほうを使います`); dup.add(k); });
+    // すでに画像の入っているコマ
+    const recs = new Map();
+    for (const x of plan) if (!recs.has(x.pid)) recs.set(x.pid, await getOne(wdb, S_PROJ, x.pid));
+    const over = plan.filter((x) => { const r = recs.get(x.pid), L = r && (r.layers || []).find((l) => l && l.id === x.panel); return L && L.img; });
+    if (!plan.length) { $('nmImgMsg').innerHTML = '<div class="nm-err">入れられるファイルがありません。</div>' + (skip.length ? `<ul class="nm-msg">${skip.slice(0, 30).map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''); return; }
+    if (!(await confirmBox(`${plan.length} 枚をコマに入れます。` + (over.length ? `そのうち ${over.length} コマは、今入っている画像を差し替えます（そのページを開いて ↶ では戻せません）。` : ''), '入れる', !over.length))) return;
+    busy(true, '画像を入れています…');
+    let ok = 0;
+    try {
+      for (const x of plan) {
+        busy(true, `画像を入れています…（${ok + 1}/${plan.length}）`);
+        const rec = recs.get(x.pid), L = rec && (rec.layers || []).find((l) => l && l.id === x.panel && l.type === 'panel');
+        if (!L) { skip.push(`${x.f.name}：コマが見つかりません（消したかもしれません）`); continue; }
+        try {
+          const r = await importFile(x.f);
+          URL.revokeObjectURL(r.url);
+          const bb = ptsBox(L.pts);
+          L.img = { blobId: r.rec.id, name: r.rec.name, w0: r.rec.w, h0: r.rec.h, ox: (bb.x0 + bb.x1) / 2, oy: (bb.y0 + bb.y1) / 2, s: coverScale(L, r.rec.w, r.rec.h), r: 0 };
+          ok++;
+        } catch (err) { skip.push(`${x.f.name}：${err.message || err}`); }
+      }
+      for (const rec of recs.values()) {
+        if (!rec) continue;
+        rec.updatedAt = Date.now();
+        try { const p = projFromRec(rec); await loadImagesFor(p); await ensureFonts(p.layers, 4000); rec.thumb = await makeThumb(p); } catch (_) { /* 見本は次に開いたとき */ }
+        await putOne(wdb, S_PROJ, rec);
+      }
+      clearImgCache();
+      await loadProjects(); renderList();
+    } catch (err) { showToast('入れられませんでした：' + (err && err.message || err), true); }
+    finally { busy(false); }
+    $('nmImgMsg').innerHTML = `<div class="nm-ok">${ok} 枚入れました。</div>` + (skip.length ? `<ul class="nm-msg">${skip.slice(0, 30).map((s) => `<li>${esc(s)}</li>`).join('')}${skip.length > 30 ? `<li>ほか ${skip.length - 30} 件</li>` : ''}</ul>` : '');
+    if (ok) showToast(`${ok} 枚入れました。話の画面からページを開いて、位置や吹き出しを整えてください`);
   });
 
   /* ---- MANUSCRIPT から読み込む（同じ origin の sideops_manuscript を読むだけ。書き換えない・ない DB は作らない） ---- */
